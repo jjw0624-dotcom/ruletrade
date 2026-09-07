@@ -1,0 +1,13 @@
+api_version: ruletrade.dev/simple/v0
+name: monthly-dca-qqq-voo
+currency: USD
+initial_capital: "10000"
+recurring_contribution:
+  amount: "500"
+  frequency: monthly
+rebalance: monthly
+assets:
+  - symbol: QQQ
+    weight: "0.40"
+  - symbol: VOO
+    weight: "0.60"
