@@ -43,13 +43,12 @@ def evaluate_strategy(
     context: StrategyContext,
     state: StrategyState,
 ) -> RuntimeResult:
-    resolution = resolve_portfolio(strategy)
     del context
 
     resolution = resolve_portfolio(
-    strategy,
-    event_id=event.event_id,
-)
+        strategy,
+        event_id=event.event_id,
+    )
 
     intent = RebalanceIntent(
         target_weights=dict(resolution.target_weights)

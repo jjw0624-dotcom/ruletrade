@@ -1,8 +1,12 @@
-# RuleTrade MVP 0.1
+# RuleTrade MVP
 
 This repository is the first vertical slice of RuleTrade:
 
 `Simple strategy YAML -> validated semantic hash -> bt compilation -> backtest -> normalized JSON -> FastAPI`
+
+It also contains the engine-independent Strategy Core v0 and the Canonical Strategy v1 foundation.
+Canonical v1 combines a typed component graph with expression/action ASTs so future Guided, Rules,
+Flow, Blocks, and Code editors can operate on one semantic document.
 
 ## Scope
 
@@ -18,14 +22,18 @@ Included:
 - CLI and FastAPI
 - Deterministic synthetic dataset
 - Unit tests and an optional `bt` integration test
+- Strategy Core v0 with deterministic group selection, allocation, runtime intents, and traces
+- LEAN execution adapter and runtime bridge for the v0 subset
+- Canonical Strategy v1 types, Primitive Registry, graph/AST models, semantic validation, and hashing
 
 Not included yet:
 
-- Conditions such as SMA, RSI, or drawdown
+- Canonical v1 execution and LEAN C# generation
 - Strategy revisions and database storage
-- Next.js user interface
+- React authoring interface
 - Forward tests and competitions
-- LEAN and buylow integration
+
+See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the current architecture boundary.
 
 ## Exact cash-flow semantics
 

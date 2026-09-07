@@ -7,12 +7,15 @@ from fastapi import FastAPI, HTTPException
 
 from ruletrade import __version__
 from ruletrade.compile_plan import build_bt_plan
+from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
-from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v1.validation import collect_semantic_issues
+
 
 def default_data_dir() -> Path:
     configured = os.getenv("RULETRADE_DATA_DIR")
@@ -123,4 +126,30 @@ def resolve_core_strategy(
             }
             for group in resolution.groups
         ],
+    }
+
+
+@app.get("/v1/canonical/strategies/schema")
+def canonical_strategy_v1_schema() -> dict[str, object]:
+    return CanonicalStrategyV1.model_json_schema()
+
+
+@app.post("/v1/canonical/strategies/validate")
+def validate_canonical_strategy_v1(
+    spec: CanonicalStrategyV1,
+) -> dict[str, object]:
+    issues = collect_semantic_issues(spec)
+    if issues:
+        raise HTTPException(
+            status_code=422,
+            detail=[
+                {"path": issue.path, "message": issue.message}
+                for issue in issues
+            ],
+        )
+
+    return {
+        "valid": True,
+        "strategy_hash": strategy_hash(spec),
+        "strategy": spec.model_dump(mode="json"),
     }
