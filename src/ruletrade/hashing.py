@@ -7,9 +7,10 @@ from typing import Any
 
 from ruletrade.domain import SimpleStrategySpec
 from ruletrade.strategy.models import StrategyDocument
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
-HashableStrategy = SimpleStrategySpec | StrategyDocument
+HashableStrategy = SimpleStrategySpec | StrategyDocument | CanonicalStrategyV1
 
 
 def _decimal_text(value: Decimal) -> str:
@@ -61,6 +62,46 @@ def _core_semantic_payload(
     return _normalize_value(payload)
 
 
+def _v1_semantic_payload(
+    spec: CanonicalStrategyV1,
+) -> dict[str, Any]:
+    payload = spec.model_dump(
+        mode="python",
+        exclude={"metadata"},
+    )
+
+    definitions = payload["definitions"]
+    for collection in ("asset_sets", "parameters", "state"):
+        definitions[collection] = sorted(
+            definitions[collection],
+            key=lambda item: item["id"],
+        )
+
+    graph = payload["graph"]
+    graph["components"] = sorted(
+        graph["components"],
+        key=lambda item: item["id"],
+    )
+    graph["connections"] = sorted(
+        graph["connections"],
+        key=lambda item: (
+            item["source"]["component_id"],
+            item["source"]["port"],
+            item["target"]["component_id"],
+            item["target"]["port"],
+        ),
+    )
+    payload["entrypoints"] = sorted(
+        payload["entrypoints"],
+        key=lambda item: (
+            item["event_component_id"],
+            item["target_component_id"],
+        ),
+    )
+
+    return _normalize_value(payload)
+
+
 def _normalize_value(value: Any) -> Any:
     if isinstance(value, Decimal):
         return _decimal_text(value)
@@ -88,6 +129,9 @@ def semantic_payload(
 
     if isinstance(spec, StrategyDocument):
         return _core_semantic_payload(spec)
+
+    if isinstance(spec, CanonicalStrategyV1):
+        return _v1_semantic_payload(spec)
 
     raise TypeError(
         f"unsupported strategy type: {type(spec).__name__}"

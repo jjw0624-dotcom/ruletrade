@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from ruletrade.api import app
+from ruletrade.strategy.v1.fixtures import GOLDEN_PORTFOLIO_PAYLOAD
 
 
 client = TestClient(app)
@@ -146,3 +147,31 @@ def test_rejects_invalid_core_strategy() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_validate_canonical_v1_strategy() -> None:
+    response = client.post(
+        "/v1/canonical/strategies/validate",
+        json=GOLDEN_PORTFOLIO_PAYLOAD,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is True
+    assert response.json()["strategy_hash"].startswith("sha256:")
+
+
+def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
+    payload = {
+        **GOLDEN_PORTFOLIO_PAYLOAD,
+        "entrypoints": [
+            {"event_component_id": "rebalance", "target_component_id": "monthly"}
+        ],
+    }
+
+    response = client.post(
+        "/v1/canonical/strategies/validate",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["path"].startswith("entrypoints")
