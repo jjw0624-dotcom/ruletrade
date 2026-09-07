@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 .env
 results/
+build/
 
 # Local diagnostics
 pytest-warnings.txt
