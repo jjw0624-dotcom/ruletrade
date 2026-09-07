@@ -163,3 +163,13 @@ class StrategyDocument(BaseModel):
             )
 
         return self
+
+
+class ResolveStrategyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: StrategyDocument
+    event_id: Annotated[
+        str,
+        Field(min_length=1, max_length=100),
+    ]

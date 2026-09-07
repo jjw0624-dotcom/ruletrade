@@ -11,7 +11,8 @@ from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
-
+from ruletrade.core.portfolio import resolve_portfolio
+from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
 
 def default_data_dir() -> Path:
     configured = os.getenv("RULETRADE_DATA_DIR")
@@ -77,4 +78,49 @@ def execute_backtest(request: BacktestRequest) -> dict[str, object]:
         "strategy_hash": strategy_hash(request.strategy),
         "dataset_id": request.dataset_id,
         "result": result,
+    }
+
+
+@app.post("/v1/core/strategies/validate")
+def validate_core_strategy(
+    spec: StrategyDocument,
+) -> dict[str, object]:
+    return {
+        "valid": True,
+        "strategy_hash": strategy_hash(spec),
+        "strategy": spec.model_dump(mode="json"),
+    }
+
+
+@app.post("/v1/core/strategies/resolve")
+def resolve_core_strategy(
+    request: ResolveStrategyRequest,
+) -> dict[str, object]:
+    resolution = resolve_portfolio(
+        request.strategy,
+        event_id=request.event_id,
+    )
+
+    return {
+        "strategy_hash": strategy_hash(request.strategy),
+        "event_id": request.event_id,
+        "targets": {
+            symbol: str(weight)
+            for symbol, weight in resolution.target_weights.items()
+        },
+        "groups": [
+            {
+                "group_id": group.group_id,
+                "selected_symbols": list(group.selected_symbols),
+                "local_weights": {
+                    symbol: str(weight)
+                    for symbol, weight in group.local_weights.items()
+                },
+                "portfolio_weights": {
+                    symbol: str(weight)
+                    for symbol, weight in group.portfolio_weights.items()
+                },
+            }
+            for group in resolution.groups
+        ],
     }
