@@ -8,7 +8,7 @@ from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 from ruletrade.strategy.v1.randomness import deterministic_random_seed
-from scripts.verify_lean_e2e import INTEREST_RATE_WARNING, validate_golden_e2e
+from ruletrade.compiler.lean.e2e import INTEREST_RATE_WARNING, validate_golden_e2e
 
 
 EVENTS = (
