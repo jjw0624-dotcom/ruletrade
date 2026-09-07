@@ -25,7 +25,7 @@ def _decimal_literal(value: Decimal) -> str:
 
 
 def _seed_expression(plan: LeanPlan, selection: LeanRandomSelection) -> str:
-    event_argument = "Time.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture)"
+    event_argument = "eventIdentity"
     if selection.resample == "once":
         event_argument = "null"
     return (
@@ -211,23 +211,30 @@ def generate_csharp(
         "using System.Text.Json;",
         "using QuantConnect;",
         "using QuantConnect.Algorithm;",
+        "using QuantConnect.Data;",
         "",
         f"public class {settings.algorithm_class} : QCAlgorithm",
         "{",
         "    private readonly Dictionary<string, Symbol> _symbols = new Dictionary<string, Symbol>();",
-        "",
-        "    public override void Initialize()",
-        "    {",
-        (
-            f"        SetStartDate({settings.start_date.year}, {settings.start_date.month}, "
-            f"{settings.start_date.day});"
-        ),
-        (
-            f"        SetEndDate({settings.end_date.year}, {settings.end_date.month}, "
-            f"{settings.end_date.day});"
-        ),
-        f"        SetCash({_decimal_literal(settings.initial_cash)});",
     ]
+    for index in range(len(plan.monthly_events)):
+        lines.append(f"    private string _pendingEvent{index};")
+    lines.extend(
+        (
+            "",
+            "    public override void Initialize()",
+            "    {",
+            (
+                f"        SetStartDate({settings.start_date.year}, {settings.start_date.month}, "
+                f"{settings.start_date.day});"
+            ),
+            (
+                f"        SetEndDate({settings.end_date.year}, {settings.end_date.month}, "
+                f"{settings.end_date.day});"
+            ),
+            f"        SetCash({_decimal_literal(settings.initial_cash)});",
+        )
+    )
     for subscription in plan.subscriptions:
         ticker = _csharp_string(subscription.symbol)
         lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
@@ -236,12 +243,62 @@ def generate_csharp(
         lines.append(
             "        Schedule.On("
             f"DateRules.MonthStart(_symbols[{anchor}], {event.day - 1}), "
-            f"TimeRules.AfterMarketOpen(_symbols[{anchor}], 1), ExecuteEvent{index});"
+            f"TimeRules.AfterMarketOpen(_symbols[{anchor}], 1), QueueEvent{index});"
         )
     lines.extend(("    }", ""))
 
     for event_index, event in enumerate(plan.monthly_events):
-        lines.extend((f"    private void ExecuteEvent{event_index}()", "    {"))
+        lines.extend(
+            (
+                f"    private void QueueEvent{event_index}()",
+                "    {",
+                (
+                    f"        _pendingEvent{event_index} = "
+                    'Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);'
+                ),
+                "    }",
+                "",
+            )
+        )
+
+    lines.extend(("    public override void OnData(Slice slice)", "    {"))
+    for event_index in range(len(plan.monthly_events)):
+        lines.extend(
+            (
+                (
+                    f"        if (_pendingEvent{event_index} != null "
+                    f"&& Event{event_index}DataIsReady(slice))"
+                ),
+                "        {",
+                f"            var eventIdentity = _pendingEvent{event_index};",
+                f"            _pendingEvent{event_index} = null;",
+                f"            ExecuteEvent{event_index}(eventIdentity);",
+                "        }",
+            )
+        )
+    lines.extend(("    }", ""))
+
+    for event_index, event in enumerate(plan.monthly_events):
+        tickers = ", ".join(_csharp_string(item) for item in event.execution.required_symbols)
+        lines.extend(
+            (
+                f"    private bool Event{event_index}DataIsReady(Slice slice)",
+                "    {",
+                f"        return new[] {{ {tickers} }}.All(ticker =>",
+                "        {",
+                "            var symbol = _symbols[ticker];",
+                (
+                    "            return slice.Bars.ContainsKey(symbol) "
+                    "&& Securities[symbol].HasData && Securities[symbol].Price > 0m;"
+                ),
+                "        });",
+                "    }",
+                "",
+            )
+        )
+
+    for event_index, event in enumerate(plan.monthly_events):
+        lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
             targets_variable = f"targets{event_index}_{rebalance_index}"
@@ -296,8 +353,7 @@ def generate_csharp(
                         "SetHoldings(target.Key, target.Value);"
                     ),
                     (
-                        '        Debug("RULETRADE_TARGETS|" + '
-                        'Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)'
+                        '        Debug("RULETRADE_TARGETS|" + eventIdentity'
                     ),
                     (
                         f'            + "|selected=" + string.Join(",", {selected_variable}'

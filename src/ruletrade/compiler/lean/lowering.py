@@ -6,6 +6,7 @@ from typing import Literal, Mapping, cast
 from ruletrade.compiler.lean.analysis import analyze_dependencies
 from ruletrade.compiler.lean.plan import (
     LeanMonthlyEvent,
+    LeanOnDataExecution,
     LeanPlan,
     LeanRandomSelection,
     LeanRebalance,
@@ -144,6 +145,11 @@ def lower_to_lean_plan(
                 day=day,
                 anchor_symbol=dependencies.subscriptions[0].symbol,
                 rebalance_ids=(target.id,),
+                execution=LeanOnDataExecution(
+                    required_symbols=tuple(
+                        subscription.symbol for subscription in dependencies.subscriptions
+                    ),
+                ),
             )
         )
 

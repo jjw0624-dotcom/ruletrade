@@ -38,11 +38,17 @@ class LeanRebalance:
 
 
 @dataclass(frozen=True)
+class LeanOnDataExecution:
+    required_symbols: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class LeanMonthlyEvent:
     id: str
     day: int
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
+    execution: LeanOnDataExecution
 
 
 @dataclass(frozen=True)
@@ -76,9 +82,9 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
     _unique_by_id(plan.rebalances, "rebalance")
     _unique_by_id(plan.monthly_events, "monthly event")
 
-    grouped_events: dict[tuple[int, str], LeanMonthlyEvent] = {}
+    grouped_events: dict[tuple[int, str, LeanOnDataExecution], LeanMonthlyEvent] = {}
     for event in sorted(plan.monthly_events, key=lambda item: item.id):
-        key = (event.day, event.anchor_symbol)
+        key = (event.day, event.anchor_symbol, event.execution)
         existing = grouped_events.get(key)
         if existing is None:
             grouped_events[key] = event

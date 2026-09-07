@@ -18,6 +18,14 @@ def test_lowering_produces_typed_golden_lean_plan() -> None:
         ("safe_weights", "0.30", None),
     ]
     assert plan.rebalances[0].sleeve_ids == ("growth_weights", "safe_weights")
+    assert plan.monthly_events[0].execution.required_symbols == (
+        "IEF",
+        "QQQ",
+        "SCHG",
+        "SOXX",
+        "TLT",
+        "VGT",
+    )
 
 
 def test_normalization_deduplicates_subscriptions_and_groups_events() -> None:
@@ -27,6 +35,7 @@ def test_normalization_deduplicates_subscriptions_and_groups_events() -> None:
         day=1,
         anchor_symbol=plan.monthly_events[0].anchor_symbol,
         rebalance_ids=("other_rebalance",),
+        execution=plan.monthly_events[0].execution,
     )
     duplicated = replace(
         plan,
