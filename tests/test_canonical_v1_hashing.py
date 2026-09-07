@@ -32,3 +32,32 @@ def test_v1_semantic_change_changes_hash() -> None:
     second = CanonicalStrategyV1.model_validate(payload)
 
     assert strategy_hash(first) != strategy_hash(second)
+
+
+def test_v1_equivalent_decimal_scales_have_same_hash() -> None:
+    first = CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload = deepcopy(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload["graph"]["components"][3]["config"]["total"] = "0.7000"
+    payload["graph"]["components"][5]["config"]["total"] = "0.300"
+    second = CanonicalStrategyV1.model_validate(payload)
+
+    assert strategy_hash(first) == strategy_hash(second)
+
+
+def test_v1_random_seed_changes_semantic_hash() -> None:
+    first = CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload = deepcopy(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload["random_seed"] = 456
+    second = CanonicalStrategyV1.model_validate(payload)
+
+    assert strategy_hash(first) != strategy_hash(second)
+
+
+def test_v1_implicit_and_explicit_registry_defaults_have_same_hash() -> None:
+    explicit = CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload = deepcopy(GOLDEN_PORTFOLIO_PAYLOAD)
+    del payload["graph"]["components"][0]["config"]["day"]
+    del payload["graph"]["components"][2]["config"]["resample"]
+    implicit = CanonicalStrategyV1.model_validate(payload)
+
+    assert strategy_hash(explicit) == strategy_hash(implicit)

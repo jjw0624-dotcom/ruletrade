@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
@@ -13,6 +14,7 @@ class PrimitiveCategory(StrEnum):
     RULE = "rule"
     ALLOCATOR = "allocator"
     EFFECT = "effect"
+    INDICATOR = "indicator"
 
 
 class BackendCapability(StrEnum):
@@ -20,6 +22,10 @@ class BackendCapability(StrEnum):
     FRAMEWORK = "framework"
     GENERATED = "generated"
     COMPOSITE = "composite"
+
+
+class DefinitionReference(StrEnum):
+    ASSET_SET = "asset_set"
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,11 @@ class PrimitiveFieldSpec:
     value_type: ValueType
     required: bool = True
     default: Any = None
+    minimum: Decimal | None = None
+    maximum: Decimal | None = None
+    exclusive_minimum: bool = False
+    choices: tuple[Any, ...] = ()
+    reference: DefinitionReference | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +59,7 @@ class PrimitiveSpec:
     authoring_views: frozenset[str] = frozenset()
     backend_capability: BackendCapability = BackendCapability.GENERATED
     implementation_id: str = ""
+    result_type: ValueType | None = None
 
 
 class PrimitiveRegistry:
@@ -59,6 +71,8 @@ class PrimitiveRegistry:
     def register(self, primitive: PrimitiveSpec) -> None:
         if primitive.id in self._primitives:
             raise ValueError(f"primitive already registered: {primitive.id}")
+        if primitive.category == PrimitiveCategory.INDICATOR and primitive.result_type is None:
+            raise ValueError("indicator primitives require a result type")
         self._primitives[primitive.id] = primitive
 
     def get(self, primitive_id: str) -> PrimitiveSpec:
@@ -69,6 +83,16 @@ class PrimitiveRegistry:
 
     def all(self) -> tuple[PrimitiveSpec, ...]:
         return tuple(self._primitives[key] for key in sorted(self._primitives))
+
+    def resolve_config(self, primitive_id: str, config: dict[str, Any]) -> dict[str, Any]:
+        primitive = self.get(primitive_id)
+        resolved = {
+            field.name: field.default
+            for field in primitive.fields
+            if not field.required and field.name not in config
+        }
+        resolved.update(config)
+        return resolved
 
 
 COMMON_VIEWS = frozenset({"guided", "rules", "flow", "blocks", "code"})
@@ -83,7 +107,16 @@ def build_builtin_registry() -> PrimitiveRegistry:
             PrimitiveSpec(
                 id="monthly@1",
                 category=PrimitiveCategory.EVENT,
-                fields=(PrimitiveFieldSpec("day", ValueType.INTEGER, required=False, default=1),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "day",
+                        ValueType.INTEGER,
+                        required=False,
+                        default=1,
+                        minimum=Decimal("1"),
+                        maximum=Decimal("31"),
+                    ),
+                ),
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.NATIVE,
                 implementation_id="event.monthly",
@@ -92,7 +125,13 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 id="asset_set@1",
                 category=PrimitiveCategory.TRANSFORM,
                 outputs=(asset_set_port,),
-                fields=(PrimitiveFieldSpec("asset_set_ref", ValueType.STRING),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "asset_set_ref",
+                        ValueType.STRING,
+                        reference=DefinitionReference.ASSET_SET,
+                    ),
+                ),
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.NATIVE,
                 implementation_id="asset_set.named",
@@ -103,8 +142,14 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 inputs=(PortSpec("assets", ValueType.ASSET_SET),),
                 outputs=(PortSpec("selected", ValueType.ASSET_SET),),
                 fields=(
-                    PrimitiveFieldSpec("count", ValueType.INTEGER),
-                    PrimitiveFieldSpec("resample", ValueType.STRING, required=False, default="per_event"),
+                    PrimitiveFieldSpec("count", ValueType.INTEGER, minimum=Decimal("1")),
+                    PrimitiveFieldSpec(
+                        "resample",
+                        ValueType.STRING,
+                        required=False,
+                        default="per_event",
+                        choices=("once", "per_event"),
+                    ),
                 ),
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.GENERATED,
@@ -115,7 +160,15 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 category=PrimitiveCategory.ALLOCATOR,
                 inputs=(PortSpec("assets", ValueType.ASSET_SET),),
                 outputs=(targets_port,),
-                fields=(PrimitiveFieldSpec("total", ValueType.PERCENTAGE),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "total",
+                        ValueType.PERCENTAGE,
+                        minimum=Decimal("0"),
+                        maximum=Decimal("1"),
+                        exclusive_minimum=True,
+                    ),
+                ),
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.NATIVE,
                 implementation_id="allocation.equal_weight",

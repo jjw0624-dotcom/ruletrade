@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 from ruletrade.strategy.v1.models import (
     Action,
@@ -27,8 +28,11 @@ from ruletrade.strategy.v1.models import (
 )
 from ruletrade.strategy.v1.registry import (
     BUILTIN_REGISTRY,
+    DefinitionReference,
     PrimitiveCategory,
+    PrimitiveFieldSpec,
     PrimitiveRegistry,
+    PrimitiveSpec,
 )
 from ruletrade.strategy.v1.types import NUMERIC_TYPES, ValueType, value_matches_type
 
@@ -48,8 +52,77 @@ class StrategySemanticError(ValueError):
         super().__init__("; ".join(str(issue) for issue in issues))
 
 
+DefinitionIds = dict[DefinitionReference, set[str]]
+
+
+def _definition_ids(strategy: CanonicalStrategyV1) -> DefinitionIds:
+    return {
+        DefinitionReference.ASSET_SET: {
+            definition.id for definition in strategy.definitions.asset_sets
+        },
+    }
+
+
+def _field_issues(
+    fields: tuple[PrimitiveFieldSpec, ...],
+    values: dict[str, object],
+    path: str,
+    definition_ids: DefinitionIds,
+) -> list[SemanticIssue]:
+    issues: list[SemanticIssue] = []
+    by_name = {field.name: field for field in fields}
+
+    for name in sorted(set(values) - set(by_name)):
+        issues.append(SemanticIssue(f"{path}.{name}", "unknown field"))
+
+    for field in fields:
+        field_path = f"{path}.{field.name}"
+        if field.name not in values:
+            if field.required:
+                issues.append(SemanticIssue(field_path, "required field is missing"))
+            continue
+
+        value = values[field.name]
+        if not value_matches_type(value, field.value_type):
+            issues.append(SemanticIssue(field_path, f"value does not match {field.value_type}"))
+            continue
+        if field.choices and value not in field.choices:
+            choices = ", ".join(str(choice) for choice in field.choices)
+            issues.append(SemanticIssue(field_path, f"must be one of: {choices}"))
+        if field.minimum is not None or field.maximum is not None:
+            try:
+                number = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                number = None
+            if number is not None and field.minimum is not None:
+                below_minimum = number < field.minimum
+                at_exclusive_minimum = field.exclusive_minimum and number == field.minimum
+                if below_minimum or at_exclusive_minimum:
+                    qualifier = "greater than" if field.exclusive_minimum else "at least"
+                    issues.append(
+                        SemanticIssue(field_path, f"must be {qualifier} {field.minimum}")
+                    )
+            if number is not None and field.maximum is not None and number > field.maximum:
+                issues.append(SemanticIssue(field_path, f"must be at most {field.maximum}"))
+        if field.reference is not None:
+            if not isinstance(value, str) or value not in definition_ids[field.reference]:
+                reference_label = field.reference.value.replace("_", " ")
+                issues.append(
+                    SemanticIssue(field_path, f"unknown {reference_label}: {value}")
+                )
+
+    return issues
+
+
 class _TypeChecker:
-    def __init__(self, strategy: CanonicalStrategyV1) -> None:
+    def __init__(
+        self,
+        strategy: CanonicalStrategyV1,
+        registry: PrimitiveRegistry,
+        definition_ids: DefinitionIds,
+    ) -> None:
+        self.registry = registry
+        self.definition_ids = definition_ids
         self.parameters = {
             definition.id: definition.value_type
             for definition in strategy.definitions.parameters
@@ -68,10 +141,28 @@ class _TypeChecker:
             return self._lookup(self.state, expression.state_id, path, "state")
         if isinstance(expression, (PriceExpression, AverageCostExpression)):
             self.require(expression.asset, ValueType.ASSET, f"{path}.asset")
-            return ValueType.MONEY
+            return ValueType.MONEY_PER_SHARE
         if isinstance(expression, IndicatorExpression):
             self.require(expression.asset, ValueType.ASSET, f"{path}.asset")
-            return ValueType.DECIMAL
+            try:
+                indicator = self.registry.get(expression.indicator_id)
+            except KeyError as exc:
+                raise StrategySemanticError(
+                    [SemanticIssue(f"{path}.indicator_id", f"unknown indicator: {expression.indicator_id}")]
+                ) from exc
+            if indicator.category != PrimitiveCategory.INDICATOR or indicator.result_type is None:
+                raise StrategySemanticError(
+                    [SemanticIssue(f"{path}.indicator_id", "registered primitive is not an indicator")]
+                )
+            field_issues = _field_issues(
+                indicator.fields,
+                expression.parameters,
+                f"{path}.parameters",
+                self.definition_ids,
+            )
+            if field_issues:
+                raise StrategySemanticError(field_issues)
+            return indicator.result_type
         if isinstance(expression, ArithmeticExpression):
             left = self.expression_type(expression.left, f"{path}.left")
             right = self.expression_type(expression.right, f"{path}.right")
@@ -82,6 +173,13 @@ class _TypeChecker:
             if left != right:
                 raise StrategySemanticError(
                     [SemanticIssue(path, f"comparison operands differ: {left} vs {right}")]
+                )
+            if expression.operator not in {"eq", "neq"} and left not in NUMERIC_TYPES | {
+                ValueType.DATETIME,
+                ValueType.DURATION,
+            }:
+                raise StrategySemanticError(
+                    [SemanticIssue(path, f"{expression.operator} is not valid for {left}")]
                 )
             return ValueType.BOOLEAN
         if isinstance(expression, BooleanExpression):
@@ -166,13 +264,18 @@ class _TypeChecker:
                 return right
             if right == ValueType.DECIMAL:
                 return left
-            if left == ValueType.PERCENTAGE and right in {ValueType.MONEY, ValueType.SHARES}:
+            scalable = {ValueType.MONEY, ValueType.MONEY_PER_SHARE, ValueType.SHARES}
+            if left == ValueType.PERCENTAGE and right in scalable:
                 return right
-            if right == ValueType.PERCENTAGE and left in {ValueType.MONEY, ValueType.SHARES}:
+            if right == ValueType.PERCENTAGE and left in scalable:
                 return left
+            if {left, right} == {ValueType.MONEY_PER_SHARE, ValueType.SHARES}:
+                return ValueType.MONEY
         if operator == "divide":
             if right in {ValueType.DECIMAL, ValueType.PERCENTAGE}:
                 return left
+            if left == ValueType.MONEY and right == ValueType.MONEY_PER_SHARE:
+                return ValueType.SHARES
             if left == right:
                 return ValueType.DECIMAL
         raise StrategySemanticError(
@@ -186,8 +289,8 @@ def collect_semantic_issues(
 ) -> tuple[SemanticIssue, ...]:
     issues: list[SemanticIssue] = []
     components = {component.id: component for component in strategy.graph.components}
-    asset_sets = {definition.id for definition in strategy.definitions.asset_sets}
-    primitive_specs = {}
+    definition_ids = _definition_ids(strategy)
+    primitive_specs: dict[str, PrimitiveSpec] = {}
 
     for component in strategy.graph.components:
         path = f"graph.components[{component.id}]"
@@ -197,45 +300,14 @@ def collect_semantic_issues(
             issues.append(SemanticIssue(f"{path}.primitive", f"unknown primitive: {component.primitive}"))
             continue
         primitive_specs[component.id] = primitive
-        fields = {field.name: field for field in primitive.fields}
-        unknown = sorted(set(component.config) - set(fields))
-        for name in unknown:
-            issues.append(SemanticIssue(f"{path}.config.{name}", "unknown field"))
-        for field in primitive.fields:
-            if field.required and field.name not in component.config:
-                issues.append(SemanticIssue(f"{path}.config.{field.name}", "required field is missing"))
-            if field.name in component.config and not value_matches_type(
-                component.config[field.name], field.value_type
-            ):
-                issues.append(
-                    SemanticIssue(
-                        f"{path}.config.{field.name}",
-                        f"value does not match {field.value_type}",
-                    )
-                )
-        if component.primitive == "asset_set@1":
-            ref = component.config.get("asset_set_ref")
-            if isinstance(ref, str) and ref not in asset_sets:
-                issues.append(SemanticIssue(f"{path}.config.asset_set_ref", f"unknown asset set: {ref}"))
-        if component.primitive == "random_select@1":
-            count = component.config.get("count")
-            if isinstance(count, int) and count <= 0:
-                issues.append(SemanticIssue(f"{path}.config.count", "must be greater than zero"))
-            resample = component.config.get("resample", "per_event")
-            if resample not in {"once", "per_event"}:
-                issues.append(SemanticIssue(f"{path}.config.resample", "must be once or per_event"))
-        if component.primitive == "monthly@1":
-            day = component.config.get("day", 1)
-            if isinstance(day, int) and not 1 <= day <= 31:
-                issues.append(SemanticIssue(f"{path}.config.day", "must be between 1 and 31"))
-        if component.primitive == "equal_weight@1":
-            total = component.config.get("total")
-            try:
-                valid_total = 0 < float(total) <= 1
-            except (TypeError, ValueError):
-                valid_total = False
-            if total is not None and not valid_total:
-                issues.append(SemanticIssue(f"{path}.config.total", "must be greater than 0 and at most 1"))
+        issues.extend(
+            _field_issues(
+                primitive.fields,
+                component.config,
+                f"{path}.config",
+                definition_ids,
+            )
+        )
         if primitive.category == PrimitiveCategory.RULE:
             if component.condition is None:
                 issues.append(SemanticIssue(f"{path}.condition", "rule condition is required"))
@@ -326,7 +398,7 @@ def collect_semantic_issues(
         if entrypoint.target_component_id not in components:
             issues.append(SemanticIssue(f"{path}.target_component_id", "target component is missing"))
 
-    checker = _TypeChecker(strategy)
+    checker = _TypeChecker(strategy, registry, definition_ids)
     for component in strategy.graph.components:
         if component.condition is not None:
             try:

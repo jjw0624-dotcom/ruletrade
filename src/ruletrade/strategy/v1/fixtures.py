@@ -8,6 +8,7 @@ GOLDEN_PORTFOLIO_PAYLOAD = {
         "name": "Growth 70 / Safe 30",
         "description": "Deterministic per-event growth selection with a stable safe sleeve.",
     },
+    "random_seed": 123,
     "definitions": {
         "asset_sets": [
             {"id": "growth", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},

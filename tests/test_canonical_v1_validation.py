@@ -1,4 +1,5 @@
 from copy import deepcopy
+from decimal import Decimal
 
 import pytest
 
@@ -9,6 +10,15 @@ from ruletrade.strategy.v1.fixtures import (
     golden_stateful_rule_strategy,
 )
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v1.registry import (
+    BUILTIN_REGISTRY,
+    BackendCapability,
+    PrimitiveCategory,
+    PrimitiveFieldSpec,
+    PrimitiveRegistry,
+    PrimitiveSpec,
+)
+from ruletrade.strategy.v1.types import ValueType
 from ruletrade.strategy.v1.validation import (
     StrategySemanticError,
     collect_semantic_issues,
@@ -75,4 +85,60 @@ def test_component_cycles_are_reported() -> None:
     strategy = CanonicalStrategyV1.model_validate(payload)
 
     with pytest.raises(StrategySemanticError, match="contains a cycle"):
+        validate_strategy_v1(strategy)
+
+
+def test_indicator_is_registry_driven_without_schema_changes() -> None:
+    payload = deepcopy(GOLDEN_STATEFUL_RULE_PAYLOAD)
+    payload["graph"]["components"][1]["condition"] = {
+        "kind": "comparison",
+        "operator": "lt",
+        "left": {
+            "kind": "indicator",
+            "indicator_id": "sma@1",
+            "asset": {"kind": "literal", "value_type": "asset", "value": "QQQ"},
+            "parameters": {"period": 20},
+        },
+        "right": {
+            "kind": "literal",
+            "value_type": "money_per_share",
+            "value": "100",
+        },
+    }
+    strategy = CanonicalStrategyV1.model_validate(payload)
+    indicator = PrimitiveSpec(
+        id="sma@1",
+        category=PrimitiveCategory.INDICATOR,
+        fields=(
+            PrimitiveFieldSpec(
+                "period",
+                ValueType.INTEGER,
+                minimum=Decimal("2"),
+            ),
+        ),
+        result_type=ValueType.MONEY_PER_SHARE,
+        backend_capability=BackendCapability.NATIVE,
+        implementation_id="indicator.sma",
+    )
+    registry = PrimitiveRegistry(BUILTIN_REGISTRY.all() + (indicator,))
+
+    validate_strategy_v1(strategy, registry)
+
+
+def test_unknown_indicator_is_rejected_semantically() -> None:
+    payload = deepcopy(GOLDEN_STATEFUL_RULE_PAYLOAD)
+    payload["graph"]["components"][1]["condition"]["left"] = {
+        "kind": "indicator",
+        "indicator_id": "sma@1",
+        "asset": {"kind": "literal", "value_type": "asset", "value": "QQQ"},
+        "parameters": {"period": 20},
+    }
+    payload["graph"]["components"][1]["condition"]["right"] = {
+        "kind": "literal",
+        "value_type": "money_per_share",
+        "value": "100",
+    }
+    strategy = CanonicalStrategyV1.model_validate(payload)
+
+    with pytest.raises(StrategySemanticError, match="unknown indicator"):
         validate_strategy_v1(strategy)

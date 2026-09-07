@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ruletrade.strategy.v1.types import ValueType, value_matches_type
+from ruletrade.strategy.v1.types import ValueType, normalize_typed_value, value_matches_type
 
 
 Identifier = Annotated[
@@ -49,6 +49,17 @@ class ParameterDefinition(FrozenModel):
     value_type: ValueType
     default: Any
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_default(cls, value: object) -> object:
+        if not isinstance(value, dict) or "value_type" not in value or "default" not in value:
+            return value
+        normalized = dict(value)
+        value_type = ValueType(normalized["value_type"])
+        if value_matches_type(normalized["default"], value_type):
+            normalized["default"] = normalize_typed_value(normalized["default"], value_type)
+        return normalized
+
     @model_validator(mode="after")
     def validate_default(self) -> "ParameterDefinition":
         if not value_matches_type(self.default, self.value_type):
@@ -60,6 +71,17 @@ class StateDefinition(FrozenModel):
     id: Identifier
     value_type: ValueType
     initial: Any
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_initial(cls, value: object) -> object:
+        if not isinstance(value, dict) or "value_type" not in value or "initial" not in value:
+            return value
+        normalized = dict(value)
+        value_type = ValueType(normalized["value_type"])
+        if value_matches_type(normalized["initial"], value_type):
+            normalized["initial"] = normalize_typed_value(normalized["initial"], value_type)
+        return normalized
 
     @model_validator(mode="after")
     def validate_initial(self) -> "StateDefinition":
@@ -91,6 +113,17 @@ class LiteralExpression(FrozenModel):
     value_type: ValueType
     value: Any
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_value(cls, value: object) -> object:
+        if not isinstance(value, dict) or "value_type" not in value or "value" not in value:
+            return value
+        normalized = dict(value)
+        value_type = ValueType(normalized["value_type"])
+        if value_matches_type(normalized["value"], value_type):
+            normalized["value"] = normalize_typed_value(normalized["value"], value_type)
+        return normalized
+
     @model_validator(mode="after")
     def validate_value(self) -> "LiteralExpression":
         if not value_matches_type(self.value, self.value_type):
@@ -120,7 +153,10 @@ class AverageCostExpression(FrozenModel):
 
 class IndicatorExpression(FrozenModel):
     kind: Literal["indicator"] = "indicator"
-    indicator_id: Annotated[str, Field(min_length=1, max_length=100)]
+    indicator_id: Annotated[
+        str,
+        Field(pattern=r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"),
+    ]
     asset: "Expression"
     parameters: dict[str, Any] = Field(default_factory=dict)
 
@@ -265,6 +301,7 @@ class StrategyGraph(FrozenModel):
 class CanonicalStrategyV1(FrozenModel):
     api_version: Literal["ruletrade.dev/strategy/v1"] = "ruletrade.dev/strategy/v1"
     metadata: StrategyMetadata
+    random_seed: int = 0
     definitions: StrategyDefinitions = Field(default_factory=StrategyDefinitions)
     graph: StrategyGraph
     entrypoints: Annotated[tuple[Entrypoint, ...], Field(min_length=1)]

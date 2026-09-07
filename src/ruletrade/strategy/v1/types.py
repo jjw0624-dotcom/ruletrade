@@ -18,6 +18,7 @@ class ValueType(StrEnum):
     ASSET_SET = "asset_set"
     SHARES = "shares"
     MONEY = "money"
+    MONEY_PER_SHARE = "money_per_share"
     PORTFOLIO_TARGETS = "portfolio_targets"
     DATETIME = "datetime"
     DURATION = "duration"
@@ -30,6 +31,7 @@ NUMERIC_TYPES = frozenset(
         ValueType.PERCENTAGE,
         ValueType.SHARES,
         ValueType.MONEY,
+        ValueType.MONEY_PER_SHARE,
     }
 )
 
@@ -44,6 +46,7 @@ def value_matches_type(value: Any, value_type: ValueType) -> bool:
         ValueType.PERCENTAGE,
         ValueType.SHARES,
         ValueType.MONEY,
+        ValueType.MONEY_PER_SHARE,
     }:
         if isinstance(value, bool):
             return False
@@ -61,7 +64,12 @@ def value_matches_type(value: Any, value_type: ValueType) -> bool:
             and all(isinstance(item, str) and bool(item.strip()) for item in value)
         )
     if value_type == ValueType.PORTFOLIO_TARGETS:
-        return isinstance(value, dict)
+        return isinstance(value, dict) and all(
+            isinstance(symbol, str)
+            and bool(symbol.strip())
+            and value_matches_type(weight, ValueType.PERCENTAGE)
+            for symbol, weight in value.items()
+        )
     if value_type == ValueType.DATETIME:
         if isinstance(value, datetime):
             return True
@@ -79,3 +87,26 @@ def value_matches_type(value: Any, value_type: ValueType) -> bool:
             and value >= 0
         ) or (isinstance(value, str) and bool(value.strip()))
     return False
+
+
+def normalize_typed_value(value: Any, value_type: ValueType) -> Any:
+    if not value_matches_type(value, value_type):
+        raise ValueError(f"value does not match {value_type}")
+    if value_type in {
+        ValueType.DECIMAL,
+        ValueType.PERCENTAGE,
+        ValueType.SHARES,
+        ValueType.MONEY,
+        ValueType.MONEY_PER_SHARE,
+    }:
+        return Decimal(str(value))
+    if value_type == ValueType.ASSET:
+        return value.strip().upper()
+    if value_type == ValueType.ASSET_SET:
+        return [item.strip().upper() for item in value]
+    if value_type == ValueType.PORTFOLIO_TARGETS:
+        return {
+            symbol.strip().upper(): Decimal(str(weight))
+            for symbol, weight in value.items()
+        }
+    return value

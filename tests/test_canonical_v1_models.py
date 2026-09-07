@@ -1,4 +1,5 @@
 from copy import deepcopy
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
@@ -45,3 +46,11 @@ def test_typed_defaults_are_checked() -> None:
 
     with pytest.raises(ValidationError, match="parameter default does not match"):
         CanonicalStrategyV1.model_validate(payload)
+
+
+def test_typed_values_are_canonically_normalized() -> None:
+    strategy = golden_stateful_rule_strategy()
+    buy = strategy.graph.components[1].actions[0]
+
+    assert buy.asset.value == "QQQ"
+    assert buy.quantity.value == Decimal("1")
