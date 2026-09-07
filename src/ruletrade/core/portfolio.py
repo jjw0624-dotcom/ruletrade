@@ -6,7 +6,10 @@ from decimal import Decimal
 
 from ruletrade.core.allocation import allocate_selected
 from ruletrade.core.selection import select_symbols
-from ruletrade.strategy.models import StrategyDocument
+from ruletrade.strategy.models import (
+    RandomNSelection,
+    StrategyDocument,
+)
 
 
 @dataclass(frozen=True)
@@ -26,10 +29,17 @@ class PortfolioResolution:
 def _group_seed(
     strategy_seed: int,
     group_id: str,
+    *,
+    event_id: str | None,
 ) -> int:
-    payload = f"{strategy_seed}:{group_id}".encode("utf-8")
+    payload = f"{strategy_seed}:{group_id}"
 
-    digest = hashlib.sha256(payload).digest()
+    if event_id is not None:
+        payload += f":{event_id}"
+
+    digest = hashlib.sha256(
+        payload.encode("utf-8")
+    ).digest()
 
     return int.from_bytes(
         digest[:8],
@@ -40,14 +50,25 @@ def _group_seed(
 
 def resolve_portfolio(
     strategy: StrategyDocument,
+    *,
+    event_id: str | None = None,
 ) -> PortfolioResolution:
     target_weights: dict[str, Decimal] = {}
     group_results: list[GroupResolution] = []
 
     for group in strategy.groups:
+        selection_event_id = None
+
+        if (
+            isinstance(group.selection, RandomNSelection)
+            and group.selection.resample == "per_event"
+        ):
+            selection_event_id = event_id
+
         seed = _group_seed(
             strategy.random_seed,
             group.id,
+            event_id=selection_event_id,
         )
 
         selected = select_symbols(

@@ -88,3 +88,76 @@ def test_same_strategy_resolves_identically() -> None:
     second = resolve_portfolio(strategy())
 
     assert first == second
+
+def test_same_event_resolves_random_selection_identically() -> None:
+    spec = strategy()
+
+    first = resolve_portfolio(
+        spec,
+        event_id="2026-01",
+    )
+
+    second = resolve_portfolio(
+        spec,
+        event_id="2026-01",
+    )
+
+    assert first == second
+
+def test_per_event_random_selection_varies_across_events() -> None:
+    spec = strategy()
+
+    selections = set()
+
+    for month in range(1, 7):
+        result = resolve_portfolio(
+            spec,
+            event_id=f"2026-{month:02d}",
+        )
+
+        growth = next(
+            group
+            for group in result.groups
+            if group.group_id == "growth"
+        )
+
+        selections.add(
+            growth.selected_symbols
+        )
+
+    assert len(selections) > 1
+
+def test_once_random_selection_ignores_event_id() -> None:
+    spec = strategy()
+
+    payload = spec.model_dump(mode="json")
+    payload["groups"][0]["selection"]["resample"] = "once"
+
+    once_strategy = StrategyDocument.model_validate(payload)
+
+    january = resolve_portfolio(
+        once_strategy,
+        event_id="2026-01",
+    )
+
+    february = resolve_portfolio(
+        once_strategy,
+        event_id="2026-02",
+    )
+
+    january_growth = next(
+        group
+        for group in january.groups
+        if group.group_id == "growth"
+    )
+
+    february_growth = next(
+        group
+        for group in february.groups
+        if group.group_id == "growth"
+    )
+
+    assert (
+        january_growth.selected_symbols
+        == february_growth.selected_symbols
+    )

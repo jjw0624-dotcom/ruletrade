@@ -23,6 +23,7 @@ class RandomNSelection(BaseModel):
 
     type: Literal["random_n"] = "random_n"
     count: Annotated[int, Field(gt=0)]
+    resample: Literal["once", "per_event"] = "per_event"
 
 
 SelectionSpec = AllSelection | RandomNSelection
