@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Protocol
+from typing import Hashable, Protocol
 
 from ruletrade.core.intents import RebalanceIntent
+
+
+LeanSymbol = Hashable
 
 
 class LeanAlgorithmPort(Protocol):
@@ -12,54 +15,60 @@ class LeanAlgorithmPort(Protocol):
 
     def set_holdings(
         self,
-        symbol: str,
+        symbol: LeanSymbol,
         percentage: float,
     ) -> object:
         ...
 
     def liquidate(
         self,
-        symbol: str,
+        symbol: LeanSymbol,
     ) -> object:
         ...
 
 
 @dataclass(frozen=True)
 class ExecutionReport:
-    executed_targets: dict[str, Decimal]
-    liquidated_symbols: tuple[str, ...]
+    executed_targets: dict[LeanSymbol, Decimal]
+    liquidated_symbols: tuple[LeanSymbol, ...]
 
 
 def execute_rebalance(
     algorithm: LeanAlgorithmPort,
     intent: RebalanceIntent,
     *,
-    currently_invested: set[str] | None = None,
+    currently_invested: set[LeanSymbol] | None = None,
 ) -> ExecutionReport:
     current = currently_invested or set()
-    targets = dict(intent.target_weights)
 
-    target_symbols = {
-        symbol
-        for symbol, weight in targets.items()
+    targets = {
+        symbol: weight
+        for symbol, weight in intent.target_weights.items()
         if weight > 0
     }
 
-    to_liquidate = sorted(current - target_symbols)
+    target_symbols = set(targets)
+
+    # Do not assume engine-specific symbol objects are orderable.
+    # Liquidation order is irrelevant to RuleTrade semantics.
+    to_liquidate = tuple(
+        symbol
+        for symbol in current
+        if symbol not in target_symbols
+    )
 
     for symbol in to_liquidate:
         algorithm.liquidate(symbol)
 
-    for symbol in sorted(target_symbols):
+    # Preserve the canonical intent dictionary order instead of sorting
+    # engine-specific symbol objects.
+    for symbol, weight in targets.items():
         algorithm.set_holdings(
             symbol,
-            float(targets[symbol]),
+            float(weight),
         )
 
     return ExecutionReport(
-        executed_targets={
-            symbol: targets[symbol]
-            for symbol in sorted(target_symbols)
-        },
-        liquidated_symbols=tuple(to_liquidate),
+        executed_targets=dict(targets),
+        liquidated_symbols=to_liquidate,
     )

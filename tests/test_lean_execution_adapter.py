@@ -44,17 +44,17 @@ def test_executes_rebalance_intent() -> None:
     )
 
     assert algorithm.calls == [
-        ("set_holdings", "IEF", 0.15),
         ("set_holdings", "QQQ", 0.35),
         ("set_holdings", "SOXX", 0.35),
         ("set_holdings", "TLT", 0.15),
+        ("set_holdings", "IEF", 0.15),
     ]
 
     assert report.executed_targets == {
-        "IEF": Decimal("0.15"),
         "QQQ": Decimal("0.35"),
         "SOXX": Decimal("0.35"),
         "TLT": Decimal("0.15"),
+        "IEF": Decimal("0.15"),
     }
 
     assert report.liquidated_symbols == ()
