@@ -11,6 +11,12 @@ class RebalanceFrequency(StrEnum):
     ONCE = "once"
     MONTHLY = "monthly"
 
+class ComparisonOperator(StrEnum):
+    LESS_THAN = "less_than"
+    LESS_EQUAL = "less_equal"
+    GREATER_THAN = "greater_than"
+    GREATER_EQUAL = "greater_equal"
+
 
 class AssetAllocation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -29,6 +35,23 @@ class RecurringContribution(BaseModel):
 
     amount: Annotated[Decimal, Field(gt=Decimal("0"))]
     frequency: Literal["monthly"] = "monthly"
+
+class DrawdownConditionSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["drawdown"] = "drawdown"
+    symbol: Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9._:-]+$")]
+    lookback: Annotated[int, Field(ge=2, le=5000)]
+    operator: ComparisonOperator = ComparisonOperator.LESS_EQUAL
+    threshold: Annotated[
+        Decimal,
+        Field(ge=Decimal("-1"), le=Decimal("0")),
+    ]
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_symbol(cls, value: str) -> str:
+        return value.strip().upper()
 
 
 class SimpleStrategySpec(BaseModel):

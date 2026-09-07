@@ -3,8 +3,12 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from ruletrade.domain import AssetAllocation, RecurringContribution, SimpleStrategySpec
-
+from ruletrade.domain import (
+    AssetAllocation,
+    DrawdownConditionSpec,
+    RecurringContribution,
+    SimpleStrategySpec,
+)
 
 def valid_spec() -> SimpleStrategySpec:
     return SimpleStrategySpec(
@@ -43,4 +47,31 @@ def test_rejects_duplicate_symbols() -> None:
                 {"symbol": "QQQ", "weight": "0.5"},
                 {"symbol": "qqq", "weight": "0.5"},
             ],
+        )
+
+def test_drawdown_condition_normalizes_symbol() -> None:
+    condition = DrawdownConditionSpec(
+        symbol="qqq",
+        lookback=60,
+        threshold="-0.10",
+    )
+
+    assert condition.symbol == "QQQ"
+
+
+def test_drawdown_condition_rejects_invalid_lookback() -> None:
+    with pytest.raises(ValidationError):
+        DrawdownConditionSpec(
+            symbol="QQQ",
+            lookback=1,
+            threshold="-0.10",
+        )
+
+
+def test_drawdown_condition_rejects_invalid_threshold() -> None:
+    with pytest.raises(ValidationError):
+        DrawdownConditionSpec(
+            symbol="QQQ",
+            lookback=60,
+            threshold="-1.50",
         )
