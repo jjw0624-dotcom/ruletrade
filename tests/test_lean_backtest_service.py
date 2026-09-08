@@ -151,5 +151,5 @@ def test_runner_errors_are_preserved(error: Exception) -> None:
 
 def test_malformed_lean_result_fails_safely() -> None:
     runner = FakeRunner(payload={"statistics": {"Total Orders": "1"}})
-    with pytest.raises(MalformedLeanResultError, match="Strategy Equity"):
+    with pytest.raises(MalformedLeanResultError, match="charts"):
         BacktestService(runner).execute(request())
