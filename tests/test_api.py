@@ -187,6 +187,25 @@ def test_editor_bootstrap_uses_canonical_golden_and_registry() -> None:
     assert random_select["fields"][0]["minimum"] == "1"
 
 
+def test_editor_bootstrap_can_deliver_momentum_source_model() -> None:
+    response = client.get("/v1/editor/bootstrap?example=momentum")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["strategy"]["metadata"]["name"] == "Trailing Return Top 2"
+    assert [
+        component["primitive"] for component in payload["strategy"]["graph"]["components"]
+    ] == [
+        "monthly@1",
+        "asset_set@1",
+        "trailing_return@1",
+        "rank@1",
+        "top_n@1",
+        "equal_weight@1",
+        "rebalance@1",
+    ]
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,

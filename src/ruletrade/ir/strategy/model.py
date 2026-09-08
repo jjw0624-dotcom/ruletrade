@@ -9,6 +9,8 @@ from typing import Literal, TypeAlias
 class IRType(StrEnum):
     EVENT = "event"
     ASSET_SET = "asset_set"
+    ASSET_SCORES = "asset_scores"
+    RANKED_ASSETS = "ranked_assets"
     PORTFOLIO_TARGETS = "portfolio_targets"
     EFFECT = "effect"
 
@@ -48,6 +50,33 @@ class RandomNOp:
 
 
 @dataclass(frozen=True)
+class TrailingReturnOp:
+    id: str
+    assets: str
+    lookback_bars: int
+    provenance: SourceProvenance
+    operation: Literal["market.trailing_return"] = "market.trailing_return"
+
+
+@dataclass(frozen=True)
+class RankOp:
+    id: str
+    scores: str
+    direction: Literal["descending"]
+    provenance: SourceProvenance
+    operation: Literal["selection.rank"] = "selection.rank"
+
+
+@dataclass(frozen=True)
+class TopNOp:
+    id: str
+    ranked: str
+    count: int
+    provenance: SourceProvenance
+    operation: Literal["selection.top_n"] = "selection.top_n"
+
+
+@dataclass(frozen=True)
 class EqualWeightOp:
     id: str
     assets: str
@@ -77,6 +106,9 @@ StrategyIROperation: TypeAlias = (
     MonthlyScheduleOp
     | AssetSetOp
     | RandomNOp
+    | TrailingReturnOp
+    | RankOp
+    | TopNOp
     | EqualWeightOp
     | MergeTargetsOp
     | RebalanceOp

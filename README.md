@@ -46,14 +46,20 @@ uv run uvicorn ruletrade.api:app --reload
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Golden
+Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Momentum TopN
 Canonical strategy and Primitive Registry metadata from `/v1/editor/bootstrap`.
 Guided and Flow hold no independent strategy document: both project the same
 in-memory Canonical state and submit stable component-ID config operations to
 it. Flow positions, viewport, selection, and active View remain editor-only
 state and are never sent to Canonical validation. Frontend test commands export
-their Golden input from the same backend bootstrap function; there is no second
-hand-maintained frontend Golden fixture.
+their Golden and Momentum inputs from the same backend bootstrap function; there is no second
+hand-maintained frontend strategy fixture.
+
+Run the real Momentum acceptance path locally with Docker:
+
+```bash
+./scripts/run_momentum_lean_e2e.sh
+```
 
 The **Backtest** action submits that exact current Canonical document to the
 backend LEAN compiler path and presents normalized metrics plus a lightweight

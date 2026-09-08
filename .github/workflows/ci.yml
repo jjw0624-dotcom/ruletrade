@@ -44,13 +44,16 @@ jobs:
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py
+          scripts/generate_momentum_lean.py
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
+          scripts/verify_momentum_lean_e2e.py
           tests/test_api.py
           tests/test_lean_backtest_service.py
           tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
           tests/test_lean_runner.py
+          tests/test_momentum_top_n.py
           tests/test_strategy_ir.py
           tests/test_strategy_ir_analysis.py
           tests/test_strategy_ir_differential.py
@@ -59,7 +62,11 @@ jobs:
         run: uv run python -m compileall -q src scripts tests
 
       - name: Check shell syntax
-        run: bash -n scripts/run_golden_lean_e2e.sh scripts/build_golden_lean_docker.sh
+        run: >-
+          bash -n
+          scripts/run_golden_lean_e2e.sh
+          scripts/run_momentum_lean_e2e.sh
+          scripts/build_golden_lean_docker.sh
 
       - name: Check patch whitespace
         run: git diff --check

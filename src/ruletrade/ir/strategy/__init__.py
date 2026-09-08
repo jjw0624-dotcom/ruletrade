@@ -6,10 +6,13 @@ from ruletrade.ir.strategy.model import (
     MergeTargetsOp,
     MonthlyScheduleOp,
     RandomNOp,
+    RankOp,
     RebalanceOp,
     SourceProvenance,
     StrategyIR,
     StrategyIROperation,
+    TopNOp,
+    TrailingReturnOp,
 )
 from ruletrade.ir.strategy.normalize import normalize_strategy_ir
 from ruletrade.ir.strategy.validation import (
@@ -29,10 +32,13 @@ __all__ = [
     "MergeTargetsOp",
     "MonthlyScheduleOp",
     "RandomNOp",
+    "RankOp",
     "RebalanceOp",
     "SourceProvenance",
     "StrategyIR",
     "StrategyIROperation",
+    "TopNOp",
+    "TrailingReturnOp",
     "collect_ir_validation_issues",
     "normalize_strategy_ir",
     "validate_strategy_ir",

@@ -9,9 +9,12 @@ from ruletrade.ir.strategy.model import (
     MergeTargetsOp,
     MonthlyScheduleOp,
     RandomNOp,
+    RankOp,
     RebalanceOp,
     StrategyIR,
     StrategyIROperation,
+    TopNOp,
+    TrailingReturnOp,
 )
 
 
@@ -33,8 +36,12 @@ class IRValidationError(ValueError):
 def _result_type(operation: StrategyIROperation) -> IRType:
     if isinstance(operation, MonthlyScheduleOp):
         return IRType.EVENT
-    if isinstance(operation, (AssetSetOp, RandomNOp)):
+    if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp)):
         return IRType.ASSET_SET
+    if isinstance(operation, TrailingReturnOp):
+        return IRType.ASSET_SCORES
+    if isinstance(operation, RankOp):
+        return IRType.RANKED_ASSETS
     if isinstance(operation, (EqualWeightOp, MergeTargetsOp)):
         return IRType.PORTFOLIO_TARGETS
     if isinstance(operation, RebalanceOp):
@@ -45,6 +52,12 @@ def _result_type(operation: StrategyIROperation) -> IRType:
 def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], ...]:
     if isinstance(operation, RandomNOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
+    if isinstance(operation, TrailingReturnOp):
+        return (("assets", operation.assets, IRType.ASSET_SET),)
+    if isinstance(operation, RankOp):
+        return (("scores", operation.scores, IRType.ASSET_SCORES),)
+    if isinstance(operation, TopNOp):
+        return (("ranked", operation.ranked, IRType.RANKED_ASSETS),)
     if isinstance(operation, EqualWeightOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
     if isinstance(operation, MergeTargetsOp):
@@ -68,6 +81,9 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         MonthlyScheduleOp,
         AssetSetOp,
         RandomNOp,
+        TrailingReturnOp,
+        RankOp,
+        TopNOp,
         EqualWeightOp,
         MergeTargetsOp,
         RebalanceOp,
@@ -106,6 +122,12 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 issues.append(IRValidationIssue(f"{path}.count", "random count must be positive"))
             if operation.resample not in {"once", "per_event"}:
                 issues.append(IRValidationIssue(f"{path}.resample", "unsupported random resample mode"))
+        if isinstance(operation, TrailingReturnOp) and operation.lookback_bars < 1:
+            issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
+        if isinstance(operation, RankOp) and operation.direction != "descending":
+            issues.append(IRValidationIssue(f"{path}.direction", "only descending rank is supported"))
+        if isinstance(operation, TopNOp) and operation.count < 1:
+            issues.append(IRValidationIssue(f"{path}.count", "Top N count must be positive"))
         if isinstance(operation, EqualWeightOp) and not 0 < operation.total_weight <= 1:
             issues.append(
                 IRValidationIssue(
@@ -135,6 +157,17 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                     IRValidationIssue(
                         f"operations[{operation_id}].count",
                         "RandomSelect count cannot exceed its asset set size",
+                    )
+                )
+        if isinstance(operation, TopNOp):
+            rank = operations.get(operation.ranked)
+            scores = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+            source = operations.get(scores.assets) if isinstance(scores, TrailingReturnOp) else None
+            if isinstance(source, AssetSetOp) and operation.count > len(source.symbols):
+                issues.append(
+                    IRValidationIssue(
+                        f"operations[{operation_id}].count",
+                        "Top N count cannot exceed its asset set size",
                     )
                 )
 

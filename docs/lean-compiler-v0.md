@@ -1,7 +1,7 @@
 # LEAN compiler v0
 
-The v0 compiler intentionally supports one Canonical Strategy v1 shape: the
-Growth 70 / Safe 30 golden strategy. Its backend path is:
+The compiler supports the Growth 70 / Safe 30 Golden strategy and the narrow
+trailing-return Top N slice. Its backend path is:
 
 `CanonicalStrategyV1 -> Strategy IR -> requirements analysis -> typed LeanPlan -> C# QCAlgorithm`
 
@@ -75,8 +75,9 @@ uv run python scripts/generate_golden_lean_fixture.py
 
 They follow LEAN's US Equity Daily contract: one `<ticker>.csv` per ZIP, rows
 formatted as `yyyyMMdd HH:mm,open,high,low,close,volume` in the data timezone,
-integer prices in deci-cents, and bars only for actual 2024 exchange trading
-days. Each map file begins before the data and ends with LEAN's `20501231`
+integer prices in deci-cents, and bars only for actual 2023–2024 exchange trading days. The
+pre-start 2023 bars support deterministic 126-bar warm-up while preserving the proven 2024 Golden
+prices. Each map file begins before the data and ends with LEAN's `20501231`
 sentinel; without that final row LEAN treats the symbol as delisted on the last
 map date and never requests the 2024 price rows. Matching factor files use
 unity factors and the same end-of-time sentinel.
@@ -119,6 +120,7 @@ remove the warning without adding a custom provider.
 - Classic `QCAlgorithm` only; no Algorithm Framework abstraction.
 - Monthly first-trading-day intent with execution on the next complete Daily Slice.
 - Named asset sets, RandomSelect, EqualWeight, MergeTargets, and Rebalance only.
-- No indicators, stateful rules, composites, generic execution IR, or second backend.
+- Trailing adjusted return, descending rank, and Top N with a fixed full-history policy.
+- No general indicators, filters, stateful rules, composites, generic execution IR, or second backend.
 - C# random selection contains only the CPython MT19937/sample behavior required
   to match the retained Python v0 selection oracle.
