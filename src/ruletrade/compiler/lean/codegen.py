@@ -421,14 +421,16 @@ def generate_csharp(
                                     f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
                                     '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
                                     f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
-                                    f'            + "|selected=" + string.Join(",", {variable}));',
+                                    f'            + "|candidate=" + string.Join(",", {variable})',
+                                    f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
+                                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "skipped"));',
                                 )
                             )
                         lines.extend(
                             (
                                 f"        if ({variable}.Count < {selection.count})",
                                 "        {",
-                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count);',
+                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
                                 "            return;",
                                 "        }",
                             )

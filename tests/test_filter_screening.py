@@ -74,6 +74,31 @@ def test_reference_filter_ranks_only_eligible_scores_and_skips_below_top_n() -> 
     assert skipped.targets == ()
 
 
+@pytest.mark.parametrize(
+    ("latest", "expected_eligible", "expected_selected"),
+    [
+        ((Decimal(2), Decimal(3)), ("A", "B"), ("B", "A")),
+        ((Decimal(2), Decimal(1)), ("A",), ()),
+        ((Decimal(1), Decimal(1)), (), ()),
+    ],
+)
+def test_filter_requires_full_top_n_before_selection(
+    latest: tuple[Decimal, Decimal],
+    expected_eligible: tuple[str, ...],
+    expected_selected: tuple[str, ...],
+) -> None:
+    result = evaluate_filtered_trailing_return_top_n(
+        {"A": [Decimal(1), latest[0]], "B": [Decimal(1), latest[1]]},
+        lookback_bars=1,
+        threshold=Decimal(0),
+        count=2,
+    )
+
+    assert result.eligible == expected_eligible
+    assert result.selected == expected_selected
+    assert bool(result.targets) is bool(expected_selected)
+
+
 def test_filter_source_desugars_to_typed_ir_without_new_collection_type() -> None:
     strategy = filter_screening_strategy()
     validate_strategy_v1(strategy)
@@ -118,6 +143,8 @@ def test_filter_lowers_to_one_score_calculation_then_filter_rank_and_top_n() -> 
     assert source.count("window[0] / window[126] - 1m") == 1
     assert ".Where(item => item.Value > 0m)" in source
     assert "RULETRADE_FILTER|" in source
+    assert '"|candidate="' in source
+    assert '? "executed" : "skipped"' in source
     assert source.index("var scores0_0_0") < source.index("var eligibleScores0_0_0")
     assert source.index("var eligibleScores0_0_0") < source.index("var ranked0_0_0")
     assert 'Debug("RULETRADE_MOMENTUM_SKIPPED|' in source
@@ -187,9 +214,12 @@ def test_filter_fixture_and_acceptance_trace_cover_success_and_skip() -> None:
             f"RULETRADE_FILTER|{identity}|threshold=0|eligible={','.join(result.eligible)}"
             f"|rejected={','.join(result.rejected)}"
         )
+        candidate = result.ranked[:2]
+        decision = "executed" if result.selected else "skipped"
         lines.append(
             f"RULETRADE_MOMENTUM|{identity}|scores={scores}|ranked={','.join(result.ranked)}"
-            f"|selected={','.join(result.selected)}"
+            f"|candidate={','.join(candidate)}|selected={','.join(result.selected)}"
+            f"|decision={decision}"
         )
         if result.selected:
             successful += 1
@@ -202,6 +232,7 @@ def test_filter_fixture_and_acceptance_trace_cover_success_and_skip() -> None:
             skipped += 1
             lines.append(
                 f"RULETRADE_MOMENTUM_SKIPPED|{identity}|eligible={len(result.eligible)}"
+                "|required=2"
             )
     result_payload = json.loads(
         (Path(__file__).parent / "fixtures" / "lean-results" / "strategy-equity-candlesticks.json")

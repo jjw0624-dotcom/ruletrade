@@ -96,6 +96,11 @@ filtered dictionary. If fewer than Top N scores remain, the entire rebalance is 
 holdings remain unchanged. It does not partially invest, silently reduce N, move to cash, or select
 a fallback. Fallback is intentionally deferred to a later source-level feature.
 
+Runtime traces keep the partial Top N `candidate` distinct from the semantic `selected` result. A
+skipped decision records `selected=` and `decision=skipped`, while the skip trace records both the
+eligible and required counts. This preserves diagnostics without presenting an unexecuted candidate
+as an investment selection.
+
 ## Registry and analysis
 
 The existing Primitive Registry remains the definition source for source-language operations: IDs,

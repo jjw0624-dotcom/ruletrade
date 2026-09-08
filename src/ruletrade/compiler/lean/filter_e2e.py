@@ -20,10 +20,13 @@ MOMENTUM_PATTERN = re.compile(
     r"RULETRADE_MOMENTUM\|(?P<event>\d{4}-\d{2}-\d{2})"
     r"\|scores=(?P<scores>[A-Z0-9.,_=:+-]+)"
     r"\|ranked=(?P<ranked>[A-Z0-9,]*)"
+    r"\|candidate=(?P<candidate>[A-Z0-9,]*)"
     r"\|selected=(?P<selected>[A-Z0-9,]*)"
+    r"\|decision=(?P<decision>executed|skipped)"
 )
 SKIPPED_PATTERN = re.compile(
-    r"RULETRADE_MOMENTUM_SKIPPED\|(?P<event>\d{4}-\d{2}-\d{2})\|eligible=(?P<count>\d+)"
+    r"RULETRADE_MOMENTUM_SKIPPED\|(?P<event>\d{4}-\d{2}-\d{2})"
+    r"\|eligible=(?P<eligible>\d+)\|required=(?P<required>\d+)"
 )
 
 
@@ -93,8 +96,13 @@ def verify_filter_e2e(
             raise ValueError(f"rejected-set mismatch for {event_identity}")
         if _split_symbols(momentum_trace.group("ranked")) != reference.ranked:
             raise ValueError(f"ranking mismatch for {event_identity}")
+        if _split_symbols(momentum_trace.group("candidate")) != reference.ranked[:2]:
+            raise ValueError(f"candidate mismatch for {event_identity}")
         if _split_symbols(momentum_trace.group("selected")) != reference.selected:
             raise ValueError(f"selection mismatch for {event_identity}")
+        expected_decision = "executed" if reference.selected else "skipped"
+        if momentum_trace.group("decision") != expected_decision:
+            raise ValueError(f"decision mismatch for {event_identity}")
         target = targets.get(event_identity)
         if reference.selected:
             successful += 1
@@ -107,8 +115,12 @@ def verify_filter_e2e(
         else:
             if target is not None:
                 raise ValueError(f"skipped event emitted targets: {event_identity}")
-            if int(skipped[event_identity].group("count")) != len(reference.eligible):
+            if event_identity not in skipped:
+                raise ValueError(f"skipped event was not marked skipped: {event_identity}")
+            if int(skipped[event_identity].group("eligible")) != len(reference.eligible):
                 raise ValueError(f"skip count mismatch for {event_identity}")
+            if int(skipped[event_identity].group("required")) != 2:
+                raise ValueError(f"required count mismatch for {event_identity}")
 
     normalized = normalize_lean_result(result_payload)
     if normalized.total_orders <= 0:
