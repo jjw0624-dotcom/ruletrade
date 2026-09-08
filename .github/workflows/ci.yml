@@ -36,10 +36,12 @@ jobs:
           uv run ruff check
           src/ruletrade/api.py
           src/ruletrade/backtests
+          scripts/generate_golden_lean_fixture.py
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
           tests/test_api.py
           tests/test_lean_backtest_service.py
+          tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
           tests/test_lean_runner.py
 

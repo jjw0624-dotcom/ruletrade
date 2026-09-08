@@ -66,6 +66,20 @@ container, launches the backtest, and calls the strict
 Python is selected in this order: the executable named by `RULETRADE_PYTHON`,
 `uv run python`, then `python3`. A bare `python` executable is not required.
 
+The committed synthetic equity archives are reproducibly generated with:
+
+```bash
+uv run python scripts/generate_golden_lean_fixture.py
+```
+
+They follow LEAN's US Equity Daily contract: one `<ticker>.csv` per ZIP, rows
+formatted as `yyyyMMdd HH:mm,open,high,low,close,volume` in the data timezone,
+integer prices in deci-cents, and bars only for actual 2024 exchange trading
+days. Each map file begins before the data and ends with LEAN's `20501231`
+sentinel; without that final row LEAN treats the symbol as delisted on the last
+map date and never requests the 2024 price rows. Matching factor files use
+unity factors and the same end-of-time sentinel.
+
 The Docker build uses `tools/lean/RuleTrade.Generated.csproj`, the image's .NET
 SDK, and:
 

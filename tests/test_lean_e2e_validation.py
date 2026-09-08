@@ -1,4 +1,6 @@
 import json
+import re
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from zipfile import ZipFile
@@ -6,11 +8,19 @@ from zipfile import ZipFile
 import pytest
 
 from ruletrade.compiler.lean import lower_to_lean_plan
+from ruletrade.compiler.lean.e2e import INTEREST_RATE_WARNING, validate_golden_e2e
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 from ruletrade.strategy.v1.randomness import deterministic_random_seed
-from ruletrade.compiler.lean.e2e import INTEREST_RATE_WARNING, validate_golden_e2e
+from scripts.generate_golden_lean_fixture import (
+    LEAN_END_OF_TIME,
+    MAP_START,
+    SYMBOLS,
+    US_EQUITY_HOLIDAYS_2024,
+    generate_fixture,
+    trading_dates_2024,
+)
 
 
 EVENTS = (
@@ -39,6 +49,57 @@ def test_tracked_lean_fixture_contains_golden_assets_and_interest_rate() -> None
         assert (fixture / "equity" / "usa" / "map_files" / f"{symbol}.csv").is_file()
         assert (fixture / "equity" / "usa" / "factor_files" / f"{symbol}.csv").is_file()
     assert (fixture / "alternative" / "interest-rate" / "usa" / "interest-rate.csv").is_file()
+
+
+def test_tracked_daily_fixture_matches_lean_contract_and_exchange_calendar() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "lean-data" / "equity" / "usa"
+    expected_dates = trading_dates_2024()
+    assert len(expected_dates) == 252
+    assert expected_dates[0].isoformat() == "2024-01-02"
+    assert not US_EQUITY_HOLIDAYS_2024.intersection(expected_dates)
+
+    row_pattern = re.compile(r"^(\d{8}) 00:00,(\d+),(\d+),(\d+),(\d+),(\d+)$")
+    for symbol in SYMBOLS:
+        with ZipFile(fixture / "daily" / f"{symbol}.zip") as archive:
+            rows = archive.read(f"{symbol}.csv").decode("utf-8").splitlines()
+        matches = [row_pattern.fullmatch(row) for row in rows]
+        assert all(match is not None for match in matches)
+        observed_dates = tuple(
+            datetime.strptime(match.group(1), "%Y%m%d").date()
+            for match in matches
+            if match is not None
+        )
+        assert observed_dates == expected_dates
+        assert all(day.weekday() < 5 for day in observed_dates)
+
+        assert (fixture / "map_files" / f"{symbol}.csv").read_text().splitlines() == [
+            f"{MAP_START:%Y%m%d},{symbol}",
+            f"{LEAN_END_OF_TIME:%Y%m%d},{symbol}",
+        ]
+        assert (
+            fixture / "factor_files" / f"{symbol}.csv"
+        ).read_text().splitlines() == [
+            f"{MAP_START:%Y%m%d},1,1,1",
+            f"{LEAN_END_OF_TIME:%Y%m%d},1,1,0",
+        ]
+
+
+def test_golden_daily_fixture_is_reproducibly_generated(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    generate_fixture(first)
+    generate_fixture(second)
+
+    tracked = Path(__file__).parent / "fixtures" / "lean-data"
+    for symbol in SYMBOLS:
+        relative_paths = (
+            Path("equity/usa/daily") / f"{symbol}.zip",
+            Path("equity/usa/map_files") / f"{symbol}.csv",
+            Path("equity/usa/factor_files") / f"{symbol}.csv",
+        )
+        for relative_path in relative_paths:
+            assert (first / relative_path).read_bytes() == (second / relative_path).read_bytes()
+            assert (first / relative_path).read_bytes() == (tracked / relative_path).read_bytes()
 
 
 def _target_line(event_identity: str) -> str:
