@@ -20,6 +20,37 @@ def _json_default(value: object) -> str:
     raise TypeError(f"unsupported parameter binding type: {type(value).__name__}")
 
 
+def normalized_parameter_bindings(
+    strategy: CanonicalStrategyV1,
+    parameter_bindings: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    provided_bindings = dict(parameter_bindings or {})
+    parameters = {parameter.id: parameter for parameter in strategy.definitions.parameters}
+    unknown_bindings = sorted(set(provided_bindings) - set(parameters))
+    if unknown_bindings:
+        raise ValueError(f"unknown parameter bindings: {', '.join(unknown_bindings)}")
+    return {
+        parameter_id: normalize_typed_value(
+            provided_bindings.get(parameter_id, parameter.default),
+            parameter.value_type,
+        )
+        for parameter_id, parameter in parameters.items()
+    }
+
+
+def canonical_parameter_bindings_json(
+    strategy: CanonicalStrategyV1,
+    parameter_bindings: Mapping[str, object] | None = None,
+) -> str:
+    return json.dumps(
+        normalized_parameter_bindings(strategy, parameter_bindings),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+        default=_json_default,
+    )
+
+
 def deterministic_random_seed(
     strategy: CanonicalStrategyV1,
     component_id: str,
@@ -46,18 +77,7 @@ def deterministic_random_seed(
     if resample == "per_event" and not event_identity:
         raise ValueError("per_event random selection requires event identity")
 
-    provided_bindings = dict(parameter_bindings or {})
-    parameters = {parameter.id: parameter for parameter in strategy.definitions.parameters}
-    unknown_bindings = sorted(set(provided_bindings) - set(parameters))
-    if unknown_bindings:
-        raise ValueError(f"unknown parameter bindings: {', '.join(unknown_bindings)}")
-    normalized_bindings = {
-        parameter_id: normalize_typed_value(
-            provided_bindings.get(parameter_id, parameter.default),
-            parameter.value_type,
-        )
-        for parameter_id, parameter in parameters.items()
-    }
+    normalized_bindings = normalized_parameter_bindings(strategy, parameter_bindings)
 
     material: dict[str, object] = {
         "strategy": strategy_hash(strategy),
