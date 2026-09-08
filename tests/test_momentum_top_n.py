@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import replace
-from decimal import Decimal
 import json
 from copy import deepcopy
+from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -23,9 +23,9 @@ from ruletrade.strategy.v1.validation import validate_strategy_v1
 def test_reference_trailing_return_ranks_descending_with_stable_ties() -> None:
     result = evaluate_trailing_return_top_n(
         {
-            "VGT": [Decimal("100"), Decimal("110")],
-            "QQQ": [Decimal("100"), Decimal("110")],
-            "SOXX": [Decimal("100"), Decimal("120")],
+            "VGT": [Decimal(100), Decimal(110)],
+            "QQQ": [Decimal(100), Decimal(110)],
+            "SOXX": [Decimal(100), Decimal(120)],
         },
         lookback_bars=1,
         count=2,
@@ -43,7 +43,7 @@ def test_reference_trailing_return_ranks_descending_with_stable_ties() -> None:
 
 def test_reference_requires_full_comparable_lookback() -> None:
     result = evaluate_trailing_return_top_n(
-        {"QQQ": [Decimal("100"), Decimal("101")], "VGT": [Decimal("100")]},
+        {"QQQ": [Decimal(100), Decimal(101)], "VGT": [Decimal(100)]},
         lookback_bars=1,
         count=2,
     )

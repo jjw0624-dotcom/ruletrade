@@ -4,8 +4,8 @@ from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
 from ruletrade.compiler.lean.plan import (
-    LeanMonthlyEvent,
     LeanMomentumSelection,
+    LeanMonthlyEvent,
     LeanOnDataExecution,
     LeanPlan,
     LeanRandomSelection,
