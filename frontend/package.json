@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:bootstrap": "cd .. && uv run python scripts/export_editor_bootstrap.py --output frontend/src/test/generated-bootstrap.json",
+    "prebuild": "npm run generate:bootstrap",
     "build": "tsc -b && vite build",
+    "pretypecheck": "npm run generate:bootstrap",
     "typecheck": "tsc -b --pretty false",
+    "pretest": "npm run generate:bootstrap",
     "test": "vitest run"
   },
   "dependencies": {

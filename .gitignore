@@ -9,6 +9,7 @@ results/
 build/
 frontend/node_modules/
 frontend/dist/
+frontend/src/test/generated-bootstrap.json
 
 # Local diagnostics
 pytest-warnings.txt

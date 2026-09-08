@@ -51,7 +51,9 @@ Canonical strategy and Primitive Registry metadata from `/v1/editor/bootstrap`.
 Guided and Flow hold no independent strategy document: both project the same
 in-memory Canonical state and submit stable component-ID config operations to
 it. Flow positions, viewport, selection, and active View remain editor-only
-state and are never sent to Canonical validation.
+state and are never sent to Canonical validation. Frontend test commands export
+their Golden input from the same backend bootstrap function; there is no second
+hand-maintained frontend Golden fixture.
 
 ## Exact cash-flow semantics
 
