@@ -70,9 +70,6 @@ jobs:
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 
-      - name: Compile Momentum generated C# against LEAN
-        run: ./scripts/check_momentum_lean_compile.sh
-
       - name: Check patch whitespace
         run: git diff --check
 
@@ -96,3 +93,27 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  lean-compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Install compiler dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Free space for the LEAN Docker image
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet
+          docker system prune --all --force
+
+      - name: Compile Momentum generated C# against LEAN
+        run: ./scripts/check_momentum_lean_compile.sh
