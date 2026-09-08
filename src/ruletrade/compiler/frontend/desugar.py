@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import typing
 from collections.abc import Mapping
 from decimal import Decimal
-from typing import Literal, cast
 
 from ruletrade.hashing import strategy_hash
 from ruletrade.ir.strategy import (
@@ -95,7 +95,10 @@ def desugar_strategy(
                 id=component.id,
                 assets=input_id(component, "assets"),
                 count=int(resolved["count"]),
-                resample=cast(Literal["once", "per_event"], str(resolved["resample"])),
+                resample=typing.cast(
+                    typing.Literal["once", "per_event"],
+                    str(resolved["resample"]),
+                ),
                 parameter_bindings_json=bindings_json,
                 provenance=provenance,
             )
