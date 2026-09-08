@@ -26,6 +26,16 @@ export function GuidedView() {
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
             })} />
+            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <>
+              <label htmlFor="guided-threshold">Minimum return (%)</label>
+              <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
+                if (event.target.value === "") return;
+                dispatch({
+                  type: "apply_semantic_patch",
+                  operation: { kind: "update_component_config", componentId: guided.momentum.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) },
+                });
+              }} />
+            </> : null}
             <label htmlFor="guided-top-n">How many?</label>
             <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
               type: "apply_semantic_patch",

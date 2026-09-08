@@ -24,6 +24,11 @@ function validateValue(field: RegistryField, value: JsonValue): string | null {
   if (field.value_type === "string" && typeof value !== "string") {
     return `${field.name} must be a string`;
   }
+  if (["decimal", "percentage", "shares", "money", "money_per_share"].includes(field.value_type)) {
+    if (typeof value === "string" && value.trim() === "") return `${field.name} must be numeric`;
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(numeric)) return `${field.name} must be numeric`;
+  }
   if (field.choices.length > 0 && !field.choices.includes(value)) {
     return `${field.name} must be one of ${field.choices.join(", ")}`;
   }

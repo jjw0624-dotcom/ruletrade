@@ -17,6 +17,7 @@ from ruletrade.compiler.lean.plan import (
 from ruletrade.ir.strategy import (
     AssetSetOp,
     EqualWeightOp,
+    FilterOp,
     MergeTargetsOp,
     MonthlyScheduleOp,
     RandomNOp,
@@ -69,7 +70,13 @@ def lower_strategy_ir_to_lean_plan(
             )
         elif isinstance(upstream, TopNOp):
             rank = operations.get(upstream.ranked)
-            score = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+            rank_input = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+            filter_operation = rank_input if isinstance(rank_input, FilterOp) else None
+            score = (
+                operations.get(filter_operation.scores)
+                if filter_operation is not None
+                else rank_input
+            )
             asset_set = operations.get(score.assets) if isinstance(score, TrailingReturnOp) else None
             if not isinstance(rank, RankOp) or not isinstance(score, TrailingReturnOp) or not isinstance(asset_set, AssetSetOp):
                 raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
@@ -87,6 +94,17 @@ def lower_strategy_ir_to_lean_plan(
                 count=upstream.count,
                 direction=rank.direction,
                 price_field=history.price_field,
+                filter_component_id=(
+                    filter_operation.provenance.component_id
+                    if filter_operation is not None
+                    else None
+                ),
+                filter_operator=(
+                    filter_operation.operator if filter_operation is not None else None
+                ),
+                filter_threshold=(
+                    filter_operation.threshold if filter_operation is not None else None
+                ),
             )
         elif isinstance(upstream, AssetSetOp):
             symbols = upstream.symbols

@@ -16,6 +16,7 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "asset_set.named",
         "selection.random_n_v1",
         "market.trailing_return",
+        "selection.filter",
         "selection.rank",
         "selection.top_n",
         "allocation.equal_weight",
@@ -98,6 +99,14 @@ def desugar_strategy(
                 id=component.id,
                 assets=input_id(component, "assets"),
                 lookback_bars=int(resolved["lookback_bars"]),
+                provenance=provenance,
+            )
+        elif implementation == "selection.filter":
+            operation = strategy_ir.FilterOp(
+                id=component.id,
+                scores=input_id(component, "scores"),
+                operator=typing.cast(typing.Literal["gt"], resolved["operator"]),
+                threshold=Decimal(str(resolved["threshold"])),
                 provenance=provenance,
             )
         elif implementation == "selection.rank":

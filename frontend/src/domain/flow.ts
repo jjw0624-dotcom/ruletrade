@@ -10,6 +10,7 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
   randomCount?: number;
   resample?: string;
   lookbackBars?: number;
+  threshold?: string;
   topN?: number;
 }
 
@@ -31,9 +32,10 @@ export const DEFAULT_NODE_POSITIONS: NodePositions = {
   rebalance: { x: 1010, y: 190 },
   universe_assets: { x: 20, y: 190 },
   momentum: { x: 250, y: 190 },
-  momentum_rank: { x: 490, y: 190 },
-  top_n: { x: 700, y: 190 },
-  weights: { x: 910, y: 190 },
+  positive_return: { x: 480, y: 190 },
+  momentum_rank: { x: 710, y: 190 },
+  top_n: { x: 930, y: 190 },
+  weights: { x: 1150, y: 190 },
 };
 
 function percentage(value: unknown): string {
@@ -72,6 +74,15 @@ function nodeData(
   if (component.primitive === "trailing_return@1") {
     const lookback = resolvedConfigValue(strategy, registry, component.id, "lookback_bars");
     return { componentId: component.id, title: "Trailing Return", details: [`Lookback: ${String(lookback)} trading days`, "Adjusted close"], lookbackBars: typeof lookback === "number" ? lookback : undefined };
+  }
+  if (component.primitive === "filter@1") {
+    const threshold = resolvedConfigValue(strategy, registry, component.id, "threshold");
+    return {
+      componentId: component.id,
+      title: `Return > ${percentage(threshold)}`,
+      details: ["Strict comparison", "Keeps score values"],
+      threshold: String(threshold),
+    };
   }
   if (component.primitive === "rank@1") {
     const direction = resolvedConfigValue(strategy, registry, component.id, "direction");

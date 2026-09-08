@@ -381,23 +381,70 @@ def generate_csharp(
                                 f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
                                 "            }",
                                 "        }",
-                                f"        var {ranked_variable} = {scores_variable}",
+                            )
+                        )
+                        ranking_input = scores_variable
+                        if selection.filter_threshold is not None:
+                            eligible_variable = (
+                                f"eligibleScores{event_index}_{rebalance_index}_{sleeve_index}"
+                            )
+                            threshold = _decimal_literal(selection.filter_threshold)
+                            lines.extend(
+                                (
+                                    f"        var {eligible_variable} = {scores_variable}",
+                                    f"            .Where(item => item.Value > {threshold})",
+                                    "            .ToDictionary(item => item.Key, item => item.Value);",
+                                    f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
+                                    f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
+                                    f'            + "|rejected=" + string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
+                                )
+                            )
+                            ranking_input = eligible_variable
+                        lines.extend(
+                            (
+                                f"        var {ranked_variable} = {ranking_input}",
                                 "            .OrderByDescending(item => item.Value)",
                                 "            .ThenBy(item => item.Key, StringComparer.Ordinal)",
                                 "            .ToList();",
                                 f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
-                                f"        if ({variable}.Count < {selection.count})",
-                                "        {",
-                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {variable}.Count);',
-                                "            return;",
-                                "        }",
-                                f'        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
-                                f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
-                                '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
-                                f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
-                                f'            + "|selected=" + string.Join(",", {variable}));',
                             )
                         )
+                        eligible_count_variable = (
+                            ranking_input
+                            if selection.filter_threshold is not None
+                            else variable
+                        )
+                        if selection.filter_threshold is not None:
+                            lines.extend(
+                                (
+                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                    f'            + "|candidate=" + string.Join(",", {variable})',
+                                    f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
+                                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "skipped"));',
+                                )
+                            )
+                        lines.extend(
+                            (
+                                f"        if ({variable}.Count < {selection.count})",
+                                "        {",
+                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
+                                "            return;",
+                                "        }",
+                            )
+                        )
+                        if selection.filter_threshold is None:
+                            lines.extend(
+                                (
+                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                    f'            + "|selected=" + string.Join(",", {variable}));',
+                                )
+                            )
                     lines.append(f"        {selected_variable}.AddRange({variable});")
                 weight = _decimal_literal(sleeve.total_weight)
                 lines.extend(

@@ -19,6 +19,7 @@ from ruletrade.backtests.models import BacktestConfig, LeanBacktestRequest
 from ruletrade.backtests.service import BacktestService
 from ruletrade.strategy.v1.fixtures import (
     GOLDEN_PORTFOLIO_PAYLOAD,
+    filter_screening_strategy,
     golden_portfolio_strategy,
     golden_stateful_rule_strategy,
 )
@@ -102,6 +103,22 @@ def test_service_runs_existing_compiler_path_and_normalizes_result() -> None:
     assert response.result.total_orders == 51
     assert response.result.total_fees == Decimal("73.86")
     assert len(response.result.equity_curve) == 2
+
+
+def test_service_compiles_filter_strategy_and_selects_filter_fixture() -> None:
+    runner = FakeRunner()
+    submitted = LeanBacktestRequest(
+        strategy=filter_screening_strategy(),
+        config=BacktestConfig(dataset_id="filter-synthetic"),
+    )
+
+    response = BacktestService(runner).execute(submitted)
+
+    source, dataset_id = runner.calls[0]
+    assert dataset_id == "filter-synthetic"
+    assert ".Where(item => item.Value > 0m)" in source
+    assert "RULETRADE_FILTER|" in source
+    assert response.result.total_orders == 51
 
 
 def test_backtest_config_changes_codegen_without_mutating_canonical() -> None:

@@ -53,10 +53,10 @@ def value_matches_type(value: Any, value_type: ValueType) -> bool:
         if isinstance(value, bool):
             return False
         try:
-            Decimal(str(value))
+            number = Decimal(str(value))
         except (InvalidOperation, TypeError, ValueError):
             return False
-        return True
+        return number.is_finite()
     if value_type in {ValueType.STRING, ValueType.ASSET}:
         return isinstance(value, str) and bool(value.strip())
     if value_type == ValueType.ASSET_SET:

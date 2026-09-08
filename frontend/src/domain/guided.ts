@@ -24,6 +24,8 @@ export interface MomentumGuidedProjection {
     assets: string[];
     lookbackComponentId: string;
     lookbackBars: number;
+    filterComponentId?: string;
+    threshold?: string;
     rankDirection: string;
     selectionComponentId: string;
     topN: number;
@@ -56,6 +58,7 @@ export function projectGuided(
   if (topN) {
     const trailingReturn = strategy.graph.components.find((item) => item.primitive === "trailing_return@1");
     const rank = strategy.graph.components.find((item) => item.primitive === "rank@1");
+    const filter = strategy.graph.components.find((item) => item.primitive === "filter@1");
     const assets = strategy.graph.components.find((item) => item.primitive === "asset_set@1");
     const weighting = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
     if (!trailingReturn || !rank || !assets || !weighting) {
@@ -73,6 +76,10 @@ export function projectGuided(
         assets: assetsFor(strategy, assets.id),
         lookbackComponentId: trailingReturn.id,
         lookbackBars,
+        filterComponentId: filter?.id,
+        threshold: filter
+          ? String(resolvedConfigValue(strategy, registry, filter.id, "threshold"))
+          : undefined,
         rankDirection: direction,
         selectionComponentId: topN.id,
         topN: count,

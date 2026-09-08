@@ -26,7 +26,11 @@ from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
-from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy, momentum_top_n_strategy
+from ruletrade.strategy.v1.fixtures import (
+    filter_screening_strategy,
+    golden_portfolio_strategy,
+    momentum_top_n_strategy,
+)
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 from ruletrade.strategy.v1.validation import collect_semantic_issues
@@ -209,9 +213,14 @@ def _editor_registry_payload() -> dict[str, object]:
 
 @app.get("/v1/editor/bootstrap")
 def editor_bootstrap(
-    example: Literal["golden", "momentum"] = "golden",
+    example: Literal["golden", "momentum", "filter"] = "golden",
 ) -> dict[str, object]:
-    strategy = momentum_top_n_strategy() if example == "momentum" else golden_portfolio_strategy()
+    examples = {
+        "golden": golden_portfolio_strategy,
+        "momentum": momentum_top_n_strategy,
+        "filter": filter_screening_strategy,
+    }
+    strategy = examples[example]()
     issues = collect_semantic_issues(strategy)
     return {
         "strategy": strategy.model_dump(mode="json"),
