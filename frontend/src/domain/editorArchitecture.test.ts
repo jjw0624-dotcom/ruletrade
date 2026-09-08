@@ -35,12 +35,14 @@ describe("Strategy Editor Canonical architecture", () => {
 
   it("shows a Guided semantic edit immediately in Flow", () => {
     const initial = createEditorState(goldenBootstrap);
-    const edited = editorReducer(initial, {
+    const patched = editorReducer(initial, {
       type: "apply_semantic_patch",
       operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
     });
+    const edited = editorReducer(patched, { type: "set_active_view", view: "flow" });
     const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
 
+    expect(edited.editor.activeView).toBe("flow");
     expect(projectGuided(edited.canonical, edited.registry).growth.randomCount).toBe(3);
     expect(flow.nodes.find((node) => node.id === "growth_random")?.data.randomCount).toBe(3);
     expect(initial.canonical.graph.components.find((item) => item.id === "growth_random")?.config.count).toBe(2);
@@ -48,11 +50,13 @@ describe("Strategy Editor Canonical architecture", () => {
 
   it("shows a Flow semantic edit immediately in Guided", () => {
     const initial = createEditorState(goldenBootstrap);
-    const edited = editorReducer(initial, {
+    const patched = editorReducer(initial, {
       type: "apply_semantic_patch",
       operation: { kind: "update_component_config", componentId: "growth_random", field: "resample", value: "once" },
     });
+    const edited = editorReducer(patched, { type: "set_active_view", view: "guided" });
 
+    expect(edited.editor.activeView).toBe("guided");
     expect(projectGuided(edited.canonical, edited.registry).growth.resample).toBe("once");
     expect(projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions)
       .nodes.find((node) => node.id === "growth_random")?.data.resample).toBe("once");
@@ -74,6 +78,11 @@ describe("Strategy Editor Canonical architecture", () => {
 
   it("preserves unsupported Canonical components and AST during Guided edits", () => {
     const bootstrap = structuredClone(goldenBootstrap);
+    bootstrap.strategy.definitions.state.push({
+      id: "counter",
+      value_type: "integer",
+      initial: 0,
+    });
     bootstrap.strategy.graph.components.push({
       id: "advanced_rule",
       primitive: "rule@1",

@@ -25,13 +25,14 @@ Included:
 - Strategy Core v0 with deterministic group selection, allocation, runtime intents, and traces
 - LEAN execution adapter and runtime bridge for the v0 subset
 - Canonical Strategy v1 types, Primitive Registry, graph/AST models, semantic validation, and hashing
+- Typed LEAN compiler v0 with Golden Strategy C# generation and local Docker E2E tooling
 - A React Strategy Editor where Guided and Flow project and patch one Canonical v1 document
 
 Not included yet:
 
-- Canonical v1 execution and LEAN C# generation
 - Strategy revisions and database storage
-- React authoring interface
+- Rules, Blocks, and editable Code authoring views
+- Browser-triggered LEAN backtests
 - Forward tests and competitions
 
 See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the current architecture boundary.
