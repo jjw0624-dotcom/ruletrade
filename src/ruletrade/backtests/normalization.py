@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -40,21 +40,21 @@ def _decimal(value: Any, *, percent: bool = False) -> Decimal:
         result = Decimal(cleaned)
     except InvalidOperation as exc:
         raise MalformedLeanResultError(f"LEAN statistic is not numeric: {value!r}") from exc
-    return result / Decimal("100") if percent or is_percent else result
+    return result / Decimal(100) if percent or is_percent else result
 
 
 def _timestamp(value: Any) -> datetime:
     if isinstance(value, (int, float)):
         if value > 10_000_000_000:
             value /= 1000
-        return datetime.fromtimestamp(value, tz=timezone.utc)
+        return datetime.fromtimestamp(value, tz=UTC)
     if isinstance(value, str):
         candidate = value.replace("Z", "+00:00")
         try:
             parsed = datetime.fromisoformat(candidate)
         except ValueError as exc:
             raise MalformedLeanResultError(f"invalid equity timestamp: {value!r}") from exc
-        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
     raise MalformedLeanResultError(f"invalid equity timestamp: {value!r}")
 
 

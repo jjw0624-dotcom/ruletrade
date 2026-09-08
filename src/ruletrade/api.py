@@ -4,6 +4,7 @@ import os
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 
@@ -25,8 +26,8 @@ from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 from ruletrade.strategy.v1.validation import collect_semantic_issues
 
@@ -247,7 +248,7 @@ def validate_canonical_strategy_v1(
 @app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
 def execute_lean_backtest(
     request: LeanBacktestRequest,
-    service: BacktestService = Depends(get_lean_backtest_service),
+    service: Annotated[BacktestService, Depends(get_lean_backtest_service)],
 ) -> LeanBacktestResponse:
     try:
         return service.execute(request)

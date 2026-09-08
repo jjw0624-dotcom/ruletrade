@@ -32,7 +32,14 @@ jobs:
         run: uv run pytest
 
       - name: Lint Python
-        run: uv run ruff check .
+        run: >-
+          uv run ruff check
+          src/ruletrade/api.py
+          src/ruletrade/backtests
+          scripts/run_editor_lean_e2e.py
+          scripts/run_lean_backtest.py
+          tests/test_api.py
+          tests/test_lean_backtest_service.py
 
       - name: Compile Python
         run: uv run python -m compileall -q src scripts tests

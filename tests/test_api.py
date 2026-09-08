@@ -6,7 +6,10 @@ from ruletrade.api import app, get_lean_backtest_service
 from ruletrade.backtests.errors import LeanRuntimeUnavailableError
 from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.service import BacktestService
-from ruletrade.strategy.v1.fixtures import GOLDEN_PORTFOLIO_PAYLOAD, GOLDEN_STATEFUL_RULE_PAYLOAD
+from ruletrade.strategy.v1.fixtures import (
+    GOLDEN_PORTFOLIO_PAYLOAD,
+    GOLDEN_STATEFUL_RULE_PAYLOAD,
+)
 
 
 client = TestClient(app)

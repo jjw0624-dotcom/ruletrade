@@ -14,7 +14,7 @@ class BacktestConfig(BaseModel):
 
     start_date: date = date(2024, 1, 1)
     end_date: date = date(2024, 12, 31)
-    initial_cash: Decimal = Field(default=Decimal("100000"), gt=0)
+    initial_cash: Decimal = Field(default=Decimal(100000), gt=0)
     dataset_id: Literal["golden-synthetic"] = "golden-synthetic"
 
     @model_validator(mode="after")
