@@ -7,7 +7,7 @@ the strategy hash.
 
 The backend path is:
 
-`HTTP -> BacktestService -> semantic validation -> lower_to_lean_plan -> generate_csharp -> DockerLeanRunner -> normalize_lean_result`
+`HTTP -> BacktestService -> source validation -> Strategy IR -> LeanPlan -> generate_csharp -> DockerLeanRunner -> normalize_lean_result`
 
 The endpoint is synchronous for this MVP. Docker is checked only when a run is
 requested, so the API can start and unit tests can use a fake runner without a

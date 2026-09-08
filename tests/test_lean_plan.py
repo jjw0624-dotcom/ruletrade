@@ -1,12 +1,12 @@
 from dataclasses import replace
 
-from ruletrade.compiler.lean.lowering import lower_to_lean_plan
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.plan import LeanMonthlyEvent, normalize_lean_plan
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 
 
 def test_lowering_produces_typed_golden_lean_plan() -> None:
-    plan = lower_to_lean_plan(golden_portfolio_strategy())
+    plan = compile_strategy_to_lean_plan(golden_portfolio_strategy())
 
     assert plan.strategy_identity.startswith("sha256:")
     assert plan.random_selections[0].component_id == "growth_random"
@@ -29,7 +29,7 @@ def test_lowering_produces_typed_golden_lean_plan() -> None:
 
 
 def test_normalization_deduplicates_subscriptions_and_groups_events() -> None:
-    plan = lower_to_lean_plan(golden_portfolio_strategy())
+    plan = compile_strategy_to_lean_plan(golden_portfolio_strategy())
     duplicate_event = LeanMonthlyEvent(
         id="other_monthly",
         day=1,

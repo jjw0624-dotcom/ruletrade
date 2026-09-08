@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.codegen import _random_helper_source
-from ruletrade.compiler.lean.lowering import lower_to_lean_plan
 from ruletrade.core.allocation import allocate_selected
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import EqualWeightAllocation, RandomNSelection
@@ -17,7 +17,7 @@ from ruletrade.strategy.v1.randomness import deterministic_random_seed
 
 def _reference_targets(event_identity: str) -> tuple[list[str], dict[str, Decimal]]:
     strategy = golden_portfolio_strategy()
-    plan = lower_to_lean_plan(strategy)
+    plan = compile_strategy_to_lean_plan(strategy)
     selection = plan.random_selections[0]
     seed = deterministic_random_seed(
         strategy,
@@ -52,7 +52,7 @@ def test_golden_targets_use_v0_selection_and_allocation_oracle() -> None:
 @pytest.mark.skipif(shutil.which("dotnet") is None, reason="dotnet SDK is not installed")
 def test_emitted_csharp_random_helper_matches_python_v0_oracle(tmp_path) -> None:
     strategy = golden_portfolio_strategy()
-    plan = lower_to_lean_plan(strategy)
+    plan = compile_strategy_to_lean_plan(strategy)
     selection = plan.random_selections[0]
     event_identity = "2024-06-03"
     expected, _ = _reference_targets(event_identity)

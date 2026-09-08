@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from ruletrade.compiler.lean.lowering import lower_to_lean_plan
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
@@ -115,7 +115,7 @@ def validate_golden_e2e(
         raise ValueError(f"expected first monthly rebalance {expected_first_event}, got {actual}")
 
     strategy = golden_portfolio_strategy()
-    plan = lower_to_lean_plan(strategy)
+    plan = compile_strategy_to_lean_plan(strategy)
     selection = plan.random_selections[0]
     growth_sleeve = next(item for item in plan.target_sleeves if item.selection_id == selection.id)
     safe_sleeve = next(item for item in plan.target_sleeves if item.selection_id is None)
