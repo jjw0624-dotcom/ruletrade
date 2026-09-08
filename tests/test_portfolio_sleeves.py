@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
-import json
 from copy import deepcopy
 from dataclasses import replace
 from decimal import Decimal
