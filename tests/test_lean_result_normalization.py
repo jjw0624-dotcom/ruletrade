@@ -11,7 +11,6 @@ import pytest
 from ruletrade.backtests.errors import MalformedLeanResultError
 from ruletrade.backtests.normalization import normalize_lean_result
 
-
 FIXTURE = Path(__file__).parent / "fixtures" / "lean-results" / "strategy-equity-candlesticks.json"
 
 
