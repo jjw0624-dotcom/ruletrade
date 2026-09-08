@@ -26,6 +26,6 @@ def compile_strategy_to_lean_plan(
             parameter_bindings=parameter_bindings,
         )
     except (StrategyDesugaringError, IRValidationError) as exc:
-        raise LeanLoweringError(str(exc)) from exc
+        raise LeanLoweringError(f"unsupported LEAN v0: {exc}") from exc
     requirements = analyze_strategy_ir(strategy_ir)
     return lower_strategy_ir_to_lean_plan(strategy_ir, requirements)
