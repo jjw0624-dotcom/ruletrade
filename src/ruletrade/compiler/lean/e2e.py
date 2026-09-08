@@ -18,6 +18,7 @@ TARGET_PATTERN = re.compile(
     r"\|weights=(?P<weights>[A-Z0-9.,_=:-]+)"
 )
 FATAL_PATTERNS = (
+    "error::",
     "the security does not have an accurate price",
     "runtime error",
     "algorithm.runtimeerror",

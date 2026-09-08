@@ -50,28 +50,37 @@ preserves deterministic `per_event` RandomSelect results.
 ## Docker compile and strict E2E verification
 
 The normal supported route remains an official LEAN CLI project and
-`lean backtest`. For a local synthetic-data harness using the same assemblies
-as `quantconnect/lean:latest`, generate and compile the DLL with:
+`lean backtest`. The repository also provides a one-command local E2E using the
+tracked six-symbol synthetic fixture:
 
 ```bash
-scripts/build_golden_lean_docker.sh
+scripts/run_golden_lean_e2e.sh
 ```
 
-This uses `tools/lean/RuleTrade.Generated.csproj`, the image's .NET SDK, and:
+The runner generates C#, calls `scripts/build_golden_lean_docker.sh`, copies
+`tests/fixtures/lean-data` (including interest-rate data) into a temporary LEAN
+container, launches the backtest, and calls the strict
+`scripts/verify_lean_e2e.py` verifier. Output is written below
+`build/lean/e2e/`. Set `RULETRADE_LEAN_IMAGE` to pin another LEAN image.
+
+Python is selected in this order: the executable named by `RULETRADE_PYTHON`,
+`uv run python`, then `python3`. A bare `python` executable is not required.
+
+The Docker build uses `tools/lean/RuleTrade.Generated.csproj`, the image's .NET
+SDK, and:
 
 - `/Lean/Launcher/bin/Debug/QuantConnect.Common.dll`
 - `/Lean/Launcher/bin/Debug/QuantConnect.Algorithm.dll`
 - `/Lean/Launcher/bin/Debug/Python.Runtime.dll`
 
 `Python.Runtime.dll` is a transitive LEAN compile-time dependency; the generated
-strategy does not execute Python. Pass `build/lean/bin/RuleTradeGenerated.dll`
-to the existing LEAN Launcher configuration and mount the synthetic LEAN data
-directory containing QQQ, VGT, SOXX, SCHG, TLT, and IEF.
+strategy does not execute Python.
 
-After the Launcher finishes, validate both its log and result JSON:
+The build and verifier remain independently callable when diagnosing a run:
 
 ```bash
-PYTHONPATH=src python scripts/verify_lean_e2e.py \
+scripts/build_golden_lean_docker.sh
+PYTHONPATH=src uv run python scripts/verify_lean_e2e.py \
   --log build/lean/lean.log \
   --result build/lean/results/backtest-result.json
 ```
@@ -87,9 +96,8 @@ retained Python v0 RandomSelect oracle.
 missing LEAN risk-free-rate reference data, not the Golden Strategy's target or
 order semantics. It can affect risk-adjusted statistics, so the repository
 provides `tests/fixtures/lean-data/alternative/interest-rate/usa/interest-rate.csv`
-with LEAN's default 1% rate. Copy that path into the corresponding location in
-the synthetic data directory to remove the warning without adding a custom
-provider.
+with LEAN's default 1% rate. The one-command runner copies it automatically to
+remove the warning without adding a custom provider.
 
 ## Deliberate limits
 

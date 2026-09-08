@@ -1,5 +1,7 @@
 import json
 from decimal import Decimal
+from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -25,6 +27,18 @@ EVENTS = (
     "2024-11-01",
     "2024-12-02",
 )
+
+
+def test_tracked_lean_fixture_contains_golden_assets_and_interest_rate() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "lean-data"
+    for symbol in ("qqq", "vgt", "soxx", "schg", "tlt", "ief"):
+        archive_path = fixture / "equity" / "usa" / "daily" / f"{symbol}.zip"
+        with ZipFile(archive_path) as archive:
+            assert archive.namelist() == [f"{symbol}.csv"]
+            assert len(archive.read(f"{symbol}.csv").splitlines()) > 12
+        assert (fixture / "equity" / "usa" / "map_files" / f"{symbol}.csv").is_file()
+        assert (fixture / "equity" / "usa" / "factor_files" / f"{symbol}.csv").is_file()
+    assert (fixture / "alternative" / "interest-rate" / "usa" / "interest-rate.csv").is_file()
 
 
 def _target_line(event_identity: str) -> str:
@@ -72,6 +86,15 @@ def test_strict_e2e_validation_includes_v0_monthly_differential() -> None:
 def test_e2e_validation_rejects_price_readiness_error() -> None:
     log = "\n".join(_target_line(event) for event in EVENTS)
     log += "\nThe security does not have an accurate price as it has not yet received a bar of data."
+    log += "\nAlgorithm Id:(RuleTradeGeneratedAlgorithm) completed in 1.0 seconds"
+
+    with pytest.raises(ValueError, match="fatal LEAN execution error"):
+        validate_golden_e2e(log, {"statistics": {"Total Orders": "46"}})
+
+
+def test_e2e_validation_rejects_any_lean_error_line() -> None:
+    log = "\n".join(_target_line(event) for event in EVENTS)
+    log += "\nERROR:: unexpected infrastructure failure"
     log += "\nAlgorithm Id:(RuleTradeGeneratedAlgorithm) completed in 1.0 seconds"
 
     with pytest.raises(ValueError, match="fatal LEAN execution error"):
