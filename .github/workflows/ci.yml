@@ -40,7 +40,6 @@ jobs:
           src/ruletrade/compiler/analysis
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
-          src/ruletrade/compiler/lean/codegen.py
           src/ruletrade/compiler/lean/filter_e2e.py
           src/ruletrade/compiler/lean/lowering.py
           src/ruletrade/compiler/lean/momentum_e2e.py

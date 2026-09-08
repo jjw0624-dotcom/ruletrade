@@ -25,10 +25,10 @@ from ruletrade.strategy.v1.validation import validate_strategy_v1
 def test_reference_filter_is_strict_and_preserves_scores() -> None:
     result = evaluate_filtered_trailing_return_top_n(
         {
-            "POSITIVE": [Decimal("1"), Decimal("1.0001")],
-            "ZERO": [Decimal("1"), Decimal("1")],
-            "NEGATIVE": [Decimal("1"), Decimal("0.9999")],
-            "INCOMPLETE": [Decimal("1")],
+            "POSITIVE": [Decimal(1), Decimal("1.0001")],
+            "ZERO": [Decimal(1), Decimal(1)],
+            "NEGATIVE": [Decimal(1), Decimal("0.9999")],
+            "INCOMPLETE": [Decimal(1)],
         },
         lookback_bars=1,
         threshold=Decimal(0),

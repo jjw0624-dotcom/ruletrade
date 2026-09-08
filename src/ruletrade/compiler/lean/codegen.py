@@ -417,7 +417,7 @@ def generate_csharp(
                         if selection.filter_threshold is not None:
                             lines.extend(
                                 (
-                                    f'        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
                                     f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
                                     '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
                                     f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
@@ -436,7 +436,7 @@ def generate_csharp(
                         if selection.filter_threshold is None:
                             lines.extend(
                                 (
-                                    f'        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
                                     f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
                                     '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
                                     f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
