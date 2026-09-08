@@ -19,6 +19,7 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
     onCountChange?: (value: number) => void;
     onResampleChange?: (value: string) => void;
     onLookbackChange?: (value: number) => void;
+    onThresholdChange?: (value: string) => void;
     onTopNChange?: (value: number) => void;
   };
   return (
@@ -26,7 +27,11 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.lookbackBars !== undefined ? (
+      {node.threshold !== undefined ? (
+        <div className="node-fields"><label>Threshold (%)<input type="number" step="0.1" value={Number(node.threshold) * 100} onChange={(event) => {
+          if (event.target.value !== "") node.onThresholdChange?.(String(Number(event.target.value) / 100));
+        }} /></label></div>
+      ) : node.lookbackBars !== undefined ? (
         <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.lookbackBars} onChange={(event) => node.onLookbackChange?.(Number(event.target.value))} /></label></div>
       ) : node.topN !== undefined ? (
         <div className="node-fields"><label>Count<input type="number" min={1} value={node.topN} onChange={(event) => node.onTopNChange?.(Number(event.target.value))} /></label></div>
@@ -65,6 +70,10 @@ export function FlowView() {
         onLookbackChange: (value: number) => dispatch({
           type: "apply_semantic_patch",
           operation: { kind: "update_component_config", componentId: node.id, field: "lookback_bars", value },
+        }),
+        onThresholdChange: (value: string) => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_component_config", componentId: node.id, field: "threshold", value },
         }),
         onTopNChange: (value: number) => dispatch({
           type: "apply_semantic_patch",

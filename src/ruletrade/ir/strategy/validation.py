@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
     EqualWeightOp,
+    FilterOp,
     IRType,
     MergeTargetsOp,
     MonthlyScheduleOp,
@@ -38,7 +40,7 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         return IRType.EVENT
     if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp)):
         return IRType.ASSET_SET
-    if isinstance(operation, TrailingReturnOp):
+    if isinstance(operation, (TrailingReturnOp, FilterOp)):
         return IRType.ASSET_SCORES
     if isinstance(operation, RankOp):
         return IRType.RANKED_ASSETS
@@ -54,6 +56,8 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
         return (("assets", operation.assets, IRType.ASSET_SET),)
     if isinstance(operation, TrailingReturnOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
+    if isinstance(operation, FilterOp):
+        return (("scores", operation.scores, IRType.ASSET_SCORES),)
     if isinstance(operation, RankOp):
         return (("scores", operation.scores, IRType.ASSET_SCORES),)
     if isinstance(operation, TopNOp):
@@ -82,6 +86,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         AssetSetOp,
         RandomNOp,
         TrailingReturnOp,
+        FilterOp,
         RankOp,
         TopNOp,
         EqualWeightOp,
@@ -124,6 +129,15 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 issues.append(IRValidationIssue(f"{path}.resample", "unsupported random resample mode"))
         if isinstance(operation, TrailingReturnOp) and operation.lookback_bars < 1:
             issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
+        if isinstance(operation, FilterOp):
+            if operation.operator != "gt":
+                issues.append(
+                    IRValidationIssue(f"{path}.operator", "only strict gt filter is supported")
+                )
+            if not isinstance(operation.threshold, Decimal) or not operation.threshold.is_finite():
+                issues.append(
+                    IRValidationIssue(f"{path}.threshold", "filter threshold must be finite decimal")
+                )
         if isinstance(operation, RankOp) and operation.direction != "descending":
             issues.append(IRValidationIssue(f"{path}.direction", "only descending rank is supported"))
         if isinstance(operation, TopNOp) and operation.count < 1:
@@ -162,6 +176,8 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         if isinstance(operation, TopNOp):
             rank = operations.get(operation.ranked)
             scores = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+            if isinstance(scores, FilterOp):
+                scores = operations.get(scores.scores)
             source = operations.get(scores.assets) if isinstance(scores, TrailingReturnOp) else None
             if isinstance(source, AssetSetOp) and operation.count > len(source.symbols):
                 issues.append(

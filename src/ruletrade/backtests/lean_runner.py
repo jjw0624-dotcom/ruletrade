@@ -128,10 +128,14 @@ class DockerLeanRunner:
             raise LeanRuntimeUnavailableError("Docker daemon is unavailable.")
 
     def run(self, generated_csharp: str, *, dataset_id: str) -> LeanRunArtifact:
-        if dataset_id != "golden-synthetic":
+        fixture_names = {
+            "golden-synthetic": "lean-data",
+            "filter-synthetic": "lean-filter-data",
+        }
+        if dataset_id not in fixture_names:
             raise LeanExecutionError(f"Unsupported LEAN dataset: {dataset_id}")
         self._ensure_runtime()
-        fixture = self.repo_root / "tests" / "fixtures" / "lean-data"
+        fixture = self.repo_root / "tests" / "fixtures" / fixture_names[dataset_id]
         if not fixture.is_dir():
             raise LeanExecutionError("Synthetic LEAN fixture is missing.")
 

@@ -59,6 +59,16 @@ class TrailingReturnOp:
 
 
 @dataclass(frozen=True)
+class FilterOp:
+    id: str
+    scores: str
+    operator: Literal["gt"]
+    threshold: Decimal
+    provenance: SourceProvenance
+    operation: Literal["selection.filter"] = "selection.filter"
+
+
+@dataclass(frozen=True)
 class RankOp:
     id: str
     scores: str
@@ -107,6 +117,7 @@ StrategyIROperation: TypeAlias = (
     | AssetSetOp
     | RandomNOp
     | TrailingReturnOp
+    | FilterOp
     | RankOp
     | TopNOp
     | EqualWeightOp

@@ -98,8 +98,9 @@ class _FakeDocker:
 
 
 def _runner_with_fake_docker(repo_root: Path, fake: _FakeDocker) -> DockerLeanRunner:
-    fixture = repo_root / "tests" / "fixtures" / "lean-data"
-    fixture.mkdir(parents=True)
+    for fixture_name in ("lean-data", "lean-filter-data"):
+        fixture = repo_root / "tests" / "fixtures" / fixture_name
+        fixture.mkdir(parents=True)
     runner = DockerLeanRunner(repo_root=repo_root)
     runner._ensure_runtime = lambda: None  # type: ignore[method-assign]
     runner._run = fake  # type: ignore[method-assign]
@@ -127,6 +128,15 @@ def test_failed_build_still_cleans_run_directory(tmp_path: Path) -> None:
         runner.run("// build fails", dataset_id="golden-synthetic")
 
     assert list((tmp_path / "build" / "lean" / "runs").iterdir()) == []
+
+
+def test_filter_dataset_uses_its_own_fixture(tmp_path: Path) -> None:
+    fake = _FakeDocker(tmp_path)
+    runner = _runner_with_fake_docker(tmp_path, fake)
+
+    result = runner.run("// filter", dataset_id="filter-synthetic")
+
+    assert result.result_payload == {"statistics": {}}
 
 
 def test_docker_build_keeps_intermediates_off_host_and_maps_user() -> None:

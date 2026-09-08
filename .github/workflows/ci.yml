@@ -40,16 +40,21 @@ jobs:
           src/ruletrade/compiler/analysis
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
+          src/ruletrade/compiler/lean/codegen.py
+          src/ruletrade/compiler/lean/filter_e2e.py
           src/ruletrade/compiler/lean/lowering.py
           src/ruletrade/compiler/lean/momentum_e2e.py
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py
+          scripts/generate_filter_lean.py
           scripts/generate_momentum_lean.py
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
           scripts/verify_momentum_lean_e2e.py
+          scripts/verify_filter_lean_e2e.py
           tests/test_api.py
+          tests/test_filter_screening.py
           tests/test_lean_backtest_service.py
           tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
@@ -67,6 +72,7 @@ jobs:
           bash -n
           scripts/run_golden_lean_e2e.sh
           scripts/run_momentum_lean_e2e.sh
+          scripts/run_filter_lean_e2e.sh
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 
@@ -110,11 +116,12 @@ jobs:
       - name: Install compiler dependencies
         run: uv sync --extra dev --locked
 
-      - name: Generate Momentum C#
-        run: >-
-          PYTHONPATH=src uv run python
-          scripts/generate_momentum_lean.py
-          --output build/lean/momentum-ci/Main.cs
+      - name: Generate Momentum and Filter C#
+        run: |
+          PYTHONPATH=src uv run python scripts/generate_momentum_lean.py \
+            --output build/lean/momentum-ci/Main.cs
+          PYTHONPATH=src uv run python scripts/generate_filter_lean.py \
+            --output build/lean/filter-ci/Main.cs
 
       - name: Free space for the LEAN Docker image
         run: |
@@ -128,11 +135,16 @@ jobs:
           docker system prune --all --force
           df -h /
 
-      - name: Compile Momentum generated C# against LEAN
-        run: >-
-          ./scripts/build_golden_lean_docker.sh
-          build/lean/momentum-ci/Main.cs
-          build/lean/momentum-ci/bin
+      - name: Compile generated C# against LEAN
+        run: |
+          ./scripts/build_golden_lean_docker.sh \
+            build/lean/momentum-ci/Main.cs \
+            build/lean/momentum-ci/bin
+          ./scripts/build_golden_lean_docker.sh \
+            build/lean/filter-ci/Main.cs \
+            build/lean/filter-ci/bin
 
-      - name: Verify generated assembly
-        run: test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll
+      - name: Verify generated assemblies
+        run: |
+          test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll
+          test -f build/lean/filter-ci/bin/RuleTradeGenerated.dll

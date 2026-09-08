@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from datetime import date, timedelta
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
@@ -13,6 +14,7 @@ SYMBOLS = {
     "tlt": (950_000, 2_400),
     "ief": (920_000, 2_550),
 }
+FILTER_PHASES = {"qqq": 0, "vgt": 30, "soxx": 60, "schg": 90}
 
 # Full-day NASDAQ closures in the fixture period. Early closes remain
 # trading days because a Daily TradeBar still exists for them.
@@ -73,6 +75,23 @@ def daily_rows(symbol: str) -> str:
     return "\n".join(rows) + "\n"
 
 
+def filter_daily_rows(symbol: str) -> str:
+    """Generate deterministic cycles that exercise positive-return screening."""
+
+    phase = FILTER_PHASES[symbol]
+    rows = []
+    for index, trading_date in enumerate(trading_dates()):
+        close = 4_000_000 + int(
+            800_000 * math.sin(2 * math.pi * (index + phase) / 252)
+        )
+        rows.append(
+            f"{trading_date:%Y%m%d} 00:00,"
+            f"{close - 2_500},{close + 5_000},{close - 7_500},{close},"
+            f"{1_000_000 + 1_000 * index}"
+        )
+    return "\n".join(rows) + "\n"
+
+
 def _write_deterministic_zip(path: Path, entry_name: str, contents: str) -> None:
     info = ZipInfo(entry_name, date_time=ZIP_TIMESTAMP)
     info.compress_type = ZIP_DEFLATED
@@ -81,7 +100,7 @@ def _write_deterministic_zip(path: Path, entry_name: str, contents: str) -> None
         archive.writestr(info, contents.encode("utf-8"))
 
 
-def generate_fixture(output: Path) -> None:
+def generate_fixture(output: Path, *, profile: str = "golden") -> None:
     daily = output / "equity" / "usa" / "daily"
     map_files = output / "equity" / "usa" / "map_files"
     factor_files = output / "equity" / "usa" / "factor_files"
@@ -89,11 +108,13 @@ def generate_fixture(output: Path) -> None:
     map_files.mkdir(parents=True, exist_ok=True)
     factor_files.mkdir(parents=True, exist_ok=True)
 
-    for symbol in SYMBOLS:
+    symbols = FILTER_PHASES if profile == "filter" else SYMBOLS
+    row_factory = filter_daily_rows if profile == "filter" else daily_rows
+    for symbol in symbols:
         _write_deterministic_zip(
             daily / f"{symbol}.zip",
             f"{symbol}.csv",
-            daily_rows(symbol),
+            row_factory(symbol),
         )
         (map_files / f"{symbol}.csv").write_text(
             f"{MAP_START:%Y%m%d},{symbol}\n{LEAN_END_OF_TIME:%Y%m%d},{symbol}\n",
@@ -103,6 +124,12 @@ def generate_fixture(output: Path) -> None:
             f"{MAP_START:%Y%m%d},1,1,1\n{LEAN_END_OF_TIME:%Y%m%d},1,1,0\n",
             encoding="utf-8",
         )
+    interest_rates = output / "alternative" / "interest-rate" / "usa"
+    interest_rates.mkdir(parents=True, exist_ok=True)
+    (interest_rates / "interest-rate.csv").write_text(
+        "date,interest-rate\n1998-01-01,1.0\n",
+        encoding="utf-8",
+    )
 
 
 def main() -> None:
@@ -112,8 +139,9 @@ def main() -> None:
         type=Path,
         default=Path("tests/fixtures/lean-data"),
     )
+    parser.add_argument("--profile", choices=("golden", "filter"), default="golden")
     args = parser.parse_args()
-    generate_fixture(args.output)
+    generate_fixture(args.output, profile=args.profile)
 
 
 if __name__ == "__main__":

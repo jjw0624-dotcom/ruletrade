@@ -172,6 +172,25 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 implementation_id="market.trailing_return",
             ),
             PrimitiveSpec(
+                id="filter@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("scores", ValueType.ASSET_SCORES),),
+                outputs=(PortSpec("scores", ValueType.ASSET_SCORES),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "operator",
+                        ValueType.STRING,
+                        required=False,
+                        default="gt",
+                        choices=("gt",),
+                    ),
+                    PrimitiveFieldSpec("threshold", ValueType.PERCENTAGE),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.GENERATED,
+                implementation_id="selection.filter",
+            ),
+            PrimitiveSpec(
                 id="rank@1",
                 category=PrimitiveCategory.TRANSFORM,
                 inputs=(PortSpec("scores", ValueType.ASSET_SCORES),),

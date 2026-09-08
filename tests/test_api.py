@@ -206,6 +206,29 @@ def test_editor_bootstrap_can_deliver_momentum_source_model() -> None:
     ]
 
 
+def test_editor_bootstrap_can_deliver_filter_source_model_and_registry_contract() -> None:
+    response = client.get("/v1/editor/bootstrap?example=filter")
+
+    assert response.status_code == 200
+    payload = response.json()
+    filter_component = next(
+        item
+        for item in payload["strategy"]["graph"]["components"]
+        if item["primitive"] == "filter@1"
+    )
+    assert filter_component["config"] == {"operator": "gt", "threshold": "0"}
+    filter_primitive = next(
+        item for item in payload["registry"]["primitives"] if item["id"] == "filter@1"
+    )
+    assert filter_primitive["inputs"] == [
+        {"name": "scores", "value_type": "asset_scores", "required": True, "multiple": False}
+    ]
+    assert filter_primitive["outputs"] == [
+        {"name": "scores", "value_type": "asset_scores", "required": True, "multiple": False}
+    ]
+    assert filter_primitive["fields"][1]["value_type"] == "percentage"
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,

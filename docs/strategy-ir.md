@@ -35,6 +35,7 @@ schedule.monthly
 market.asset_set
 selection.random_n
 market.trailing_return
+selection.filter
 selection.rank
 selection.top_n
 portfolio.equal_weight
@@ -75,6 +76,25 @@ The two added dataflow types are deliberately precise: `asset_scores` is a per-a
 set, and `ranked_assets` is its deterministic ordered result. They prevent raw scores or ranked
 collections from being mistaken for an ordinary `AssetSet` without introducing generic collection
 machinery.
+
+## Score filtering semantics
+
+The first screening slice composes without adding a new collection type:
+
+```text
+market.trailing_return → selection.filter → selection.rank → selection.top_n
+```
+
+`selection.filter` consumes and returns `asset_scores`, preserving the calculated score values for
+ranking. Its v0 predicate is exactly `score > threshold`, using decimal comparison. Equality does
+not pass. Missing or history-ineligible assets have no score and therefore cannot pass. Filtering
+does not reorder scores; the downstream rank operation still owns deterministic descending order
+and ticker-ascending ties.
+
+The generated backend calculates each trailing return once, filters that dictionary, and ranks the
+filtered dictionary. If fewer than Top N scores remain, the entire rebalance is skipped and current
+holdings remain unchanged. It does not partially invest, silently reduce N, move to cash, or select
+a fallback. Fallback is intentionally deferred to a later source-level feature.
 
 ## Registry and analysis
 

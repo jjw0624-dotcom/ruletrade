@@ -33,6 +33,9 @@ class LeanMomentumSelection:
     count: int
     direction: Literal["descending"] = "descending"
     price_field: Literal["adjusted_close"] = "adjusted_close"
+    filter_component_id: str | None = None
+    filter_operator: Literal["gt"] | None = None
+    filter_threshold: Decimal | None = None
 
 
 @dataclass(frozen=True)

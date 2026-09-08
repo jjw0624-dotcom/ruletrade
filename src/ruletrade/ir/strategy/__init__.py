@@ -1,6 +1,7 @@
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
     EqualWeightOp,
+    FilterOp,
     IREntrypoint,
     IRType,
     MergeTargetsOp,
@@ -25,6 +26,7 @@ from ruletrade.ir.strategy.validation import (
 __all__ = [
     "AssetSetOp",
     "EqualWeightOp",
+    "FilterOp",
     "IREntrypoint",
     "IRType",
     "IRValidationError",
