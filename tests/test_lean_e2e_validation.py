@@ -1,6 +1,8 @@
 import json
 import re
-from datetime import datetime
+import subprocess
+import sys
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from zipfile import ZipFile
@@ -13,16 +15,22 @@ from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 from ruletrade.strategy.v1.randomness import deterministic_random_seed
-from scripts.generate_golden_lean_fixture import (
-    LEAN_END_OF_TIME,
-    MAP_START,
-    SYMBOLS,
-    US_EQUITY_HOLIDAYS_2024,
-    generate_fixture,
-    trading_dates_2024,
+
+SYMBOLS = ("qqq", "vgt", "soxx", "schg", "tlt", "ief")
+US_EQUITY_HOLIDAYS_2024 = frozenset(
+    {
+        date(2024, 1, 1),
+        date(2024, 1, 15),
+        date(2024, 2, 19),
+        date(2024, 3, 29),
+        date(2024, 5, 27),
+        date(2024, 6, 19),
+        date(2024, 7, 4),
+        date(2024, 9, 2),
+        date(2024, 11, 28),
+        date(2024, 12, 25),
+    }
 )
-
-
 EVENTS = (
     "2024-01-02",
     "2024-02-01",
@@ -39,6 +47,16 @@ EVENTS = (
 )
 
 
+def _trading_dates_2024() -> tuple[date, ...]:
+    current = date(2024, 1, 1)
+    result: list[date] = []
+    while current <= date(2024, 12, 31):
+        if current.weekday() < 5 and current not in US_EQUITY_HOLIDAYS_2024:
+            result.append(current)
+        current += timedelta(days=1)
+    return tuple(result)
+
+
 def test_tracked_lean_fixture_contains_golden_assets_and_interest_rate() -> None:
     fixture = Path(__file__).parent / "fixtures" / "lean-data"
     for symbol in ("qqq", "vgt", "soxx", "schg", "tlt", "ief"):
@@ -53,7 +71,7 @@ def test_tracked_lean_fixture_contains_golden_assets_and_interest_rate() -> None
 
 def test_tracked_daily_fixture_matches_lean_contract_and_exchange_calendar() -> None:
     fixture = Path(__file__).parent / "fixtures" / "lean-data" / "equity" / "usa"
-    expected_dates = trading_dates_2024()
+    expected_dates = _trading_dates_2024()
     assert len(expected_dates) == 252
     assert expected_dates[0].isoformat() == "2024-01-02"
     assert not US_EQUITY_HOLIDAYS_2024.intersection(expected_dates)
@@ -73,22 +91,26 @@ def test_tracked_daily_fixture_matches_lean_contract_and_exchange_calendar() -> 
         assert all(day.weekday() < 5 for day in observed_dates)
 
         assert (fixture / "map_files" / f"{symbol}.csv").read_text().splitlines() == [
-            f"{MAP_START:%Y%m%d},{symbol}",
-            f"{LEAN_END_OF_TIME:%Y%m%d},{symbol}",
+            f"19980102,{symbol}",
+            f"20501231,{symbol}",
         ]
         assert (
             fixture / "factor_files" / f"{symbol}.csv"
         ).read_text().splitlines() == [
-            f"{MAP_START:%Y%m%d},1,1,1",
-            f"{LEAN_END_OF_TIME:%Y%m%d},1,1,0",
+            "19980102,1,1,1",
+            "20501231,1,1,0",
         ]
 
 
 def test_golden_daily_fixture_is_reproducibly_generated(tmp_path: Path) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
-    generate_fixture(first)
-    generate_fixture(second)
+    generator = Path(__file__).parents[1] / "scripts" / "generate_golden_lean_fixture.py"
+    for output in (first, second):
+        subprocess.run(
+            [sys.executable, str(generator), "--output", str(output)],
+            check=True,
+        )
 
     tracked = Path(__file__).parent / "fixtures" / "lean-data"
     for symbol in SYMBOLS:
