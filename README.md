@@ -25,6 +25,7 @@ Included:
 - Strategy Core v0 with deterministic group selection, allocation, runtime intents, and traces
 - LEAN execution adapter and runtime bridge for the v0 subset
 - Canonical Strategy v1 types, Primitive Registry, graph/AST models, semantic validation, and hashing
+- A React Strategy Editor where Guided and Flow project and patch one Canonical v1 document
 
 Not included yet:
 
@@ -34,6 +35,22 @@ Not included yet:
 - Forward tests and competitions
 
 See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the current architecture boundary.
+
+## Strategy Editor
+
+Run the API and frontend in separate terminals:
+
+```bash
+uv run uvicorn ruletrade.api:app --reload
+cd frontend && npm install && npm run dev
+```
+
+Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Golden
+Canonical strategy and Primitive Registry metadata from `/v1/editor/bootstrap`.
+Guided and Flow hold no independent strategy document: both project the same
+in-memory Canonical state and submit stable component-ID config operations to
+it. Flow positions, viewport, selection, and active View remain editor-only
+state and are never sent to Canonical validation.
 
 ## Exact cash-flow semantics
 
