@@ -6,9 +6,10 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <LeanRoot Condition="'$(LeanRoot)' == ''">/Lean</LeanRoot>
+    <GeneratedSource Condition="'$(GeneratedSource)' == ''">../../build/lean/Main.cs</GeneratedSource>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../build/lean/Main.cs" Link="Main.cs" />
+    <Compile Include="$(GeneratedSource)" Link="Main.cs" />
     <Reference Include="QuantConnect.Common">
       <HintPath>$(LeanRoot)/Launcher/bin/Debug/QuantConnect.Common.dll</HintPath>
       <Private>false</Private>

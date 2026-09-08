@@ -31,6 +31,18 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+      - name: Lint Python
+        run: uv run ruff check .
+
+      - name: Compile Python
+        run: uv run python -m compileall -q src scripts tests
+
+      - name: Check shell syntax
+        run: bash -n scripts/run_golden_lean_e2e.sh scripts/build_golden_lean_docker.sh
+
+      - name: Check patch whitespace
+        run: git diff --check
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

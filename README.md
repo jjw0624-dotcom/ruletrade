@@ -55,6 +55,13 @@ state and are never sent to Canonical validation. Frontend test commands export
 their Golden input from the same backend bootstrap function; there is no second
 hand-maintained frontend Golden fixture.
 
+The **Backtest** action submits that exact current Canonical document to the
+backend LEAN compiler path and presents normalized metrics plus a lightweight
+SVG equity curve. Run dates, initial cash, and the synthetic dataset selection
+remain separate from strategy semantics. See
+[Editor-to-LEAN backtest](docs/editor-lean-backtest.md) for the API/service
+boundary and local acceptance commands.
+
 ## Exact cash-flow semantics
 
 - Initial capital is available at the first dataset date.

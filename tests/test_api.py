@@ -1,7 +1,12 @@
+from copy import deepcopy
+
 from fastapi.testclient import TestClient
 
-from ruletrade.api import app
-from ruletrade.strategy.v1.fixtures import GOLDEN_PORTFOLIO_PAYLOAD
+from ruletrade.api import app, get_lean_backtest_service
+from ruletrade.backtests.errors import LeanRuntimeUnavailableError
+from ruletrade.backtests.lean_runner import LeanRunArtifact
+from ruletrade.backtests.service import BacktestService
+from ruletrade.strategy.v1.fixtures import GOLDEN_PORTFOLIO_PAYLOAD, GOLDEN_STATEFUL_RULE_PAYLOAD
 
 
 client = TestClient(app)
@@ -195,3 +200,93 @@ def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["path"].startswith("entrypoints")
+
+
+class ApiFakeRunner:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[str] = []
+
+    def run(self, generated_csharp: str, *, dataset_id: str) -> LeanRunArtifact:
+        self.calls.append(generated_csharp)
+        if self.error:
+            raise self.error
+        return LeanRunArtifact(
+            log_text="Backtest completed",
+            result_payload={
+                "statistics": {
+                    "Start Equity": "100000",
+                    "End Equity": "133448.49",
+                    "Net Profit": "33.448%",
+                    "Total Orders": "51",
+                    "Total Fees": "$73.86",
+                },
+                "charts": {
+                    "Strategy Equity": {
+                        "series": {
+                            "Equity": {
+                                "values": [
+                                    {"x": 1704153600, "y": 100000},
+                                    {"x": 1735603200, "y": 133448.49},
+                                ]
+                            }
+                        }
+                    }
+                },
+            },
+        )
+
+
+def post_lean_backtest(payload: dict[str, object], runner: ApiFakeRunner):
+    app.dependency_overrides[get_lean_backtest_service] = lambda: BacktestService(runner)
+    try:
+        return client.post("/v1/backtests/lean", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_lean_backtest_api_executes_submitted_canonical() -> None:
+    payload = deepcopy(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload["graph"]["components"][2]["config"]["count"] = 3
+    runner = ApiFakeRunner()
+
+    response = post_lean_backtest({"strategy": payload, "config": {}}, runner)
+
+    assert response.status_code == 200
+    assert response.json()["result"]["total_orders"] == 51
+    assert response.json()["result"]["final_value"] == "133448.49"
+    assert "}, 3," in runner.calls[0]
+
+
+def test_lean_backtest_api_rejects_invalid_strategy_before_execution() -> None:
+    payload = deepcopy(GOLDEN_PORTFOLIO_PAYLOAD)
+    payload["entrypoints"] = [
+        {"event_component_id": "rebalance", "target_component_id": "monthly"}
+    ]
+    runner = ApiFakeRunner()
+
+    response = post_lean_backtest({"strategy": payload}, runner)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_strategy"
+    assert runner.calls == []
+
+
+def test_lean_backtest_api_distinguishes_unsupported_strategy() -> None:
+    runner = ApiFakeRunner()
+    response = post_lean_backtest({"strategy": GOLDEN_STATEFUL_RULE_PAYLOAD}, runner)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "unsupported_strategy"
+    assert runner.calls == []
+
+
+def test_lean_backtest_api_reports_runtime_unavailable() -> None:
+    runner = ApiFakeRunner(LeanRuntimeUnavailableError("Docker runtime is unavailable."))
+    response = post_lean_backtest({"strategy": GOLDEN_PORTFOLIO_PAYLOAD}, runner)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "runtime_unavailable",
+        "message": "Docker runtime is unavailable.",
+    }

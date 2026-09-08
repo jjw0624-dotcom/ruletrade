@@ -9,6 +9,7 @@ import type {
 } from "../domain/canonical";
 import { DEFAULT_NODE_POSITIONS, type NodePositions } from "../domain/flow";
 import { updateComponentConfig, type UpdateComponentConfig } from "../domain/patch";
+import type { LeanBacktestResponse } from "../domain/backtest";
 
 export type EditorView = "guided" | "flow";
 
@@ -25,6 +26,11 @@ export interface StrategyEditorState {
     status: "valid" | "dirty" | "invalid" | "checking";
     issues: ValidationIssue[];
   };
+  backtest:
+    | { status: "idle"; result: null; error: null }
+    | { status: "running"; result: null; error: null }
+    | { status: "success"; result: LeanBacktestResponse; error: null }
+    | { status: "error"; result: null; error: { code: string; message: string } };
 }
 
 export type StrategyEditorAction =
@@ -34,7 +40,10 @@ export type StrategyEditorAction =
   | { type: "set_viewport"; viewport: Viewport }
   | { type: "select_node"; componentId: string | null }
   | { type: "validation_started" }
-  | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
+  | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] }
+  | { type: "backtest_started" }
+  | { type: "backtest_succeeded"; result: LeanBacktestResponse }
+  | { type: "backtest_failed"; error: { code: string; message: string } };
 
 export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorState {
   return {
@@ -50,6 +59,7 @@ export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorSta
       status: bootstrap.validation.valid ? "valid" : "invalid",
       issues: bootstrap.validation.issues,
     },
+    backtest: { status: "idle", result: null, error: null },
   };
 }
 
@@ -86,7 +96,19 @@ export function editorReducer(
         ...state,
         validation: { status: action.valid ? "valid" : "invalid", issues: action.issues },
       };
+    case "backtest_started":
+      return state.backtest.status === "running"
+        ? state
+        : { ...state, backtest: { status: "running", result: null, error: null } };
+    case "backtest_succeeded":
+      return { ...state, backtest: { status: "success", result: action.result, error: null } };
+    case "backtest_failed":
+      return { ...state, backtest: { status: "error", result: null, error: action.error } };
   }
+}
+
+export function canStartBacktest(state: StrategyEditorState): boolean {
+  return state.backtest.status !== "running";
 }
 
 interface StrategyEditorContextValue {

@@ -5,9 +5,19 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
 from ruletrade import __version__
+from ruletrade.backtests.errors import (
+    InvalidStrategyError,
+    LeanExecutionError,
+    LeanRuntimeUnavailableError,
+    MalformedLeanResultError,
+    UnsupportedStrategyError,
+)
+from ruletrade.backtests.lean_runner import DockerLeanRunner
+from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
+from ruletrade.backtests.service import BacktestService
 from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
@@ -30,6 +40,11 @@ def default_data_dir() -> Path:
 
 registry = DatasetRegistry(default_data_dir())
 app = FastAPI(title="RuleTrade MVP API", version=__version__)
+lean_backtest_service = BacktestService(DockerLeanRunner())
+
+
+def get_lean_backtest_service() -> BacktestService:
+    return lean_backtest_service
 
 
 @app.get("/health")
@@ -227,3 +242,44 @@ def validate_canonical_strategy_v1(
         "strategy_hash": strategy_hash(spec),
         "strategy": spec.model_dump(mode="json"),
     }
+
+
+@app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
+def execute_lean_backtest(
+    request: LeanBacktestRequest,
+    service: BacktestService = Depends(get_lean_backtest_service),
+) -> LeanBacktestResponse:
+    try:
+        return service.execute(request)
+    except InvalidStrategyError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "issues": [
+                    {"path": issue.path, "message": issue.message}
+                    for issue in exc.issues
+                ],
+            },
+        ) from exc
+    except UnsupportedStrategyError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except LeanRuntimeUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except MalformedLeanResultError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except LeanExecutionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
