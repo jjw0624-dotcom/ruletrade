@@ -2,7 +2,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from zipfile import ZipFile
@@ -83,7 +83,7 @@ def test_tracked_daily_fixture_matches_lean_contract_and_exchange_calendar() -> 
         matches = [row_pattern.fullmatch(row) for row in rows]
         assert all(match is not None for match in matches)
         observed_dates = tuple(
-            datetime.strptime(match.group(1), "%Y%m%d").date()
+            date.fromisoformat(match.group(1))
             for match in matches
             if match is not None
         )
