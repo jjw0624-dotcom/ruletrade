@@ -8,7 +8,6 @@ from decimal import Decimal
 from ruletrade.backtests.errors import MalformedLeanResultError
 from ruletrade.backtests.models import BacktestResult, EquityPoint
 
-
 _NUMBER = re.compile(r"[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?")
 _NONNEGATIVE_INTEGER = re.compile(r"\d+")
 
