@@ -41,6 +41,7 @@ jobs:
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
           src/ruletrade/compiler/lean/lowering.py
+          src/ruletrade/compiler/lean/momentum_e2e.py
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py

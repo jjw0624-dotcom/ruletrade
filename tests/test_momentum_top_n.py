@@ -12,12 +12,12 @@ import pytest
 from ruletrade.compiler.analysis import analyze_strategy_ir
 from ruletrade.compiler.frontend import lower_strategy_model_to_ir
 from ruletrade.compiler.lean.codegen import generate_csharp
+from ruletrade.compiler.lean.momentum_e2e import SYMBOLS, verify_momentum_e2e
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.ir.strategy import IRValidationError, TopNOp, TrailingReturnOp, validate_strategy_ir
 from ruletrade.strategy.v1.fixtures import momentum_top_n_strategy
 from ruletrade.strategy.v1.momentum import evaluate_trailing_return_top_n
 from ruletrade.strategy.v1.validation import validate_strategy_v1
-from scripts.verify_momentum_lean_e2e import SYMBOLS, verify
 
 
 def test_reference_trailing_return_ranks_descending_with_stable_ties() -> None:
@@ -163,4 +163,4 @@ def test_momentum_acceptance_trace_matches_reference_oracle() -> None:
         .read_text()
     )
 
-    assert verify("\n".join(lines), result_payload, fixture) == (12, 1)
+    assert verify_momentum_e2e("\n".join(lines), result_payload, fixture) == (12, 1)
