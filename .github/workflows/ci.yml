@@ -110,10 +110,29 @@ jobs:
       - name: Install compiler dependencies
         run: uv sync --extra dev --locked
 
+      - name: Generate Momentum C#
+        run: >-
+          PYTHONPATH=src uv run python
+          scripts/generate_momentum_lean.py
+          --output build/lean/momentum-ci/Main.cs
+
       - name: Free space for the LEAN Docker image
         run: |
-          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /opt/hostedtoolcache
+          rm -rf .venv "$UV_CACHE_DIR"
           docker system prune --all --force
+          df -h /
 
       - name: Compile Momentum generated C# against LEAN
-        run: ./scripts/check_momentum_lean_compile.sh
+        run: >-
+          ./scripts/build_golden_lean_docker.sh
+          build/lean/momentum-ci/Main.cs
+          build/lean/momentum-ci/bin
+
+      - name: Verify generated assembly
+        run: test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll
