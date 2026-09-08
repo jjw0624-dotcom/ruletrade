@@ -6,6 +6,7 @@ source "$repo_root/scripts/lib/ruletrade_python.sh"
 image="${RULETRADE_LEAN_IMAGE:-quantconnect/lean:latest}"
 source_path="${1:-build/lean/Main.cs}"
 output_path="${2:-build/lean/bin}"
+intermediate_path="${output_path%/*}/obj/"
 
 cd "$repo_root"
 if [[ "$#" -eq 0 ]]; then
@@ -28,4 +29,5 @@ docker run --rm \
   build tools/lean/RuleTrade.Generated.csproj \
   --configuration Release \
   --output "/workspace/$output_path" \
-  "-p:GeneratedSource=/workspace/$source_path"
+  "-p:GeneratedSource=/workspace/$source_path" \
+  "-p:BaseIntermediateOutputPath=/workspace/$intermediate_path"

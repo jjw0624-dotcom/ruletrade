@@ -128,9 +128,26 @@ class DockerLeanRunner:
                 if execution.returncode != 0:
                     raise LeanExecutionError("LEAN Launcher failed.")
                 lowered = log_text.casefold()
-                if "error::" in lowered or "runtime error" in lowered or "unhandled exception" in lowered:
+                fatal_patterns = (
+                    "error::",
+                    "runtime error",
+                    "algorithm.runtimeerror",
+                    "algorithm state changed",
+                    "unhandled exception",
+                    "the security does not have an accurate price",
+                )
+                if any(pattern in lowered for pattern in fatal_patterns):
                     raise LeanExecutionError("LEAN reported a runtime error.")
-                if re.search(r"algorithm id:.*completed|backtest completed", log_text, re.IGNORECASE) is None:
+                completion = re.search(
+                    (
+                        r"algorithm id:.*completed|"
+                        r"algorithmmanager\.run\(\): firing on end of algorithm|"
+                        r"backtest completed"
+                    ),
+                    log_text,
+                    re.IGNORECASE,
+                )
+                if completion is None:
                     raise LeanExecutionError("LEAN completion marker was not found.")
                 self._run(["docker", "cp", f"{container_id}:/Lean/Results/.", str(results)])
                 result_files = sorted(
