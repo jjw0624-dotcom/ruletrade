@@ -40,13 +40,16 @@ def test_source_preserves_explicit_fallback_intent() -> None:
     assert definition.assets == ["TLT"]
 
 
-@pytest.mark.parametrize("reference", ["missing", ""])
-def test_source_rejects_invalid_fallback_reference(reference: str) -> None:
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [("missing", "unknown asset set"), ("", "value does not match string")],
+)
+def test_source_rejects_invalid_fallback_reference(reference: str, message: str) -> None:
     payload = deepcopy(fallback_momentum_strategy().model_dump(mode="json"))
     component = next(item for item in payload["graph"]["components"] if item["id"] == "fallback")
     component["config"]["fallback_asset_set_ref"] = reference
 
-    with pytest.raises(StrategySemanticError, match="unknown asset set"):
+    with pytest.raises(StrategySemanticError, match=message):
         validate_strategy_v1(type(fallback_momentum_strategy()).model_validate(payload))
 
 
