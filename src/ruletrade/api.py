@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -14,6 +16,8 @@ from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
+from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 from ruletrade.strategy.v1.validation import collect_semantic_issues
 
 
@@ -132,6 +136,76 @@ def resolve_core_strategy(
 @app.get("/v1/canonical/strategies/schema")
 def canonical_strategy_v1_schema() -> dict[str, object]:
     return CanonicalStrategyV1.model_json_schema()
+
+
+def _registry_value(value: object) -> object:
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
+def _editor_registry_payload() -> dict[str, object]:
+    return {
+        "primitives": [
+            {
+                "id": primitive.id,
+                "category": primitive.category.value,
+                "authoring_views": sorted(primitive.authoring_views),
+                "inputs": [
+                    {
+                        "name": port.name,
+                        "value_type": port.value_type.value,
+                        "required": port.required,
+                        "multiple": port.multiple,
+                    }
+                    for port in primitive.inputs
+                ],
+                "outputs": [
+                    {
+                        "name": port.name,
+                        "value_type": port.value_type.value,
+                        "required": port.required,
+                        "multiple": port.multiple,
+                    }
+                    for port in primitive.outputs
+                ],
+                "fields": [
+                    {
+                        "name": field.name,
+                        "value_type": field.value_type.value,
+                        "required": field.required,
+                        "default": _registry_value(field.default),
+                        "minimum": _registry_value(field.minimum),
+                        "maximum": _registry_value(field.maximum),
+                        "exclusive_minimum": field.exclusive_minimum,
+                        "choices": [_registry_value(choice) for choice in field.choices],
+                        "reference": _registry_value(field.reference),
+                    }
+                    for field in primitive.fields
+                ],
+            }
+            for primitive in BUILTIN_REGISTRY.all()
+        ]
+    }
+
+
+@app.get("/v1/editor/bootstrap")
+def editor_bootstrap() -> dict[str, object]:
+    strategy = golden_portfolio_strategy()
+    issues = collect_semantic_issues(strategy)
+    return {
+        "strategy": strategy.model_dump(mode="json"),
+        "validation": {
+            "valid": not issues,
+            "issues": [
+                {"path": issue.path, "message": issue.message}
+                for issue in issues
+            ],
+        },
+        "registry": _editor_registry_payload(),
+    }
 
 
 @app.post("/v1/canonical/strategies/validate")

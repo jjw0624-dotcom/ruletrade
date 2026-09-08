@@ -160,6 +160,26 @@ def test_validate_canonical_v1_strategy() -> None:
     assert response.json()["strategy_hash"].startswith("sha256:")
 
 
+def test_editor_bootstrap_uses_canonical_golden_and_registry() -> None:
+    response = client.get("/v1/editor/bootstrap")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["strategy"]["api_version"] == "ruletrade.dev/strategy/v1"
+    assert payload["strategy"]["metadata"] == {
+        **GOLDEN_PORTFOLIO_PAYLOAD["metadata"],
+        "tags": [],
+    }
+    assert payload["strategy"]["graph"]["components"][2]["config"]["count"] == 2
+    assert payload["validation"] == {"valid": True, "issues": []}
+    random_select = next(
+        item for item in payload["registry"]["primitives"]
+        if item["id"] == "random_select@1"
+    )
+    assert random_select["authoring_views"] == ["blocks", "code", "flow", "guided", "rules"]
+    assert random_select["fields"][0]["minimum"] == "1"
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,

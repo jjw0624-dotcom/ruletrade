@@ -1,0 +1,29 @@
+{
+  "name": "ruletrade-strategy-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "generate:bootstrap": "cd .. && uv run python scripts/export_editor_bootstrap.py --output frontend/src/test/generated-bootstrap.json",
+    "prebuild": "npm run generate:bootstrap",
+    "build": "tsc -b && vite build",
+    "pretypecheck": "npm run generate:bootstrap",
+    "typecheck": "tsc -b --pretty false",
+    "pretest": "npm run generate:bootstrap",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@xyflow/react": "12.8.6",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "@vitejs/plugin-react": "5.0.2",
+    "typescript": "5.9.2",
+    "vite": "7.1.4",
+    "vitest": "3.2.4"
+  }
+}
