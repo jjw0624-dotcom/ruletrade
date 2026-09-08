@@ -9,7 +9,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from ruletrade.compiler.lean import lower_to_lean_plan
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.e2e import INTEREST_RATE_WARNING, validate_golden_e2e
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
@@ -126,7 +126,7 @@ def test_golden_daily_fixture_is_reproducibly_generated(tmp_path: Path) -> None:
 
 def _target_line(event_identity: str) -> str:
     strategy = golden_portfolio_strategy()
-    selection = lower_to_lean_plan(strategy).random_selections[0]
+    selection = compile_strategy_to_lean_plan(strategy).random_selections[0]
     seed = deterministic_random_seed(
         strategy,
         selection.component_id,

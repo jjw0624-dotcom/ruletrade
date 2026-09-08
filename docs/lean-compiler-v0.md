@@ -3,9 +3,10 @@
 The v0 compiler intentionally supports one Canonical Strategy v1 shape: the
 Growth 70 / Safe 30 golden strategy. Its backend path is:
 
-`CanonicalStrategyV1 -> dependency analysis -> typed LeanPlan -> C# QCAlgorithm`
+`CanonicalStrategyV1 -> Strategy IR -> requirements analysis -> typed LeanPlan -> C# QCAlgorithm`
 
-`codegen.py` accepts only a `LeanPlan`; it does not inspect Canonical models.
+`CanonicalStrategyV1` is the authoritative Strategy Model. Strategy IR and LeanPlan are derived;
+`codegen.py` accepts only a `LeanPlan` and inspects neither source models nor Strategy IR.
 The emitted code uses LEAN subscriptions, scheduling, portfolio holdings, and
 order APIs instead of recreating them in RuleTrade.
 

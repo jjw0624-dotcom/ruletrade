@@ -36,6 +36,8 @@ jobs:
           uv run ruff check
           src/ruletrade/api.py
           src/ruletrade/backtests
+          src/ruletrade/compiler
+          src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
@@ -44,6 +46,9 @@ jobs:
           tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
           tests/test_lean_runner.py
+          tests/test_strategy_ir.py
+          tests/test_strategy_ir_analysis.py
+          tests/test_strategy_ir_differential.py
 
       - name: Compile Python
         run: uv run python -m compileall -q src scripts tests

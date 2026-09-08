@@ -1,10 +1,10 @@
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.codegen import generate_csharp
-from ruletrade.compiler.lean.lowering import lower_to_lean_plan
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 
 
 def test_golden_strategy_compiles_through_to_classic_qcalgorithm_source() -> None:
-    source = generate_csharp(lower_to_lean_plan(golden_portfolio_strategy()))
+    source = generate_csharp(compile_strategy_to_lean_plan(golden_portfolio_strategy()))
 
     assert "public class RuleTradeGeneratedAlgorithm : QCAlgorithm" in source
     assert source.count("AddEquity(") == 6
@@ -24,7 +24,7 @@ def test_golden_strategy_compiles_through_to_classic_qcalgorithm_source() -> Non
 
 
 def test_scheduled_callback_only_queues_until_daily_data_is_ready() -> None:
-    source = generate_csharp(lower_to_lean_plan(golden_portfolio_strategy()))
+    source = generate_csharp(compile_strategy_to_lean_plan(golden_portfolio_strategy()))
     queue_method = source.split("private void QueueEvent0()", 1)[1].split(
         "public override void OnData", 1
     )[0]
@@ -39,6 +39,6 @@ def test_scheduled_callback_only_queues_until_daily_data_is_ready() -> None:
 
 
 def test_codegen_is_stable_for_a_normalized_plan() -> None:
-    plan = lower_to_lean_plan(golden_portfolio_strategy())
+    plan = compile_strategy_to_lean_plan(golden_portfolio_strategy())
 
     assert generate_csharp(plan) == generate_csharp(plan)

@@ -8,11 +8,11 @@ from ruletrade.backtests.errors import (
 from ruletrade.backtests.lean_runner import LeanRunner
 from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.normalization import normalize_lean_result
+from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean import (
     CSharpGenerationSettings,
     LeanLoweringError,
     generate_csharp,
-    lower_to_lean_plan,
 )
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v1.validation import collect_semantic_issues
@@ -29,7 +29,7 @@ class BacktestService:
                 tuple(ValidationIssueData(path=item.path, message=item.message) for item in issues)
             )
         try:
-            plan = lower_to_lean_plan(request.strategy)
+            plan = compile_strategy_to_lean_plan(request.strategy)
         except LeanLoweringError as exc:
             raise UnsupportedStrategyError(str(exc)) from exc
         settings = CSharpGenerationSettings(
