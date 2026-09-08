@@ -67,7 +67,11 @@ jobs:
           bash -n
           scripts/run_golden_lean_e2e.sh
           scripts/run_momentum_lean_e2e.sh
+          scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
+
+      - name: Compile Momentum generated C# against LEAN
+        run: ./scripts/check_momentum_lean_compile.sh
 
       - name: Check patch whitespace
         run: git diff --check

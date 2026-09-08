@@ -84,6 +84,7 @@ def test_momentum_lowers_to_lean_plan_and_codegen_without_source_leakage() -> No
     assert selection.lookback_bars == 126
     assert selection.count == 2
     source = generate_csharp(plan)
+    assert "using QuantConnect.Indicators;" in source
     assert "SetWarmUp(126, Resolution.Daily);" in source
     assert "DataNormalizationMode.Adjusted" in source
     assert "window[0] / window[126] - 1m" in source

@@ -211,6 +211,8 @@ def generate_csharp(
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
     ]
+    if plan.momentum_selections:
+        lines.append("using QuantConnect.Indicators;")
     if plan.random_selections:
         lines[4:4] = [
             "using System.Security.Cryptography;",

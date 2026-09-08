@@ -3,7 +3,7 @@ from copy import deepcopy
 from fastapi.testclient import TestClient
 
 from ruletrade.api import app, get_lean_backtest_service
-from ruletrade.backtests.errors import LeanRuntimeUnavailableError
+from ruletrade.backtests.errors import LeanExecutionError, LeanRuntimeUnavailableError
 from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.service import BacktestService
 from ruletrade.strategy.v1.fixtures import (
@@ -322,4 +322,21 @@ def test_lean_backtest_api_reports_runtime_unavailable() -> None:
     assert response.json()["detail"] == {
         "code": "runtime_unavailable",
         "message": "Docker runtime is unavailable.",
+    }
+
+
+def test_lean_backtest_api_does_not_expose_runner_diagnostics() -> None:
+    runner = ApiFakeRunner(
+        LeanExecutionError(
+            "LEAN process failed (build).",
+            diagnostic_output="Main.cs: error CS0246: internal compiler diagnostic",
+        )
+    )
+
+    response = post_lean_backtest({"strategy": GOLDEN_PORTFOLIO_PAYLOAD}, runner)
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == {
+        "code": "execution_failed",
+        "message": "LEAN process failed (build).",
     }
