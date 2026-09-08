@@ -17,8 +17,11 @@ button { cursor: pointer; }
 .strategy-title { text-align: center; }
 .strategy-title span, .eyebrow { color: #758078; font-size: 11px; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
 .strategy-title h1 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.025em; }
-.validate-button { justify-self: end; border: 0; border-radius: 9px; padding: 11px 16px; color: #fff; background: #153d2e; font-weight: 700; }
-.validate-button:disabled { opacity: .55; }
+.editor-actions { justify-self: end; display: flex; gap: 9px; }
+.secondary-button, .backtest-button { border-radius: 9px; padding: 11px 16px; font-weight: 700; }
+.secondary-button { border: 1px solid #bac6be; color: #264437; background: #fff; }
+.backtest-button { border: 0; color: #fff; background: #153d2e; }
+.secondary-button:disabled, .backtest-button:disabled { cursor: wait; opacity: .55; }
 
 .view-nav { height: 58px; display: flex; align-items: center; gap: 6px; padding: 0 34px; background: #fff; border-bottom: 1px solid #d8ddd8; }
 .view-tab { border: 0; border-radius: 8px; padding: 8px 15px; color: #6c756f; background: transparent; font-weight: 700; }
@@ -54,3 +57,17 @@ button { cursor: pointer; }
 .error-panel { margin: 18px 34px 0; padding: 14px 18px; border: 1px solid #eccbc5; border-radius: 10px; color: #822d25; background: #fff2ef; }
 .error-panel p { margin: 6px 0 0; }
 .load-state { max-width: 520px; margin: 15vh auto; padding: 30px; text-align: center; }
+
+.backtest-panel { max-width: 1100px; margin: 28px auto; padding: 28px; border: 1px solid #d9dfda; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(28, 47, 39, .05); }
+.result-heading { display: flex; justify-content: space-between; align-items: start; }
+.result-heading h2 { margin: 4px 0 0; font-size: 24px; }
+.result-success { border-radius: 999px; padding: 6px 10px; color: #17613d; background: #e4f4e9; font-size: 12px; font-weight: 700; }
+.result-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0 30px; }
+.result-metrics div { display: grid; gap: 7px; padding: 16px; border-radius: 11px; background: #f4f7f4; }
+.result-metrics span { color: #6f7972; font-size: 12px; }
+.result-metrics strong { font-size: 20px; }
+.backtest-panel h3 { margin: 0 0 8px; font-size: 14px; }
+.equity-chart { display: block; width: 100%; height: 190px; overflow: visible; }
+.equity-chart line { stroke: #dfe5e0; stroke-width: 1; }
+.equity-chart polyline { fill: none; stroke: #20714d; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.chart-range { display: flex; justify-content: space-between; color: #77817a; font-size: 11px; }

@@ -1,7 +1,9 @@
-import { validateCanonical } from "./api";
+import { LeanBacktestApiError, runLeanBacktest, validateCanonical } from "./api";
+import { BacktestResultPanel } from "./components/BacktestResultPanel";
+import { BacktestErrorPanel } from "./components/BacktestErrorPanel";
 import { GuidedView } from "./views/GuidedView";
 import { FlowView } from "./views/FlowView";
-import { useStrategyEditor, type EditorView } from "./store/editorStore";
+import { canStartBacktest, useStrategyEditor, type EditorView } from "./store/editorStore";
 
 export function StrategyEditor() {
   const { state, dispatch } = useStrategyEditor();
@@ -17,6 +19,21 @@ export function StrategyEditor() {
         valid: false,
         issues: [{ path: "network", message: error instanceof Error ? error.message : String(error) }],
       });
+    }
+  }
+
+  async function backtest() {
+    if (!canStartBacktest(state)) return;
+    const currentCanonical = state.canonical;
+    dispatch({ type: "backtest_started" });
+    try {
+      const result = await runLeanBacktest(currentCanonical);
+      dispatch({ type: "backtest_succeeded", result });
+    } catch (error) {
+      const detail = error instanceof LeanBacktestApiError
+        ? error.detail
+        : { code: "request_failed", message: error instanceof Error ? error.message : String(error) };
+      dispatch({ type: "backtest_failed", error: detail });
     }
   }
 
@@ -37,9 +54,14 @@ export function StrategyEditor() {
       <header className="topbar">
         <div className="brand"><span className="brand-mark">R</span><span>RuleTrade</span></div>
         <div className="strategy-title"><span>Strategy Editor</span><h1>{state.canonical.metadata.name}</h1></div>
-        <button className="validate-button" onClick={validate} disabled={state.validation.status === "checking"}>
-          {state.validation.status === "checking" ? "Validating…" : "Validate strategy"}
-        </button>
+        <div className="editor-actions">
+          <button className="secondary-button" onClick={validate} disabled={state.validation.status === "checking"}>
+            {state.validation.status === "checking" ? "Validating…" : "Validate"}
+          </button>
+          <button className="backtest-button" onClick={backtest} disabled={!canStartBacktest(state)}>
+            {state.backtest.status === "running" ? "Running…" : "Backtest"}
+          </button>
+        </div>
       </header>
 
       <nav className="view-nav" aria-label="Strategy views">
@@ -57,8 +79,13 @@ export function StrategyEditor() {
         </div>
       )}
 
+      {state.backtest.status === "error" && (
+        <BacktestErrorPanel error={state.backtest.error} />
+      )}
+
       <section className="workspace">
         {state.editor.activeView === "guided" ? <GuidedView /> : <FlowView />}
+        {state.backtest.status === "success" && <BacktestResultPanel result={state.backtest.result.result} />}
       </section>
     </main>
   );
