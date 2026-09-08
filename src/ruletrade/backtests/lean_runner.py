@@ -16,6 +16,8 @@ from ruletrade.backtests.errors import (
     MalformedLeanResultError,
 )
 
+LEAN_ALGORITHM_ID = "RuleTradeGeneratedAlgorithm"
+
 
 @dataclass(frozen=True)
 class LeanRunArtifact:
@@ -25,6 +27,44 @@ class LeanRunArtifact:
 
 class LeanRunner(Protocol):
     def run(self, generated_csharp: str, *, dataset_id: str) -> LeanRunArtifact: ...
+
+
+def load_lean_backtest_result(
+    results_directory: Path,
+    *,
+    algorithm_id: str = LEAN_ALGORITHM_ID,
+) -> dict[str, Any]:
+    """Load LEAN's full backtest result using its ``{AlgorithmId}.json`` contract."""
+    expected_name = f"{algorithm_id}.json"
+    result_files = sorted(
+        path for path in results_directory.rglob(expected_name) if path.is_file()
+    )
+    observed_json = sorted(
+        path.relative_to(results_directory).as_posix()
+        for path in results_directory.rglob("*.json")
+        if path.is_file()
+    )
+    if not result_files:
+        observed = ", ".join(observed_json) if observed_json else "none"
+        raise MalformedLeanResultError(
+            f"LEAN full result {expected_name!r} was not found; observed JSON files: {observed}."
+        )
+    if len(result_files) > 1:
+        matches = ", ".join(
+            path.relative_to(results_directory).as_posix() for path in result_files
+        )
+        raise MalformedLeanResultError(
+            f"LEAN full result {expected_name!r} is ambiguous; matching files: {matches}."
+        )
+    try:
+        payload = json.loads(result_files[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise MalformedLeanResultError(
+            f"LEAN full result {expected_name!r} could not be read."
+        ) from exc
+    if not isinstance(payload, dict):
+        raise MalformedLeanResultError(f"LEAN full result {expected_name!r} is not an object.")
+    return payload
 
 
 class DockerLeanRunner:
@@ -106,6 +146,7 @@ class DockerLeanRunner:
                         "QuantConnect.Lean.Launcher.dll",
                         "--algorithm-type-name", "RuleTradeGeneratedAlgorithm",
                         "--algorithm-language", "CSharp",
+                        "--algorithm-id", LEAN_ALGORITHM_ID,
                         "--algorithm-location", "/Lean/Launcher/bin/Debug/RuleTradeGenerated.dll",
                         "--data-folder", "/Lean/Data",
                         "--results-destination-folder", "/Lean/Results",
@@ -150,18 +191,7 @@ class DockerLeanRunner:
                 if completion is None:
                     raise LeanExecutionError("LEAN completion marker was not found.")
                 self._run(["docker", "cp", f"{container_id}:/Lean/Results/.", str(results)])
-                result_files = sorted(
-                    path for path in results.rglob("*.json")
-                    if not path.name.endswith(("-order-events.json", "-summary.json", "-insights.json"))
-                )
-                if len(result_files) != 1:
-                    raise LeanExecutionError(f"Expected one LEAN result JSON, found {len(result_files)}.")
-                try:
-                    payload = json.loads(result_files[0].read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError) as exc:
-                    raise MalformedLeanResultError("LEAN result JSON could not be read.") from exc
-                if not isinstance(payload, dict):
-                    raise MalformedLeanResultError("LEAN result JSON is not an object.")
+                payload = load_lean_backtest_result(results)
                 return LeanRunArtifact(log_text=log_text, result_payload=payload)
             finally:
                 if container_id:

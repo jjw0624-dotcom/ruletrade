@@ -38,6 +38,14 @@ Both commands require a working Docker daemon and `quantconnect/lean:latest`
 (or `RULETRADE_LEAN_IMAGE`). The tracked synthetic dataset is selected by the
 only v1 dataset identifier, `golden-synthetic`.
 
+The Docker build runs as the invoking Linux user and keeps MSBuild intermediate
+files inside the disposable container. This prevents root-owned `obj` files in
+`build/lean/runs` and lets the runner remove every temporary run directory on
+success or failure. LEAN is launched with the explicit algorithm ID
+`RuleTradeGeneratedAlgorithm`; its full result is selected by LEAN's
+`{AlgorithmId}.json` naming contract. Summary, order-event, insight, config, and
+other JSON artifacts are not treated as backtest results.
+
 ## Error contract
 
 Errors use `detail.code` so the browser can distinguish semantic invalidity,

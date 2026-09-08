@@ -6,7 +6,8 @@ source "$repo_root/scripts/lib/ruletrade_python.sh"
 image="${RULETRADE_LEAN_IMAGE:-quantconnect/lean:latest}"
 source_path="${1:-build/lean/Main.cs}"
 output_path="${2:-build/lean/bin}"
-intermediate_path="${output_path%/*}/obj/"
+host_uid="$(id -u)"
+host_gid="$(id -g)"
 
 cd "$repo_root"
 if [[ "$#" -eq 0 ]]; then
@@ -22,6 +23,9 @@ case "$source_path:$output_path" in
 esac
 
 docker run --rm \
+  --user "$host_uid:$host_gid" \
+  --env HOME=/tmp \
+  --env DOTNET_CLI_HOME=/tmp \
   --entrypoint dotnet \
   --volume "$repo_root:/workspace" \
   --workdir /workspace \
@@ -30,4 +34,4 @@ docker run --rm \
   --configuration Release \
   --output "/workspace/$output_path" \
   "-p:GeneratedSource=/workspace/$source_path" \
-  "-p:BaseIntermediateOutputPath=/workspace/$intermediate_path"
+  "-p:BaseIntermediateOutputPath=/tmp/ruletrade-obj/"
