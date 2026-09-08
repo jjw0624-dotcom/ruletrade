@@ -33,7 +33,7 @@ jobs:
 
       - name: Lint Python
         run: >-
-          uv run ruff check --diff
+          uv run ruff check
           src/ruletrade/api.py
           src/ruletrade/backtests
           scripts/run_editor_lean_e2e.py

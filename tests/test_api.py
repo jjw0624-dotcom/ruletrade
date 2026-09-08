@@ -11,7 +11,6 @@ from ruletrade.strategy.v1.fixtures import (
     GOLDEN_STATEFUL_RULE_PAYLOAD,
 )
 
-
 client = TestClient(app)
 
 
