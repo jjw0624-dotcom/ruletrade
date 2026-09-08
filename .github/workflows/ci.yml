@@ -31,6 +31,11 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+      - name: Diagnose Strategy IR import order
+        run: |
+          uv run ruff check --fix src/ruletrade/compiler/frontend/desugar.py
+          git diff -- src/ruletrade/compiler/frontend/desugar.py
+
       - name: Lint Python
         run: >-
           uv run ruff check
