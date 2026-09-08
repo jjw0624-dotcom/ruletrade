@@ -36,6 +36,23 @@ class FallbackMomentumSelectionResult:
     final_targets: tuple[tuple[str, Decimal], ...]
 
 
+@dataclass(frozen=True)
+class SleeveAllocationResult:
+    sleeve_id: str
+    local_selected: tuple[str, ...]
+    local_targets: tuple[tuple[str, Decimal], ...]
+    allocation: Decimal
+    scaled_targets: tuple[tuple[str, Decimal], ...]
+
+
+@dataclass(frozen=True)
+class PortfolioSleevesResult:
+    growth: FallbackMomentumSelectionResult
+    sleeves: tuple[SleeveAllocationResult, ...]
+    final_selected: tuple[str, ...]
+    final_targets: tuple[tuple[str, Decimal], ...]
+
+
 def _trailing_return_scores(
     closes: Mapping[str, Sequence[Decimal]], lookback_bars: int
 ) -> dict[str, Decimal]:
@@ -162,5 +179,82 @@ def evaluate_fallback_trailing_return_top_n(
         primary_selected=primary.selected,
         fallback_activated=fallback_activated,
         final_selected=final_selected,
+        final_targets=final_targets,
+    )
+
+
+def evaluate_portfolio_sleeves(
+    closes: Mapping[str, Sequence[Decimal]],
+    *,
+    lookback_bars: int = 126,
+    threshold: Decimal = Decimal(0),
+    count: int = 2,
+    fallback_asset: str = "TLT",
+    growth_allocation: Decimal = Decimal("0.70"),
+    defensive_assets: tuple[str, ...] = ("TLT", "IEF"),
+    defensive_allocation: Decimal = Decimal("0.30"),
+) -> PortfolioSleevesResult:
+    """Reference hierarchical allocation with additive symbol aggregation."""
+
+    growth_allocation = Decimal(growth_allocation)
+    defensive_allocation = Decimal(defensive_allocation)
+    if growth_allocation + defensive_allocation != Decimal(1):
+        raise ValueError("sleeve allocations must sum to 1")
+    if not defensive_assets:
+        raise ValueError("defensive_assets must not be empty")
+    growth = evaluate_fallback_trailing_return_top_n(
+        closes,
+        lookback_bars=lookback_bars,
+        threshold=threshold,
+        count=count,
+        fallback_asset=fallback_asset,
+        total_weight=Decimal(1),
+    )
+    defensive_local_weight = Decimal(1) / Decimal(len(defensive_assets))
+    defensive_local = tuple(
+        sorted((symbol, defensive_local_weight) for symbol in defensive_assets)
+    )
+
+    def allocation(
+        sleeve_id: str,
+        selected: tuple[str, ...],
+        local_targets: tuple[tuple[str, Decimal], ...],
+        factor: Decimal,
+    ) -> SleeveAllocationResult:
+        return SleeveAllocationResult(
+            sleeve_id=sleeve_id,
+            local_selected=selected,
+            local_targets=local_targets,
+            allocation=factor,
+            scaled_targets=tuple(
+                (symbol, weight * factor) for symbol, weight in local_targets
+            ),
+        )
+
+    sleeves = (
+        allocation(
+            "growth_sleeve",
+            growth.final_selected,
+            growth.final_targets,
+            growth_allocation,
+        ),
+        allocation(
+            "defensive_sleeve",
+            tuple(sorted(defensive_assets)),
+            defensive_local,
+            defensive_allocation,
+        ),
+    )
+    aggregated: dict[str, Decimal] = {}
+    for sleeve in sleeves:
+        for symbol, contribution in sleeve.scaled_targets:
+            aggregated[symbol] = aggregated.get(symbol, Decimal(0)) + contribution
+    final_targets = tuple(sorted(aggregated.items()))
+    if sum((weight for _, weight in final_targets), Decimal(0)) != Decimal(1):
+        raise ValueError("final portfolio targets must sum to 1")
+    return PortfolioSleevesResult(
+        growth=growth,
+        sleeves=sleeves,
+        final_selected=tuple(symbol for symbol, _ in final_targets),
         final_targets=final_targets,
     )

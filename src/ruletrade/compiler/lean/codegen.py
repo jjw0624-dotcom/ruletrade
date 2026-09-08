@@ -202,6 +202,9 @@ def generate_csharp(
     momentum_selections = {item.id: item for item in plan.momentum_selections}
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
+    has_source_sleeves = any(
+        item.source_sleeve_component_id is not None for item in plan.target_sleeves
+    )
     history_symbols = frozenset(
         symbol for selection in plan.momentum_selections for symbol in selection.symbols
     )
@@ -515,6 +518,31 @@ def generate_csharp(
                         "        }",
                     )
                 )
+                if sleeve.source_sleeve_component_id is not None:
+                    local_total = _decimal_literal(
+                        sleeve.local_total_weight or Decimal(1)
+                    )
+                    allocation = _decimal_literal(
+                        sleeve.source_allocation or Decimal(1)
+                    )
+                    local_weight_variable = (
+                        f"localWeight{event_index}_{rebalance_index}_{sleeve_index}"
+                    )
+                    sleeve_component = _csharp_string(
+                        sleeve.source_sleeve_component_id
+                    )
+                    lines.extend(
+                        (
+                            f"        var {local_weight_variable} = {local_total} / {variable}.Count();",
+                            f'        Debug("RULETRADE_SLEEVE|" + eventIdentity + "|sleeve=" + {sleeve_component}',
+                            f'            + "|local_selected=" + string.Join(",", {variable}.OrderBy(item => item))',
+                            f'            + "|local_weights=" + string.Join(",", {variable}.OrderBy(item => item)',
+                            f'                .Select(item => item + "=" + {local_weight_variable}.ToString("G29", CultureInfo.InvariantCulture)))',
+                            f'            + "|allocation=" + {allocation}.ToString("G29", CultureInfo.InvariantCulture)',
+                            f'            + "|scaled=" + string.Join(",", {variable}.OrderBy(item => item)',
+                            f'                .Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
+                        )
+                    )
             lines.extend(
                 (
                     "        foreach (var holding in Portfolio.Values.Where(item => item.Invested))",
@@ -533,7 +561,8 @@ def generate_csharp(
                     ),
                     (
                         f'            + "|selected=" + string.Join(",", {selected_variable}'
-                        ".OrderBy(item => item))"
+                        + (".Distinct()" if has_source_sleeves else "")
+                        + ".OrderBy(item => item))"
                     ),
                     (
                         f'            + "|weights=" + string.Join(",", {targets_variable}'

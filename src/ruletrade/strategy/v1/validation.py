@@ -319,6 +319,7 @@ def collect_semantic_issues(
 
     inbound: set[tuple[str, str]] = set()
     input_sources: dict[tuple[str, str], str] = {}
+    all_input_sources: dict[tuple[str, str], list[str]] = {}
     connection_keys: set[tuple[str, str, str, str]] = set()
     dependency_edges: dict[str, set[str]] = {component_id: set() for component_id in components}
     for index, connection in enumerate(strategy.graph.connections):
@@ -351,6 +352,7 @@ def collect_semantic_issues(
             issues.append(SemanticIssue(f"{path}.target", "input port already has a connection"))
         inbound.add(key)
         input_sources.setdefault(key, connection.source.component_id)
+        all_input_sources.setdefault(key, []).append(connection.source.component_id)
         connection_key = (
             connection.source.component_id,
             connection.source.port,
@@ -413,9 +415,7 @@ def collect_semantic_issues(
                 )
             elif primary_id is not None:
                 selected_id = input_sources.get((primary_id, "assets"))
-                selected = (
-                    primitive_specs.get(selected_id) if selected_id is not None else None
-                )
+                selected = primitive_specs.get(selected_id) if selected_id is not None else None
                 if selected is not None and selected.implementation_id != "selection.top_n":
                     issues.append(
                         SemanticIssue(
@@ -437,6 +437,89 @@ def collect_semantic_issues(
                                 "fallback v0 primary must use filtered Top N targets",
                             )
                         )
+
+        if primitive.implementation_id == "portfolio.sleeve":
+            component = components[component_id]
+            if not str(component.config.get("name", "")).strip():
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].config.name",
+                        "sleeve name must not be empty",
+                    )
+                )
+            local_targets_id = input_sources.get((component_id, "local_targets"))
+            local_targets = components.get(local_targets_id) if local_targets_id else None
+            local_primitive = primitive_specs.get(local_targets_id) if local_targets_id else None
+            if local_primitive is not None and local_primitive.implementation_id == "targets.fallback_asset":
+                primary_id = input_sources.get((local_targets_id, "primary"))
+                local_targets = components.get(primary_id) if primary_id else None
+                local_primitive = primitive_specs.get(primary_id) if primary_id else None
+            if (
+                local_primitive is not None
+                and local_primitive.implementation_id == "allocation.equal_weight"
+                and local_targets is not None
+            ):
+                try:
+                    local_total = Decimal(str(local_targets.config["total"]))
+                except (InvalidOperation, KeyError, TypeError, ValueError):
+                    local_total = None
+                if local_total is not None and local_total != Decimal(1):
+                    issues.append(
+                        SemanticIssue(
+                            f"graph.components[{component_id}].inputs.local_targets",
+                            "sleeve local targets must sum to 1",
+                        )
+                    )
+
+        if primitive.implementation_id == "portfolio.compose":
+            component = components[component_id]
+            if not str(component.config.get("name", "")).strip():
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].config.name",
+                        "portfolio name must not be empty",
+                    )
+                )
+            sleeve_ids = all_input_sources.get((component_id, "sleeves"), [])
+            if len(sleeve_ids) != 2:
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].inputs.sleeves",
+                        "portfolio v0 requires exactly two sleeves",
+                    )
+                )
+            sleeve_components = [components[item] for item in sleeve_ids if item in components]
+            invalid_sources = [
+                item.id
+                for item in sleeve_components
+                if primitive_specs.get(item.id) is not None
+                and primitive_specs[item.id].implementation_id != "portfolio.sleeve"
+            ]
+            if invalid_sources:
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].inputs.sleeves",
+                        "portfolio members must be portfolio sleeves",
+                    )
+                )
+            if len(sleeve_components) == len(sleeve_ids) == 2 and not invalid_sources:
+                try:
+                    allocation = sum(
+                        (
+                            Decimal(str(item.config["allocation"]))
+                            for item in sleeve_components
+                        ),
+                        Decimal(0),
+                    )
+                except (InvalidOperation, KeyError, TypeError, ValueError):
+                    allocation = None
+                if allocation is not None and allocation != Decimal(1):
+                    issues.append(
+                        SemanticIssue(
+                            f"graph.components[{component_id}].inputs.sleeves",
+                            "sleeve allocations must sum to 1",
+                        )
+                    )
 
     for index, entrypoint in enumerate(strategy.entrypoints):
         path = f"entrypoints[{index}]"

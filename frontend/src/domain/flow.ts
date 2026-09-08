@@ -14,6 +14,12 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
   topN?: number;
   fallbackAssetSetRef?: string;
   fallbackOptions?: Array<{ id: string; asset: string }>;
+  sleeveAllocation?: string;
+  allocationPair?: {
+    growthComponentId: string;
+    defensiveComponentId: string;
+    value: string;
+  };
 }
 
 export interface FlowProjection {
@@ -39,6 +45,11 @@ export const DEFAULT_NODE_POSITIONS: NodePositions = {
   top_n: { x: 930, y: 190 },
   weights: { x: 1150, y: 190 },
   fallback: { x: 1150, y: 400 },
+  growth_sleeve: { x: 1390, y: 120 },
+  defensive_assets: { x: 700, y: 520 },
+  defensive_weights: { x: 930, y: 520 },
+  defensive_sleeve: { x: 1390, y: 520 },
+  portfolio: { x: 1640, y: 300 },
 };
 
 function percentage(value: unknown): string {
@@ -114,6 +125,29 @@ function nodeData(
       fallbackOptions: strategy.definitions.asset_sets
         .filter((item) => item.assets.length === 1)
         .map((item) => ({ id: item.id, asset: item.assets[0] })),
+    };
+  }
+  if (component.primitive === "portfolio_sleeve@1") {
+    const allocation = resolvedConfigValue(strategy, registry, component.id, "allocation");
+    return {
+      componentId: component.id,
+      title: `${String(component.config.name)} Sleeve`,
+      details: [`Allocation: ${percentage(allocation)}`],
+      sleeveAllocation: String(allocation),
+    };
+  }
+  if (component.primitive === "portfolio@1") {
+    const growth = strategy.graph.components.find((item) => item.id === "growth_sleeve");
+    const defensive = strategy.graph.components.find((item) => item.id === "defensive_sleeve");
+    return {
+      componentId: component.id,
+      title: String(component.config.name),
+      details: ["Aggregate by symbol"],
+      allocationPair: growth && defensive ? {
+        growthComponentId: growth.id,
+        defensiveComponentId: defensive.id,
+        value: `${String(growth.config.allocation)}/${String(defensive.config.allocation)}`,
+      } : undefined,
     };
   }
   const labels: Record<string, string> = {

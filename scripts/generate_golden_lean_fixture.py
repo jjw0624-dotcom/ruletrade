@@ -15,7 +15,7 @@ SYMBOLS = {
     "ief": (920_000, 2_550),
 }
 FILTER_PHASES = {"qqq": 0, "vgt": 30, "soxx": 60, "schg": 90}
-FILTER_FIXTURE_SYMBOLS = (*FILTER_PHASES, "tlt")
+FILTER_FIXTURE_SYMBOLS = (*FILTER_PHASES, "tlt", "ief")
 
 # Full-day NASDAQ closures in the fixture period. Early closes remain
 # trading days because a Daily TradeBar still exists for them.
@@ -80,8 +80,8 @@ def filter_daily_rows(symbol: str) -> str:
     """Generate deterministic cycles that exercise positive-return screening."""
 
     if symbol not in FILTER_PHASES:
-        # TLT is subscribed for fallback execution but is not scored. Give it
-        # aligned, deterministic Daily bars without adding a momentum phase.
+        # Defensive/fallback assets are subscribed but not scored. Give them
+        # aligned deterministic Daily bars without adding a momentum phase.
         return daily_rows(symbol)
     phase = FILTER_PHASES[symbol]
     rows = []

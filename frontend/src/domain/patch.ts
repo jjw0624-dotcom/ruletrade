@@ -13,6 +13,13 @@ export interface UpdateComponentConfig {
   value: JsonValue;
 }
 
+export interface UpdateSleeveAllocations {
+  kind: "update_sleeve_allocations";
+  allocations: Array<{ componentId: string; value: JsonValue }>;
+}
+
+export type SemanticPatch = UpdateComponentConfig | UpdateSleeveAllocations;
+
 export type PatchResult =
   | { ok: true; strategy: CanonicalStrategyV1 }
   | { ok: false; issue: ValidationIssue };
@@ -54,6 +61,7 @@ export function updateComponentConfig(
   strategy: CanonicalStrategyV1,
   registry: RegistryPayload,
   operation: UpdateComponentConfig,
+  allowSleeveAllocation = false,
 ): PatchResult {
   const component = strategy.graph.components.find((item) => item.id === operation.componentId);
   if (!component) {
@@ -70,6 +78,19 @@ export function updateComponentConfig(
       issue: {
         path: `graph.components[${component.id}].config.${operation.field}`,
         message: "field is not declared by the Primitive Registry",
+      },
+    };
+  }
+  if (
+    component.primitive === "portfolio_sleeve@1"
+    && operation.field === "allocation"
+    && !allowSleeveAllocation
+  ) {
+    return {
+      ok: false,
+      issue: {
+        path: "portfolio.allocations",
+        message: "sleeve allocations must be updated atomically",
       },
     };
   }
@@ -110,6 +131,43 @@ export function updateComponentConfig(
       },
     },
   };
+}
+
+export function applySemanticPatch(
+  strategy: CanonicalStrategyV1,
+  registry: RegistryPayload,
+  operation: SemanticPatch,
+): PatchResult {
+  if (operation.kind === "update_component_config") {
+    return updateComponentConfig(strategy, registry, operation);
+  }
+  if (
+    operation.allocations.length !== 2
+    || new Set(operation.allocations.map((item) => item.componentId)).size !== 2
+  ) {
+    return { ok: false, issue: { path: "portfolio.allocations", message: "exactly two sleeve allocations are required" } };
+  }
+  let candidate = strategy;
+  for (const update of operation.allocations) {
+    const result = updateComponentConfig(
+      candidate,
+      registry,
+      {
+        kind: "update_component_config",
+        componentId: update.componentId,
+        field: "allocation",
+        value: update.value,
+      },
+      true,
+    );
+    if (!result.ok) return result;
+    candidate = result.strategy;
+  }
+  const total = operation.allocations.reduce((sum, item) => sum + Number(item.value), 0);
+  if (!Number.isFinite(total) || Math.abs(total - 1) > 1e-12) {
+    return { ok: false, issue: { path: "portfolio.allocations", message: "sleeve allocations must sum to 1" } };
+  }
+  return { ok: true, strategy: candidate };
 }
 
 export function resolvedConfigValue(

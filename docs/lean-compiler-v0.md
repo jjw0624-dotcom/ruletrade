@@ -1,7 +1,7 @@
 # LEAN compiler v0
 
 The compiler supports the Growth 70 / Safe 30 Golden strategy and the narrow
-trailing-return Top N slice. Its backend path is:
+trailing-return, Filter, Fallback, and Portfolio Sleeves slices. Its backend path is:
 
 `CanonicalStrategyV1 -> Strategy IR -> requirements analysis -> typed LeanPlan -> C# QCAlgorithm`
 
@@ -119,8 +119,10 @@ remove the warning without adding a custom provider.
 
 - Classic `QCAlgorithm` only; no Algorithm Framework abstraction.
 - Monthly first-trading-day intent with execution on the next complete Daily Slice.
-- Named asset sets, RandomSelect, EqualWeight, MergeTargets, and Rebalance only.
-- Trailing adjusted return, descending rank, and Top N with a fixed full-history policy.
-- No general indicators, filters, stateful rules, composites, generic execution IR, or second backend.
+- Named asset sets, RandomSelect, EqualWeight, target scaling/aggregation, and Rebalance.
+- Trailing adjusted return, strict score filtering, descending rank, Top N, and one-asset fallback.
+- Source Portfolio Sleeves lower to flat LEAN targets; LEAN has no generated Sleeve abstraction.
+- No general indicators, stateful rules, nested/independently scheduled sleeves, generic execution IR,
+  or second backend.
 - C# random selection contains only the CPython MT19937/sample behavior required
   to match the retained Python v0 selection oracle.

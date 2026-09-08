@@ -105,6 +105,15 @@ class MergeTargetsOp:
 
 
 @dataclass(frozen=True)
+class ScaleTargetsOp:
+    id: str
+    targets: str
+    factor: Decimal
+    provenance: SourceProvenance
+    operation: Literal["portfolio.scale_targets"] = "portfolio.scale_targets"
+
+
+@dataclass(frozen=True)
 class FirstNonEmptyTargetsOp:
     id: str
     primary: str
@@ -132,6 +141,7 @@ StrategyIROperation: TypeAlias = (
     | RankOp
     | TopNOp
     | EqualWeightOp
+    | ScaleTargetsOp
     | MergeTargetsOp
     | FirstNonEmptyTargetsOp
     | RebalanceOp

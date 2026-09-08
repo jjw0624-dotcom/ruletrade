@@ -1,5 +1,6 @@
 import bootstrapPayload from "./generated-bootstrap.json";
 import momentumBootstrapPayload from "./generated-momentum-bootstrap.json";
+import sleevesBootstrapPayload from "./generated-sleeves-bootstrap.json";
 
 import type { EditorBootstrap } from "../domain/canonical";
 
@@ -7,6 +8,7 @@ import type { EditorBootstrap } from "../domain/canonical";
 // no frontend-owned strategy definition.
 export const goldenBootstrap = bootstrapPayload as unknown as EditorBootstrap;
 export const momentumBootstrap = momentumBootstrapPayload as unknown as EditorBootstrap;
+export const sleevesBootstrap = sleevesBootstrapPayload as unknown as EditorBootstrap;
 
 export const filterBootstrap = structuredClone(momentumBootstrap);
 filterBootstrap.strategy.metadata = {

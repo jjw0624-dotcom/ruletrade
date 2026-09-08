@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
@@ -283,6 +285,57 @@ FALLBACK_MOMENTUM_PAYLOAD = {
 }
 
 
+PORTFOLIO_SLEEVES_PAYLOAD = deepcopy(FALLBACK_MOMENTUM_PAYLOAD)
+PORTFOLIO_SLEEVES_PAYLOAD["metadata"] = {
+    "name": "Growth 70 / Defensive 30 Portfolio",
+    "description": "Positive-momentum Growth sleeve with TLT fallback plus Defensive assets.",
+}
+PORTFOLIO_SLEEVES_PAYLOAD["definitions"]["asset_sets"].append(
+    {"id": "defensive", "assets": ["TLT", "IEF"]}
+)
+PORTFOLIO_SLEEVES_PAYLOAD["graph"]["components"].extend(
+    [
+        {
+            "id": "growth_sleeve",
+            "primitive": "portfolio_sleeve@1",
+            "config": {"name": "Growth", "allocation": "0.70"},
+        },
+        {
+            "id": "defensive_assets",
+            "primitive": "asset_set@1",
+            "config": {"asset_set_ref": "defensive"},
+        },
+        {
+            "id": "defensive_weights",
+            "primitive": "equal_weight@1",
+            "config": {"total": "1.0"},
+        },
+        {
+            "id": "defensive_sleeve",
+            "primitive": "portfolio_sleeve@1",
+            "config": {"name": "Defensive", "allocation": "0.30"},
+        },
+        {
+            "id": "portfolio",
+            "primitive": "portfolio@1",
+            "config": {"name": "Portfolio"},
+        },
+    ]
+)
+PORTFOLIO_SLEEVES_PAYLOAD["graph"]["connections"] = [
+    connection
+    for connection in PORTFOLIO_SLEEVES_PAYLOAD["graph"]["connections"]
+    if connection["target"]["component_id"] != "rebalance"
+] + [
+    {"source": {"component_id": "fallback", "port": "targets"}, "target": {"component_id": "growth_sleeve", "port": "local_targets"}},
+    {"source": {"component_id": "defensive_assets", "port": "assets"}, "target": {"component_id": "defensive_weights", "port": "assets"}},
+    {"source": {"component_id": "defensive_weights", "port": "targets"}, "target": {"component_id": "defensive_sleeve", "port": "local_targets"}},
+    {"source": {"component_id": "growth_sleeve", "port": "contribution"}, "target": {"component_id": "portfolio", "port": "sleeves"}},
+    {"source": {"component_id": "defensive_sleeve", "port": "contribution"}, "target": {"component_id": "portfolio", "port": "sleeves"}},
+    {"source": {"component_id": "portfolio", "port": "targets"}, "target": {"component_id": "rebalance", "port": "targets"}},
+]
+
+
 def golden_portfolio_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
 
@@ -301,3 +354,7 @@ def filter_screening_strategy() -> CanonicalStrategyV1:
 
 def fallback_momentum_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(FALLBACK_MOMENTUM_PAYLOAD)
+
+
+def portfolio_sleeves_strategy() -> CanonicalStrategyV1:
+    return CanonicalStrategyV1.model_validate(PORTFOLIO_SLEEVES_PAYLOAD)

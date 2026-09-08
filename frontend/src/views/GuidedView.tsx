@@ -13,6 +13,46 @@ export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
   const guided = projectGuided(state.canonical, state.registry);
 
+  if (guided.kind === "portfolio") {
+    const split = `${guided.growth.allocation}/${guided.defensive.allocation}`;
+    return (
+      <div className="guided-view" aria-label="Guided strategy editor">
+        <section className="sleeve-card portfolio-card">
+          <header><div><span className="eyebrow">Portfolio</span><h2>{guided.portfolio.name}</h2></div></header>
+          <label htmlFor="guided-sleeve-split">Sleeve allocation</label>
+          <select id="guided-sleeve-split" value={split} onChange={(event) => {
+            const [growth, defensive] = event.target.value.split("/");
+            dispatch({
+              type: "apply_semantic_patch",
+              operation: {
+                kind: "update_sleeve_allocations",
+                allocations: [
+                  { componentId: guided.growth.sleeveComponentId, value: growth },
+                  { componentId: guided.defensive.sleeveComponentId, value: defensive },
+                ],
+              },
+            });
+          }}>
+            <option value="0.70/0.30">Growth 70% / Defensive 30%</option>
+            <option value="0.60/0.40">Growth 60% / Defensive 40%</option>
+          </select>
+        </section>
+        <section className="sleeve-card">
+          <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
+          <label>Universe</label><AssetChips assets={guided.growth.assets} />
+          <div className="summary-row"><span>Signal</span><span>{guided.growth.lookbackBars}-day trailing return &gt; {percent(guided.growth.threshold ?? "0")}</span></div>
+          <div className="summary-row"><span>Selection</span><span>Top {guided.growth.topN} · Equal Weight</span></div>
+          <div className="summary-row"><span>If insufficient</span><span>Use {guided.growth.fallbackAsset}</span></div>
+        </section>
+        <section className="sleeve-card safe">
+          <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.defensive.sleeveName}</h2></div><strong>{percent(guided.defensive.allocation)}</strong></header>
+          <label>Universe</label><AssetChips assets={guided.defensive.assets} />
+          <div className="summary-row"><span>Weighting</span><span>Equal Weight</span></div>
+        </section>
+      </div>
+    );
+  }
+
   if (guided.kind === "momentum") {
     return (
       <div className="guided-view" aria-label="Guided strategy editor">

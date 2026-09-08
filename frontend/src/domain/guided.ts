@@ -38,7 +38,23 @@ export interface MomentumGuidedProjection {
   };
 }
 
-export type GuidedProjection = GoldenGuidedProjection | MomentumGuidedProjection;
+export interface PortfolioGuidedProjection {
+  kind: "portfolio";
+  portfolio: { componentId: string; name: string };
+  growth: MomentumGuidedProjection["momentum"] & {
+    sleeveComponentId: string;
+    sleeveName: string;
+    allocation: string;
+  };
+  defensive: {
+    sleeveComponentId: string;
+    sleeveName: string;
+    allocation: string;
+    assets: string[];
+  };
+}
+
+export type GuidedProjection = GoldenGuidedProjection | MomentumGuidedProjection | PortfolioGuidedProjection;
 
 function requireComponent(strategy: CanonicalStrategyV1, id: string): CanonicalComponent {
   const component = strategy.graph.components.find((item) => item.id === id);
@@ -77,9 +93,7 @@ export function projectGuided(
     if (typeof lookbackBars !== "number" || typeof count !== "number" || typeof direction !== "string") {
       throw new Error("Guided View cannot project Momentum settings");
     }
-    return {
-      kind: "momentum",
-      momentum: {
+    const momentum = {
         assets: assetsFor(strategy, assets.id),
         lookbackComponentId: trailingReturn.id,
         lookbackBars,
@@ -100,7 +114,36 @@ export function projectGuided(
           .map((definition) => ({ id: definition.id, asset: definition.assets[0] })),
         total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
         schedule: "Monthly",
-      },
+    };
+    const sleeveComponents = strategy.graph.components.filter(
+      (item) => item.primitive === "portfolio_sleeve@1",
+    );
+    const portfolio = strategy.graph.components.find((item) => item.primitive === "portfolio@1");
+    if (portfolio && sleeveComponents.length === 2) {
+      const growthSleeve = sleeveComponents.find((item) => item.id === "growth_sleeve") ?? sleeveComponents[0];
+      const defensiveSleeve = sleeveComponents.find((item) => item.id === "defensive_sleeve") ?? sleeveComponents[1];
+      const defensiveAssets = strategy.graph.components.find((item) => item.id === "defensive_assets");
+      if (!defensiveAssets) throw new Error("Guided View cannot project Defensive sleeve assets");
+      return {
+        kind: "portfolio",
+        portfolio: { componentId: portfolio.id, name: String(portfolio.config.name) },
+        growth: {
+          ...momentum,
+          sleeveComponentId: growthSleeve.id,
+          sleeveName: String(growthSleeve.config.name),
+          allocation: String(growthSleeve.config.allocation),
+        },
+        defensive: {
+          sleeveComponentId: defensiveSleeve.id,
+          sleeveName: String(defensiveSleeve.config.name),
+          allocation: String(defensiveSleeve.config.allocation),
+          assets: assetsFor(strategy, defensiveAssets.id),
+        },
+      };
+    }
+    return {
+      kind: "momentum",
+      momentum,
     };
   }
   const randomCount = resolvedConfigValue(strategy, registry, "growth_random", "count");

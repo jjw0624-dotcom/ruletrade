@@ -250,6 +250,22 @@ def test_editor_bootstrap_can_deliver_explicit_fallback_source_model() -> None:
     assert primitive["fields"][0]["reference"] == "asset_set"
 
 
+def test_editor_bootstrap_can_deliver_portfolio_sleeves_source_model() -> None:
+    response = client.get("/v1/editor/bootstrap?example=sleeves")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["validation"] == {"valid": True, "issues": []}
+    sleeves = [
+        item for item in payload["strategy"]["graph"]["components"]
+        if item["primitive"] == "portfolio_sleeve@1"
+    ]
+    assert [(item["id"], item["config"]["allocation"]) for item in sleeves] == [
+        ("growth_sleeve", "0.70"),
+        ("defensive_sleeve", "0.30"),
+    ]
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,
