@@ -8,8 +8,8 @@ import pytest
 
 from ruletrade.backtests.errors import LeanExecutionError, MalformedLeanResultError
 from ruletrade.backtests.lean_runner import (
-    DockerLeanRunner,
     LEAN_ALGORITHM_ID,
+    DockerLeanRunner,
     load_lean_backtest_result,
 )
 
