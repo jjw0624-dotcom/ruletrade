@@ -289,6 +289,7 @@ def collect_semantic_issues(
 ) -> tuple[SemanticIssue, ...]:
     issues: list[SemanticIssue] = []
     components = {component.id: component for component in strategy.graph.components}
+    asset_sets = {definition.id: definition for definition in strategy.definitions.asset_sets}
     definition_ids = _definition_ids(strategy)
     primitive_specs: dict[str, PrimitiveSpec] = {}
 
@@ -317,6 +318,7 @@ def collect_semantic_issues(
             issues.append(SemanticIssue(path, "condition/actions are only valid on rule components"))
 
     inbound: set[tuple[str, str]] = set()
+    input_sources: dict[tuple[str, str], str] = {}
     connection_keys: set[tuple[str, str, str, str]] = set()
     dependency_edges: dict[str, set[str]] = {component_id: set() for component_id in components}
     for index, connection in enumerate(strategy.graph.connections):
@@ -348,6 +350,7 @@ def collect_semantic_issues(
         if key in inbound and target_port and not target_port.multiple:
             issues.append(SemanticIssue(f"{path}.target", "input port already has a connection"))
         inbound.add(key)
+        input_sources.setdefault(key, connection.source.component_id)
         connection_key = (
             connection.source.component_id,
             connection.source.port,
@@ -387,6 +390,53 @@ def collect_semantic_issues(
                         "required input is not connected",
                     )
                 )
+
+        if primitive.implementation_id == "targets.fallback_asset":
+            component = components[component_id]
+            reference = component.config.get("fallback_asset_set_ref")
+            definition = asset_sets.get(reference) if isinstance(reference, str) else None
+            if definition is not None and len(definition.assets) != 1:
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].config.fallback_asset_set_ref",
+                        "fallback v0 requires exactly one asset",
+                    )
+                )
+            primary_id = input_sources.get((component_id, "primary"))
+            primary = primitive_specs.get(primary_id) if primary_id is not None else None
+            if primary is not None and primary.implementation_id != "allocation.equal_weight":
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].inputs.primary",
+                        "fallback v0 primary must be equal-weight targets",
+                    )
+                )
+            elif primary_id is not None:
+                selected_id = input_sources.get((primary_id, "assets"))
+                selected = (
+                    primitive_specs.get(selected_id) if selected_id is not None else None
+                )
+                if selected is not None and selected.implementation_id != "selection.top_n":
+                    issues.append(
+                        SemanticIssue(
+                            f"graph.components[{component_id}].inputs.primary",
+                            "fallback v0 primary must be Top N equal-weight targets",
+                        )
+                    )
+                elif selected_id is not None:
+                    rank_id = input_sources.get((selected_id, "ranked"))
+                    filter_id = input_sources.get((rank_id, "scores")) if rank_id else None
+                    filter_spec = primitive_specs.get(filter_id) if filter_id else None
+                    if (
+                        filter_spec is not None
+                        and filter_spec.implementation_id != "selection.filter"
+                    ):
+                        issues.append(
+                            SemanticIssue(
+                                f"graph.components[{component_id}].inputs.primary",
+                                "fallback v0 primary must use filtered Top N targets",
+                            )
+                        )
 
     for index, entrypoint in enumerate(strategy.entrypoints):
         path = f"entrypoints[{index}]"

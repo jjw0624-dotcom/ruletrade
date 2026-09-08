@@ -29,6 +29,10 @@ export interface MomentumGuidedProjection {
     rankDirection: string;
     selectionComponentId: string;
     topN: number;
+    fallbackComponentId?: string;
+    fallbackAssetSetRef?: string;
+    fallbackAsset?: string;
+    fallbackOptions: Array<{ id: string; asset: string }>;
     total: string;
     schedule: string;
   };
@@ -44,7 +48,9 @@ function requireComponent(strategy: CanonicalStrategyV1, id: string): CanonicalC
 
 function assetsFor(strategy: CanonicalStrategyV1, componentId: string): string[] {
   const component = requireComponent(strategy, componentId);
-  const reference = component.config.asset_set_ref;
+  const reference = component.primitive === "fallback@1"
+    ? component.config.fallback_asset_set_ref
+    : component.config.asset_set_ref;
   const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
   if (!definition) throw new Error(`Guided View cannot resolve asset set ${String(reference)}`);
   return definition.assets;
@@ -61,6 +67,7 @@ export function projectGuided(
     const filter = strategy.graph.components.find((item) => item.primitive === "filter@1");
     const assets = strategy.graph.components.find((item) => item.primitive === "asset_set@1");
     const weighting = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
+    const fallback = strategy.graph.components.find((item) => item.primitive === "fallback@1");
     if (!trailingReturn || !rank || !assets || !weighting) {
       throw new Error("Guided View cannot project the Momentum strategy");
     }
@@ -83,6 +90,14 @@ export function projectGuided(
         rankDirection: direction,
         selectionComponentId: topN.id,
         topN: count,
+        fallbackComponentId: fallback?.id,
+        fallbackAssetSetRef: fallback
+          ? String(resolvedConfigValue(strategy, registry, fallback.id, "fallback_asset_set_ref"))
+          : undefined,
+        fallbackAsset: fallback ? assetsFor(strategy, fallback.id).at(0) : undefined,
+        fallbackOptions: strategy.definitions.asset_sets
+          .filter((definition) => definition.assets.length === 1)
+          .map((definition) => ({ id: definition.id, asset: definition.assets[0] })),
         total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
         schedule: "Monthly",
       },

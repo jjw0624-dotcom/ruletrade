@@ -105,6 +105,17 @@ class MergeTargetsOp:
 
 
 @dataclass(frozen=True)
+class FirstNonEmptyTargetsOp:
+    id: str
+    primary: str
+    fallback: str
+    provenance: SourceProvenance
+    operation: Literal["portfolio.first_non_empty_targets"] = (
+        "portfolio.first_non_empty_targets"
+    )
+
+
+@dataclass(frozen=True)
 class RebalanceOp:
     id: str
     targets: str
@@ -122,6 +133,7 @@ StrategyIROperation: TypeAlias = (
     | TopNOp
     | EqualWeightOp
     | MergeTargetsOp
+    | FirstNonEmptyTargetsOp
     | RebalanceOp
 )
 

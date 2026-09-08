@@ -27,6 +27,7 @@ from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
 from ruletrade.strategy.v1.fixtures import (
+    fallback_momentum_strategy,
     filter_screening_strategy,
     golden_portfolio_strategy,
     momentum_top_n_strategy,
@@ -213,12 +214,13 @@ def _editor_registry_payload() -> dict[str, object]:
 
 @app.get("/v1/editor/bootstrap")
 def editor_bootstrap(
-    example: Literal["golden", "momentum", "filter"] = "golden",
+    example: Literal["golden", "momentum", "filter", "fallback"] = "golden",
 ) -> dict[str, object]:
     examples = {
         "golden": golden_portfolio_strategy,
         "momentum": momentum_top_n_strategy,
         "filter": filter_screening_strategy,
+        "fallback": fallback_momentum_strategy,
     }
     strategy = examples[example]()
     issues = collect_semantic_issues(strategy)

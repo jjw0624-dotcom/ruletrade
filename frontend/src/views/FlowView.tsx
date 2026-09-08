@@ -21,13 +21,18 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
     onLookbackChange?: (value: number) => void;
     onThresholdChange?: (value: string) => void;
     onTopNChange?: (value: number) => void;
+    onFallbackChange?: (value: string) => void;
   };
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.threshold !== undefined ? (
+      {node.fallbackAssetSetRef !== undefined ? (
+        <div className="node-fields"><label>Use asset<select value={node.fallbackAssetSetRef} onChange={(event) => node.onFallbackChange?.(event.target.value)}>
+          {node.fallbackOptions?.map((option) => <option key={option.id} value={option.id}>{option.asset}</option>)}
+        </select></label></div>
+      ) : node.threshold !== undefined ? (
         <div className="node-fields"><label>Threshold (%)<input type="number" step="0.1" value={Number(node.threshold) * 100} onChange={(event) => {
           if (event.target.value !== "") node.onThresholdChange?.(String(Number(event.target.value) / 100));
         }} /></label></div>
@@ -78,6 +83,10 @@ export function FlowView() {
         onTopNChange: (value: number) => dispatch({
           type: "apply_semantic_patch",
           operation: { kind: "update_component_config", componentId: node.id, field: "count", value },
+        }),
+        onFallbackChange: (value: string) => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_component_config", componentId: node.id, field: "fallback_asset_set_ref", value },
         }),
       },
     })),

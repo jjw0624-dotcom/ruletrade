@@ -23,6 +23,19 @@ class FilteredMomentumSelectionResult:
     targets: tuple[tuple[str, Decimal], ...]
 
 
+@dataclass(frozen=True)
+class FallbackMomentumSelectionResult:
+    scores: tuple[tuple[str, Decimal], ...]
+    eligible: tuple[str, ...]
+    rejected: tuple[str, ...]
+    ranked: tuple[str, ...]
+    candidate: tuple[str, ...]
+    primary_selected: tuple[str, ...]
+    fallback_activated: bool
+    final_selected: tuple[str, ...]
+    final_targets: tuple[tuple[str, Decimal], ...]
+
+
 def _trailing_return_scores(
     closes: Mapping[str, Sequence[Decimal]], lookback_bars: int
 ) -> dict[str, Decimal]:
@@ -110,4 +123,44 @@ def evaluate_filtered_trailing_return_top_n(
         ranked=ranked,
         selected=selected,
         targets=targets,
+    )
+
+
+def evaluate_fallback_trailing_return_top_n(
+    closes: Mapping[str, Sequence[Decimal]],
+    *,
+    lookback_bars: int,
+    threshold: Decimal,
+    count: int,
+    fallback_asset: str,
+    total_weight: Decimal = Decimal(1),
+) -> FallbackMomentumSelectionResult:
+    """Execute a full primary Top N or replace it with one fallback asset."""
+
+    fallback_asset = fallback_asset.strip().upper()
+    if not fallback_asset:
+        raise ValueError("fallback_asset is required")
+    primary = evaluate_filtered_trailing_return_top_n(
+        closes,
+        lookback_bars=lookback_bars,
+        threshold=threshold,
+        count=count,
+        total_weight=total_weight,
+    )
+    candidate = primary.ranked[:count]
+    fallback_activated = not primary.selected
+    final_selected = (fallback_asset,) if fallback_activated else primary.selected
+    final_targets = (
+        ((fallback_asset, total_weight),) if fallback_activated else primary.targets
+    )
+    return FallbackMomentumSelectionResult(
+        scores=primary.scores,
+        eligible=primary.eligible,
+        rejected=primary.rejected,
+        ranked=primary.ranked,
+        candidate=candidate,
+        primary_selected=primary.selected,
+        fallback_activated=fallback_activated,
+        final_selected=final_selected,
+        final_targets=final_targets,
     )

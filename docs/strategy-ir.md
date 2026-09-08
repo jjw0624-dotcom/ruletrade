@@ -40,6 +40,7 @@ selection.rank
 selection.top_n
 portfolio.equal_weight
 portfolio.merge_targets
+portfolio.first_non_empty_targets
 portfolio.rebalance
 ```
 
@@ -101,6 +102,44 @@ skipped decision records `selected=` and `decision=skipped`, while the skip trac
 eligible and required counts. This preserves diagnostics without presenting an unexecuted candidate
 as an investment selection.
 
+## Fallback desugaring
+
+Fallback is the first source-level convenience that expands into a smaller compiler kernel. The
+authoritative Strategy Model preserves `fallback@1` with an explicit single-asset AssetSet
+reference. One source component desugars to:
+
+```text
+market.asset_set (fallback asset)
+  → portfolio.equal_weight (same allocation as primary)
+
+primary portfolio targets ─┐
+                           ├→ portfolio.first_non_empty_targets
+fallback portfolio targets ┘
+```
+
+`portfolio.first_non_empty_targets` is the one new irreducible IR operation: choosing between two
+already-computed target sets is runtime decision semantics, while the source-specific convenience
+of naming one fallback asset is not. The IR operation is backend-independent and contains no LEAN
+types, scheduling rules, or symbols hard-coded by the backend.
+
+Fallback v0 is all-or-nothing. When the filtered primary can supply the requested Top N, primary
+targets execute. Otherwise its partial candidate is not selected and the fallback asset receives
+the primary allocation (100% in the reference strategy). Traces separately record primary
+`eligible`, `ranked`, `candidate`, and `selected`; fallback activation; and the final executed
+selection. The shared source provenance on the three derived operations identifies the source
+fallback component that caused the decision.
+
+Requirements analysis discovers the derived fallback AssetSet as a subscription. Only the primary
+AssetSet is an operand of `market.trailing_return`, so its 127 adjusted Daily observations do not
+apply to the fallback asset. Filter-without-fallback retains its existing skipped-rebalance policy.
+
+Subscription, history, and decision readiness are separate requirements. The fallback strategy
+subscribes to TLT so LEAN can price and trade it, but TLT has no momentum-history requirement. The
+current LEAN v0 event guard conservatively requires a current ready bar for every subscribed asset,
+including TLT, before executing either path. That is semantically correct for this fixed Daily
+slice. Path-sensitive conditional readiness is deliberately deferred until a real strategy proves
+the conservative guard insufficient; this slice does not add a generic readiness framework.
+
 ## Registry and analysis
 
 The existing Primitive Registry remains the definition source for source-language operations: IDs,
@@ -124,9 +163,9 @@ Portfolio → Portfolio Sleeve → Universe → Screening → Signal / Score
           → Ranking → Selection → Weighting → Target Weights
 ```
 
-Those are not automatically fundamental IR or runtime objects. For example, a future Portfolio
-Sleeve or Fallback can desugar into smaller target/dataflow operations when a real vertical slice
-defines its requirements. RuleTrade does not implement those features in Strategy IR v0.
+Those are not automatically fundamental IR or runtime objects. A future Portfolio Sleeve can
+desugar into smaller target/dataflow operations when a real vertical slice defines its
+requirements. It is not implemented in Strategy IR v0.
 
 ## Reproducibility and persistence boundary
 

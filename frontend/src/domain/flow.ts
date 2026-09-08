@@ -12,6 +12,8 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
   lookbackBars?: number;
   threshold?: string;
   topN?: number;
+  fallbackAssetSetRef?: string;
+  fallbackOptions?: Array<{ id: string; asset: string }>;
 }
 
 export interface FlowProjection {
@@ -36,6 +38,7 @@ export const DEFAULT_NODE_POSITIONS: NodePositions = {
   momentum_rank: { x: 710, y: 190 },
   top_n: { x: 930, y: 190 },
   weights: { x: 1150, y: 190 },
+  fallback: { x: 1150, y: 400 },
 };
 
 function percentage(value: unknown): string {
@@ -98,6 +101,19 @@ function nodeData(
       componentId: component.id,
       title: `Equal Weight ${percentage(total)}`,
       details: ["Portfolio targets"],
+    };
+  }
+  if (component.primitive === "fallback@1") {
+    const reference = resolvedConfigValue(strategy, registry, component.id, "fallback_asset_set_ref");
+    const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
+    return {
+      componentId: component.id,
+      title: `Fallback: ${definition?.assets[0] ?? "Missing asset"}`,
+      details: ["If fewer than Top N qualify"],
+      fallbackAssetSetRef: typeof reference === "string" ? reference : undefined,
+      fallbackOptions: strategy.definitions.asset_sets
+        .filter((item) => item.assets.length === 1)
+        .map((item) => ({ id: item.id, asset: item.assets[0] })),
     };
   }
   const labels: Record<string, string> = {
