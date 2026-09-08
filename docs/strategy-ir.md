@@ -28,12 +28,15 @@ backtest results are derived and never reconstruct the source model.
   execution requirements, selections, targets, and rebalances for C# generation.
 - **Generated C#** is target source. Code generation consumes LeanPlan only.
 
-Strategy IR v0 deliberately contains only the Golden compiler kernel:
+Strategy IR deliberately grows only through proven vertical slices. The current kernel is:
 
 ```text
 schedule.monthly
 market.asset_set
 selection.random_n
+market.trailing_return
+selection.rank
+selection.top_n
 portfolio.equal_weight
 portfolio.merge_targets
 portfolio.rebalance
@@ -47,6 +50,31 @@ Each IR operation carries only a source component ID as lightweight provenance. 
 continue to use the Strategy Model semantic identity, source component identity, normalized
 parameter bindings, event identity, and the existing `once`/`per_event` contract. Derived IR IDs do
 not become new source semantics.
+
+## Trailing-return Top N semantics
+
+The first signal/ranking slice is compositional in both the Strategy Model and Strategy IR:
+
+```text
+market.asset_set → market.trailing_return → selection.rank → selection.top_n
+                 → portfolio.equal_weight → portfolio.rebalance
+```
+
+`lookback_bars=126` means 126 completed US Equity Daily bar intervals, requiring 127 adjusted-close
+observations. At a monthly event, generated code first receives the completed Daily `TradeBar` in
+`OnData`, adds its close to the window, then compares it with the close 126 bars earlier using
+`current / prior - 1`. No later bar can enter the calculation. LEAN warm-up supplies the preceding
+126 trading-calendar samples; RuleTrade does not implement a calendar or history engine.
+
+An asset without all 127 positive observations is ineligible. If fewer than Top N assets are
+eligible, the whole rebalance is skipped rather than comparing unequal windows. Scores sort
+descending and equal scores use ticker ascending as the deterministic tie-break. These are fixed
+v0 semantics, not configurable policies.
+
+The two added dataflow types are deliberately precise: `asset_scores` is a per-asset numeric score
+set, and `ranked_assets` is its deterministic ordered result. They prevent raw scores or ranked
+collections from being mistaken for an ordinary `AssetSet` without introducing generic collection
+machinery.
 
 ## Registry and analysis
 

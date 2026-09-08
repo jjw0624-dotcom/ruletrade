@@ -120,9 +120,61 @@ GOLDEN_STATEFUL_RULE_PAYLOAD = {
 }
 
 
+MOMENTUM_TOP_N_PAYLOAD = {
+    "metadata": {
+        "name": "Trailing Return Top 2",
+        "description": "Select the two strongest assets by 126-bar trailing return.",
+    },
+    "definitions": {
+        "asset_sets": [
+            {"id": "universe", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+        ]
+    },
+    "graph": {
+        "components": [
+            {"id": "monthly", "primitive": "monthly@1", "config": {"day": 1}},
+            {
+                "id": "universe_assets",
+                "primitive": "asset_set@1",
+                "config": {"asset_set_ref": "universe"},
+            },
+            {
+                "id": "momentum",
+                "primitive": "trailing_return@1",
+                "config": {"lookback_bars": 126},
+            },
+            {
+                "id": "momentum_rank",
+                "primitive": "rank@1",
+                "config": {"direction": "descending"},
+            },
+            {"id": "top_n", "primitive": "top_n@1", "config": {"count": 2}},
+            {
+                "id": "weights",
+                "primitive": "equal_weight@1",
+                "config": {"total": "1.0"},
+            },
+            {"id": "rebalance", "primitive": "rebalance@1"},
+        ],
+        "connections": [
+            {"source": {"component_id": "universe_assets", "port": "assets"}, "target": {"component_id": "momentum", "port": "assets"}},
+            {"source": {"component_id": "momentum", "port": "scores"}, "target": {"component_id": "momentum_rank", "port": "scores"}},
+            {"source": {"component_id": "momentum_rank", "port": "ranked"}, "target": {"component_id": "top_n", "port": "ranked"}},
+            {"source": {"component_id": "top_n", "port": "selected"}, "target": {"component_id": "weights", "port": "assets"}},
+            {"source": {"component_id": "weights", "port": "targets"}, "target": {"component_id": "rebalance", "port": "targets"}},
+        ],
+    },
+    "entrypoints": [{"event_component_id": "monthly", "target_component_id": "rebalance"}],
+}
+
+
 def golden_portfolio_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
 
 
 def golden_stateful_rule_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_STATEFUL_RULE_PAYLOAD)
+
+
+def momentum_top_n_strategy() -> CanonicalStrategyV1:
+    return CanonicalStrategyV1.model_validate(MOMENTUM_TOP_N_PAYLOAD)

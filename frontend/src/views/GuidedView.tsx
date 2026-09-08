@@ -13,6 +13,33 @@ export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
   const guided = projectGuided(state.canonical, state.registry);
 
+  if (guided.kind === "momentum") {
+    return (
+      <div className="guided-view" aria-label="Guided strategy editor">
+        <section className="sleeve-card">
+          <header><div><span className="eyebrow">Momentum strategy</span><h2>Highest trailing return</h2></div><strong>{percent(guided.momentum.total)}</strong></header>
+          <label>Which assets?</label>
+          <AssetChips assets={guided.momentum.assets} />
+          <div className="field-grid">
+            <label htmlFor="guided-lookback">Lookback (trading days)</label>
+            <input id="guided-lookback" type="number" min={1} value={guided.momentum.lookbackBars} onChange={(event) => dispatch({
+              type: "apply_semantic_patch",
+              operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
+            })} />
+            <label htmlFor="guided-top-n">How many?</label>
+            <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
+              type: "apply_semantic_patch",
+              operation: { kind: "update_component_config", componentId: guided.momentum.selectionComponentId, field: "count", value: Number(event.target.value) },
+            })} />
+          </div>
+          <div className="summary-row"><span>Rank</span><span>{guided.momentum.rankDirection}</span></div>
+          <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.momentum.total)}</span></div>
+          <div className="summary-row"><span>Re-evaluate</span><span>{guided.momentum.schedule}</span></div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="guided-view" aria-label="Guided strategy editor">
       <section className="sleeve-card">

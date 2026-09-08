@@ -6,6 +6,7 @@ from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 def test_golden_strategy_compiles_through_to_classic_qcalgorithm_source() -> None:
     source = generate_csharp(compile_strategy_to_lean_plan(golden_portfolio_strategy()))
 
+    assert "using QuantConnect.Indicators;" not in source
     assert "public class RuleTradeGeneratedAlgorithm : QCAlgorithm" in source
     assert source.count("AddEquity(") == 6
     assert "DateRules.MonthStart" in source

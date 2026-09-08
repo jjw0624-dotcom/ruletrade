@@ -3,7 +3,7 @@ from copy import deepcopy
 from fastapi.testclient import TestClient
 
 from ruletrade.api import app, get_lean_backtest_service
-from ruletrade.backtests.errors import LeanRuntimeUnavailableError
+from ruletrade.backtests.errors import LeanExecutionError, LeanRuntimeUnavailableError
 from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.service import BacktestService
 from ruletrade.strategy.v1.fixtures import (
@@ -187,6 +187,25 @@ def test_editor_bootstrap_uses_canonical_golden_and_registry() -> None:
     assert random_select["fields"][0]["minimum"] == "1"
 
 
+def test_editor_bootstrap_can_deliver_momentum_source_model() -> None:
+    response = client.get("/v1/editor/bootstrap?example=momentum")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["strategy"]["metadata"]["name"] == "Trailing Return Top 2"
+    assert [
+        component["primitive"] for component in payload["strategy"]["graph"]["components"]
+    ] == [
+        "monthly@1",
+        "asset_set@1",
+        "trailing_return@1",
+        "rank@1",
+        "top_n@1",
+        "equal_weight@1",
+        "rebalance@1",
+    ]
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,
@@ -303,4 +322,21 @@ def test_lean_backtest_api_reports_runtime_unavailable() -> None:
     assert response.json()["detail"] == {
         "code": "runtime_unavailable",
         "message": "Docker runtime is unavailable.",
+    }
+
+
+def test_lean_backtest_api_does_not_expose_runner_diagnostics() -> None:
+    runner = ApiFakeRunner(
+        LeanExecutionError(
+            "LEAN process failed (build).",
+            diagnostic_output="Main.cs: error CS0246: internal compiler diagnostic",
+        )
+    )
+
+    response = post_lean_backtest({"strategy": GOLDEN_PORTFOLIO_PAYLOAD}, runner)
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == {
+        "code": "execution_failed",
+        "message": "LEAN process failed (build).",
     }

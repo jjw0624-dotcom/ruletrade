@@ -16,6 +16,8 @@ class ValueType(StrEnum):
     STRING = "string"
     ASSET = "asset"
     ASSET_SET = "asset_set"
+    ASSET_SCORES = "asset_scores"
+    RANKED_ASSETS = "ranked_assets"
     SHARES = "shares"
     MONEY = "money"
     MONEY_PER_SHARE = "money_per_share"

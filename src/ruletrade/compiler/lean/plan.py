@@ -24,6 +24,18 @@ class LeanRandomSelection:
 
 
 @dataclass(frozen=True)
+class LeanMomentumSelection:
+    id: str
+    score_component_id: str
+    rank_component_id: str
+    symbols: tuple[str, ...]
+    lookback_bars: int
+    count: int
+    direction: Literal["descending"] = "descending"
+    price_field: Literal["adjusted_close"] = "adjusted_close"
+
+
+@dataclass(frozen=True)
 class LeanTargetSleeve:
     id: str
     symbols: tuple[str, ...]
@@ -59,6 +71,7 @@ class LeanPlan:
     target_sleeves: tuple[LeanTargetSleeve, ...]
     rebalances: tuple[LeanRebalance, ...]
     monthly_events: tuple[LeanMonthlyEvent, ...]
+    momentum_selections: tuple[LeanMomentumSelection, ...] = ()
 
 
 def _unique_by_id(items: tuple[object, ...], label: str) -> None:
@@ -78,6 +91,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
         subscriptions[item.symbol] = item
 
     _unique_by_id(plan.random_selections, "random selection")
+    _unique_by_id(plan.momentum_selections, "momentum selection")
     _unique_by_id(plan.target_sleeves, "target sleeve")
     _unique_by_id(plan.rebalances, "rebalance")
     _unique_by_id(plan.monthly_events, "monthly event")
@@ -98,6 +112,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
         plan,
         subscriptions=tuple(subscriptions[key] for key in sorted(subscriptions)),
         random_selections=tuple(sorted(plan.random_selections, key=lambda item: item.id)),
+        momentum_selections=tuple(sorted(plan.momentum_selections, key=lambda item: item.id)),
         target_sleeves=tuple(sorted(plan.target_sleeves, key=lambda item: item.id)),
         rebalances=tuple(sorted(plan.rebalances, key=lambda item: item.id)),
         monthly_events=tuple(sorted(grouped_events.values(), key=lambda item: item.id)),

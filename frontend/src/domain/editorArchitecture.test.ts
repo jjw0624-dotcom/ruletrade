@@ -9,6 +9,8 @@ describe("Strategy Editor Canonical architecture", () => {
   it("loads and projects the Golden Canonical strategy", () => {
     const state = createEditorState(goldenBootstrap);
     const guided = projectGuided(state.canonical, state.registry);
+    expect(guided.kind).toBe("golden");
+    if (guided.kind !== "golden") throw new Error("expected Golden projection");
 
     expect(state.canonical.api_version).toBe("ruletrade.dev/strategy/v1");
     expect(guided.growth.assets).toEqual(["QQQ", "VGT", "SOXX", "SCHG"]);
@@ -43,7 +45,8 @@ describe("Strategy Editor Canonical architecture", () => {
     const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
 
     expect(edited.editor.activeView).toBe("flow");
-    expect(projectGuided(edited.canonical, edited.registry).growth.randomCount).toBe(3);
+    const guided = projectGuided(edited.canonical, edited.registry);
+    expect(guided.kind === "golden" && guided.growth.randomCount).toBe(3);
     expect(flow.nodes.find((node) => node.id === "growth_random")?.data.randomCount).toBe(3);
     expect(initial.canonical.graph.components.find((item) => item.id === "growth_random")?.config.count).toBe(2);
   });
@@ -57,7 +60,8 @@ describe("Strategy Editor Canonical architecture", () => {
     const edited = editorReducer(patched, { type: "set_active_view", view: "guided" });
 
     expect(edited.editor.activeView).toBe("guided");
-    expect(projectGuided(edited.canonical, edited.registry).growth.resample).toBe("once");
+    const guided = projectGuided(edited.canonical, edited.registry);
+    expect(guided.kind === "golden" && guided.growth.resample).toBe("once");
     expect(projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions)
       .nodes.find((node) => node.id === "growth_random")?.data.resample).toBe("once");
   });

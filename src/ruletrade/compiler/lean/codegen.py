@@ -199,6 +199,7 @@ def generate_csharp(
         raise ValueError("algorithm_class must be a valid identifier")
 
     selections = {item.id: item for item in plan.random_selections}
+    momentum_selections = {item.id: item for item in plan.momentum_selections}
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
     lines = [
@@ -206,17 +207,30 @@ def generate_csharp(
         "using System.Collections.Generic;",
         "using System.Globalization;",
         "using System.Linq;",
-        "using System.Security.Cryptography;",
-        "using System.Text;",
-        "using System.Text.Json;",
         "using QuantConnect;",
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
+    ]
+    if plan.momentum_selections:
+        lines.append("using QuantConnect.Indicators;")
+    if plan.random_selections:
+        lines[4:4] = [
+            "using System.Security.Cryptography;",
+            "using System.Text;",
+            "using System.Text.Json;",
+        ]
+    lines.extend([
         "",
         f"public class {settings.algorithm_class} : QCAlgorithm",
         "{",
         "    private readonly Dictionary<string, Symbol> _symbols = new Dictionary<string, Symbol>();",
-    ]
+    ])
+    if plan.momentum_selections:
+        history_capacity = max(item.lookback_bars for item in plan.momentum_selections) + 1
+        lines.append(
+            "    private readonly Dictionary<string, RollingWindow<decimal>> "
+            "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
+        )
     for index in range(len(plan.monthly_events)):
         lines.append(f"    private string _pendingEvent{index};")
     lines.extend(
@@ -235,9 +249,23 @@ def generate_csharp(
             f"        SetCash({_decimal_literal(settings.initial_cash)});",
         )
     )
-    for subscription in plan.subscriptions:
+    for subscription_index, subscription in enumerate(plan.subscriptions):
         ticker = _csharp_string(subscription.symbol)
-        lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
+        if plan.momentum_selections:
+            security_variable = f"security{subscription_index}"
+            lines.extend(
+                (
+                    f"        var {security_variable} = AddEquity({ticker}, Resolution.Daily, "
+                    "dataNormalizationMode: DataNormalizationMode.Adjusted);",
+                    f"        _symbols[{ticker}] = {security_variable}.Symbol;",
+                    f"        _dailyCloses[{ticker}] = new RollingWindow<decimal>({history_capacity});",
+                )
+            )
+        else:
+            lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
+    if plan.momentum_selections:
+        warm_up_bars = max(item.lookback_bars for item in plan.momentum_selections)
+        lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
     for index, event in enumerate(plan.monthly_events):
         anchor = _csharp_string(event.anchor_symbol)
         lines.append(
@@ -262,6 +290,19 @@ def generate_csharp(
         )
 
     lines.extend(("    public override void OnData(Slice slice)", "    {"))
+    if plan.momentum_selections:
+        lines.extend(
+            (
+                "        foreach (var item in _symbols)",
+                "        {",
+                "            if (slice.Bars.TryGetValue(item.Value, out var bar))",
+                "            {",
+                "                _dailyCloses[item.Key].Add(bar.Close);",
+                "            }",
+                "        }",
+                "        if (IsWarmingUp) return;",
+            )
+        )
     for event_index in range(len(plan.monthly_events)):
         lines.extend(
             (
@@ -317,12 +358,46 @@ def generate_csharp(
                     symbols = ", ".join(_csharp_string(item) for item in sleeve.symbols)
                     lines.append(f"        var {variable} = new[] {{ {symbols} }};")
                 else:
-                    selection = selections[sleeve.selection_id]
-                    symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
-                    lines.append(
-                        f"        var {variable} = RuleTradeRandom.Sample("
-                        f"new[] {{ {symbols} }}, {selection.count}, {_seed_expression(plan, selection)});"
-                    )
+                    if sleeve.selection_id in selections:
+                        selection = selections[sleeve.selection_id]
+                        symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+                        lines.append(
+                            f"        var {variable} = RuleTradeRandom.Sample("
+                            f"new[] {{ {symbols} }}, {selection.count}, {_seed_expression(plan, selection)});"
+                        )
+                    else:
+                        selection = momentum_selections[sleeve.selection_id]
+                        symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+                        scores_variable = f"scores{event_index}_{rebalance_index}_{sleeve_index}"
+                        ranked_variable = f"ranked{event_index}_{rebalance_index}_{sleeve_index}"
+                        lines.extend(
+                            (
+                                f"        var {scores_variable} = new Dictionary<string, decimal>();",
+                                f"        foreach (var ticker in new[] {{ {symbols} }})",
+                                "        {",
+                                "            var window = _dailyCloses[ticker];",
+                                f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                                "            {",
+                                f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                                "            }",
+                                "        }",
+                                f"        var {ranked_variable} = {scores_variable}",
+                                "            .OrderByDescending(item => item.Value)",
+                                "            .ThenBy(item => item.Key, StringComparer.Ordinal)",
+                                "            .ToList();",
+                                f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
+                                f"        if ({variable}.Count < {selection.count})",
+                                "        {",
+                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {variable}.Count);',
+                                "            return;",
+                                "        }",
+                                f'        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                f'            + "|selected=" + string.Join(",", {variable}));',
+                            )
+                        )
                     lines.append(f"        {selected_variable}.AddRange({variable});")
                 weight = _decimal_literal(sleeve.total_weight)
                 lines.extend(
@@ -371,5 +446,9 @@ def generate_csharp(
             )
         lines.extend(("    }", ""))
 
-    lines.extend(("}", "", _random_helper_source(), ""))
+    lines.append("}")
+    if plan.random_selections:
+        lines.extend(("", _random_helper_source(), ""))
+    else:
+        lines.append("")
     return "\n".join(lines)

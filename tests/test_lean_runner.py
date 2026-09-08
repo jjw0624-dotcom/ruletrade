@@ -137,3 +137,24 @@ def test_docker_build_keeps_intermediates_off_host_and_maps_user() -> None:
     assert '--user "$host_uid:$host_gid"' in script
     assert "-p:BaseIntermediateOutputPath=/tmp/ruletrade-obj/" in script
     assert "BaseIntermediateOutputPath=/workspace/" not in script
+
+
+def test_failed_subprocess_preserves_diagnostics_without_exposing_them_in_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    diagnostic = "Main.cs(12,41): error CS0246: RollingWindow<> could not be found"
+
+    def fail(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(["docker", "run"], 1, "build started", diagnostic)
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    runner = DockerLeanRunner(repo_root=tmp_path)
+
+    with pytest.raises(LeanExecutionError) as error:
+        runner._run(["docker", "run"])
+
+    assert str(error.value) == "LEAN process failed (run)."
+    assert error.value.diagnostic_output is not None
+    assert "CS0246" in error.value.diagnostic_output
+    assert "build started" in error.value.diagnostic_output
+    assert "CS0246" in caplog.text

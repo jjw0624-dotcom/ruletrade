@@ -1,0 +1,501 @@
+{
+  "registry": {
+    "primitives": [
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "asset_set_ref",
+            "reference": "asset_set",
+            "required": true,
+            "value_type": "string"
+          }
+        ],
+        "id": "asset_set@1",
+        "inputs": [],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "assets",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "allocator",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": true,
+            "maximum": "1",
+            "minimum": "0",
+            "name": "total",
+            "reference": null,
+            "required": true,
+            "value_type": "percentage"
+          }
+        ],
+        "id": "equal_weight@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "assets",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "targets",
+            "required": true,
+            "value_type": "portfolio_targets"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [],
+        "id": "merge_targets@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "left",
+            "required": true,
+            "value_type": "portfolio_targets"
+          },
+          {
+            "multiple": false,
+            "name": "right",
+            "required": true,
+            "value_type": "portfolio_targets"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "targets",
+            "required": true,
+            "value_type": "portfolio_targets"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "event",
+        "fields": [
+          {
+            "choices": [],
+            "default": 1,
+            "exclusive_minimum": false,
+            "maximum": "31",
+            "minimum": "1",
+            "name": "day",
+            "reference": null,
+            "required": false,
+            "value_type": "integer"
+          }
+        ],
+        "id": "monthly@1",
+        "inputs": [],
+        "outputs": []
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": "1",
+            "name": "count",
+            "reference": null,
+            "required": true,
+            "value_type": "integer"
+          },
+          {
+            "choices": [
+              "once",
+              "per_event"
+            ],
+            "default": "per_event",
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "resample",
+            "reference": null,
+            "required": false,
+            "value_type": "string"
+          }
+        ],
+        "id": "random_select@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "assets",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "selected",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [
+              "descending"
+            ],
+            "default": "descending",
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "direction",
+            "reference": null,
+            "required": false,
+            "value_type": "string"
+          }
+        ],
+        "id": "rank@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "scores",
+            "required": true,
+            "value_type": "asset_scores"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "ranked",
+            "required": true,
+            "value_type": "ranked_assets"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "effect",
+        "fields": [],
+        "id": "rebalance@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "targets",
+            "required": true,
+            "value_type": "portfolio_targets"
+          }
+        ],
+        "outputs": []
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "rule",
+        "fields": [],
+        "id": "rule@1",
+        "inputs": [],
+        "outputs": []
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": "1",
+            "name": "count",
+            "reference": null,
+            "required": true,
+            "value_type": "integer"
+          }
+        ],
+        "id": "top_n@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "ranked",
+            "required": true,
+            "value_type": "ranked_assets"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "selected",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": "1",
+            "name": "lookback_bars",
+            "reference": null,
+            "required": true,
+            "value_type": "integer"
+          }
+        ],
+        "id": "trailing_return@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "assets",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "scores",
+            "required": true,
+            "value_type": "asset_scores"
+          }
+        ]
+      }
+    ]
+  },
+  "strategy": {
+    "api_version": "ruletrade.dev/strategy/v1",
+    "definitions": {
+      "asset_sets": [
+        {
+          "assets": [
+            "QQQ",
+            "VGT",
+            "SOXX",
+            "SCHG"
+          ],
+          "id": "universe"
+        }
+      ],
+      "parameters": [],
+      "state": []
+    },
+    "entrypoints": [
+      {
+        "event_component_id": "monthly",
+        "target_component_id": "rebalance"
+      }
+    ],
+    "graph": {
+      "components": [
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "day": 1
+          },
+          "id": "monthly",
+          "primitive": "monthly@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "asset_set_ref": "universe"
+          },
+          "id": "universe_assets",
+          "primitive": "asset_set@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "lookback_bars": 126
+          },
+          "id": "momentum",
+          "primitive": "trailing_return@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "direction": "descending"
+          },
+          "id": "momentum_rank",
+          "primitive": "rank@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "count": 2
+          },
+          "id": "top_n",
+          "primitive": "top_n@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {
+            "total": "1.0"
+          },
+          "id": "weights",
+          "primitive": "equal_weight@1"
+        },
+        {
+          "actions": [],
+          "condition": null,
+          "config": {},
+          "id": "rebalance",
+          "primitive": "rebalance@1"
+        }
+      ],
+      "connections": [
+        {
+          "source": {
+            "component_id": "universe_assets",
+            "port": "assets"
+          },
+          "target": {
+            "component_id": "momentum",
+            "port": "assets"
+          }
+        },
+        {
+          "source": {
+            "component_id": "momentum",
+            "port": "scores"
+          },
+          "target": {
+            "component_id": "momentum_rank",
+            "port": "scores"
+          }
+        },
+        {
+          "source": {
+            "component_id": "momentum_rank",
+            "port": "ranked"
+          },
+          "target": {
+            "component_id": "top_n",
+            "port": "ranked"
+          }
+        },
+        {
+          "source": {
+            "component_id": "top_n",
+            "port": "selected"
+          },
+          "target": {
+            "component_id": "weights",
+            "port": "assets"
+          }
+        },
+        {
+          "source": {
+            "component_id": "weights",
+            "port": "targets"
+          },
+          "target": {
+            "component_id": "rebalance",
+            "port": "targets"
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "description": "Select the two strongest assets by 126-bar trailing return.",
+      "name": "Trailing Return Top 2",
+      "tags": []
+    },
+    "random_seed": 0
+  },
+  "validation": {
+    "issues": [],
+    "valid": true
+  }
+}

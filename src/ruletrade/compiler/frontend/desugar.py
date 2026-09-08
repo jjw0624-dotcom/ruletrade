@@ -15,6 +15,9 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "event.monthly",
         "asset_set.named",
         "selection.random_n_v1",
+        "market.trailing_return",
+        "selection.rank",
+        "selection.top_n",
         "allocation.equal_weight",
         "targets.merge",
         "effect.rebalance",
@@ -88,6 +91,27 @@ def desugar_strategy(
                     str(resolved["resample"]),
                 ),
                 parameter_bindings_json=bindings_json,
+                provenance=provenance,
+            )
+        elif implementation == "market.trailing_return":
+            operation = strategy_ir.TrailingReturnOp(
+                id=component.id,
+                assets=input_id(component, "assets"),
+                lookback_bars=int(resolved["lookback_bars"]),
+                provenance=provenance,
+            )
+        elif implementation == "selection.rank":
+            operation = strategy_ir.RankOp(
+                id=component.id,
+                scores=input_id(component, "scores"),
+                direction=typing.cast(typing.Literal["descending"], resolved["direction"]),
+                provenance=provenance,
+            )
+        elif implementation == "selection.top_n":
+            operation = strategy_ir.TopNOp(
+                id=component.id,
+                ranked=input_id(component, "ranked"),
+                count=int(resolved["count"]),
                 provenance=provenance,
             )
         elif implementation == "allocation.equal_weight":

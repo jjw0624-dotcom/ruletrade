@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
 from ruletrade.compiler.lean.plan import (
+    LeanMomentumSelection,
     LeanMonthlyEvent,
     LeanOnDataExecution,
     LeanPlan,
@@ -19,8 +20,11 @@ from ruletrade.ir.strategy import (
     MergeTargetsOp,
     MonthlyScheduleOp,
     RandomNOp,
+    RankOp,
     RebalanceOp,
     StrategyIR,
+    TopNOp,
+    TrailingReturnOp,
 )
 
 
@@ -35,7 +39,12 @@ def lower_strategy_ir_to_lean_plan(
     """Lower backend-independent Strategy IR into the LEAN-specific backend IR."""
 
     operations = {operation.id: operation for operation in strategy_ir.operations}
+    history_requirements = {
+        requirement.source_component_id: requirement
+        for requirement in requirements.daily_history
+    }
     selections: dict[str, LeanRandomSelection] = {}
+    momentum_selections: dict[str, LeanMomentumSelection] = {}
     sleeves: dict[str, LeanTargetSleeve] = {}
 
     def lower_sleeve(operation_id: str) -> LeanTargetSleeve:
@@ -57,6 +66,27 @@ def lower_strategy_ir_to_lean_plan(
                 count=upstream.count,
                 resample=upstream.resample,
                 parameter_bindings_json=upstream.parameter_bindings_json,
+            )
+        elif isinstance(upstream, TopNOp):
+            rank = operations.get(upstream.ranked)
+            score = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+            asset_set = operations.get(score.assets) if isinstance(score, TrailingReturnOp) else None
+            if not isinstance(rank, RankOp) or not isinstance(score, TrailingReturnOp) or not isinstance(asset_set, AssetSetOp):
+                raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
+            symbols = asset_set.symbols
+            selection_id = upstream.id
+            history = history_requirements.get(score.provenance.component_id)
+            if history is None:
+                raise LeanLoweringError("trailing return history requirement is missing")
+            momentum_selections[selection_id] = LeanMomentumSelection(
+                id=selection_id,
+                score_component_id=score.provenance.component_id,
+                rank_component_id=rank.provenance.component_id,
+                symbols=symbols,
+                lookback_bars=history.lookback_bars,
+                count=upstream.count,
+                direction=rank.direction,
+                price_field=history.price_field,
             )
         elif isinstance(upstream, AssetSetOp):
             symbols = upstream.symbols
@@ -90,16 +120,18 @@ def lower_strategy_ir_to_lean_plan(
             )
         if not isinstance(target, RebalanceOp):
             raise LeanLoweringError("monthly entrypoint must target Rebalance")
-        merge = operations.get(target.targets)
-        if not isinstance(merge, MergeTargetsOp):
-            raise LeanLoweringError("Rebalance input must be MergeTargets")
-        left = lower_sleeve(merge.left)
-        right = lower_sleeve(merge.right)
-        if left.total_weight + right.total_weight != Decimal(1):
-            raise LeanLoweringError("merged target sleeve weights must sum to 1")
+        target_input = operations.get(target.targets)
+        if isinstance(target_input, MergeTargetsOp):
+            lowered_sleeves = (lower_sleeve(target_input.left), lower_sleeve(target_input.right))
+        elif isinstance(target_input, EqualWeightOp):
+            lowered_sleeves = (lower_sleeve(target_input.id),)
+        else:
+            raise LeanLoweringError("Rebalance input must be EqualWeight or MergeTargets")
+        if sum((sleeve.total_weight for sleeve in lowered_sleeves), Decimal(0)) != Decimal(1):
+            raise LeanLoweringError("target sleeve weights must sum to 1")
         rebalances[target.id] = LeanRebalance(
             id=target.id,
-            sleeve_ids=(left.id, right.id),
+            sleeve_ids=tuple(sleeve.id for sleeve in lowered_sleeves),
         )
         monthly_events.append(
             LeanMonthlyEvent(
@@ -119,5 +151,6 @@ def lower_strategy_ir_to_lean_plan(
             target_sleeves=tuple(sleeves.values()),
             rebalances=tuple(rebalances.values()),
             monthly_events=tuple(monthly_events),
+            momentum_selections=tuple(momentum_selections.values()),
         )
     )

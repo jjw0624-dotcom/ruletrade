@@ -9,6 +9,8 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
   details: string[];
   randomCount?: number;
   resample?: string;
+  lookbackBars?: number;
+  topN?: number;
 }
 
 export interface FlowProjection {
@@ -27,6 +29,11 @@ export const DEFAULT_NODE_POSITIONS: NodePositions = {
   safe_weights: { x: 500, y: 310 },
   targets: { x: 760, y: 190 },
   rebalance: { x: 1010, y: 190 },
+  universe_assets: { x: 20, y: 190 },
+  momentum: { x: 250, y: 190 },
+  momentum_rank: { x: 490, y: 190 },
+  top_n: { x: 700, y: 190 },
+  weights: { x: 910, y: 190 },
 };
 
 function percentage(value: unknown): string {
@@ -46,8 +53,10 @@ function nodeData(
   component: CanonicalComponent,
 ): StrategyFlowNodeData {
   if (component.primitive === "asset_set@1") {
-    const sleeve = component.id.startsWith("growth") ? "Growth Assets" : "Safe Assets";
-    return { componentId: component.id, title: sleeve, details: assetSetDetails(strategy, component) };
+    const title = component.id === "universe_assets"
+      ? "Universe"
+      : component.id.startsWith("growth") ? "Growth Assets" : "Safe Assets";
+    return { componentId: component.id, title, details: assetSetDetails(strategy, component) };
   }
   if (component.primitive === "random_select@1") {
     const count = resolvedConfigValue(strategy, registry, component.id, "count");
@@ -59,6 +68,18 @@ function nodeData(
       randomCount: typeof count === "number" ? count : undefined,
       resample: typeof resample === "string" ? resample : undefined,
     };
+  }
+  if (component.primitive === "trailing_return@1") {
+    const lookback = resolvedConfigValue(strategy, registry, component.id, "lookback_bars");
+    return { componentId: component.id, title: "Trailing Return", details: [`Lookback: ${String(lookback)} trading days`, "Adjusted close"], lookbackBars: typeof lookback === "number" ? lookback : undefined };
+  }
+  if (component.primitive === "rank@1") {
+    const direction = resolvedConfigValue(strategy, registry, component.id, "direction");
+    return { componentId: component.id, title: "Rank", details: [`Direction: ${String(direction)}`, "Tie: ticker A–Z"] };
+  }
+  if (component.primitive === "top_n@1") {
+    const count = resolvedConfigValue(strategy, registry, component.id, "count");
+    return { componentId: component.id, title: `Top ${String(count)}`, details: [`Count: ${String(count)}`], topN: typeof count === "number" ? count : undefined };
   }
   if (component.primitive === "equal_weight@1") {
     const total = resolvedConfigValue(strategy, registry, component.id, "total");

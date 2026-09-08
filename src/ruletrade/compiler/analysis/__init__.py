@@ -1,4 +1,5 @@
 from ruletrade.compiler.analysis.requirements import (
+    DailyHistoryRequirement,
     RandomRequirement,
     ScheduleRequirement,
     StrategyRequirements,
@@ -6,6 +7,7 @@ from ruletrade.compiler.analysis.requirements import (
 )
 
 __all__ = [
+    "DailyHistoryRequirement",
     "RandomRequirement",
     "ScheduleRequirement",
     "StrategyRequirements",

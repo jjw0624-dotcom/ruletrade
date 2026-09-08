@@ -18,13 +18,19 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
   const node = data as StrategyFlowNodeData & {
     onCountChange?: (value: number) => void;
     onResampleChange?: (value: string) => void;
+    onLookbackChange?: (value: number) => void;
+    onTopNChange?: (value: number) => void;
   };
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.randomCount === undefined ? (
+      {node.lookbackBars !== undefined ? (
+        <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.lookbackBars} onChange={(event) => node.onLookbackChange?.(Number(event.target.value))} /></label></div>
+      ) : node.topN !== undefined ? (
+        <div className="node-fields"><label>Count<input type="number" min={1} value={node.topN} onChange={(event) => node.onTopNChange?.(Number(event.target.value))} /></label></div>
+      ) : node.randomCount === undefined ? (
         node.details.map((detail) => <span key={detail}>{detail}</span>)
       ) : (
         <div className="node-fields">
@@ -55,6 +61,14 @@ export function FlowView() {
         onResampleChange: (value: string) => dispatch({
           type: "apply_semantic_patch",
           operation: { kind: "update_component_config", componentId: node.id, field: "resample", value },
+        }),
+        onLookbackChange: (value: number) => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_component_config", componentId: node.id, field: "lookback_bars", value },
+        }),
+        onTopNChange: (value: number) => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_component_config", componentId: node.id, field: "count", value },
         }),
       },
     })),

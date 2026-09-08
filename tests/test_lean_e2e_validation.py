@@ -87,7 +87,9 @@ def test_tracked_daily_fixture_matches_lean_contract_and_exchange_calendar() -> 
             for match in matches
             if match is not None
         )
-        assert observed_dates == expected_dates
+        assert observed_dates[-len(expected_dates):] == expected_dates
+        assert observed_dates[0].isoformat() == "2023-01-03"
+        assert len(observed_dates) > 126 + len(expected_dates)
         assert all(day.weekday() < 5 for day in observed_dates)
 
         assert (fixture / "map_files" / f"{symbol}.csv").read_text().splitlines() == [

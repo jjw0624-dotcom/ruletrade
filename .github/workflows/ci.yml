@@ -41,16 +41,20 @@ jobs:
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
           src/ruletrade/compiler/lean/lowering.py
+          src/ruletrade/compiler/lean/momentum_e2e.py
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py
+          scripts/generate_momentum_lean.py
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
+          scripts/verify_momentum_lean_e2e.py
           tests/test_api.py
           tests/test_lean_backtest_service.py
           tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
           tests/test_lean_runner.py
+          tests/test_momentum_top_n.py
           tests/test_strategy_ir.py
           tests/test_strategy_ir_analysis.py
           tests/test_strategy_ir_differential.py
@@ -59,7 +63,12 @@ jobs:
         run: uv run python -m compileall -q src scripts tests
 
       - name: Check shell syntax
-        run: bash -n scripts/run_golden_lean_e2e.sh scripts/build_golden_lean_docker.sh
+        run: >-
+          bash -n
+          scripts/run_golden_lean_e2e.sh
+          scripts/run_momentum_lean_e2e.sh
+          scripts/check_momentum_lean_compile.sh
+          scripts/build_golden_lean_docker.sh
 
       - name: Check patch whitespace
         run: git diff --check
@@ -84,3 +93,46 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  lean-compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Install compiler dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Generate Momentum C#
+        run: >-
+          PYTHONPATH=src uv run python
+          scripts/generate_momentum_lean.py
+          --output build/lean/momentum-ci/Main.cs
+
+      - name: Free space for the LEAN Docker image
+        run: |
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /opt/hostedtoolcache
+          rm -rf .venv "$UV_CACHE_DIR"
+          docker system prune --all --force
+          df -h /
+
+      - name: Compile Momentum generated C# against LEAN
+        run: >-
+          ./scripts/build_golden_lean_docker.sh
+          build/lean/momentum-ci/Main.cs
+          build/lean/momentum-ci/bin
+
+      - name: Verify generated assembly
+        run: test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll

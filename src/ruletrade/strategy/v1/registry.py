@@ -156,6 +156,52 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 implementation_id="selection.random_n_v1",
             ),
             PrimitiveSpec(
+                id="trailing_return@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("assets", ValueType.ASSET_SET),),
+                outputs=(PortSpec("scores", ValueType.ASSET_SCORES),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "lookback_bars",
+                        ValueType.INTEGER,
+                        minimum=Decimal("1"),
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.GENERATED,
+                implementation_id="market.trailing_return",
+            ),
+            PrimitiveSpec(
+                id="rank@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("scores", ValueType.ASSET_SCORES),),
+                outputs=(PortSpec("ranked", ValueType.RANKED_ASSETS),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "direction",
+                        ValueType.STRING,
+                        required=False,
+                        default="descending",
+                        choices=("descending",),
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.GENERATED,
+                implementation_id="selection.rank",
+            ),
+            PrimitiveSpec(
+                id="top_n@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("ranked", ValueType.RANKED_ASSETS),),
+                outputs=(PortSpec("selected", ValueType.ASSET_SET),),
+                fields=(
+                    PrimitiveFieldSpec("count", ValueType.INTEGER, minimum=Decimal("1")),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.GENERATED,
+                implementation_id="selection.top_n",
+            ),
+            PrimitiveSpec(
                 id="equal_weight@1",
                 category=PrimitiveCategory.ALLOCATOR,
                 inputs=(PortSpec("assets", ValueType.ASSET_SET),),

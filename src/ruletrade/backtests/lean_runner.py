@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -17,6 +18,8 @@ from ruletrade.backtests.errors import (
 )
 
 LEAN_ALGORITHM_ID = "RuleTradeGeneratedAlgorithm"
+_MAX_DIAGNOSTIC_CHARACTERS = 20_000
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -88,8 +91,22 @@ class DockerLeanRunner:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise LeanExecutionError("LEAN process could not complete.") from exc
         if check and completed.returncode != 0:
+            output_parts = []
+            if completed.stdout.strip():
+                output_parts.append(f"stdout:\n{completed.stdout.strip()}")
+            if completed.stderr.strip():
+                output_parts.append(f"stderr:\n{completed.stderr.strip()}")
+            diagnostic_output = "\n".join(output_parts)
+            if len(diagnostic_output) > _MAX_DIAGNOSTIC_CHARACTERS:
+                diagnostic_output = (
+                    "[earlier subprocess output truncated]\n"
+                    + diagnostic_output[-_MAX_DIAGNOSTIC_CHARACTERS:]
+                )
+            if diagnostic_output:
+                logger.error("LEAN subprocess failed:\n%s", diagnostic_output)
             raise LeanExecutionError(
-                f"LEAN process failed ({arguments[1] if len(arguments) > 1 else 'docker'})."
+                f"LEAN process failed ({arguments[1] if len(arguments) > 1 else 'docker'}).",
+                diagnostic_output=diagnostic_output or None,
             )
         return completed
 

@@ -1,7 +1,8 @@
 import type { CanonicalComponent, CanonicalStrategyV1, RegistryPayload } from "./canonical";
 import { resolvedConfigValue } from "./patch";
 
-export interface GuidedProjection {
+export interface GoldenGuidedProjection {
+  kind: "golden";
   growth: {
     assets: string[];
     selectionComponentId: string;
@@ -16,6 +17,22 @@ export interface GuidedProjection {
     total: string;
   };
 }
+
+export interface MomentumGuidedProjection {
+  kind: "momentum";
+  momentum: {
+    assets: string[];
+    lookbackComponentId: string;
+    lookbackBars: number;
+    rankDirection: string;
+    selectionComponentId: string;
+    topN: number;
+    total: string;
+    schedule: string;
+  };
+}
+
+export type GuidedProjection = GoldenGuidedProjection | MomentumGuidedProjection;
 
 function requireComponent(strategy: CanonicalStrategyV1, id: string): CanonicalComponent {
   const component = strategy.graph.components.find((item) => item.id === id);
@@ -35,6 +52,35 @@ export function projectGuided(
   strategy: CanonicalStrategyV1,
   registry: RegistryPayload,
 ): GuidedProjection {
+  const topN = strategy.graph.components.find((item) => item.primitive === "top_n@1");
+  if (topN) {
+    const trailingReturn = strategy.graph.components.find((item) => item.primitive === "trailing_return@1");
+    const rank = strategy.graph.components.find((item) => item.primitive === "rank@1");
+    const assets = strategy.graph.components.find((item) => item.primitive === "asset_set@1");
+    const weighting = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
+    if (!trailingReturn || !rank || !assets || !weighting) {
+      throw new Error("Guided View cannot project the Momentum strategy");
+    }
+    const lookbackBars = resolvedConfigValue(strategy, registry, trailingReturn.id, "lookback_bars");
+    const count = resolvedConfigValue(strategy, registry, topN.id, "count");
+    const direction = resolvedConfigValue(strategy, registry, rank.id, "direction");
+    if (typeof lookbackBars !== "number" || typeof count !== "number" || typeof direction !== "string") {
+      throw new Error("Guided View cannot project Momentum settings");
+    }
+    return {
+      kind: "momentum",
+      momentum: {
+        assets: assetsFor(strategy, assets.id),
+        lookbackComponentId: trailingReturn.id,
+        lookbackBars,
+        rankDirection: direction,
+        selectionComponentId: topN.id,
+        topN: count,
+        total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
+        schedule: "Monthly",
+      },
+    };
+  }
   const randomCount = resolvedConfigValue(strategy, registry, "growth_random", "count");
   const resample = resolvedConfigValue(strategy, registry, "growth_random", "resample");
   const growthTotal = resolvedConfigValue(strategy, registry, "growth_weights", "total");
@@ -44,6 +90,7 @@ export function projectGuided(
   }
 
   return {
+    kind: "golden",
     growth: {
       assets: assetsFor(strategy, "growth_assets"),
       selectionComponentId: "growth_random",

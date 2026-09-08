@@ -32,6 +32,10 @@ class LeanRuntimeUnavailableError(BacktestError):
 class LeanExecutionError(BacktestError):
     code = "execution_failed"
 
+    def __init__(self, message: str, *, diagnostic_output: str | None = None) -> None:
+        super().__init__(message)
+        self.diagnostic_output = diagnostic_output
+
 
 class MalformedLeanResultError(BacktestError):
     code = "malformed_result"
