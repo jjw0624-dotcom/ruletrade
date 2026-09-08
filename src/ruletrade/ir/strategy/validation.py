@@ -7,6 +7,7 @@ from ruletrade.ir.strategy.model import (
     AssetSetOp,
     EqualWeightOp,
     FilterOp,
+    FirstNonEmptyTargetsOp,
     IRType,
     MergeTargetsOp,
     MonthlyScheduleOp,
@@ -44,7 +45,7 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         return IRType.ASSET_SCORES
     if isinstance(operation, RankOp):
         return IRType.RANKED_ASSETS
-    if isinstance(operation, (EqualWeightOp, MergeTargetsOp)):
+    if isinstance(operation, (EqualWeightOp, MergeTargetsOp, FirstNonEmptyTargetsOp)):
         return IRType.PORTFOLIO_TARGETS
     if isinstance(operation, RebalanceOp):
         return IRType.EFFECT
@@ -69,6 +70,11 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
             ("left", operation.left, IRType.PORTFOLIO_TARGETS),
             ("right", operation.right, IRType.PORTFOLIO_TARGETS),
         )
+    if isinstance(operation, FirstNonEmptyTargetsOp):
+        return (
+            ("primary", operation.primary, IRType.PORTFOLIO_TARGETS),
+            ("fallback", operation.fallback, IRType.PORTFOLIO_TARGETS),
+        )
     if isinstance(operation, RebalanceOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     return ()
@@ -91,6 +97,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         TopNOp,
         EqualWeightOp,
         MergeTargetsOp,
+        FirstNonEmptyTargetsOp,
         RebalanceOp,
     )
     for index, operation in enumerate(strategy_ir.operations):
@@ -147,6 +154,16 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 IRValidationIssue(
                     f"{path}.total_weight",
                     "weight must be greater than 0 and at most 1",
+                )
+            )
+        if (
+            isinstance(operation, FirstNonEmptyTargetsOp)
+            and operation.primary == operation.fallback
+        ):
+            issues.append(
+                IRValidationIssue(
+                    f"{path}.fallback",
+                    "fallback targets must differ from primary targets",
                 )
             )
 

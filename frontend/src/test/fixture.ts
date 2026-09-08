@@ -66,3 +66,53 @@ filterBootstrap.registry.primitives.push({
     },
   ],
 });
+
+export const fallbackBootstrap = structuredClone(filterBootstrap);
+fallbackBootstrap.strategy.metadata = {
+  ...fallbackBootstrap.strategy.metadata,
+  name: "Positive Trailing Return Top 2 with TLT Fallback",
+};
+fallbackBootstrap.strategy.definitions.asset_sets.push(
+  { id: "fallback_tlt", assets: ["TLT"] },
+  { id: "fallback_ief", assets: ["IEF"] },
+);
+const rebalanceIndex = fallbackBootstrap.strategy.graph.components.findIndex(
+  (item) => item.id === "rebalance",
+);
+fallbackBootstrap.strategy.graph.components.splice(rebalanceIndex, 0, {
+  id: "fallback",
+  primitive: "fallback@1",
+  config: { fallback_asset_set_ref: "fallback_tlt" },
+  condition: null,
+  actions: [],
+});
+fallbackBootstrap.strategy.graph.connections = fallbackBootstrap.strategy.graph.connections.flatMap(
+  (connection) => connection.source.component_id === "weights"
+    && connection.target.component_id === "rebalance"
+    ? [
+      { source: connection.source, target: { component_id: "fallback", port: "primary" } },
+      {
+        source: { component_id: "fallback", port: "targets" },
+        target: connection.target,
+      },
+    ]
+    : [connection],
+);
+fallbackBootstrap.registry.primitives.push({
+  id: "fallback@1",
+  category: "transform",
+  authoring_views: ["blocks", "code", "flow", "guided", "rules"],
+  inputs: [{ name: "primary", value_type: "portfolio_targets", required: true, multiple: false }],
+  outputs: [{ name: "targets", value_type: "portfolio_targets", required: true, multiple: false }],
+  fields: [{
+    name: "fallback_asset_set_ref",
+    value_type: "string",
+    required: true,
+    default: null,
+    minimum: null,
+    maximum: null,
+    exclusive_minimum: false,
+    choices: [],
+    reference: "asset_set",
+  }],
+});

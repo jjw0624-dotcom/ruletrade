@@ -34,7 +34,9 @@ def _split_symbols(value: str) -> tuple[str, ...]:
     return tuple(value.split(",")) if value else ()
 
 
-def _fixture_closes(fixture: Path) -> tuple[list[str], dict[str, list[Decimal]]]:
+def load_filter_fixture_closes(
+    fixture: Path,
+) -> tuple[list[str], dict[str, list[Decimal]]]:
     closes: dict[str, list[Decimal]] = {}
     dates: list[str] = []
     for symbol in SYMBOLS:
@@ -67,7 +69,7 @@ def verify_filter_e2e(
             f"expected 12 Filter events, got filters={len(filters)}, momentum={len(momentums)}"
         )
 
-    dates, closes = _fixture_closes(fixture)
+    dates, closes = load_filter_fixture_closes(fixture)
     successful = 0
     for event_identity, filter_trace in sorted(filters.items()):
         compact_date = event_identity.replace("-", "")

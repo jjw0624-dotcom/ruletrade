@@ -80,6 +80,21 @@ export function updateComponentConfig(
       issue: { path: `graph.components[${component.id}].config.${operation.field}`, message: error },
     };
   }
+  if (
+    field.reference === "asset_set"
+    && (
+      typeof operation.value !== "string"
+      || !strategy.definitions.asset_sets.some((item) => item.id === operation.value)
+    )
+  ) {
+    return {
+      ok: false,
+      issue: {
+        path: `graph.components[${component.id}].config.${operation.field}`,
+        message: `${operation.field} must reference an existing asset set`,
+      },
+    };
+  }
 
   return {
     ok: true,

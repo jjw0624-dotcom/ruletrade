@@ -202,6 +202,12 @@ def generate_csharp(
     momentum_selections = {item.id: item for item in plan.momentum_selections}
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
+    history_symbols = frozenset(
+        symbol for selection in plan.momentum_selections for symbol in selection.symbols
+    )
+    has_subscription_only_assets = history_symbols != frozenset(
+        subscription.symbol for subscription in plan.subscriptions
+    )
     lines = [
         "using System;",
         "using System.Collections.Generic;",
@@ -258,9 +264,13 @@ def generate_csharp(
                     f"        var {security_variable} = AddEquity({ticker}, Resolution.Daily, "
                     "dataNormalizationMode: DataNormalizationMode.Adjusted);",
                     f"        _symbols[{ticker}] = {security_variable}.Symbol;",
-                    f"        _dailyCloses[{ticker}] = new RollingWindow<decimal>({history_capacity});",
                 )
             )
+            if subscription.symbol in history_symbols:
+                lines.append(
+                    f"        _dailyCloses[{ticker}] = "
+                    f"new RollingWindow<decimal>({history_capacity});"
+                )
         else:
             lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
     if plan.momentum_selections:
@@ -291,18 +301,34 @@ def generate_csharp(
 
     lines.extend(("    public override void OnData(Slice slice)", "    {"))
     if plan.momentum_selections:
-        lines.extend(
-            (
-                "        foreach (var item in _symbols)",
-                "        {",
-                "            if (slice.Bars.TryGetValue(item.Value, out var bar))",
-                "            {",
-                "                _dailyCloses[item.Key].Add(bar.Close);",
-                "            }",
-                "        }",
-                "        if (IsWarmingUp) return;",
+        if has_subscription_only_assets:
+            tickers = ", ".join(_csharp_string(item) for item in sorted(history_symbols))
+            lines.extend(
+                (
+                    f"        foreach (var ticker in new[] {{ {tickers} }})",
+                    "        {",
+                    "            var symbol = _symbols[ticker];",
+                    "            if (slice.Bars.TryGetValue(symbol, out var bar))",
+                    "            {",
+                    "                _dailyCloses[ticker].Add(bar.Close);",
+                    "            }",
+                    "        }",
+                    "        if (IsWarmingUp) return;",
+                )
             )
-        )
+        else:
+            lines.extend(
+                (
+                    "        foreach (var item in _symbols)",
+                    "        {",
+                    "            if (slice.Bars.TryGetValue(item.Value, out var bar))",
+                    "            {",
+                    "                _dailyCloses[item.Key].Add(bar.Close);",
+                    "            }",
+                    "        }",
+                    "        if (IsWarmingUp) return;",
+                )
+            )
     for event_index in range(len(plan.monthly_events)):
         lines.extend(
             (
@@ -415,6 +441,9 @@ def generate_csharp(
                             else variable
                         )
                         if selection.filter_threshold is not None:
+                            insufficient_decision = (
+                                "insufficient" if sleeve.fallback_symbols else "skipped"
+                            )
                             lines.extend(
                                 (
                                     '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -423,18 +452,43 @@ def generate_csharp(
                                     f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
                                     f'            + "|candidate=" + string.Join(",", {variable})',
                                     f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
-                                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "skipped"));',
+                                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
                                 )
                             )
-                        lines.extend(
-                            (
-                                f"        if ({variable}.Count < {selection.count})",
-                                "        {",
-                                f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
-                                "            return;",
-                                "        }",
+                        if sleeve.fallback_symbols:
+                            fallback_symbol = _csharp_string(sleeve.fallback_symbols[0])
+                            fallback_component = _csharp_string(
+                                sleeve.fallback_component_id or ""
                             )
-                        )
+                            fallback_activated = (
+                                f"fallbackActivated{event_index}_{rebalance_index}_{sleeve_index}"
+                            )
+                            lines.extend(
+                                (
+                                    f"        var {fallback_activated} = {variable}.Count < {selection.count};",
+                                    f"        if ({fallback_activated})",
+                                    "        {",
+                                    f"            {variable} = new List<string> {{ {fallback_symbol} }};",
+                                    f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=activated");',
+                                    "        }",
+                                    "        else",
+                                    "        {",
+                                    f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=not_activated");',
+                                    "        }",
+                                    f'        Debug("RULETRADE_FINAL|" + eventIdentity + "|selected=" + string.Join(",", {variable})',
+                                    f'            + "|decision=executed|source=" + ({fallback_activated} ? "fallback" : "primary"));',
+                                )
+                            )
+                        else:
+                            lines.extend(
+                                (
+                                    f"        if ({variable}.Count < {selection.count})",
+                                    "        {",
+                                    f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
+                                    "            return;",
+                                    "        }",
+                                )
+                            )
                         if selection.filter_threshold is None:
                             lines.extend(
                                 (

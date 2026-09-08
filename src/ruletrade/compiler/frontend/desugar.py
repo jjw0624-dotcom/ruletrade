@@ -21,6 +21,7 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "selection.top_n",
         "allocation.equal_weight",
         "targets.merge",
+        "targets.fallback_asset",
         "effect.rebalance",
     }
 )
@@ -47,6 +48,7 @@ def desugar_strategy(
         component.id: registry.get(component.primitive).implementation_id
         for component in strategy.graph.components
     }
+    components = {component.id: component for component in strategy.graph.components}
     unsupported = sorted(set(implementations.values()) - SUPPORTED_SOURCE_IMPLEMENTATIONS)
     if unsupported:
         raise StrategyDesugaringError(
@@ -135,6 +137,41 @@ def desugar_strategy(
                 id=component.id,
                 left=input_id(component, "left"),
                 right=input_id(component, "right"),
+                provenance=provenance,
+            )
+        elif implementation == "targets.fallback_asset":
+            primary_id = input_id(component, "primary")
+            primary_component = components[primary_id]
+            if implementations[primary_id] != "allocation.equal_weight":
+                raise StrategyDesugaringError(
+                    "fallback v0 primary must be equal-weight targets"
+                )
+            reference = str(resolved["fallback_asset_set_ref"])
+            fallback_symbols = asset_sets[reference]
+            if len(fallback_symbols) != 1:
+                raise StrategyDesugaringError("fallback v0 requires exactly one asset")
+            fallback_assets_id = f"{component.id}$assets"
+            fallback_targets_id = f"{component.id}$targets"
+            primary_total = Decimal(str(config(primary_component)["total"]))
+            operations.extend(
+                (
+                    strategy_ir.AssetSetOp(
+                        id=fallback_assets_id,
+                        symbols=fallback_symbols,
+                        provenance=provenance,
+                    ),
+                    strategy_ir.EqualWeightOp(
+                        id=fallback_targets_id,
+                        assets=fallback_assets_id,
+                        total_weight=primary_total,
+                        provenance=provenance,
+                    ),
+                )
+            )
+            operation = strategy_ir.FirstNonEmptyTargetsOp(
+                id=component.id,
+                primary=primary_id,
+                fallback=fallback_targets_id,
                 provenance=provenance,
             )
         elif implementation == "effect.rebalance":

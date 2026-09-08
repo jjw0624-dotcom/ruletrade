@@ -251,6 +251,22 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 implementation_id="targets.merge",
             ),
             PrimitiveSpec(
+                id="fallback@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("primary", ValueType.PORTFOLIO_TARGETS),),
+                outputs=(targets_port,),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "fallback_asset_set_ref",
+                        ValueType.STRING,
+                        reference=DefinitionReference.ASSET_SET,
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.COMPOSITE,
+                implementation_id="targets.fallback_asset",
+            ),
+            PrimitiveSpec(
                 id="rebalance@1",
                 category=PrimitiveCategory.EFFECT,
                 inputs=(PortSpec("targets", ValueType.PORTFOLIO_TARGETS),),

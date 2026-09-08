@@ -44,6 +44,26 @@ export function GuidedView() {
           </div>
           <div className="summary-row"><span>Rank</span><span>{guided.momentum.rankDirection}</span></div>
           <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.momentum.total)}</span></div>
+          {guided.momentum.fallbackComponentId ? (
+            <div className="summary-row">
+              <label htmlFor="guided-fallback">If fewer than {guided.momentum.topN} assets qualify</label>
+              <select id="guided-fallback" value={guided.momentum.fallbackAssetSetRef} onChange={(event) => dispatch({
+                type: "apply_semantic_patch",
+                operation: {
+                  kind: "update_component_config",
+                  componentId: guided.momentum.fallbackComponentId!,
+                  field: "fallback_asset_set_ref",
+                  value: event.target.value,
+                },
+              })}>
+                {guided.momentum.fallbackOptions.map((option) => (
+                  <option key={option.id} value={option.id}>Use {option.asset}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="summary-row"><span>If fewer than {guided.momentum.topN} assets qualify</span><span>Skip this rebalance</span></div>
+          )}
           <div className="summary-row"><span>Re-evaluate</span><span>{guided.momentum.schedule}</span></div>
         </section>
       </div>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
@@ -18,6 +19,7 @@ from ruletrade.ir.strategy import (
     AssetSetOp,
     EqualWeightOp,
     FilterOp,
+    FirstNonEmptyTargetsOp,
     MergeTargetsOp,
     MonthlyScheduleOp,
     RandomNOp,
@@ -143,8 +145,42 @@ def lower_strategy_ir_to_lean_plan(
             lowered_sleeves = (lower_sleeve(target_input.left), lower_sleeve(target_input.right))
         elif isinstance(target_input, EqualWeightOp):
             lowered_sleeves = (lower_sleeve(target_input.id),)
+        elif isinstance(target_input, FirstNonEmptyTargetsOp):
+            primary = operations.get(target_input.primary)
+            fallback = operations.get(target_input.fallback)
+            fallback_assets = (
+                operations.get(fallback.assets)
+                if isinstance(fallback, EqualWeightOp)
+                else None
+            )
+            if not isinstance(primary, EqualWeightOp) or not isinstance(
+                fallback, EqualWeightOp
+            ):
+                raise LeanLoweringError(
+                    "first-non-empty targets require equal-weight primary and fallback"
+                )
+            if not isinstance(fallback_assets, AssetSetOp) or len(fallback_assets.symbols) != 1:
+                raise LeanLoweringError("LEAN fallback v0 requires one fallback asset")
+            if primary.total_weight != fallback.total_weight:
+                raise LeanLoweringError(
+                    "fallback allocation must match the primary allocation"
+                )
+            primary_sleeve = lower_sleeve(primary.id)
+            if primary_sleeve.selection_id not in momentum_selections:
+                raise LeanLoweringError(
+                    "LEAN fallback v0 requires a momentum Top N primary selection"
+                )
+            primary_sleeve = replace(
+                primary_sleeve,
+                fallback_component_id=target_input.provenance.component_id,
+                fallback_symbols=fallback_assets.symbols,
+            )
+            sleeves[primary_sleeve.id] = primary_sleeve
+            lowered_sleeves = (primary_sleeve,)
         else:
-            raise LeanLoweringError("Rebalance input must be EqualWeight or MergeTargets")
+            raise LeanLoweringError(
+                "Rebalance input must be EqualWeight, MergeTargets, or FirstNonEmptyTargets"
+            )
         if sum((sleeve.total_weight for sleeve in lowered_sleeves), Decimal(0)) != Decimal(1):
             raise LeanLoweringError("target sleeve weights must sum to 1")
         rebalances[target.id] = LeanRebalance(
