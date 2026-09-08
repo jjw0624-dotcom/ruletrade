@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from ruletrade.compiler.analysis import analyze_strategy_ir
 from ruletrade.compiler.frontend import StrategyDesugaringError, lower_strategy_model_to_ir

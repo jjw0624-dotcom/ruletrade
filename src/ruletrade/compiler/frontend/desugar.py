@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Literal, Mapping, cast
+from typing import Literal, cast
 
 from ruletrade.hashing import strategy_hash
 from ruletrade.ir.strategy import (

@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from ruletrade.compiler.lean.codegen import CSharpGenerationSettings, generate_csharp
 from ruletrade.compiler.lean.lowering import LeanLoweringError, lower_strategy_ir_to_lean_plan
@@ -32,7 +33,7 @@ __all__ = [
     "LeanLoweringError",
     "LeanPlan",
     "generate_csharp",
-    "lower_to_lean_plan",
     "lower_strategy_ir_to_lean_plan",
+    "lower_to_lean_plan",
     "normalize_lean_plan",
 ]

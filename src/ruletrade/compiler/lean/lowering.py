@@ -95,7 +95,7 @@ def lower_strategy_ir_to_lean_plan(
             raise LeanLoweringError("Rebalance input must be MergeTargets")
         left = lower_sleeve(merge.left)
         right = lower_sleeve(merge.right)
-        if left.total_weight + right.total_weight != Decimal("1"):
+        if left.total_weight + right.total_weight != Decimal(1):
             raise LeanLoweringError("merged target sleeve weights must sum to 1")
         rebalances[target.id] = LeanRebalance(
             id=target.id,

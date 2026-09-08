@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from ruletrade.compiler.frontend.desugar import desugar_strategy
 from ruletrade.ir.strategy import StrategyIR, normalize_strategy_ir, validate_strategy_ir
