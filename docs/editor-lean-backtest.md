@@ -47,6 +47,16 @@ success or failure. LEAN is launched with the explicit algorithm ID
 `{AlgorithmId}/alpha-results.json`, config, and other JSON artifacts are not
 treated as backtest results.
 
+LEAN represents `charts["Strategy Equity"]["Series"]["Equity"]["Values"]`
+as candlestick arrays in the documented order
+`[Unix seconds, open, high, low, close]`. RuleTrade normalizes the fifth value,
+`close`, because it is the latest portfolio equity in each LEAN chart sampling
+bucket. Other point shapes and malformed/non-numeric candlesticks are rejected.
+The original fake-runner fixtures used generic `{ "x": ..., "y": ... }`
+chart points before Docker output had been inspected. That shape reflects LEAN's
+legacy read compatibility, not its current candlestick write contract, so those
+fixtures now use the real five-value representation.
+
 ## Error contract
 
 Errors use `detail.code` so the browser can distinguish semantic invalidity,

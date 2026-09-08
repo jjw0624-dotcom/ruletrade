@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -43,44 +44,60 @@ def _decimal(value: Any, *, percent: bool = False) -> Decimal:
     return result / Decimal(100) if percent or is_percent else result
 
 
-def _timestamp(value: Any) -> datetime:
-    if isinstance(value, (int, float)):
-        if value > 10_000_000_000:
-            value /= 1000
+def _candlestick_number(value: object, field: str) -> Decimal:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise MalformedLeanResultError(f"LEAN equity {field} must be numeric")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise MalformedLeanResultError(f"LEAN equity {field} must be finite")
+    return Decimal(str(value))
+
+
+def _candlestick_timestamp(value: object) -> datetime:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise MalformedLeanResultError("LEAN equity timestamp must be integer Unix seconds")
+    try:
         return datetime.fromtimestamp(value, tz=UTC)
-    if isinstance(value, str):
-        candidate = value.replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(candidate)
-        except ValueError as exc:
-            raise MalformedLeanResultError(f"invalid equity timestamp: {value!r}") from exc
-        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
-    raise MalformedLeanResultError(f"invalid equity timestamp: {value!r}")
+    except (OverflowError, OSError, ValueError) as exc:
+        raise MalformedLeanResultError(f"invalid LEAN equity timestamp: {value!r}") from exc
+
+
+def _equity_point(value: object) -> EquityPoint:
+    if not isinstance(value, list):
+        raise MalformedLeanResultError("unsupported LEAN equity point representation")
+    if len(value) != 5:
+        raise MalformedLeanResultError(
+            "LEAN equity candlestick must contain [time, open, high, low, close]"
+        )
+    timestamp, open_value, high, low, close = value
+    _candlestick_number(open_value, "open")
+    _candlestick_number(high, "high")
+    _candlestick_number(low, "low")
+    return EquityPoint(
+        timestamp=_candlestick_timestamp(timestamp),
+        value=_candlestick_number(close, "close"),
+    )
 
 
 def _equity_curve(payload: Any) -> list[EquityPoint]:
     try:
-        chart_container = _find_mapping_with_key(payload, "charts")
-        if chart_container is None:
-            raise KeyError("charts")
-        charts = _mapping_value(chart_container, "charts")
-        strategy_equity = _mapping_value(charts, "Strategy Equity")
-        series = _mapping_value(strategy_equity, "series")
-        equity = _mapping_value(series, "Equity")
-        values = _mapping_value(equity, "values")
+        charts = payload["charts"]
     except (KeyError, TypeError) as exc:
-        raise MalformedLeanResultError("LEAN result does not contain Strategy Equity values") from exc
+        raise MalformedLeanResultError("LEAN result does not contain charts") from exc
+    try:
+        strategy_equity = charts["Strategy Equity"]
+    except (KeyError, TypeError) as exc:
+        raise MalformedLeanResultError("LEAN result does not contain Strategy Equity chart") from exc
+    try:
+        equity = strategy_equity["Series"]["Equity"]
+    except (KeyError, TypeError) as exc:
+        raise MalformedLeanResultError("LEAN Strategy Equity chart does not contain Equity series") from exc
+    try:
+        values = equity["Values"]
+    except (KeyError, TypeError) as exc:
+        raise MalformedLeanResultError("LEAN Equity series does not contain Values") from exc
     if not isinstance(values, list) or not values:
         raise MalformedLeanResultError("LEAN Strategy Equity series is empty")
-    points: list[EquityPoint] = []
-    for item in values:
-        if not isinstance(item, dict):
-            raise MalformedLeanResultError("LEAN equity point must be an object")
-        try:
-            points.append(EquityPoint(timestamp=_timestamp(item["x"]), value=_decimal(item["y"])))
-        except KeyError as exc:
-            raise MalformedLeanResultError("LEAN equity point requires x and y") from exc
-    return points
+    return [_equity_point(item) for item in values]
 
 
 def normalize_lean_result(payload: Any) -> BacktestResult:

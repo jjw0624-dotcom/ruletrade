@@ -34,16 +34,22 @@ def lean_payload() -> dict[str, Any]:
             "Total Orders": "51",
             "Total Fees": "$73.86",
         },
-        "charts": {
-            "Strategy Equity": {
-                "series": {
-                    "Equity": {
-                        "values": [
-                            {"x": 1704153600, "y": 100000},
-                            {"x": 1735603200, "y": 133448.49},
-                        ]
-                    }
-                }
+                "charts": {
+                    "Strategy Equity": {
+                        "Series": {
+                            "Equity": {
+                                "Values": [
+                                    [1704153600, 100000, 100000, 100000, 100000],
+                                    [
+                                        1735603200,
+                                        133448.49,
+                                        133448.49,
+                                        133448.49,
+                                        133448.49,
+                                    ],
+                                ]
+                            }
+                        }
             }
         },
     }

@@ -40,6 +40,7 @@ jobs:
           scripts/run_lean_backtest.py
           tests/test_api.py
           tests/test_lean_backtest_service.py
+          tests/test_lean_result_normalization.py
           tests/test_lean_runner.py
 
       - name: Compile Python
