@@ -10,7 +10,6 @@ from ruletrade.strategy.v1.models import CanonicalStrategyV1, Component
 from ruletrade.strategy.v1.randomness import canonical_parameter_bindings_json
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveRegistry
 
-
 SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
     {
         "event.monthly",
