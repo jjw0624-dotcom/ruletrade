@@ -225,9 +225,15 @@ class ApiFakeRunner:
                 },
                 "charts": {
                     "Strategy Equity": {
-                        "Series": {
+                        "name": "Strategy Equity",
+                        "chartType": 0,
+                        "series": {
                             "Equity": {
-                                "Values": [
+                                "name": "Equity",
+                                "unit": "$",
+                                "index": 0,
+                                "seriesType": 4,
+                                "values": [
                                     [1704153600, 100000, 100000, 100000, 100000],
                                     [
                                         1735603200,

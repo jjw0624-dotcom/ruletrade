@@ -1,47 +1,54 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
-from typing import Any
+from decimal import Decimal
 
 from ruletrade.backtests.errors import MalformedLeanResultError
 from ruletrade.backtests.models import BacktestResult, EquityPoint
 
 
-def _mapping_value(mapping: dict[str, Any], name: str) -> Any:
-    lowered = name.casefold()
-    for key, value in mapping.items():
-        if key.casefold() == lowered:
-            return value
-    raise KeyError(name)
+_NUMBER = re.compile(r"[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?")
+_NONNEGATIVE_INTEGER = re.compile(r"\d+")
 
 
-def _find_mapping_with_key(value: Any, key: str) -> dict[str, Any] | None:
-    if isinstance(value, dict):
-        if any(item.casefold() == key.casefold() for item in value):
-            return value
-        for child in value.values():
-            found = _find_mapping_with_key(child, key)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for child in value:
-            found = _find_mapping_with_key(child, key)
-            if found is not None:
-                return found
-    return None
+def _statistic(statistics: dict[object, object], name: str) -> str:
+    if name not in statistics:
+        raise MalformedLeanResultError(f"LEAN result is missing statistic {name}")
+    value = statistics[name]
+    if not isinstance(value, str):
+        raise MalformedLeanResultError(f"LEAN statistic {name} must be a string")
+    return value
 
 
-def _decimal(value: Any, *, percent: bool = False) -> Decimal:
-    cleaned = str(value).strip().replace(",", "").replace("$", "")
-    is_percent = cleaned.endswith("%")
-    cleaned = cleaned.removesuffix("%")
-    try:
-        result = Decimal(cleaned)
-    except InvalidOperation as exc:
-        raise MalformedLeanResultError(f"LEAN statistic is not numeric: {value!r}") from exc
-    return result / Decimal(100) if percent or is_percent else result
+def _formatted_decimal(
+    value: str,
+    name: str,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+) -> Decimal:
+    cleaned = value.strip()
+    if prefix and not cleaned.startswith(prefix):
+        raise MalformedLeanResultError(f"LEAN statistic {name} must start with {prefix!r}")
+    if suffix and not cleaned.endswith(suffix):
+        raise MalformedLeanResultError(f"LEAN statistic {name} must end with {suffix!r}")
+    if prefix:
+        cleaned = cleaned[len(prefix) :]
+    if suffix:
+        cleaned = cleaned[: -len(suffix)]
+    if _NUMBER.fullmatch(cleaned) is None:
+        raise MalformedLeanResultError(f"LEAN statistic {name} is not numeric: {value!r}")
+    result = Decimal(cleaned.replace(",", ""))
+    return result / Decimal(100) if suffix == "%" else result
+
+
+def _order_count(value: str) -> int:
+    cleaned = value.strip()
+    if _NONNEGATIVE_INTEGER.fullmatch(cleaned) is None:
+        raise MalformedLeanResultError("LEAN statistic Total Orders must be an integer")
+    return int(cleaned)
 
 
 def _candlestick_number(value: object, field: str) -> Decimal:
@@ -78,43 +85,45 @@ def _equity_point(value: object) -> EquityPoint:
     )
 
 
-def _equity_curve(payload: Any) -> list[EquityPoint]:
-    try:
-        charts = payload["charts"]
-    except (KeyError, TypeError) as exc:
-        raise MalformedLeanResultError("LEAN result does not contain charts") from exc
-    try:
-        strategy_equity = charts["Strategy Equity"]
-    except (KeyError, TypeError) as exc:
-        raise MalformedLeanResultError("LEAN result does not contain Strategy Equity chart") from exc
-    try:
-        equity = strategy_equity["Series"]["Equity"]
-    except (KeyError, TypeError) as exc:
-        raise MalformedLeanResultError("LEAN Strategy Equity chart does not contain Equity series") from exc
-    try:
-        values = equity["Values"]
-    except (KeyError, TypeError) as exc:
-        raise MalformedLeanResultError("LEAN Equity series does not contain Values") from exc
+def _equity_curve(payload: dict[object, object]) -> list[EquityPoint]:
+    charts = payload.get("charts")
+    if not isinstance(charts, dict):
+        raise MalformedLeanResultError("LEAN result does not contain charts object")
+    strategy_equity = charts.get("Strategy Equity")
+    if not isinstance(strategy_equity, dict):
+        raise MalformedLeanResultError("LEAN result does not contain Strategy Equity chart")
+    series = strategy_equity.get("series")
+    if not isinstance(series, dict):
+        raise MalformedLeanResultError("LEAN Strategy Equity chart does not contain series object")
+    equity = series.get("Equity")
+    if not isinstance(equity, dict):
+        raise MalformedLeanResultError("LEAN Strategy Equity chart does not contain Equity series")
+    values = equity.get("values")
+    if values is None:
+        raise MalformedLeanResultError("LEAN Equity series does not contain values")
     if not isinstance(values, list) or not values:
         raise MalformedLeanResultError("LEAN Strategy Equity series is empty")
     return [_equity_point(item) for item in values]
 
 
-def normalize_lean_result(payload: Any) -> BacktestResult:
+def normalize_lean_result(payload: object) -> BacktestResult:
     if not isinstance(payload, dict):
         raise MalformedLeanResultError("LEAN result must be a JSON object")
-    statistics = _find_mapping_with_key(payload, "Total Orders")
-    if statistics is None:
-        raise MalformedLeanResultError("LEAN result does not contain statistics")
+    statistics = payload.get("statistics")
+    if not isinstance(statistics, dict):
+        raise MalformedLeanResultError("LEAN result does not contain statistics object")
     equity_curve = _equity_curve(payload)
-    try:
-        initial_value = _decimal(_mapping_value(statistics, "Start Equity"))
-        final_value = _decimal(_mapping_value(statistics, "End Equity"))
-        total_return = _decimal(_mapping_value(statistics, "Net Profit"), percent=True)
-        total_orders = int(_decimal(_mapping_value(statistics, "Total Orders")))
-        total_fees = _decimal(_mapping_value(statistics, "Total Fees"))
-    except KeyError as exc:
-        raise MalformedLeanResultError(f"LEAN result is missing statistic {exc.args[0]}") from exc
+    initial_value = _formatted_decimal(
+        _statistic(statistics, "Start Equity"), "Start Equity"
+    )
+    final_value = _formatted_decimal(_statistic(statistics, "End Equity"), "End Equity")
+    total_return = _formatted_decimal(
+        _statistic(statistics, "Net Profit"), "Net Profit", suffix="%"
+    )
+    total_orders = _order_count(_statistic(statistics, "Total Orders"))
+    total_fees = _formatted_decimal(
+        _statistic(statistics, "Total Fees"), "Total Fees", prefix="$"
+    )
     return BacktestResult(
         initial_value=initial_value,
         final_value=final_value,

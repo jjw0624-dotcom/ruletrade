@@ -29,27 +29,33 @@ def lean_payload() -> dict[str, Any]:
     return {
         "statistics": {
             "Start Equity": "100000",
-            "End Equity": "$133,448.49",
+            "End Equity": "133448.49",
             "Net Profit": "33.448%",
             "Total Orders": "51",
             "Total Fees": "$73.86",
         },
-                "charts": {
-                    "Strategy Equity": {
-                        "Series": {
-                            "Equity": {
-                                "Values": [
-                                    [1704153600, 100000, 100000, 100000, 100000],
-                                    [
-                                        1735603200,
-                                        133448.49,
-                                        133448.49,
-                                        133448.49,
-                                        133448.49,
-                                    ],
-                                ]
-                            }
-                        }
+        "charts": {
+            "Strategy Equity": {
+                "name": "Strategy Equity",
+                "chartType": 0,
+                "series": {
+                    "Equity": {
+                        "name": "Equity",
+                        "unit": "$",
+                        "index": 0,
+                        "seriesType": 4,
+                        "values": [
+                            [1704153600, 100000, 100000, 100000, 100000],
+                            [
+                                1735603200,
+                                133448.49,
+                                133448.49,
+                                133448.49,
+                                133448.49,
+                            ],
+                        ],
+                    }
+                },
             }
         },
     }

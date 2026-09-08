@@ -47,7 +47,7 @@ success or failure. LEAN is launched with the explicit algorithm ID
 `{AlgorithmId}/alpha-results.json`, config, and other JSON artifacts are not
 treated as backtest results.
 
-LEAN represents `charts["Strategy Equity"]["Series"]["Equity"]["Values"]`
+LEAN represents `charts["Strategy Equity"]["series"]["Equity"]["values"]`
 as candlestick arrays in the documented order
 `[Unix seconds, open, high, low, close]`. RuleTrade normalizes the fifth value,
 `close`, because it is the latest portfolio equity in each LEAN chart sampling

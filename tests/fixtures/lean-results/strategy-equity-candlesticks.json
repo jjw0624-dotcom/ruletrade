@@ -1,9 +1,15 @@
 {
   "charts": {
     "Strategy Equity": {
-      "Series": {
+      "name": "Strategy Equity",
+      "chartType": 0,
+      "series": {
         "Equity": {
-          "Values": [
+          "name": "Equity",
+          "unit": "$",
+          "index": 0,
+          "seriesType": 4,
+          "values": [
             [1704085200, 100000.0, 100000.0, 100000.0, 100000.0],
             [1704171600, 100000.0, 100000.0, 100000.0, 100000.0],
             [1704229200, 100000.0, 100000.0, 100000.0, 100000.0]

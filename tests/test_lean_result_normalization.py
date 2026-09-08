@@ -35,7 +35,7 @@ def test_normalizes_real_lean_equity_candlesticks_and_timestamps() -> None:
 
 def test_equity_curve_extracts_candlestick_close() -> None:
     payload = _payload()
-    payload["charts"]["Strategy Equity"]["Series"]["Equity"]["Values"] = [
+    payload["charts"]["Strategy Equity"]["series"]["Equity"]["values"] = [
         [1704085200, 100000.0, 101250.0, 99750.0, 100875.25]
     ]
 
@@ -47,7 +47,7 @@ def test_equity_curve_extracts_candlestick_close() -> None:
 @pytest.mark.parametrize("values", [[], [1704085200, 100000.0], [1, 2, 3, 4, 5, 6]])
 def test_rejects_malformed_equity_array_lengths(values: list[float]) -> None:
     payload = _payload()
-    payload["charts"]["Strategy Equity"]["Series"]["Equity"]["Values"] = [values]
+    payload["charts"]["Strategy Equity"]["series"]["Equity"]["values"] = [values]
 
     with pytest.raises(MalformedLeanResultError, match="time, open, high, low, close"):
         normalize_lean_result(payload)
@@ -65,7 +65,7 @@ def test_rejects_non_numeric_or_non_finite_equity_values(
     point: list[object], message: str
 ) -> None:
     payload = _payload()
-    payload["charts"]["Strategy Equity"]["Series"]["Equity"]["Values"] = [point]
+    payload["charts"]["Strategy Equity"]["series"]["Equity"]["values"] = [point]
 
     with pytest.raises(MalformedLeanResultError, match=message):
         normalize_lean_result(payload)
@@ -81,7 +81,7 @@ def test_rejects_missing_strategy_equity_chart() -> None:
 
 def test_rejects_missing_equity_series() -> None:
     payload = _payload()
-    payload["charts"]["Strategy Equity"]["Series"] = {}
+    payload["charts"]["Strategy Equity"]["series"] = {}
 
     with pytest.raises(MalformedLeanResultError, match="Equity series"):
         normalize_lean_result(payload)
@@ -90,7 +90,55 @@ def test_rejects_missing_equity_series() -> None:
 @pytest.mark.parametrize("point", [{"x": 1704085200, "y": 100000}, "not-a-point", None])
 def test_rejects_unsupported_equity_point_representations(point: object) -> None:
     payload = _payload()
-    payload["charts"]["Strategy Equity"]["Series"]["Equity"]["Values"] = [point]
+    payload["charts"]["Strategy Equity"]["series"]["Equity"]["values"] = [point]
 
     with pytest.raises(MalformedLeanResultError, match="unsupported"):
+        normalize_lean_result(payload)
+
+
+def test_rejects_legacy_uppercase_chart_container_keys() -> None:
+    payload = _payload()
+    strategy_equity = payload["charts"]["Strategy Equity"]
+    strategy_equity["Series"] = strategy_equity.pop("series")
+
+    with pytest.raises(MalformedLeanResultError, match="series object"):
+        normalize_lean_result(payload)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (("statistics", "Statistics"), "statistics object"),
+        (("Total Orders", "total orders"), "Total Orders"),
+    ],
+)
+def test_rejects_incorrect_result_or_statistic_key_casing(
+    mutation: tuple[str, str], message: str
+) -> None:
+    payload = _payload()
+    original, replacement = mutation
+    if original == "statistics":
+        payload[replacement] = payload.pop(original)
+    else:
+        statistics = payload["statistics"]
+        statistics[replacement] = statistics.pop(original)
+
+    with pytest.raises(MalformedLeanResultError, match=message):
+        normalize_lean_result(payload)
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("Start Equity", 100000, "must be a string"),
+        ("Net Profit", "33.448", "must end with"),
+        ("Total Orders", "1.5", "must be an integer"),
+        ("Total Fees", "73.86", "must start with"),
+    ],
+)
+def test_rejects_non_contract_statistic_shapes(name: str, value: object, message: str) -> None:
+    payload = _payload()
+    payload["statistics"][name] = value
+
+    with pytest.raises(MalformedLeanResultError, match=message):
         normalize_lean_result(payload)
