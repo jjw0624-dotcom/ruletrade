@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from copy import deepcopy
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -139,6 +142,50 @@ def test_requirements_separate_fallback_subscription_from_momentum_history() -> 
     assert requirements.daily_history[0].observation_count == 127
 
 
+def test_filter_fixture_covers_fallback_subscription_without_scoring_tlt() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "lean-filter-data"
+    expected = {"qqq", "schg", "soxx", "tlt", "vgt"}
+    daily = {path.stem for path in (fixture / "equity" / "usa" / "daily").glob("*.zip")}
+    maps = {path.stem for path in (fixture / "equity" / "usa" / "map_files").glob("*.csv")}
+    factors = {
+        path.stem for path in (fixture / "equity" / "usa" / "factor_files").glob("*.csv")
+    }
+
+    assert daily == maps == factors == expected
+    with ZipFile(fixture / "equity" / "usa" / "daily" / "tlt.zip") as archive:
+        tlt_rows = archive.read("tlt.csv").decode().splitlines()
+    dates, closes = load_filter_fixture_closes(fixture)
+    assert [row.split(",", 1)[0][:8] for row in tlt_rows] == dates
+    assert set(closes) == {"QQQ", "SCHG", "SOXX", "VGT"}
+
+
+def test_fallback_fixture_is_reproducibly_generated(tmp_path: Path) -> None:
+    generated = tmp_path / "fallback-data"
+    generator = Path(__file__).parents[1] / "scripts" / "generate_golden_lean_fixture.py"
+    subprocess.run(
+        [
+            sys.executable,
+            str(generator),
+            "--profile",
+            "filter",
+            "--output",
+            str(generated),
+        ],
+        check=True,
+    )
+    tracked = Path(__file__).parent / "fixtures" / "lean-filter-data"
+    tracked_files = {
+        path.relative_to(tracked) for path in tracked.rglob("*") if path.is_file()
+    }
+    generated_files = {
+        path.relative_to(generated) for path in generated.rglob("*") if path.is_file()
+    }
+
+    assert generated_files == tracked_files
+    for relative in tracked_files:
+        assert (generated / relative).read_bytes() == (tracked / relative).read_bytes()
+
+
 def test_fallback_lowers_to_typed_lean_plan_and_generated_branch() -> None:
     plan = compile_strategy_to_lean_plan(fallback_momentum_strategy())
     sleeve = plan.target_sleeves[0]
@@ -199,7 +246,7 @@ def _synthetic_fallback_log(fixture: Path) -> str:
         "20240102", "20240201", "20240301", "20240401", "20240501", "20240603",
         "20240701", "20240801", "20240903", "20241001", "20241101", "20241202",
     )
-    lines = ["Algorithm Id: test completed"]
+    lines = ["Algorithm Id: test completed", "Failed data requests 0"]
     for event in events:
         index = dates.index(event)
         result = evaluate_fallback_trailing_return_top_n(
@@ -251,3 +298,9 @@ def test_fallback_e2e_verifier_compares_every_semantic_stage() -> None:
     malformed = log_text.replace("|selected=", "|selected=TLT", 1)
     with pytest.raises(ValueError, match="primary selection mismatch"):
         verify_fallback_e2e(malformed, result_payload, fixture)
+    with pytest.raises(ValueError, match="reported 2 failed data requests"):
+        verify_fallback_e2e(
+            log_text.replace("Failed data requests 0", "Failed data requests 2"),
+            result_payload,
+            fixture,
+        )

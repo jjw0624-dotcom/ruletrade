@@ -28,6 +28,9 @@ FINAL_PATTERN = re.compile(
     r"\|selected=(?P<selected>[A-Z0-9,]+)"
     r"\|decision=executed\|source=(?P<source>primary|fallback)"
 )
+FAILED_DATA_REQUESTS_PATTERN = re.compile(
+    r"Failed data requests[ \t]*:?[ \t]*(?P<count>\d+)", re.IGNORECASE
+)
 
 
 def _split_symbols(value: str) -> tuple[str, ...]:
@@ -43,6 +46,13 @@ def verify_fallback_e2e(
     fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
     if fatal or COMPLETION_PATTERN.search(log_text) is None:
         raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
+    failed_data_requests = FAILED_DATA_REQUESTS_PATTERN.search(log_text)
+    if failed_data_requests is None:
+        raise ValueError("LEAN data-request summary is missing")
+    if int(failed_data_requests.group("count")) != 0:
+        raise ValueError(
+            f"LEAN reported {failed_data_requests.group('count')} failed data requests"
+        )
 
     filters = {match.group("event"): match for match in FILTER_PATTERN.finditer(log_text)}
     primaries = {match.group("event"): match for match in PRIMARY_PATTERN.finditer(log_text)}

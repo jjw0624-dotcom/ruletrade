@@ -133,6 +133,13 @@ Requirements analysis discovers the derived fallback AssetSet as a subscription.
 AssetSet is an operand of `market.trailing_return`, so its 127 adjusted Daily observations do not
 apply to the fallback asset. Filter-without-fallback retains its existing skipped-rebalance policy.
 
+Subscription, history, and decision readiness are separate requirements. The fallback strategy
+subscribes to TLT so LEAN can price and trade it, but TLT has no momentum-history requirement. The
+current LEAN v0 event guard conservatively requires a current ready bar for every subscribed asset,
+including TLT, before executing either path. That is semantically correct for this fixed Daily
+slice. Path-sensitive conditional readiness is deliberately deferred until a real strategy proves
+the conservative guard insufficient; this slice does not add a generic readiness framework.
+
 ## Registry and analysis
 
 The existing Primitive Registry remains the definition source for source-language operations: IDs,
