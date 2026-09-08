@@ -26,7 +26,7 @@ def test_result_discovery_uses_explicit_lean_algorithm_id_with_multiple_json_fil
     _write_json(tmp_path / f"{LEAN_ALGORITHM_ID}.json", expected)
     _write_json(tmp_path / f"{LEAN_ALGORITHM_ID}-summary.json", {"statistics": {}})
     _write_json(tmp_path / f"{LEAN_ALGORITHM_ID}-order-events.json", [])
-    _write_json(tmp_path / f"{LEAN_ALGORITHM_ID}-insights.json", [])
+    _write_json(tmp_path / LEAN_ALGORITHM_ID / "alpha-results.json", [])
     _write_json(tmp_path / "config.json", {"algorithm-type-name": "not a result"})
 
     assert load_lean_backtest_result(tmp_path) == expected
@@ -92,6 +92,7 @@ class _FakeDocker:
             results = Path(arguments[3])
             _write_json(results / f"{LEAN_ALGORITHM_ID}.json", {"statistics": {}})
             _write_json(results / f"{LEAN_ALGORITHM_ID}-summary.json", {})
+            _write_json(results / LEAN_ALGORITHM_ID / "alpha-results.json", [])
             _write_json(results / "config.json", {})
         return subprocess.CompletedProcess(arguments, 0, "", "")
 
