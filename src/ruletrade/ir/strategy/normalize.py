@@ -14,4 +14,5 @@ def normalize_strategy_ir(strategy_ir: StrategyIR) -> StrategyIR:
         entrypoints=tuple(
             sorted(strategy_ir.entrypoints, key=lambda entrypoint: (entrypoint.event, entrypoint.target))
         ),
+        user_state=tuple(sorted(strategy_ir.user_state, key=lambda state: state.id)),
     )

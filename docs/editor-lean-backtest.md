@@ -35,8 +35,9 @@ PYTHONPATH=src uv run python scripts/run_editor_lean_e2e.py --random-count 3
 ```
 
 Both commands require a working Docker daemon and `quantconnect/lean:latest`
-(or `RULETRADE_LEAN_IMAGE`). The tracked synthetic dataset is selected by the
-only v1 dataset identifier, `golden-synthetic`.
+(or `RULETRADE_LEAN_IMAGE`). Dataset identity remains separate from strategy semantics: the editor's
+Cooldown demo uses `cooldown-synthetic`, while existing acceptance paths use `golden-synthetic` or
+`filter-synthetic` as appropriate.
 
 The Docker build runs as the invoking Linux user and keeps MSBuild intermediate
 files inside the disposable container. This prevents root-owned `obj` files in

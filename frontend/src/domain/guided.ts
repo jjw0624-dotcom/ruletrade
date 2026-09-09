@@ -33,6 +33,9 @@ export interface MomentumGuidedProjection {
     fallbackAssetSetRef?: string;
     fallbackAsset?: string;
     fallbackOptions: Array<{ id: string; asset: string }>;
+    cooldownComponentId?: string;
+    cooldownDuration?: number;
+    cooldownUnit?: string;
     total: string;
     schedule: string;
   };
@@ -86,7 +89,9 @@ function scheduleForTarget(strategy: CanonicalStrategyV1, targetId: string) {
   if (!component) return undefined;
   return {
     componentId: component.id,
-    label: component.primitive === "quarterly@1" ? "Quarterly" : "Monthly",
+    label: component.primitive === "daily@1"
+      ? "Daily"
+      : component.primitive === "quarterly@1" ? "Quarterly" : "Monthly",
   };
 }
 
@@ -102,6 +107,8 @@ export function projectGuided(
     const assets = strategy.graph.components.find((item) => item.primitive === "asset_set@1");
     const weighting = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
     const fallback = strategy.graph.components.find((item) => item.primitive === "fallback@1");
+    const cooldown = strategy.graph.components.find((item) => item.primitive === "cooldown@1");
+    const schedule = scheduleForTarget(strategy, "rebalance");
     if (!trailingReturn || !rank || !assets || !weighting) {
       throw new Error("Guided View cannot project the Momentum strategy");
     }
@@ -130,8 +137,15 @@ export function projectGuided(
         fallbackOptions: strategy.definitions.asset_sets
           .filter((definition) => definition.assets.length === 1)
           .map((definition) => ({ id: definition.id, asset: definition.assets[0] })),
+        cooldownComponentId: cooldown?.id,
+        cooldownDuration: cooldown
+          ? Number(resolvedConfigValue(strategy, registry, cooldown.id, "duration"))
+          : undefined,
+        cooldownUnit: cooldown
+          ? String(resolvedConfigValue(strategy, registry, cooldown.id, "unit"))
+          : undefined,
         total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
-        schedule: "Monthly",
+        schedule: schedule?.label ?? "Monthly",
     };
     const sleeveComponents = strategy.graph.components.filter(
       (item) => item.primitive === "portfolio_sleeve@1",

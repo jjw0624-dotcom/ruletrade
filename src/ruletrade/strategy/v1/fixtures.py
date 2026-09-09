@@ -355,6 +355,57 @@ INDEPENDENT_SCHEDULES_PAYLOAD["entrypoints"] = [
     {"event_component_id": "portfolio_quarterly", "target_component_id": "rebalance"},
 ]
 
+COOLDOWN_PAYLOAD = {
+    "metadata": {
+        "name": "Top 1 with 20-session Cooldown",
+        "description": "After an asset exits, block its re-entry for 20 completed trading sessions.",
+    },
+    "definitions": {
+        "asset_sets": [{"id": "universe", "assets": ["QQQ", "IEF"]}],
+    },
+    "graph": {
+        "components": [
+            {"id": "daily", "primitive": "daily@1"},
+            {
+                "id": "universe_assets",
+                "primitive": "asset_set@1",
+                "config": {"asset_set_ref": "universe"},
+            },
+            {
+                "id": "momentum",
+                "primitive": "trailing_return@1",
+                "config": {"lookback_bars": 1},
+            },
+            {
+                "id": "momentum_rank",
+                "primitive": "rank@1",
+                "config": {"direction": "descending"},
+            },
+            {"id": "top_n", "primitive": "top_n@1", "config": {"count": 1}},
+            {
+                "id": "cooldown",
+                "primitive": "cooldown@1",
+                "config": {"duration": 20, "unit": "trading_days"},
+            },
+            {
+                "id": "weights",
+                "primitive": "equal_weight@1",
+                "config": {"total": "1.0"},
+            },
+            {"id": "rebalance", "primitive": "rebalance@1"},
+        ],
+        "connections": [
+            {"source": {"component_id": "universe_assets", "port": "assets"}, "target": {"component_id": "momentum", "port": "assets"}},
+            {"source": {"component_id": "momentum", "port": "scores"}, "target": {"component_id": "momentum_rank", "port": "scores"}},
+            {"source": {"component_id": "momentum_rank", "port": "ranked"}, "target": {"component_id": "top_n", "port": "ranked"}},
+            {"source": {"component_id": "top_n", "port": "selected"}, "target": {"component_id": "cooldown", "port": "candidates"}},
+            {"source": {"component_id": "cooldown", "port": "eligible"}, "target": {"component_id": "weights", "port": "assets"}},
+            {"source": {"component_id": "weights", "port": "targets"}, "target": {"component_id": "rebalance", "port": "targets"}},
+        ],
+    },
+    "entrypoints": [{"event_component_id": "daily", "target_component_id": "rebalance"}],
+}
+
 
 def golden_portfolio_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
@@ -382,3 +433,7 @@ def portfolio_sleeves_strategy() -> CanonicalStrategyV1:
 
 def independent_schedules_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(INDEPENDENT_SCHEDULES_PAYLOAD)
+
+
+def cooldown_strategy() -> CanonicalStrategyV1:
+    return CanonicalStrategyV1.model_validate(COOLDOWN_PAYLOAD)

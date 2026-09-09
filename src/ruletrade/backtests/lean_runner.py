@@ -131,6 +131,7 @@ class DockerLeanRunner:
         fixture_names = {
             "golden-synthetic": "lean-data",
             "filter-synthetic": "lean-filter-data",
+            "cooldown-synthetic": "lean-cooldown-data",
         }
         if dataset_id not in fixture_names:
             raise LeanExecutionError(f"Unsupported LEAN dataset: {dataset_id}")

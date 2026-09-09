@@ -36,6 +36,16 @@ class LeanMomentumSelection:
     filter_component_id: str | None = None
     filter_operator: Literal["gt"] | None = None
     filter_threshold: Decimal | None = None
+    cooldown_state_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LeanCooldownState:
+    id: str
+    component_id: str
+    symbols: tuple[str, ...]
+    required_completed_sessions: int
+    calendar_symbol: str
 
 
 @dataclass(frozen=True)
@@ -56,6 +66,7 @@ class LeanRebalance:
     id: str
     sleeve_ids: tuple[str, ...]
     snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
+    exit_state_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -88,6 +99,15 @@ class LeanMonthlyEvent:
 
 
 @dataclass(frozen=True)
+class LeanDailyEvent:
+    id: str
+    anchor_symbol: str
+    rebalance_ids: tuple[str, ...]
+    execution: LeanOnDataExecution
+    refresh_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class LeanQuarterlyEvent:
     id: str
     day: int
@@ -108,6 +128,8 @@ class LeanPlan:
     momentum_selections: tuple[LeanMomentumSelection, ...] = ()
     target_snapshots: tuple[LeanTargetSnapshot, ...] = ()
     quarterly_events: tuple[LeanQuarterlyEvent, ...] = ()
+    daily_events: tuple[LeanDailyEvent, ...] = ()
+    cooldown_states: tuple[LeanCooldownState, ...] = ()
 
 
 def _unique_by_id(items: tuple[object, ...], label: str) -> None:
@@ -133,6 +155,8 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
     _unique_by_id(plan.monthly_events, "monthly event")
     _unique_by_id(plan.target_snapshots, "target snapshot")
     _unique_by_id(plan.quarterly_events, "quarterly event")
+    _unique_by_id(plan.daily_events, "daily event")
+    _unique_by_id(plan.cooldown_states, "cooldown state")
 
     grouped_events: dict[tuple[int, str, LeanOnDataExecution], LeanMonthlyEvent] = {}
     for event in sorted(plan.monthly_events, key=lambda item: item.id):
@@ -170,4 +194,6 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
         monthly_events=tuple(sorted(grouped_events.values(), key=lambda item: item.id)),
         target_snapshots=tuple(sorted(plan.target_snapshots, key=lambda item: item.id)),
         quarterly_events=tuple(sorted(grouped_quarterly.values(), key=lambda item: item.id)),
+        daily_events=tuple(sorted(plan.daily_events, key=lambda item: item.id)),
+        cooldown_states=tuple(sorted(plan.cooldown_states, key=lambda item: item.id)),
     )

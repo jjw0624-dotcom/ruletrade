@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
 from ruletrade.compiler.lean.plan import (
+    LeanCooldownState,
+    LeanDailyEvent,
     LeanMomentumSelection,
     LeanMonthlyEvent,
     LeanOnDataExecution,
@@ -20,11 +22,14 @@ from ruletrade.compiler.lean.plan import (
 )
 from ruletrade.ir.strategy import (
     AssetSetOp,
+    DailyScheduleOp,
+    ElapsedSessionsGateOp,
     EqualWeightOp,
     FilterOp,
     FirstNonEmptyTargetsOp,
     MergeTargetsOp,
     MonthlyScheduleOp,
+    ObserveTargetExitsOp,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -45,11 +50,13 @@ class LeanLoweringError(ValueError):
 class _LoweredTargets:
     sleeves: tuple[LeanTargetSleeve, ...] = ()
     snapshot_allocations: tuple[LeanSnapshotAllocation, ...] = ()
+    exit_state_ids: tuple[str, ...] = ()
 
     def merged(self, other: _LoweredTargets) -> _LoweredTargets:
         return _LoweredTargets(
             sleeves=self.sleeves + other.sleeves,
             snapshot_allocations=self.snapshot_allocations + other.snapshot_allocations,
+            exit_state_ids=self.exit_state_ids + other.exit_state_ids,
         )
 
 
@@ -66,8 +73,50 @@ def lower_strategy_ir_to_lean_plan(
     }
     selections: dict[str, LeanRandomSelection] = {}
     momentum_selections: dict[str, LeanMomentumSelection] = {}
+    cooldown_states: dict[str, LeanCooldownState] = {}
     sleeves: dict[str, LeanTargetSleeve] = {}
     snapshots: dict[str, LeanTargetSnapshot] = {}
+
+    calendar_requirements = {
+        requirement.source_component_id: requirement
+        for requirement in requirements.trading_calendars
+    }
+
+    def lower_momentum_selection(
+        top_n: TopNOp,
+        selection_id: str,
+        *,
+        cooldown_state_id: str | None = None,
+    ) -> tuple[str, ...]:
+        rank = operations.get(top_n.ranked)
+        rank_input = operations.get(rank.scores) if isinstance(rank, RankOp) else None
+        filter_operation = rank_input if isinstance(rank_input, FilterOp) else None
+        score = operations.get(filter_operation.scores) if filter_operation is not None else rank_input
+        asset_set = operations.get(score.assets) if isinstance(score, TrailingReturnOp) else None
+        if not isinstance(rank, RankOp) or not isinstance(score, TrailingReturnOp) or not isinstance(asset_set, AssetSetOp):
+            raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
+        history = history_requirements.get(score.provenance.component_id)
+        if history is None:
+            raise LeanLoweringError("trailing return history requirement is missing")
+        momentum_selections[selection_id] = LeanMomentumSelection(
+            id=selection_id,
+            score_component_id=score.provenance.component_id,
+            rank_component_id=rank.provenance.component_id,
+            symbols=asset_set.symbols,
+            lookback_bars=history.lookback_bars,
+            count=top_n.count,
+            direction=rank.direction,
+            price_field=history.price_field,
+            filter_component_id=(
+                filter_operation.provenance.component_id
+                if filter_operation is not None
+                else None
+            ),
+            filter_operator=(filter_operation.operator if filter_operation is not None else None),
+            filter_threshold=(filter_operation.threshold if filter_operation is not None else None),
+            cooldown_state_id=cooldown_state_id,
+        )
+        return asset_set.symbols
 
     def lower_sleeve(operation_id: str) -> LeanTargetSleeve:
         operation = operations.get(operation_id)
@@ -90,42 +139,27 @@ def lower_strategy_ir_to_lean_plan(
                 parameter_bindings_json=upstream.parameter_bindings_json,
             )
         elif isinstance(upstream, TopNOp):
-            rank = operations.get(upstream.ranked)
-            rank_input = operations.get(rank.scores) if isinstance(rank, RankOp) else None
-            filter_operation = rank_input if isinstance(rank_input, FilterOp) else None
-            score = (
-                operations.get(filter_operation.scores)
-                if filter_operation is not None
-                else rank_input
-            )
-            asset_set = operations.get(score.assets) if isinstance(score, TrailingReturnOp) else None
-            if not isinstance(rank, RankOp) or not isinstance(score, TrailingReturnOp) or not isinstance(asset_set, AssetSetOp):
-                raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
-            symbols = asset_set.symbols
             selection_id = upstream.id
-            history = history_requirements.get(score.provenance.component_id)
-            if history is None:
-                raise LeanLoweringError("trailing return history requirement is missing")
-            momentum_selections[selection_id] = LeanMomentumSelection(
-                id=selection_id,
-                score_component_id=score.provenance.component_id,
-                rank_component_id=rank.provenance.component_id,
+            symbols = lower_momentum_selection(upstream, selection_id)
+        elif isinstance(upstream, ElapsedSessionsGateOp):
+            top_n = operations.get(upstream.candidates)
+            if not isinstance(top_n, TopNOp):
+                raise LeanLoweringError("cooldown v0 must consume a Top N candidate set")
+            selection_id = upstream.id
+            symbols = lower_momentum_selection(
+                top_n,
+                selection_id,
+                cooldown_state_id=upstream.last_exit_state,
+            )
+            calendar = calendar_requirements.get(upstream.provenance.component_id)
+            if calendar is None or not calendar.symbols:
+                raise LeanLoweringError("cooldown trading-calendar requirement is missing")
+            cooldown_states[upstream.last_exit_state] = LeanCooldownState(
+                id=upstream.last_exit_state,
+                component_id=upstream.provenance.component_id,
                 symbols=symbols,
-                lookback_bars=history.lookback_bars,
-                count=upstream.count,
-                direction=rank.direction,
-                price_field=history.price_field,
-                filter_component_id=(
-                    filter_operation.provenance.component_id
-                    if filter_operation is not None
-                    else None
-                ),
-                filter_operator=(
-                    filter_operation.operator if filter_operation is not None else None
-                ),
-                filter_threshold=(
-                    filter_operation.threshold if filter_operation is not None else None
-                ),
+                required_completed_sessions=upstream.minimum_completed_sessions,
+                calendar_symbol=calendar.symbols[0],
             )
         elif isinstance(upstream, AssetSetOp):
             symbols = upstream.symbols
@@ -234,6 +268,18 @@ def lower_strategy_ir_to_lean_plan(
             )
             sleeves[lowered.id] = lowered
             return _LoweredTargets(sleeves=(lowered,))
+        if isinstance(operation, ObserveTargetExitsOp):
+            lowered = lower_targets(
+                operation.targets,
+                scale=scale,
+                source_sleeve_component_id=source_sleeve_component_id,
+            )
+            if operation.last_exit_state not in cooldown_states:
+                raise LeanLoweringError("target-exit observer references an unknown cooldown state")
+            return replace(
+                lowered,
+                exit_state_ids=lowered.exit_state_ids + (operation.last_exit_state,),
+            )
         raise LeanLoweringError(
             "Rebalance targets must lower from equal-weight, fallback, scaling, or merging"
         )
@@ -256,6 +302,7 @@ def lower_strategy_ir_to_lean_plan(
     rebalances: dict[str, LeanRebalance] = {}
     monthly_events: list[LeanMonthlyEvent] = []
     quarterly_events: list[LeanQuarterlyEvent] = []
+    daily_events: list[LeanDailyEvent] = []
     required_symbols = requirements.assets
     if not required_symbols:
         raise LeanLoweringError("LEAN backend requires at least one asset subscription")
@@ -264,9 +311,9 @@ def lower_strategy_ir_to_lean_plan(
     for entrypoint in strategy_ir.entrypoints:
         event = operations.get(entrypoint.event)
         target = operations.get(entrypoint.target)
-        if not isinstance(event, (MonthlyScheduleOp, QuarterlyScheduleOp)):
-            raise LeanLoweringError("LEAN compiler v0 supports monthly and quarterly events")
-        if event.day != 1:
+        if not isinstance(event, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
+            raise LeanLoweringError("LEAN compiler v0 supports daily, monthly, and quarterly events")
+        if not isinstance(event, DailyScheduleOp) and event.day != 1:
             raise LeanLoweringError(
                 "LEAN compiler v0 supports only the first trading day of a period"
             )
@@ -287,6 +334,7 @@ def lower_strategy_ir_to_lean_plan(
                 id=target.id,
                 sleeve_ids=tuple(sleeve.id for sleeve in lowered.sleeves),
                 snapshot_allocations=lowered.snapshot_allocations,
+                exit_state_ids=tuple(sorted(set(lowered.exit_state_ids))),
             )
             actions["rebalance"].append(target.id)
         else:
@@ -296,16 +344,17 @@ def lower_strategy_ir_to_lean_plan(
         event = operations[event_id]
         common = {
             "id": event.id,
-            "day": event.day,
             "anchor_symbol": required_symbols[0],
             "refresh_ids": tuple(sorted(set(actions["refresh"]))),
             "rebalance_ids": tuple(sorted(set(actions["rebalance"]))),
             "execution": LeanOnDataExecution(required_symbols=required_symbols),
         }
-        if isinstance(event, MonthlyScheduleOp):
-            monthly_events.append(LeanMonthlyEvent(**common))
+        if isinstance(event, DailyScheduleOp):
+            daily_events.append(LeanDailyEvent(**common))
+        elif isinstance(event, MonthlyScheduleOp):
+            monthly_events.append(LeanMonthlyEvent(day=event.day, **common))
         else:
-            quarterly_events.append(LeanQuarterlyEvent(**common))
+            quarterly_events.append(LeanQuarterlyEvent(day=event.day, **common))
 
     return normalize_lean_plan(
         LeanPlan(
@@ -318,5 +367,7 @@ def lower_strategy_ir_to_lean_plan(
             momentum_selections=tuple(momentum_selections.values()),
             target_snapshots=tuple(snapshots.values()),
             quarterly_events=tuple(quarterly_events),
+            daily_events=tuple(daily_events),
+            cooldown_states=tuple(cooldown_states.values()),
         )
     )

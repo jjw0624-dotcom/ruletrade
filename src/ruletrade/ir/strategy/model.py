@@ -23,6 +23,23 @@ class SourceProvenance:
 
 
 @dataclass(frozen=True)
+class PerAssetState:
+    """User-visible semantic state introduced by source desugaring."""
+
+    id: str
+    value_type: Literal["trading_session_index"]
+    initial: None
+    provenance: SourceProvenance
+
+
+@dataclass(frozen=True)
+class DailyScheduleOp:
+    id: str
+    provenance: SourceProvenance
+    operation: Literal["schedule.daily"] = "schedule.daily"
+
+
+@dataclass(frozen=True)
 class MonthlyScheduleOp:
     id: str
     day: int
@@ -95,6 +112,18 @@ class TopNOp:
 
 
 @dataclass(frozen=True)
+class ElapsedSessionsGateOp:
+    id: str
+    candidates: str
+    last_exit_state: str
+    minimum_completed_sessions: int
+    provenance: SourceProvenance
+    operation: Literal["selection.elapsed_sessions_gate"] = (
+        "selection.elapsed_sessions_gate"
+    )
+
+
+@dataclass(frozen=True)
 class EqualWeightOp:
     id: str
     assets: str
@@ -143,6 +172,15 @@ class FirstNonEmptyTargetsOp:
 
 
 @dataclass(frozen=True)
+class ObserveTargetExitsOp:
+    id: str
+    targets: str
+    last_exit_state: str
+    provenance: SourceProvenance
+    operation: Literal["state.observe_target_exits"] = "state.observe_target_exits"
+
+
+@dataclass(frozen=True)
 class RebalanceOp:
     id: str
     targets: str
@@ -151,7 +189,8 @@ class RebalanceOp:
 
 
 StrategyIROperation: TypeAlias = (
-    MonthlyScheduleOp
+    DailyScheduleOp
+    | MonthlyScheduleOp
     | QuarterlyScheduleOp
     | AssetSetOp
     | RandomNOp
@@ -159,11 +198,13 @@ StrategyIROperation: TypeAlias = (
     | FilterOp
     | RankOp
     | TopNOp
+    | ElapsedSessionsGateOp
     | EqualWeightOp
     | ScaleTargetsOp
     | RetainTargetsOp
     | MergeTargetsOp
     | FirstNonEmptyTargetsOp
+    | ObserveTargetExitsOp
     | RebalanceOp
 )
 
@@ -181,3 +222,4 @@ class StrategyIR:
     strategy_identity: str
     operations: tuple[StrategyIROperation, ...]
     entrypoints: tuple[IREntrypoint, ...]
+    user_state: tuple[PerAssetState, ...] = ()

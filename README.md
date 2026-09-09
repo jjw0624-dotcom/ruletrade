@@ -46,8 +46,8 @@ uv run uvicorn ruletrade.api:app --reload
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Filter/Momentum strategy with
-an explicit TLT fallback
+Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Daily Top-1 strategy with an
+explicit 20-completed-trading-session cooldown
 Canonical strategy and Primitive Registry metadata from `/v1/editor/bootstrap`.
 Guided and Flow hold no independent strategy document: both project the same
 in-memory Canonical state and submit stable component-ID config operations to
@@ -56,10 +56,10 @@ state and are never sent to Canonical validation. Frontend test commands export
 their Golden and Momentum inputs from the same backend bootstrap function; there is no second
 hand-maintained frontend strategy fixture.
 
-Run the real fallback differential acceptance path locally with Docker:
+Run the real Cooldown differential acceptance path locally with Docker:
 
 ```bash
-./scripts/run_fallback_lean_e2e.sh
+./scripts/run_cooldown_lean_e2e.sh
 ```
 
 The **Backtest** action submits that exact current Canonical document to the

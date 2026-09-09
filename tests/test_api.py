@@ -287,6 +287,30 @@ def test_editor_bootstrap_can_deliver_independent_schedule_source_model() -> Non
     }
 
 
+def test_editor_bootstrap_can_deliver_high_level_cooldown_source_model() -> None:
+    response = client.get("/v1/editor/bootstrap?example=cooldown")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["validation"] == {"valid": True, "issues": []}
+    components = {
+        item["id"]: item for item in payload["strategy"]["graph"]["components"]
+    }
+    assert components["daily"]["primitive"] == "daily@1"
+    assert components["cooldown"] == {
+        "id": "cooldown",
+        "primitive": "cooldown@1",
+        "config": {"duration": 20, "unit": "trading_days"},
+        "condition": None,
+        "actions": [],
+    }
+    primitive = next(
+        item for item in payload["registry"]["primitives"] if item["id"] == "cooldown@1"
+    )
+    assert primitive["inputs"][0]["value_type"] == "asset_set"
+    assert primitive["fields"][0]["minimum"] == "1"
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,

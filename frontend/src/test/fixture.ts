@@ -1,6 +1,7 @@
 import bootstrapPayload from "./generated-bootstrap.json";
 import momentumBootstrapPayload from "./generated-momentum-bootstrap.json";
 import sleevesBootstrapPayload from "./generated-sleeves-bootstrap.json";
+import cooldownBootstrapPayload from "./generated-cooldown-bootstrap.json";
 
 import type { EditorBootstrap } from "../domain/canonical";
 
@@ -9,6 +10,7 @@ import type { EditorBootstrap } from "../domain/canonical";
 export const goldenBootstrap = bootstrapPayload as unknown as EditorBootstrap;
 export const momentumBootstrap = momentumBootstrapPayload as unknown as EditorBootstrap;
 export const sleevesBootstrap = sleevesBootstrapPayload as unknown as EditorBootstrap;
+export const cooldownBootstrap = cooldownBootstrapPayload as unknown as EditorBootstrap;
 
 export const independentSchedulesBootstrap = structuredClone(sleevesBootstrap);
 independentSchedulesBootstrap.strategy.metadata = {

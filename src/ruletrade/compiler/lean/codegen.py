@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 
 from ruletrade.compiler.lean.plan import (
+    LeanDailyEvent,
     LeanPlan,
     LeanQuarterlyEvent,
     LeanRandomSelection,
@@ -210,9 +211,12 @@ def generate_csharp(
     snapshot_indexes = {
         snapshot.id: index for index, snapshot in enumerate(plan.target_snapshots)
     }
+    cooldown_indexes = {
+        state.id: index for index, state in enumerate(plan.cooldown_states)
+    }
     scheduled_events = tuple(
         sorted(
-            (*plan.monthly_events, *plan.quarterly_events),
+            (*plan.daily_events, *plan.monthly_events, *plan.quarterly_events),
             key=lambda item: item.id,
         )
     )
@@ -263,6 +267,21 @@ def generate_csharp(
                 f"    private string _targetSnapshotTimestamp{index};",
             )
         )
+    if plan.cooldown_states:
+        lines.extend(
+            (
+                "    private int _tradingSessionIndex = -1;",
+                "    private DateTime _lastTradingSessionDate = DateTime.MinValue;",
+            )
+        )
+    for index in range(len(plan.cooldown_states)):
+        lines.extend(
+            (
+                f"    private readonly Dictionary<string, int> _lastExitSession{index} = new Dictionary<string, int>();",
+                f"    private readonly Dictionary<string, string> _lastExitDate{index} = new Dictionary<string, string>();",
+                f"    private readonly Dictionary<string, decimal> _previousTargets{index} = new Dictionary<string, decimal>();",
+            )
+        )
     lines.extend(
         (
             "",
@@ -302,9 +321,13 @@ def generate_csharp(
         lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
     for index, event in enumerate(scheduled_events):
         anchor = _csharp_string(event.anchor_symbol)
+        date_rule = (
+            f"DateRules.EveryDay(_symbols[{anchor}])"
+            if isinstance(event, LeanDailyEvent)
+            else f"DateRules.MonthStart(_symbols[{anchor}], {event.day - 1})"
+        )
         lines.append(
-            "        Schedule.On("
-            f"DateRules.MonthStart(_symbols[{anchor}], {event.day - 1}), "
+            f"        Schedule.On({date_rule}, "
             f"TimeRules.AfterMarketOpen(_symbols[{anchor}], 1), QueueEvent{index});"
         )
     lines.extend(("    }", ""))
@@ -358,6 +381,21 @@ def generate_csharp(
                     "        if (IsWarmingUp) return;",
                 )
             )
+    if plan.cooldown_states:
+        calendar_symbols = {item.calendar_symbol for item in plan.cooldown_states}
+        if len(calendar_symbols) != 1:
+            raise ValueError("cooldown v0 requires one shared exchange calendar")
+        calendar_symbol = _csharp_string(next(iter(calendar_symbols)))
+        lines.extend(
+            (
+                "        if (_lastTradingSessionDate != Time.Date",
+                f"            && Securities[_symbols[{calendar_symbol}]].Exchange.Hours.IsDateOpen(Time.Date, false))",
+                "        {",
+                "            _tradingSessionIndex++;",
+                "            _lastTradingSessionDate = Time.Date;",
+                "        }",
+            )
+        )
     if plan.target_snapshots:
         for event_index in range(len(scheduled_events)):
             lines.append(f"        string readyEvent{event_index} = null;")
@@ -642,6 +680,40 @@ def generate_csharp(
                                 f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
                             )
                         )
+                        if selection.cooldown_state_id is not None:
+                            state = next(
+                                item
+                                for item in plan.cooldown_states
+                                if item.id == selection.cooldown_state_id
+                            )
+                            state_index = cooldown_indexes[state.id]
+                            candidate_variable = f"signalCandidate{event_index}_{rebalance_index}_{sleeve_index}"
+                            cooldown_eligible = f"cooldownEligible{event_index}_{rebalance_index}_{sleeve_index}"
+                            component_id = _csharp_string(state.component_id)
+                            lines.extend(
+                                (
+                                    f"        var {candidate_variable} = {variable}.ToList();",
+                                    '        Debug("RULETRADE_SIGNAL|" + eventIdentity',
+                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                    f'            + "|candidate=" + string.Join(",", {candidate_variable}));',
+                                    f"        var {cooldown_eligible} = new List<string>();",
+                                    f"        foreach (var ticker in {candidate_variable})",
+                                    "        {",
+                                    f"            var hasLastExit = _lastExitSession{state_index}.TryGetValue(ticker, out var lastExitSession);",
+                                    "            var elapsed = hasLastExit ? _tradingSessionIndex - lastExitSession : -1;",
+                                    f"            var allowed = !hasLastExit || elapsed >= {state.required_completed_sessions};",
+                                    f"            if (allowed) {cooldown_eligible}.Add(ticker);",
+                                    f'            Debug("RULETRADE_COOLDOWN|" + eventIdentity + "|component=" + {component_id}',
+                                    '                + "|asset=" + ticker + "|candidate=true|last_exit="',
+                                    f'                + (hasLastExit ? _lastExitDate{state_index}[ticker] : "none")',
+                                    '                + "|elapsed_trading_days=" + (hasLastExit ? elapsed.ToString(CultureInfo.InvariantCulture) : "none")',
+                                    f'                + "|required={state.required_completed_sessions}|decision=" + (allowed ? "eligible" : "blocked"));',
+                                    "        }",
+                                    f"        {variable} = {cooldown_eligible};",
+                                )
+                            )
                         eligible_count_variable = (
                             ranking_input
                             if selection.filter_threshold is not None
@@ -686,7 +758,7 @@ def generate_csharp(
                                     f'            + "|decision=executed|source=" + ({fallback_activated} ? "fallback" : "primary"));',
                                 )
                             )
-                        else:
+                        elif selection.cooldown_state_id is None:
                             lines.extend(
                                 (
                                     f"        if ({variable}.Count < {selection.count})",
@@ -696,7 +768,10 @@ def generate_csharp(
                                     "        }",
                                 )
                             )
-                        if selection.filter_threshold is None:
+                        if (
+                            selection.filter_threshold is None
+                            and selection.cooldown_state_id is None
+                        ):
                             lines.extend(
                                 (
                                     '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -708,21 +783,37 @@ def generate_csharp(
                             )
                     lines.append(f"        {selected_variable}.AddRange({variable});")
                 weight = _decimal_literal(sleeve.total_weight)
+                cooldown_selection = (
+                    momentum_selections.get(sleeve.selection_id)
+                    if sleeve.selection_id is not None
+                    else None
+                )
+                has_cooldown = (
+                    cooldown_selection is not None
+                    and cooldown_selection.cooldown_state_id is not None
+                )
+                if has_cooldown:
+                    lines.extend((f"        if ({variable}.Count > 0)", "        {"))
+                indent = "    " if has_cooldown else ""
                 lines.extend(
                     (
-                        f"        var {weight_variable} = {weight} / {variable}.Count();",
-                        f"        foreach (var ticker in {variable})",
-                        "        {",
-                        "            var symbol = _symbols[ticker];",
+                        f"{indent}        var {weight_variable} = {weight} / {variable}.Count();",
+                        f"{indent}        foreach (var ticker in {variable})",
+                        f"{indent}        {{",
+                        f"{indent}            var symbol = _symbols[ticker];",
                         (
-                            f"            {targets_variable}[symbol] = "
+                            f"{indent}            {targets_variable}[symbol] = "
                             f"{targets_variable}.ContainsKey(symbol) ? "
                             f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
                         ),
-                        "        }",
+                        f"{indent}        }}",
                     )
                 )
+                if has_cooldown:
+                    lines.append("        }")
                 if sleeve.source_sleeve_component_id is not None:
+                    if has_cooldown:
+                        raise ValueError("cooldown v0 does not support portfolio sleeves")
                     local_total = _decimal_literal(
                         sleeve.local_total_weight or Decimal(1)
                     )
@@ -747,6 +838,30 @@ def generate_csharp(
                             f'                .Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
                         )
                     )
+            for state_id in rebalance.exit_state_ids:
+                state = next(item for item in plan.cooldown_states if item.id == state_id)
+                state_index = cooldown_indexes[state_id]
+                state_symbols = ", ".join(_csharp_string(item) for item in state.symbols)
+                component_id = _csharp_string(state.component_id)
+                lines.extend(
+                    (
+                        f"        foreach (var ticker in new[] {{ {state_symbols} }})",
+                        "        {",
+                        f"            var hadTarget = _previousTargets{state_index}.TryGetValue(ticker, out var oldTarget) && oldTarget > 0m;",
+                        f"            var hasTarget = {targets_variable}.TryGetValue(_symbols[ticker], out var newTarget) && newTarget > 0m;",
+                        "            if (hadTarget && !hasTarget)",
+                        "            {",
+                        f"                var oldExit = _lastExitDate{state_index}.TryGetValue(ticker, out var priorExit) ? priorExit : \"none\";",
+                        f"                _lastExitSession{state_index}[ticker] = _tradingSessionIndex;",
+                        f"                _lastExitDate{state_index}[ticker] = eventIdentity;",
+                        f'                Debug("RULETRADE_STATE|" + eventIdentity + "|component=" + {component_id}',
+                        '                    + "|asset=" + ticker + "|state=last_exit|old=" + oldExit',
+                        '                    + "|new=" + eventIdentity + "|cause=target_exit");',
+                        "            }",
+                        f"            _previousTargets{state_index}[ticker] = hasTarget ? newTarget : 0m;",
+                        "        }",
+                    )
+                )
             lines.extend(
                 (
                     "        foreach (var holding in Portfolio.Values.Where(item => item.Invested))",

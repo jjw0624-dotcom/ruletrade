@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "generate:bootstrap": "cd .. && uv run python scripts/export_editor_bootstrap.py --output frontend/src/test/generated-bootstrap.json && uv run python scripts/export_editor_bootstrap.py --example sleeves --output frontend/src/test/generated-sleeves-bootstrap.json",
+    "generate:bootstrap": "cd .. && uv run python scripts/export_editor_bootstrap.py --output frontend/src/test/generated-bootstrap.json && uv run python scripts/export_editor_bootstrap.py --example sleeves --output frontend/src/test/generated-sleeves-bootstrap.json && uv run python scripts/export_editor_bootstrap.py --example cooldown --output frontend/src/test/generated-cooldown-bootstrap.json",
     "prebuild": "npm run generate:bootstrap",
     "build": "tsc -b && vite build",
     "pretypecheck": "npm run generate:bootstrap",

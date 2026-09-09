@@ -32,6 +32,7 @@ Strategy IR deliberately grows only through proven vertical slices. The current 
 
 ```text
 schedule.monthly
+schedule.daily
 market.asset_set
 selection.random_n
 market.trailing_return
@@ -42,6 +43,8 @@ portfolio.equal_weight
 portfolio.merge_targets
 portfolio.first_non_empty_targets
 portfolio.rebalance
+selection.elapsed_sessions_gate
+state.observe_target_exits
 ```
 
 An AssetSet connected directly to equal weighting means all assets participate, so v0 does not add
@@ -204,6 +207,38 @@ commit first, then all pending portfolio executions consume the committed snapsh
 entrypoint ordering therefore cannot change same-day results. Portfolio execution is skipped until
 every referenced snapshot exists. A snapshot records local targets and its source event identity;
 LEAN-specific dictionaries remain confined to `LeanPlan → C#` lowering.
+
+## User-authored cooldown state v0
+
+`cooldown@1` preserves the user-facing intent “after exit, wait N completed trading sessions before
+selecting this asset again.” It is distinct from retained target snapshots: a retained snapshot is
+compiler/runtime bookkeeping, while `last_exit` changes future investment decisions and is therefore
+semantic strategy state. The source convenience desugars explicitly to:
+
+```text
+per-asset last-exit state declaration
+Top N candidates → selection.elapsed_sessions_gate → local targets
+local targets → state.observe_target_exits → rebalance
+```
+
+No monolithic Cooldown operation is added to Strategy IR. `selection.elapsed_sessions_gate` reads
+per-asset state and filters candidates by completed-session distance;
+`state.observe_target_exits` passes `PortfolioTargets` through unchanged while defining the semantic
+mutation point. These are backend-independent operations with source-component provenance.
+
+An exit is a RuleTrade target transition from positive to zero at a rebalance decision, independent
+of later broker fill timing. The exit exchange session is day 0. Each following completed regular
+exchange session advances the elapsed count, and eligibility returns when the count is at least the
+configured duration. A signal during cooldown is blocked; v0 does not backfill from lower-ranked
+candidates. In the Top-1 reference strategy this can produce an empty target set and cash until the
+candidate becomes eligible again.
+
+Requirements keep subscriptions, Daily history, scheduled events, semantic user state, trading
+calendar access, and retained runtime snapshots separate. The LEAN backend uses the subscribed US
+equity's `Security.Exchange.Hours.IsDateOpen` calendar to advance the session ordinal only on open
+exchange dates; it does not approximate trading sessions with calendar-day arithmetic. Generated
+private dictionaries store last-exit session/date and prior semantic targets, but those C# details
+do not leak into Strategy IR.
 
 ## Reproducibility and persistence boundary
 
