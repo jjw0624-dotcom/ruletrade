@@ -153,16 +153,24 @@ def test_strict_temporal_verifier_compares_refresh_provenance_and_targets() -> N
             scores = ",".join(f"{symbol}={value}" for symbol, value in growth.scores)
             lines.extend(
                 (
-                    f"RULETRADE_FILTER|{snapshot.refreshed_at}|threshold=0"
-                    f"|eligible={','.join(growth.eligible)}|rejected={','.join(growth.rejected)}",
-                    f"RULETRADE_MOMENTUM|{snapshot.refreshed_at}|scores={scores}"
-                    f"|ranked={','.join(growth.ranked)}|candidate={','.join(growth.candidate)}"
-                    f"|selected={','.join(growth.primary_selected)}"
-                    f"|decision={'insufficient' if growth.fallback_activated else 'executed'}",
-                    f"RULETRADE_FALLBACK|{snapshot.refreshed_at}|component=fallback|asset=TLT"
-                    f"|decision={'activated' if growth.fallback_activated else 'not_activated'}",
-                    f"RULETRADE_FINAL|{snapshot.refreshed_at}|selected={','.join(growth.final_selected)}"
-                    f"|decision=executed|source={'fallback' if growth.fallback_activated else 'primary'}",
+                    (
+                        f"RULETRADE_FILTER|{snapshot.refreshed_at}|threshold=0"
+                        f"|eligible={','.join(growth.eligible)}|rejected={','.join(growth.rejected)}"
+                    ),
+                    (
+                        f"RULETRADE_MOMENTUM|{snapshot.refreshed_at}|scores={scores}"
+                        f"|ranked={','.join(growth.ranked)}|candidate={','.join(growth.candidate)}"
+                        f"|selected={','.join(growth.primary_selected)}"
+                        f"|decision={'insufficient' if growth.fallback_activated else 'executed'}"
+                    ),
+                    (
+                        f"RULETRADE_FALLBACK|{snapshot.refreshed_at}|component=fallback|asset=TLT"
+                        f"|decision={'activated' if growth.fallback_activated else 'not_activated'}"
+                    ),
+                    (
+                        f"RULETRADE_FINAL|{snapshot.refreshed_at}|selected={','.join(growth.final_selected)}"
+                        f"|decision=executed|source={'fallback' if growth.fallback_activated else 'primary'}"
+                    ),
                 )
             )
         targets = ",".join(f"{symbol}={weight}" for symbol, weight in snapshot.local_targets)

@@ -12,10 +12,10 @@ from ruletrade.compiler.lean.plan import (
     LeanQuarterlyEvent,
     LeanRandomSelection,
     LeanRebalance,
-    LeanSubscription,
     LeanSnapshotAllocation,
-    LeanTargetSnapshot,
+    LeanSubscription,
     LeanTargetSleeve,
+    LeanTargetSnapshot,
     normalize_lean_plan,
 )
 from ruletrade.ir.strategy import (
@@ -46,7 +46,7 @@ class _LoweredTargets:
     sleeves: tuple[LeanTargetSleeve, ...] = ()
     snapshot_allocations: tuple[LeanSnapshotAllocation, ...] = ()
 
-    def merged(self, other: "_LoweredTargets") -> "_LoweredTargets":
+    def merged(self, other: _LoweredTargets) -> _LoweredTargets:
         return _LoweredTargets(
             sleeves=self.sleeves + other.sleeves,
             snapshot_allocations=self.snapshot_allocations + other.snapshot_allocations,
@@ -294,14 +294,14 @@ def lower_strategy_ir_to_lean_plan(
 
     for event_id, actions in event_actions.items():
         event = operations[event_id]
-        common = dict(
-            id=event.id,
-            day=event.day,
-            anchor_symbol=required_symbols[0],
-            refresh_ids=tuple(sorted(set(actions["refresh"]))),
-            rebalance_ids=tuple(sorted(set(actions["rebalance"]))),
-            execution=LeanOnDataExecution(required_symbols=required_symbols),
-        )
+        common = {
+            "id": event.id,
+            "day": event.day,
+            "anchor_symbol": required_symbols[0],
+            "refresh_ids": tuple(sorted(set(actions["refresh"]))),
+            "rebalance_ids": tuple(sorted(set(actions["rebalance"]))),
+            "execution": LeanOnDataExecution(required_symbols=required_symbols),
+        }
         if isinstance(event, MonthlyScheduleOp):
             monthly_events.append(LeanMonthlyEvent(**common))
         else:
