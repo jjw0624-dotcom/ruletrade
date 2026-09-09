@@ -14,17 +14,17 @@ import { sleevesBootstrap } from "../test/fixture";
 
 describe("Production MVP frontend foundation", () => {
   it("exposes only real backend-supported examples and opens a Strategy route", () => {
-    const markup = renderToStaticMarkup(<ExploreView onOpen={() => undefined} />);
+    const markup = renderToStaticMarkup(<ExploreView onOpen={() => undefined} onUse={() => undefined} />);
     expect(STRATEGY_EXAMPLES.map((item) => item.id)).toEqual(["sleeves", "fallback", "cooldown"]);
     expect(markup).toContain("Growth + Defensive");
-    expect(routeFromPath("/strategy/sleeves")).toEqual({ page: "strategy", exampleId: "sleeves" });
-    expect(pathForRoute({ page: "strategy", exampleId: "cooldown" })).toBe("/strategy/cooldown");
+    expect(routeFromPath("/strategy/sleeves")).toEqual({ page: "example", exampleId: "sleeves" });
+    expect(pathForRoute({ page: "example", exampleId: "cooldown" })).toBe("/strategy/cooldown");
   });
 
-  it("provides an honest Strategies boundary without local persistence", () => {
-    const markup = renderToStaticMarkup(<StrategiesView onExplore={() => undefined} />);
+  it("provides an empty persisted Strategies boundary", () => {
+    const markup = renderToStaticMarkup(<StrategiesView status="loaded" strategies={[]} error={null} onExplore={() => undefined} onOpen={() => undefined} onRetry={() => undefined} />);
     expect(markup).toContain("No saved strategies yet");
-    expect(markup).toContain("once persistence is available");
+    expect(markup).toContain("Explore examples");
   });
 
   it("keeps a Guided edit in the one Canonical model projected by Flow", () => {
@@ -53,6 +53,7 @@ describe("Production MVP frontend foundation", () => {
     const canonical = editor.canonical;
     expect(pathForRoute({ page: "explore" })).toBe("/explore");
     expect(pathForRoute({ page: "strategies" })).toBe("/strategies");
+    expect(pathForRoute({ page: "strategy", strategyId: "strategy 1" })).toBe("/strategies/strategy%201");
     expect(editor.canonical).toBe(canonical);
   });
 });
