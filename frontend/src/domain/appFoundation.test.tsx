@@ -26,7 +26,7 @@ describe("Production MVP frontend foundation", () => {
   it("provides an empty persisted Strategies boundary", () => {
     const markup = renderToStaticMarkup(<StrategiesView status="loaded" strategies={[]} error={null} onExplore={() => undefined} onOpen={() => undefined} onRetry={() => undefined} />);
     expect(markup).toContain("No saved strategies yet");
-    expect(markup).toContain("Explore examples");
+    expect(markup).toContain("Explore ideas");
   });
 
   it("keeps a Guided edit in the one Canonical model projected by Flow", () => {

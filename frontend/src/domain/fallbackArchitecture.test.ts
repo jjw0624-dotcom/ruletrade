@@ -15,7 +15,7 @@ describe("Fallback cross-view architecture", () => {
     if (guided.kind !== "momentum") throw new Error("expected score strategy projection");
     expect(guided.momentum.fallbackAsset).toBe("TLT");
     expect(guided.momentum.fallbackAssetSetRef).toBe("fallback_tlt");
-    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("Fallback: TLT");
+    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("TLT fallback");
     expect(flow.edges).toHaveLength(8);
   });
 
@@ -32,7 +32,7 @@ describe("Fallback cross-view architecture", () => {
     });
     const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
 
-    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("Fallback: IEF");
+    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("IEF fallback");
     expect(initial.canonical.graph.components.find((item) => item.id === "fallback")?.config)
       .toEqual({ fallback_asset_set_ref: "fallback_tlt" });
   });
