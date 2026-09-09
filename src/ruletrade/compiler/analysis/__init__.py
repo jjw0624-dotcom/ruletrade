@@ -3,6 +3,8 @@ from ruletrade.compiler.analysis.requirements import (
     RandomRequirement,
     ScheduleRequirement,
     StrategyRequirements,
+    TradingCalendarRequirement,
+    UserStateRequirement,
     analyze_strategy_ir,
 )
 
@@ -11,5 +13,7 @@ __all__ = [
     "RandomRequirement",
     "ScheduleRequirement",
     "StrategyRequirements",
+    "TradingCalendarRequirement",
+    "UserStateRequirement",
     "analyze_strategy_ir",
 ]

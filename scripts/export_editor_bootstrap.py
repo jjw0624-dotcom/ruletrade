@@ -12,7 +12,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--example",
-        choices=("golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules"),
+        choices=("golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules", "cooldown"),
         default="golden",
     )
     args = parser.parse_args()

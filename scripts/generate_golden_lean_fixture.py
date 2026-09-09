@@ -16,6 +16,7 @@ SYMBOLS = {
 }
 FILTER_PHASES = {"qqq": 0, "vgt": 30, "soxx": 60, "schg": 90}
 FILTER_FIXTURE_SYMBOLS = (*FILTER_PHASES, "tlt", "ief")
+COOLDOWN_FIXTURE_SYMBOLS = ("qqq", "ief")
 
 # Full-day NASDAQ closures in the fixture period. Early closes remain
 # trading days because a Daily TradeBar still exists for them.
@@ -97,6 +98,32 @@ def filter_daily_rows(symbol: str) -> str:
     return "\n".join(rows) + "\n"
 
 
+def cooldown_daily_rows(symbol: str) -> str:
+    """Force QQQ → IEF → early QQQ signal for cooldown boundary tests."""
+
+    dates = trading_dates()
+    first_event = dates.index(date(2024, 1, 2))
+    rows = []
+    for index, trading_date in enumerate(dates):
+        event_index = index - first_event
+        if event_index < 0:
+            close = 1_000_000
+        elif event_index == 0:
+            close = 1_100_000 if symbol == "qqq" else 1_000_000
+        elif event_index == 1:
+            close = 1_000_000 if symbol == "qqq" else 1_100_000
+        elif symbol == "qqq":
+            close = 1_000_000 + event_index * 1_000
+        else:
+            close = 1_000_000
+        rows.append(
+            f"{trading_date:%Y%m%d} 00:00,"
+            f"{close - 1_000},{close + 1_000},{close - 2_000},{close},"
+            f"{1_000_000 + index}"
+        )
+    return "\n".join(rows) + "\n"
+
+
 def _write_deterministic_zip(path: Path, entry_name: str, contents: str) -> None:
     info = ZipInfo(entry_name, date_time=ZIP_TIMESTAMP)
     info.compress_type = ZIP_DEFLATED
@@ -113,8 +140,16 @@ def generate_fixture(output: Path, *, profile: str = "golden") -> None:
     map_files.mkdir(parents=True, exist_ok=True)
     factor_files.mkdir(parents=True, exist_ok=True)
 
-    symbols = FILTER_FIXTURE_SYMBOLS if profile == "filter" else SYMBOLS
-    row_factory = filter_daily_rows if profile == "filter" else daily_rows
+    symbols = (
+        FILTER_FIXTURE_SYMBOLS
+        if profile == "filter"
+        else COOLDOWN_FIXTURE_SYMBOLS if profile == "cooldown" else SYMBOLS
+    )
+    row_factory = (
+        filter_daily_rows
+        if profile == "filter"
+        else cooldown_daily_rows if profile == "cooldown" else daily_rows
+    )
     for symbol in symbols:
         _write_deterministic_zip(
             daily / f"{symbol}.zip",
@@ -144,7 +179,11 @@ def main() -> None:
         type=Path,
         default=Path("tests/fixtures/lean-data"),
     )
-    parser.add_argument("--profile", choices=("golden", "filter"), default="golden")
+    parser.add_argument(
+        "--profile",
+        choices=("golden", "filter", "cooldown"),
+        default="golden",
+    )
     args = parser.parse_args()
     generate_fixture(args.output, profile=args.profile)
 

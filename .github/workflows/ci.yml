@@ -40,6 +40,7 @@ jobs:
           src/ruletrade/compiler/analysis
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
+          src/ruletrade/compiler/lean/cooldown_e2e.py
           src/ruletrade/compiler/lean/fallback_e2e.py
           src/ruletrade/compiler/lean/filter_e2e.py
           src/ruletrade/compiler/lean/independent_schedules_e2e.py
@@ -49,6 +50,7 @@ jobs:
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
           scripts/generate_golden_lean_fixture.py
+          scripts/generate_cooldown_lean.py
           scripts/generate_fallback_lean.py
           scripts/generate_filter_lean.py
           scripts/generate_independent_schedules_lean.py
@@ -57,11 +59,13 @@ jobs:
           scripts/run_editor_lean_e2e.py
           scripts/run_lean_backtest.py
           scripts/verify_momentum_lean_e2e.py
+          scripts/verify_cooldown_lean_e2e.py
           scripts/verify_fallback_lean_e2e.py
           scripts/verify_filter_lean_e2e.py
           scripts/verify_independent_schedules_lean_e2e.py
           scripts/verify_sleeves_lean_e2e.py
           tests/test_api.py
+          tests/test_cooldown.py
           tests/test_fallback.py
           tests/test_filter_screening.py
           tests/test_independent_schedules.py
@@ -87,6 +91,7 @@ jobs:
           scripts/run_fallback_lean_e2e.sh
           scripts/run_sleeves_lean_e2e.sh
           scripts/run_independent_schedules_lean_e2e.sh
+          scripts/run_cooldown_lean_e2e.sh
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 
@@ -142,6 +147,8 @@ jobs:
             --output build/lean/sleeves-ci/Main.cs
           PYTHONPATH=src uv run python scripts/generate_independent_schedules_lean.py \
             --output build/lean/independent-schedules-ci/Main.cs
+          PYTHONPATH=src uv run python scripts/generate_cooldown_lean.py \
+            --output build/lean/cooldown-ci/Main.cs
 
       - name: Free space for the LEAN Docker image
         run: |
@@ -172,6 +179,9 @@ jobs:
           ./scripts/build_golden_lean_docker.sh \
             build/lean/independent-schedules-ci/Main.cs \
             build/lean/independent-schedules-ci/bin
+          ./scripts/build_golden_lean_docker.sh \
+            build/lean/cooldown-ci/Main.cs \
+            build/lean/cooldown-ci/bin
 
       - name: Verify generated assemblies
         run: |
@@ -180,3 +190,4 @@ jobs:
           test -f build/lean/fallback-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
+          test -f build/lean/cooldown-ci/bin/RuleTradeGenerated.dll

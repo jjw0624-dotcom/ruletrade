@@ -1,5 +1,7 @@
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
+    DailyScheduleOp,
+    ElapsedSessionsGateOp,
     EqualWeightOp,
     FilterOp,
     FirstNonEmptyTargetsOp,
@@ -7,6 +9,8 @@ from ruletrade.ir.strategy.model import (
     IRType,
     MergeTargetsOp,
     MonthlyScheduleOp,
+    ObserveTargetExitsOp,
+    PerAssetState,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -29,6 +33,8 @@ from ruletrade.ir.strategy.validation import (
 
 __all__ = [
     "AssetSetOp",
+    "DailyScheduleOp",
+    "ElapsedSessionsGateOp",
     "EqualWeightOp",
     "FilterOp",
     "FirstNonEmptyTargetsOp",
@@ -38,6 +44,8 @@ __all__ = [
     "IRValidationIssue",
     "MergeTargetsOp",
     "MonthlyScheduleOp",
+    "ObserveTargetExitsOp",
+    "PerAssetState",
     "QuarterlyScheduleOp",
     "RandomNOp",
     "RankOp",

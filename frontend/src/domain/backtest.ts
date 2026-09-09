@@ -2,14 +2,14 @@ export interface BacktestConfig {
   start_date: string;
   end_date: string;
   initial_cash: string;
-  dataset_id: "golden-synthetic" | "filter-synthetic";
+  dataset_id: "golden-synthetic" | "filter-synthetic" | "cooldown-synthetic";
 }
 
 export const DEFAULT_BACKTEST_CONFIG: BacktestConfig = {
   start_date: "2024-01-01",
-  end_date: "2024-12-31",
+  end_date: "2024-02-29",
   initial_cash: "100000",
-  dataset_id: "filter-synthetic",
+  dataset_id: "cooldown-synthetic",
 };
 
 export interface EquityPoint {

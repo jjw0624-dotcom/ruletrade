@@ -95,6 +95,19 @@ export function GuidedView() {
           </div>
           <div className="summary-row"><span>Rank</span><span>{guided.momentum.rankDirection}</span></div>
           <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.momentum.total)}</span></div>
+          {guided.momentum.cooldownComponentId ? (
+            <label htmlFor="guided-cooldown">After selling, wait
+              <input id="guided-cooldown" type="number" min={1} value={guided.momentum.cooldownDuration} onChange={(event) => dispatch({
+                type: "apply_semantic_patch",
+                operation: {
+                  kind: "update_component_config",
+                  componentId: guided.momentum.cooldownComponentId!,
+                  field: "duration",
+                  value: Number(event.target.value),
+                },
+              })} /> completed trading days before buying again.
+            </label>
+          ) : null}
           {guided.momentum.fallbackComponentId ? (
             <div className="summary-row">
               <label htmlFor="guided-fallback">If fewer than {guided.momentum.topN} assets qualify</label>

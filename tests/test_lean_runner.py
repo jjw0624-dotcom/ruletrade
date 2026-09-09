@@ -98,7 +98,7 @@ class _FakeDocker:
 
 
 def _runner_with_fake_docker(repo_root: Path, fake: _FakeDocker) -> DockerLeanRunner:
-    for fixture_name in ("lean-data", "lean-filter-data"):
+    for fixture_name in ("lean-data", "lean-filter-data", "lean-cooldown-data"):
         fixture = repo_root / "tests" / "fixtures" / fixture_name
         fixture.mkdir(parents=True)
     runner = DockerLeanRunner(repo_root=repo_root)
@@ -135,6 +135,15 @@ def test_filter_dataset_uses_its_own_fixture(tmp_path: Path) -> None:
     runner = _runner_with_fake_docker(tmp_path, fake)
 
     result = runner.run("// filter", dataset_id="filter-synthetic")
+
+    assert result.result_payload == {"statistics": {}}
+
+
+def test_cooldown_dataset_uses_its_own_fixture(tmp_path: Path) -> None:
+    fake = _FakeDocker(tmp_path)
+    runner = _runner_with_fake_docker(tmp_path, fake)
+
+    result = runner.run("// cooldown", dataset_id="cooldown-synthetic")
 
     assert result.result_payload == {"statistics": {}}
 

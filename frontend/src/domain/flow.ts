@@ -21,6 +21,7 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
     value: string;
   };
   scheduleCadence?: "monthly" | "quarterly";
+  cooldownDuration?: number;
 }
 
 export interface FlowProjection {
@@ -44,6 +45,7 @@ export const DEFAULT_NODE_POSITIONS: NodePositions = {
   positive_return: { x: 480, y: 190 },
   momentum_rank: { x: 710, y: 190 },
   top_n: { x: 930, y: 190 },
+  cooldown: { x: 1150, y: 70 },
   weights: { x: 1150, y: 190 },
   fallback: { x: 1150, y: 400 },
   growth_sleeve: { x: 1390, y: 120 },
@@ -107,6 +109,15 @@ function nodeData(
     const count = resolvedConfigValue(strategy, registry, component.id, "count");
     return { componentId: component.id, title: `Top ${String(count)}`, details: [`Count: ${String(count)}`], topN: typeof count === "number" ? count : undefined };
   }
+  if (component.primitive === "cooldown@1") {
+    const duration = resolvedConfigValue(strategy, registry, component.id, "duration");
+    return {
+      componentId: component.id,
+      title: `Cooldown ${String(duration)} trading days`,
+      details: ["Starts after target exit", "No rank backfill"],
+      cooldownDuration: typeof duration === "number" ? duration : undefined,
+    };
+  }
   if (component.primitive === "equal_weight@1") {
     const total = resolvedConfigValue(strategy, registry, component.id, "total");
     return {
@@ -152,6 +163,7 @@ function nodeData(
     };
   }
   const labels: Record<string, string> = {
+    "daily@1": "Daily",
     "monthly@1": "Monthly",
     "quarterly@1": "Quarterly",
     "merge_targets@1": "Merge Targets",
@@ -160,9 +172,11 @@ function nodeData(
   return {
     componentId: component.id,
     title: labels[component.primitive] ?? component.primitive,
-    details: ["monthly@1", "quarterly@1"].includes(component.primitive)
-      ? [`First trading day`, `Cadence: ${labels[component.primitive]}`]
-      : [],
+    details: component.primitive === "daily@1"
+      ? ["Every completed trading day"]
+      : ["monthly@1", "quarterly@1"].includes(component.primitive)
+        ? ["First trading day", `Cadence: ${labels[component.primitive]}`]
+        : [],
     scheduleCadence: component.primitive === "monthly@1"
       ? "monthly"
       : component.primitive === "quarterly@1" ? "quarterly" : undefined,

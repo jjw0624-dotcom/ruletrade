@@ -105,6 +105,13 @@ def build_builtin_registry() -> PrimitiveRegistry:
     return PrimitiveRegistry(
         (
             PrimitiveSpec(
+                id="daily@1",
+                category=PrimitiveCategory.EVENT,
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.NATIVE,
+                implementation_id="event.daily",
+            ),
+            PrimitiveSpec(
                 id="monthly@1",
                 category=PrimitiveCategory.EVENT,
                 fields=(
@@ -236,6 +243,29 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.GENERATED,
                 implementation_id="selection.top_n",
+            ),
+            PrimitiveSpec(
+                id="cooldown@1",
+                category=PrimitiveCategory.TRANSFORM,
+                inputs=(PortSpec("candidates", ValueType.ASSET_SET),),
+                outputs=(PortSpec("eligible", ValueType.ASSET_SET),),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "duration",
+                        ValueType.INTEGER,
+                        minimum=Decimal("1"),
+                    ),
+                    PrimitiveFieldSpec(
+                        "unit",
+                        ValueType.STRING,
+                        required=False,
+                        default="trading_days",
+                        choices=("trading_days",),
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.COMPOSITE,
+                implementation_id="selection.cooldown",
             ),
             PrimitiveSpec(
                 id="equal_weight@1",

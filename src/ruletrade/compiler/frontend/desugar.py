@@ -12,6 +12,7 @@ from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveRegistry
 
 SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
     {
+        "event.daily",
         "event.monthly",
         "event.quarterly",
         "asset_set.named",
@@ -20,6 +21,7 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "selection.filter",
         "selection.rank",
         "selection.top_n",
+        "selection.cooldown",
         "allocation.equal_weight",
         "targets.merge",
         "targets.fallback_asset",
@@ -59,6 +61,8 @@ def desugar_strategy(
         if implementations.get(entrypoint.target_component_id) == "portfolio.sleeve"
     }
     sleeve_outputs: dict[str, str] = {}
+    user_state: list[strategy_ir.PerAssetState] = []
+    cooldown_states: dict[str, str] = {}
     unsupported = sorted(set(implementations.values()) - SUPPORTED_SOURCE_IMPLEMENTATIONS)
     if unsupported:
         raise StrategyDesugaringError(
@@ -91,7 +95,12 @@ def desugar_strategy(
         implementation = implementations[component.id]
         provenance = strategy_ir.SourceProvenance(component_id=component.id)
         resolved = config(component)
-        if implementation == "event.monthly":
+        if implementation == "event.daily":
+            operation = strategy_ir.DailyScheduleOp(
+                id=component.id,
+                provenance=provenance,
+            )
+        elif implementation == "event.monthly":
             operation = strategy_ir.MonthlyScheduleOp(
                 id=component.id,
                 day=int(resolved["day"]),
@@ -148,6 +157,24 @@ def desugar_strategy(
                 id=component.id,
                 ranked=input_id(component, "ranked"),
                 count=int(resolved["count"]),
+                provenance=provenance,
+            )
+        elif implementation == "selection.cooldown":
+            state_id = f"{component.id}$last_exit"
+            cooldown_states[component.id] = state_id
+            user_state.append(
+                strategy_ir.PerAssetState(
+                    id=state_id,
+                    value_type="trading_session_index",
+                    initial=None,
+                    provenance=provenance,
+                )
+            )
+            operation = strategy_ir.ElapsedSessionsGateOp(
+                id=component.id,
+                candidates=input_id(component, "candidates"),
+                last_exit_state=state_id,
+                minimum_completed_sessions=int(resolved["duration"]),
                 provenance=provenance,
             )
         elif implementation == "allocation.equal_weight":
@@ -238,9 +265,31 @@ def desugar_strategy(
                 provenance=provenance,
             )
         elif implementation == "effect.rebalance":
+            targets = input_id(component, "targets")
+            matching_cooldowns = [
+                cooldown_id
+                for cooldown_id in cooldown_states
+                if _source_depends_on(targets, cooldown_id, inputs)
+            ]
+            if len(matching_cooldowns) > 1:
+                raise StrategyDesugaringError("cooldown v0 supports one stateful gate")
+            if matching_cooldowns:
+                cooldown_id = matching_cooldowns[0]
+                observed_targets = f"{cooldown_id}$observe_exits"
+                operations.append(
+                    strategy_ir.ObserveTargetExitsOp(
+                        id=observed_targets,
+                        targets=targets,
+                        last_exit_state=cooldown_states[cooldown_id],
+                        provenance=strategy_ir.SourceProvenance(
+                            component_id=cooldown_id
+                        ),
+                    )
+                )
+                targets = observed_targets
             operation = strategy_ir.RebalanceOp(
                 id=component.id,
-                targets=input_id(component, "targets"),
+                targets=targets,
                 provenance=provenance,
             )
         else:  # guarded by SUPPORTED_SOURCE_IMPLEMENTATIONS
@@ -257,4 +306,21 @@ def desugar_strategy(
             )
             for item in strategy.entrypoints
         ),
+        user_state=tuple(user_state),
     )
+
+
+def _source_depends_on(
+    component_id: str,
+    ancestor_id: str,
+    inputs: dict[tuple[str, str], list[str]],
+) -> bool:
+    if component_id == ancestor_id:
+        return True
+    upstream = {
+        source
+        for (target, _), sources in inputs.items()
+        if target == component_id
+        for source in sources
+    }
+    return any(_source_depends_on(source, ancestor_id, inputs) for source in upstream)

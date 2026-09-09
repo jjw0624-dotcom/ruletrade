@@ -24,13 +24,16 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
     onFallbackChange?: (value: string) => void;
     onAllocationPairChange?: (value: string) => void;
     onScheduleChange?: (value: "monthly" | "quarterly") => void;
+    onCooldownChange?: (value: number) => void;
   };
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.scheduleCadence !== undefined ? (
+      {node.cooldownDuration !== undefined ? (
+        <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.cooldownDuration} onChange={(event) => node.onCooldownChange?.(Number(event.target.value))} /></label></div>
+      ) : node.scheduleCadence !== undefined ? (
         <div className="node-fields"><label>Cadence<select value={node.scheduleCadence} onChange={(event) => node.onScheduleChange?.(event.target.value as "monthly" | "quarterly")}>
           <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option>
         </select></label></div>
@@ -116,6 +119,10 @@ export function FlowView() {
         onScheduleChange: (cadence: "monthly" | "quarterly") => dispatch({
           type: "apply_semantic_patch",
           operation: { kind: "update_schedule", componentId: node.id, cadence },
+        }),
+        onCooldownChange: (value: number) => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_component_config", componentId: node.id, field: "duration", value },
         }),
       },
     })),

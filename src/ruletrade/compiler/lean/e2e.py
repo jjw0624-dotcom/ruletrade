@@ -14,8 +14,8 @@ from ruletrade.strategy.v1.randomness import deterministic_random_seed
 
 TARGET_PATTERN = re.compile(
     r"RULETRADE_TARGETS\|(?P<event>\d{4}-\d{2}-\d{2})"
-    r"\|selected=(?P<selected>[A-Z0-9.,_:-]+)"
-    r"\|weights=(?P<weights>[A-Z0-9.,_=:-]+)"
+    r"\|selected=(?P<selected>[A-Z0-9.,_:-]*)"
+    r"\|weights=(?P<weights>[A-Z0-9.,_=:-]*)"
 )
 FATAL_PATTERNS = (
     "error::",
@@ -52,11 +52,17 @@ def parse_target_records(log_text: str) -> tuple[TargetRecord, ...]:
         event_identity = match.group("event")
         record = TargetRecord(
             event_identity=event_identity,
-            selected=tuple(sorted(match.group("selected").split(","))),
+            selected=(
+                tuple(sorted(match.group("selected").split(",")))
+                if match.group("selected")
+                else ()
+            ),
             weights={
                 symbol: Decimal(weight)
                 for symbol, weight in (
-                    item.split("=", 1) for item in match.group("weights").split(",")
+                    item.split("=", 1)
+                    for item in match.group("weights").split(",")
+                    if item
                 )
             },
         )

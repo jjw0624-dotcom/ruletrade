@@ -5,12 +5,15 @@ from decimal import Decimal
 
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
+    DailyScheduleOp,
+    ElapsedSessionsGateOp,
     EqualWeightOp,
     FilterOp,
     FirstNonEmptyTargetsOp,
     IRType,
     MergeTargetsOp,
     MonthlyScheduleOp,
+    ObserveTargetExitsOp,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -40,9 +43,9 @@ class IRValidationError(ValueError):
 
 
 def _result_type(operation: StrategyIROperation) -> IRType:
-    if isinstance(operation, (MonthlyScheduleOp, QuarterlyScheduleOp)):
+    if isinstance(operation, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
         return IRType.EVENT
-    if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp)):
+    if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp, ElapsedSessionsGateOp)):
         return IRType.ASSET_SET
     if isinstance(operation, (TrailingReturnOp, FilterOp)):
         return IRType.ASSET_SCORES
@@ -50,7 +53,14 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         return IRType.RANKED_ASSETS
     if isinstance(
         operation,
-        (EqualWeightOp, ScaleTargetsOp, RetainTargetsOp, MergeTargetsOp, FirstNonEmptyTargetsOp),
+        (
+            EqualWeightOp,
+            ScaleTargetsOp,
+            RetainTargetsOp,
+            MergeTargetsOp,
+            FirstNonEmptyTargetsOp,
+            ObserveTargetExitsOp,
+        ),
     ):
         return IRType.PORTFOLIO_TARGETS
     if isinstance(operation, RebalanceOp):
@@ -69,6 +79,8 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
         return (("scores", operation.scores, IRType.ASSET_SCORES),)
     if isinstance(operation, TopNOp):
         return (("ranked", operation.ranked, IRType.RANKED_ASSETS),)
+    if isinstance(operation, ElapsedSessionsGateOp):
+        return (("candidates", operation.candidates, IRType.ASSET_SET),)
     if isinstance(operation, EqualWeightOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
     if isinstance(operation, ScaleTargetsOp):
@@ -85,6 +97,8 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
             ("primary", operation.primary, IRType.PORTFOLIO_TARGETS),
             ("fallback", operation.fallback, IRType.PORTFOLIO_TARGETS),
         )
+    if isinstance(operation, ObserveTargetExitsOp):
+        return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     if isinstance(operation, RebalanceOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     return ()
@@ -97,7 +111,28 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
     if not strategy_ir.entrypoints:
         issues.append(IRValidationIssue("entrypoints", "at least one entrypoint is required"))
     operations: dict[str, StrategyIROperation] = {}
+    states = {state.id: state for state in strategy_ir.user_state}
+    if len(states) != len(strategy_ir.user_state):
+        issues.append(IRValidationIssue("user_state", "state ids must be unique"))
+    for index, state in enumerate(strategy_ir.user_state):
+        if not state.id:
+            issues.append(IRValidationIssue(f"user_state[{index}].id", "state id is required"))
+        if state.value_type != "trading_session_index" or state.initial is not None:
+            issues.append(
+                IRValidationIssue(
+                    f"user_state[{index}]",
+                    "per-asset last-exit state must start unset",
+                )
+            )
+        if not state.provenance.component_id:
+            issues.append(
+                IRValidationIssue(
+                    f"user_state[{index}].provenance",
+                    "source component id is required",
+                )
+            )
     known_types = (
+        DailyScheduleOp,
         MonthlyScheduleOp,
         QuarterlyScheduleOp,
         AssetSetOp,
@@ -106,11 +141,13 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         FilterOp,
         RankOp,
         TopNOp,
+        ElapsedSessionsGateOp,
         EqualWeightOp,
         ScaleTargetsOp,
         RetainTargetsOp,
         MergeTargetsOp,
         FirstNonEmptyTargetsOp,
+        ObserveTargetExitsOp,
         RebalanceOp,
     )
     for index, operation in enumerate(strategy_ir.operations):
@@ -164,6 +201,31 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
             issues.append(IRValidationIssue(f"{path}.direction", "only descending rank is supported"))
         if isinstance(operation, TopNOp) and operation.count < 1:
             issues.append(IRValidationIssue(f"{path}.count", "Top N count must be positive"))
+        if isinstance(operation, ElapsedSessionsGateOp):
+            if operation.minimum_completed_sessions < 1:
+                issues.append(
+                    IRValidationIssue(
+                        f"{path}.minimum_completed_sessions",
+                        "elapsed-session minimum must be positive",
+                    )
+                )
+            if operation.last_exit_state not in states:
+                issues.append(
+                    IRValidationIssue(
+                        f"{path}.last_exit_state",
+                        f"unknown user state: {operation.last_exit_state}",
+                    )
+                )
+        if (
+            isinstance(operation, ObserveTargetExitsOp)
+            and operation.last_exit_state not in states
+        ):
+            issues.append(
+                IRValidationIssue(
+                    f"{path}.last_exit_state",
+                    f"unknown user state: {operation.last_exit_state}",
+                )
+            )
         if isinstance(operation, EqualWeightOp) and not 0 < operation.total_weight <= 1:
             issues.append(
                 IRValidationIssue(
@@ -257,7 +319,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         event = operations.get(entrypoint.event)
         target = operations.get(entrypoint.target)
         path = f"entrypoints[{index}]"
-        if not isinstance(event, (MonthlyScheduleOp, QuarterlyScheduleOp)):
+        if not isinstance(event, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
             issues.append(IRValidationIssue(f"{path}.event", "entrypoint event must be a schedule"))
         if not isinstance(target, (RetainTargetsOp, RebalanceOp)):
             issues.append(
@@ -276,6 +338,42 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 IRValidationIssue(
                     f"operations[{operation.id}]",
                     "retained targets must have a scheduled refresh entrypoint",
+                )
+            )
+
+    referenced_states = {
+        operation.last_exit_state
+        for operation in operations.values()
+        if isinstance(operation, (ElapsedSessionsGateOp, ObserveTargetExitsOp))
+    }
+    unused_states = sorted(set(states) - referenced_states)
+    if unused_states:
+        issues.append(IRValidationIssue("user_state", f"unused states: {', '.join(unused_states)}"))
+    for state_id in states:
+        gates = [
+            operation
+            for operation in operations.values()
+            if isinstance(operation, ElapsedSessionsGateOp)
+            and operation.last_exit_state == state_id
+        ]
+        observers = [
+            operation
+            for operation in operations.values()
+            if isinstance(operation, ObserveTargetExitsOp)
+            and operation.last_exit_state == state_id
+        ]
+        if len(gates) != 1:
+            issues.append(
+                IRValidationIssue(
+                    f"user_state[{state_id}]",
+                    "last-exit state must have exactly one elapsed-session gate",
+                )
+            )
+        if len(observers) != 1:
+            issues.append(
+                IRValidationIssue(
+                    f"user_state[{state_id}]",
+                    "last-exit state must have exactly one target-exit observer",
                 )
             )
 

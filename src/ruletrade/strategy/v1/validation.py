@@ -393,6 +393,17 @@ def collect_semantic_issues(
                     )
                 )
 
+        if primitive.implementation_id == "selection.cooldown":
+            candidate_id = input_sources.get((component_id, "candidates"))
+            candidate = primitive_specs.get(candidate_id) if candidate_id is not None else None
+            if candidate is not None and candidate.implementation_id != "selection.top_n":
+                issues.append(
+                    SemanticIssue(
+                        f"graph.components[{component_id}].inputs.candidates",
+                        "cooldown v0 must consume Top N candidates",
+                    )
+                )
+
         if primitive.implementation_id == "targets.fallback_asset":
             component = components[component_id]
             reference = component.config.get("fallback_asset_set_ref")
