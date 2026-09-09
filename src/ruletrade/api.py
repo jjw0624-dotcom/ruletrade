@@ -28,19 +28,6 @@ from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence import SQLiteStrategyRepository
-from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
-from ruletrade.strategy.v1.fixtures import (
-    cooldown_strategy,
-    fallback_momentum_strategy,
-    filter_screening_strategy,
-    golden_portfolio_strategy,
-    independent_schedules_strategy,
-    momentum_top_n_strategy,
-    portfolio_sleeves_strategy,
-)
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
-from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
-from ruletrade.strategy.v1.validation import collect_semantic_issues
 from ruletrade.strategies.errors import (
     InvalidStrategySourceError,
     PersistenceError,
@@ -61,6 +48,19 @@ from ruletrade.strategies.models import (
     StrategyList,
 )
 from ruletrade.strategies.service import StrategyService
+from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
+from ruletrade.strategy.v1.fixtures import (
+    cooldown_strategy,
+    fallback_momentum_strategy,
+    filter_screening_strategy,
+    golden_portfolio_strategy,
+    independent_schedules_strategy,
+    momentum_top_n_strategy,
+    portfolio_sleeves_strategy,
+)
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
+from ruletrade.strategy.v1.validation import collect_semantic_issues
 
 
 logger = logging.getLogger(__name__)

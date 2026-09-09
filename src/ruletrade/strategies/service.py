@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -41,7 +41,7 @@ class StrategyService:
         id_factory: Callable[[], str] | None = None,
     ) -> None:
         self.repository = repository
-        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda: str(uuid4()))
 
     def list_strategies(self) -> tuple[StrategyRecord, ...]:

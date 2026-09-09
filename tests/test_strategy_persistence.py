@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -182,7 +182,8 @@ def test_create_transaction_rolls_back_if_initial_revision_insert_fails(tmp_path
     database = tmp_path / "ruletrade.sqlite3"
 
     def timestamp() -> datetime:
-        return datetime(2026, 9, 9, tzinfo=timezone.utc)
+        return datetime(2026, 9, 9, tzinfo=UTC)
+
     first_ids = iter(("strategy-one", "shared-revision"))
     first = StrategyService(
         SQLiteStrategyRepository(database),

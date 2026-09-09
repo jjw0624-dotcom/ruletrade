@@ -6,9 +6,9 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
 SCHEMA_VERSION = 1
@@ -366,4 +366,4 @@ def _timestamp(value: datetime) -> str:
 
 
 def _parse_timestamp(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
