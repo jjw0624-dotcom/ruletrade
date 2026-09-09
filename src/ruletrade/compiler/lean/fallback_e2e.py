@@ -5,7 +5,14 @@ from decimal import Decimal
 from pathlib import Path
 
 from ruletrade.backtests.normalization import normalize_lean_result
-from ruletrade.compiler.lean.e2e import COMPLETION_PATTERN, FATAL_PATTERNS, parse_target_records
+from ruletrade.compiler.lean.e2e import (
+    division_derived_scores_match,
+    parse_decimal_map,
+    parse_symbols,
+    parse_target_records,
+    validate_lean_completion,
+    validate_zero_failed_data_requests,
+)
 from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
 from ruletrade.strategy.v1.momentum import evaluate_fallback_trailing_return_top_n
 
@@ -28,31 +35,13 @@ FINAL_PATTERN = re.compile(
     r"\|selected=(?P<selected>[A-Z0-9,]+)"
     r"\|decision=executed\|source=(?P<source>primary|fallback)"
 )
-FAILED_DATA_REQUESTS_PATTERN = re.compile(
-    r"Failed data requests[ \t]*:?[ \t]*(?P<count>\d+)", re.IGNORECASE
-)
-
-
-def _split_symbols(value: str) -> tuple[str, ...]:
-    return tuple(value.split(",")) if value else ()
-
-
 def verify_fallback_e2e(
     log_text: str,
     result_payload: object,
     fixture: Path,
 ) -> tuple[int, int, int, int]:
-    lowered = log_text.lower()
-    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal or COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
-    failed_data_requests = FAILED_DATA_REQUESTS_PATTERN.search(log_text)
-    if failed_data_requests is None:
-        raise ValueError("LEAN data-request summary is missing")
-    if int(failed_data_requests.group("count")) != 0:
-        raise ValueError(
-            f"LEAN reported {failed_data_requests.group('count')} failed data requests"
-        )
+    validate_lean_completion(log_text)
+    validate_zero_failed_data_requests(log_text)
 
     filters = {match.group("event"): match for match in FILTER_PATTERN.finditer(log_text)}
     primaries = {match.group("event"): match for match in PRIMARY_PATTERN.finditer(log_text)}
@@ -84,28 +73,20 @@ def verify_fallback_e2e(
         primary_trace = primaries[event_identity]
         fallback_trace = fallbacks[event_identity]
         final_trace = finals[event_identity]
-        actual_scores = {
-            symbol: Decimal(value)
-            for symbol, value in (
-                item.split("=", 1) for item in primary_trace.group("scores").split(",")
-            )
-        }
-        if set(actual_scores) != {symbol for symbol, _ in reference.scores}:
-            raise ValueError(f"score symbol mismatch for {event_identity}")
-        for symbol, expected in reference.scores:
-            if abs(actual_scores[symbol] - expected) > Decimal("1e-24"):
-                raise ValueError(f"score mismatch for {event_identity} {symbol}")
+        actual_scores = parse_decimal_map(primary_trace.group("scores"))
+        if not division_derived_scores_match(actual_scores, dict(reference.scores)):
+            raise ValueError(f"score mismatch for {event_identity}")
         if Decimal(filter_trace.group("threshold")) != 0:
             raise ValueError(f"threshold mismatch for {event_identity}")
-        if _split_symbols(filter_trace.group("eligible")) != reference.eligible:
+        if parse_symbols(filter_trace.group("eligible")) != reference.eligible:
             raise ValueError(f"eligible-set mismatch for {event_identity}")
-        if _split_symbols(filter_trace.group("rejected")) != reference.rejected:
+        if parse_symbols(filter_trace.group("rejected")) != reference.rejected:
             raise ValueError(f"rejected-set mismatch for {event_identity}")
-        if _split_symbols(primary_trace.group("ranked")) != reference.ranked:
+        if parse_symbols(primary_trace.group("ranked")) != reference.ranked:
             raise ValueError(f"ranking mismatch for {event_identity}")
-        if _split_symbols(primary_trace.group("candidate")) != reference.candidate:
+        if parse_symbols(primary_trace.group("candidate")) != reference.candidate:
             raise ValueError(f"candidate mismatch for {event_identity}")
-        if _split_symbols(primary_trace.group("selected")) != reference.primary_selected:
+        if parse_symbols(primary_trace.group("selected")) != reference.primary_selected:
             raise ValueError(f"primary selection mismatch for {event_identity}")
 
         expected_primary_decision = (
@@ -124,7 +105,7 @@ def verify_fallback_e2e(
             raise ValueError(f"fallback decision mismatch for {event_identity}")
 
         expected_source = "fallback" if reference.fallback_activated else "primary"
-        if _split_symbols(final_trace.group("selected")) != reference.final_selected:
+        if parse_symbols(final_trace.group("selected")) != reference.final_selected:
             raise ValueError(f"final selection mismatch for {event_identity}")
         if final_trace.group("source") != expected_source:
             raise ValueError(f"final source mismatch for {event_identity}")

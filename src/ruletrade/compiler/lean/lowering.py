@@ -102,6 +102,7 @@ def lower_strategy_ir_to_lean_plan(
             id=selection_id,
             score_component_id=score.provenance.component_id,
             rank_component_id=rank.provenance.component_id,
+            selection_component_id=top_n.provenance.component_id,
             symbols=asset_set.symbols,
             lookback_bars=history.lookback_bars,
             count=top_n.count,

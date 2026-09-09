@@ -41,6 +41,7 @@ jobs:
           src/ruletrade/compiler/frontend
           src/ruletrade/compiler/lean/__init__.py
           src/ruletrade/compiler/lean/cooldown_e2e.py
+          src/ruletrade/compiler/lean/e2e.py
           src/ruletrade/compiler/lean/fallback_e2e.py
           src/ruletrade/compiler/lean/filter_e2e.py
           src/ruletrade/compiler/lean/independent_schedules_e2e.py
@@ -137,6 +138,8 @@ jobs:
 
       - name: Generate compiler-slice C# algorithms
         run: |
+          PYTHONPATH=src uv run python scripts/generate_golden_lean.py \
+            --output build/lean/golden-ci/Main.cs
           PYTHONPATH=src uv run python scripts/generate_momentum_lean.py \
             --output build/lean/momentum-ci/Main.cs
           PYTHONPATH=src uv run python scripts/generate_filter_lean.py \
@@ -165,6 +168,9 @@ jobs:
       - name: Compile generated C# against LEAN
         run: |
           ./scripts/build_golden_lean_docker.sh \
+            build/lean/golden-ci/Main.cs \
+            build/lean/golden-ci/bin
+          ./scripts/build_golden_lean_docker.sh \
             build/lean/momentum-ci/Main.cs \
             build/lean/momentum-ci/bin
           ./scripts/build_golden_lean_docker.sh \
@@ -185,6 +191,7 @@ jobs:
 
       - name: Verify generated assemblies
         run: |
+          test -f build/lean/golden-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/filter-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/fallback-ci/bin/RuleTradeGenerated.dll

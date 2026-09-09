@@ -28,6 +28,7 @@ class LeanMomentumSelection:
     id: str
     score_component_id: str
     rank_component_id: str
+    selection_component_id: str
     symbols: tuple[str, ...]
     lookback_bars: int
     count: int

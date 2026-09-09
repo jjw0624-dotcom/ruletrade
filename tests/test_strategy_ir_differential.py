@@ -3,6 +3,7 @@ from decimal import Decimal
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.analysis import analyze_strategy_ir
 from ruletrade.compiler.frontend import lower_strategy_model_to_ir
+from ruletrade.compiler.lean import lower_to_lean_plan
 from ruletrade.compiler.lean.codegen import generate_csharp
 from ruletrade.compiler.lean.lowering import lower_strategy_ir_to_lean_plan
 from ruletrade.compiler.lean.plan import (
@@ -82,3 +83,9 @@ def test_lean_backend_lowering_consumes_strategy_ir_and_analysis() -> None:
     plan = lower_strategy_ir_to_lean_plan(strategy_ir, requirements)
 
     assert plan == _legacy_direct_lowering_oracle()
+
+
+def test_lean_compatibility_facade_delegates_to_the_official_compiler_path() -> None:
+    strategy = golden_portfolio_strategy()
+
+    assert lower_to_lean_plan(strategy) == compile_strategy_to_lean_plan(strategy)

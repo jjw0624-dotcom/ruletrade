@@ -81,6 +81,7 @@ def test_momentum_lowers_to_lean_plan_and_codegen_without_source_leakage() -> No
 
     assert plan.random_selections == ()
     assert selection.symbols == ("QQQ", "VGT", "SOXX", "SCHG")
+    assert selection.selection_component_id == "top_n"
     assert selection.lookback_bars == 126
     assert selection.count == 2
     source = generate_csharp(plan)

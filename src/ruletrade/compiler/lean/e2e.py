@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
+from zipfile import ZipFile
 
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.core.selection import select_symbols
@@ -30,6 +32,10 @@ COMPLETION_PATTERN = re.compile(
     r"algorithm id:.*completed|algorithmmanager\.run\(\): firing on end of algorithm|backtest completed",
     re.IGNORECASE,
 )
+FAILED_DATA_REQUESTS_PATTERN = re.compile(
+    r"Failed data requests[ \t]*:?[ \t]*(?P<count>\d+)", re.IGNORECASE
+)
+DIVISION_DERIVED_SCORE_TOLERANCE = Decimal("1e-24")
 
 
 @dataclass(frozen=True)
@@ -46,6 +52,76 @@ class E2EValidationResult:
     interest_rate_fixture_warning: bool
 
 
+def validate_lean_completion(log_text: str) -> None:
+    """Reject known fatal output and require LEAN's completion marker."""
+
+    lowered = log_text.lower()
+    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
+    if fatal or COMPLETION_PATTERN.search(log_text) is None:
+        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
+
+
+def validate_zero_failed_data_requests(log_text: str) -> None:
+    """Require the LEAN data-request summary and an exact zero count."""
+
+    match = FAILED_DATA_REQUESTS_PATTERN.search(log_text)
+    if match is None:
+        raise ValueError("LEAN data-request summary is missing")
+    if int(match.group("count")) != 0:
+        raise ValueError(f"LEAN reported {match.group('count')} failed data requests")
+
+
+def parse_symbols(value: str) -> tuple[str, ...]:
+    return tuple(value.split(",")) if value else ()
+
+
+def parse_decimal_map(value: str) -> dict[str, Decimal]:
+    if not value:
+        return {}
+    return {
+        key: Decimal(decimal)
+        for key, decimal in (item.split("=", 1) for item in value.split(","))
+    }
+
+
+def division_derived_scores_match(
+    actual: dict[str, Decimal],
+    expected: dict[str, Decimal],
+) -> bool:
+    """Compare only division-derived cross-runtime scores with a narrow tolerance."""
+
+    return actual.keys() == expected.keys() and all(
+        abs(actual[symbol] - expected[symbol]) <= DIVISION_DERIVED_SCORE_TOLERANCE
+        for symbol in expected
+    )
+
+
+def load_aligned_daily_closes(
+    fixture: Path,
+    symbols: tuple[str, ...],
+    *,
+    fixture_name: str,
+) -> tuple[list[str], dict[str, list[Decimal]]]:
+    """Load the identical LEAN Daily ZIP shape shared by compiler-slice fixtures."""
+
+    dates: list[str] = []
+    closes: dict[str, list[Decimal]] = {}
+    for symbol in symbols:
+        lower = symbol.lower()
+        archive_path = fixture / "equity" / "usa" / "daily" / f"{lower}.zip"
+        with ZipFile(archive_path) as archive:
+            rows = [
+                row.split(",")
+                for row in archive.read(f"{lower}.csv").decode().splitlines()
+            ]
+        observed_dates = [row[0][:8] for row in rows]
+        if dates and observed_dates != dates:
+            raise ValueError(f"{fixture_name} fixture assets must have aligned Daily bars")
+        dates = observed_dates
+        closes[symbol] = [Decimal(row[4]) for row in rows]
+    return dates, closes
+
+
 def parse_target_records(log_text: str) -> tuple[TargetRecord, ...]:
     records: dict[str, TargetRecord] = {}
     for match in TARGET_PATTERN.finditer(log_text):
@@ -57,14 +133,7 @@ def parse_target_records(log_text: str) -> tuple[TargetRecord, ...]:
                 if match.group("selected")
                 else ()
             ),
-            weights={
-                symbol: Decimal(weight)
-                for symbol, weight in (
-                    item.split("=", 1)
-                    for item in match.group("weights").split(",")
-                    if item
-                )
-            },
+            weights=parse_decimal_map(match.group("weights")),
         )
         existing = records.get(event_identity)
         if existing is not None and existing != record:
@@ -106,12 +175,7 @@ def validate_golden_e2e(
     expected_events: int = 12,
     expected_first_event: str = "2024-01-02",
 ) -> E2EValidationResult:
-    lowered = log_text.lower()
-    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal is not None:
-        raise ValueError(f"fatal LEAN execution error found: {fatal}")
-    if COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError("LEAN backtest completion marker was not found")
+    validate_lean_completion(log_text)
 
     records = parse_target_records(log_text)
     if len(records) != expected_events:
