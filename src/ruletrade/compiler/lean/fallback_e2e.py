@@ -13,8 +13,8 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
-from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
 from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
+from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
 from ruletrade.strategy.v1.momentum import evaluate_fallback_trailing_return_top_n
 
 PRIMARY_PATTERN = re.compile(

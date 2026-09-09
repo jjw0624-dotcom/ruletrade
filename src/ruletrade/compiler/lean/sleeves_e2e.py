@@ -13,12 +13,12 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
+from ruletrade.compiler.lean.evidence_e2e import evidence_for_source, index_decision_evidence
 from ruletrade.compiler.lean.fallback_e2e import (
     FALLBACK_PATTERN,
     FINAL_PATTERN,
     PRIMARY_PATTERN,
 )
-from ruletrade.compiler.lean.evidence_e2e import evidence_for_source, index_decision_evidence
 from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
 from ruletrade.strategy.v1.momentum import evaluate_portfolio_sleeves
 
