@@ -187,7 +187,14 @@ def _result_payload() -> dict[str, Any]:
         },
         "charts": {
             "Strategy Equity": {
-                "series": {"Equity": {"values": [[1704153600, 100000], [1735603200, 110000]]}}
+                "series": {
+                    "Equity": {
+                        "values": [
+                            [1704153600, 100000, 100000, 100000, 100000],
+                            [1735603200, 110000, 110000, 110000, 110000],
+                        ]
+                    }
+                }
             }
         },
     }
@@ -405,3 +412,4 @@ def test_schema_v2_database_migrates_without_changing_historical_runs(
     assert reopened.list_decision_events(run.id) == ()
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+
