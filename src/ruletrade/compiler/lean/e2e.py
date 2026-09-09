@@ -4,15 +4,14 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from zipfile import ZipFile
 from typing import Any
+from zipfile import ZipFile
 
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 from ruletrade.strategy.v1.randomness import deterministic_random_seed
-
 
 TARGET_PATTERN = re.compile(
     r"RULETRADE_TARGETS\|(?P<event>\d{4}-\d{2}-\d{2})"
