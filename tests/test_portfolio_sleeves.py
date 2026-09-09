@@ -105,6 +105,8 @@ def test_lean_plan_is_flat_with_source_sleeve_provenance() -> None:
 def test_codegen_aggregates_overlaps_and_emits_sleeve_contributions() -> None:
     source = generate_csharp(compile_strategy_to_lean_plan(portfolio_sleeves_strategy()))
     assert "RULETRADE_SLEEVE|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution"' in source
+    assert '"sleeve_component", "growth_sleeve"' in source
     assert "sleeve=growth_sleeve" not in source  # stable id is emitted as a quoted value
     assert '"growth_sleeve"' in source and '"defensive_sleeve"' in source
     assert "targets0_0[symbol] + weight" in source

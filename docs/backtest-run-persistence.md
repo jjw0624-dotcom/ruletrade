@@ -45,6 +45,9 @@ Database checks enforce payload/status consistency. Triggers prevent input/prove
 invalid lifecycle transitions, and deletion. Existing version-1 databases migrate automatically;
 unknown versions still fail safely. Strategy archival does not delete Revisions or Runs.
 
+Schema version 3 adds immutable Structured Decision Events without changing BacktestRun inputs or
+results; see `decision-evidence.md`. Runs created under version 2 remain readable historical results.
+
 ## Provenance
 
 Each Run stores facts available at execution time:

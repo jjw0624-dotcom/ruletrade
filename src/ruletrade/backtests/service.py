@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from time import perf_counter_ns
 
 from ruletrade.backtests.errors import (
@@ -16,8 +17,16 @@ from ruletrade.compiler.lean import (
     LeanLoweringError,
     generate_csharp,
 )
+from ruletrade.decision_evidence.collector import collect_decision_evidence
+from ruletrade.decision_evidence.models import CollectedDecisionEvent
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+
+
+@dataclass(frozen=True)
+class BacktestExecution:
+    response: LeanBacktestResponse
+    decision_events: tuple[CollectedDecisionEvent, ...]
 
 
 class BacktestService:
@@ -25,6 +34,13 @@ class BacktestService:
         self.runner = runner
 
     def execute(self, request: LeanBacktestRequest) -> LeanBacktestResponse:
+        """Execute the compatibility path and return its established response shape."""
+
+        return self.execute_with_evidence(request).response
+
+    def execute_with_evidence(self, request: LeanBacktestRequest) -> BacktestExecution:
+        """Execute once and collect the versioned machine evidence from that execution."""
+
         total_started = perf_counter_ns()
         stage_started = perf_counter_ns()
         issues = collect_semantic_issues(request.strategy)
@@ -51,20 +67,23 @@ class BacktestService:
         stage_started = perf_counter_ns()
         result = normalize_lean_result(artifact.result_payload)
         normalization_ms = _elapsed_ms(stage_started)
-        return LeanBacktestResponse(
-            strategy_hash=strategy_hash(request.strategy),
-            config=request.config,
-            result=result,
-            timings=BacktestTimings(
-                validation_ms=validation_ms,
-                compiler_ms=compiler_ms,
-                codegen_ms=codegen_ms,
-                csharp_compile_ms=artifact.timings.csharp_compile_ms,
-                lean_execution_ms=artifact.timings.lean_execution_ms,
-                result_load_ms=artifact.timings.result_load_ms,
-                normalization_ms=normalization_ms,
-                total_ms=_elapsed_ms(total_started),
+        return BacktestExecution(
+            response=LeanBacktestResponse(
+                strategy_hash=strategy_hash(request.strategy),
+                config=request.config,
+                result=result,
+                timings=BacktestTimings(
+                    validation_ms=validation_ms,
+                    compiler_ms=compiler_ms,
+                    codegen_ms=codegen_ms,
+                    csharp_compile_ms=artifact.timings.csharp_compile_ms,
+                    lean_execution_ms=artifact.timings.lean_execution_ms,
+                    result_load_ms=artifact.timings.result_load_ms,
+                    normalization_ms=normalization_ms,
+                    total_ms=_elapsed_ms(total_started),
+                ),
             ),
+            decision_events=collect_decision_evidence(artifact.log_text),
         )
 
     @property

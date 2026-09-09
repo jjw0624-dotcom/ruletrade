@@ -57,7 +57,12 @@ class FakeRunner:
         if self.error is not None:
             raise self.error
         return LeanRunArtifact(
-            log_text="Backtest completed",
+            log_text=(
+                "Backtest completed\n"
+                "RULETRADE_EVIDENCE_V1|sequence=1|session=2024-01-02|"
+                "phase=portfolio_execution|kind=final_targets|"
+                "rebalance_component=rebalance|selected=QQQ|targets=QQQ%3D1"
+            ),
             result_payload=_lean_payload(),
             timings=LeanRunnerTimings(
                 csharp_compile_ms=11,
@@ -210,7 +215,7 @@ def test_database_enforces_run_input_immutability_and_lifecycle(tmp_path: Path) 
             connection.execute("DELETE FROM backtest_runs WHERE id = ?", (run.id,))
 
 
-def test_schema_v1_database_migrates_to_v2(tmp_path: Path) -> None:
+def test_schema_v1_database_migrates_to_current_schema(tmp_path: Path) -> None:
     database = tmp_path / "ruletrade.sqlite3"
     strategies = StrategyService(SQLiteStrategyRepository(database))
     revision = strategies.create_strategy(
@@ -224,10 +229,13 @@ def test_schema_v1_database_migrates_to_v2(tmp_path: Path) -> None:
         connection.execute("PRAGMA user_version = 1")
     reopened = StrategyService(SQLiteStrategyRepository(database))
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'backtest_runs'"
         ).fetchone() == ("backtest_runs",)
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_events'"
+        ).fetchone() == ("decision_events",)
     assert reopened.get_revision_by_id(revision.id) == revision
 
 

@@ -29,10 +29,11 @@ Included:
 - A React Strategy Editor where Guided and Flow project and patch one Canonical v1 document
 - Durable Strategy identities with immutable Canonical Revision history in SQLite
 - Durable BacktestRun history for saved Revisions, normalized results, provenance, and timings
+- Durable, versioned Structured Decision Evidence for persisted Runs
 
 Not included yet:
 
-- User accounts, sharing, and Structured Decision Evidence
+- User accounts, sharing, and natural-language decision explanation
 - Rules, Blocks, and editable Code authoring views
 - Browser-triggered LEAN backtests
 - Forward tests and competitions
@@ -43,7 +44,9 @@ boundaries proven through Cooldown, and
 [Strategy and immutable Revision persistence](docs/strategy-revision-persistence.md) for the first
 durable product-domain boundary, and
 [Persistent BacktestRun](docs/backtest-run-persistence.md) for immutable execution configuration,
-historical results, provenance, and latency instrumentation.
+historical results, provenance, and latency instrumentation, and
+[Structured Decision Evidence](docs/decision-evidence.md) for the machine contract, immutable event
+schema, source provenance, and Timeline/Inspector read API.
 
 ## Strategy Editor
 

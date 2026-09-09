@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -147,6 +147,43 @@ class SQLiteStrategyRepository:
                     BEFORE DELETE ON backtest_runs
                     BEGIN
                         SELECT RAISE(ABORT, 'backtest runs are immutable historical artifacts');
+                    END;
+
+                    CREATE TABLE IF NOT EXISTS decision_events (
+                        run_id TEXT NOT NULL,
+                        id TEXT NOT NULL,
+                        ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+                        schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+                        session_id TEXT NOT NULL,
+                        phase TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        source_components_json TEXT NOT NULL,
+                        evidence_json TEXT NOT NULL,
+                        PRIMARY KEY (run_id, id),
+                        UNIQUE (run_id, ordinal),
+                        FOREIGN KEY (run_id) REFERENCES backtest_runs(id)
+                    );
+
+                    CREATE INDEX IF NOT EXISTS decision_events_run_order
+                        ON decision_events(run_id, ordinal);
+
+                    CREATE TRIGGER IF NOT EXISTS decision_events_running_run_only
+                    BEFORE INSERT ON decision_events
+                    WHEN (SELECT status FROM backtest_runs WHERE id = NEW.run_id) != 'running'
+                    BEGIN
+                        SELECT RAISE(ABORT, 'decision events may only complete a running run');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS decision_events_no_update
+                    BEFORE UPDATE ON decision_events
+                    BEGIN
+                        SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS decision_events_no_delete
+                    BEFORE DELETE ON decision_events
+                    BEGIN
+                        SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
                     END;
                     """
                 )

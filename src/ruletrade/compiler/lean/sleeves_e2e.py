@@ -13,6 +13,7 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
+from ruletrade.compiler.lean.evidence_e2e import evidence_for_source, index_decision_evidence
 from ruletrade.compiler.lean.fallback_e2e import (
     FALLBACK_PATTERN,
     FINAL_PATTERN,
@@ -45,6 +46,7 @@ def verify_sleeves_e2e(
     finals = {match.group("event"): match for match in FINAL_PATTERN.finditer(log_text)}
     targets = {record.event_identity: record for record in parse_target_records(log_text)}
     sleeve_traces: dict[str, dict[str, re.Match[str]]] = {}
+    evidence = index_decision_evidence(log_text)
     for match in SLEEVE_PATTERN.finditer(log_text):
         sleeve_traces.setdefault(match.group("event"), {})[match.group("sleeve")] = match
     trace_counts = {
@@ -111,6 +113,23 @@ def verify_sleeves_e2e(
                 raise ValueError(f"allocation mismatch for {event} {sleeve.sleeve_id}")
             if parse_decimal_map(actual.group("scaled")) != dict(sleeve.scaled_targets):
                 raise ValueError(f"scaled targets mismatch for {event} {sleeve.sleeve_id}")
+            if evidence:
+                structured = evidence_for_source(
+                    evidence,
+                    event,
+                    "sleeve_contribution",
+                    "sleeve",
+                    sleeve.sleeve_id,
+                ).evidence
+                if (
+                    structured.local_selected != tuple(sorted(sleeve.local_selected))
+                    or structured.local_targets != dict(sleeve.local_targets)
+                    or structured.allocation != sleeve.allocation
+                    or structured.scaled_targets != dict(sleeve.scaled_targets)
+                ):
+                    raise ValueError(
+                        f"structured sleeve evidence mismatch for {event} {sleeve.sleeve_id}"
+                    )
         target = targets[event]
         if target.selected != reference.final_selected:
             raise ValueError(f"final selected-symbol mismatch for {event}")

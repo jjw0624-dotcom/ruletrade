@@ -20,6 +20,9 @@ def test_golden_strategy_compiles_through_to_classic_qcalgorithm_source() -> Non
     assert "RuleTradeRandom.Sample" in source
     assert "SetHoldings(target.Key, target.Value)" in source
     assert "RULETRADE_TARGETS|" in source
+    assert "RULETRADE_EVIDENCE_V1|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "selection", "random_selection"' in source
+    assert 'EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets"' in source
     assert "AlphaModel" not in source
     assert "CanonicalStrategyV1" not in source
 

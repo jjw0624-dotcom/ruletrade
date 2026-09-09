@@ -205,6 +205,8 @@ def test_fallback_lowers_to_typed_lean_plan_and_generated_branch() -> None:
     assert '"insufficient"' in source
     assert "RULETRADE_FALLBACK|" in source
     assert "RULETRADE_FINAL|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "selection", "fallback"' in source
+    assert '"fallback_component", "fallback"' in source
     assert 'new List<string> { "TLT" }' in source
     assert "RULETRADE_MOMENTUM_SKIPPED|" not in source
 

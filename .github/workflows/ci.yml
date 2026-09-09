@@ -43,6 +43,7 @@ jobs:
           src/ruletrade/compiler/lean/__init__.py
           src/ruletrade/compiler/lean/cooldown_e2e.py
           src/ruletrade/compiler/lean/e2e.py
+          src/ruletrade/compiler/lean/evidence_e2e.py
           src/ruletrade/compiler/lean/fallback_e2e.py
           src/ruletrade/compiler/lean/filter_e2e.py
           src/ruletrade/compiler/lean/independent_schedules_e2e.py
@@ -50,6 +51,7 @@ jobs:
           src/ruletrade/compiler/lean/momentum_e2e.py
           src/ruletrade/compiler/lean/sleeves_e2e.py
           src/ruletrade/compiler/pipeline.py
+          src/ruletrade/decision_evidence
           src/ruletrade/ir
           src/ruletrade/persistence
           src/ruletrade/strategies
@@ -71,6 +73,7 @@ jobs:
           tests/test_api.py
           tests/test_backtest_runs.py
           tests/test_cooldown.py
+          tests/test_decision_evidence.py
           tests/test_fallback.py
           tests/test_filter_screening.py
           tests/test_independent_schedules.py
@@ -203,3 +206,4 @@ jobs:
           test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/cooldown-ci/bin/RuleTradeGenerated.dll
+

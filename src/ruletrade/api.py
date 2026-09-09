@@ -36,6 +36,11 @@ from ruletrade.backtests.service import BacktestService
 from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
+from ruletrade.decision_evidence.errors import DecisionEventNotFoundError
+from ruletrade.decision_evidence.models import (
+    DecisionEventDetail,
+    DecisionEventList,
+)
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
@@ -194,6 +199,17 @@ async def backtest_run_domain_error(
                 "message": "Backtest Run persistence is temporarily unavailable.",
             }
         },
+    )
+
+
+@app.exception_handler(DecisionEventNotFoundError)
+async def decision_event_not_found(
+    _request: Request,
+    exc: DecisionEventNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={"detail": {"code": exc.code, "message": str(exc)}},
     )
 
 
@@ -478,6 +494,29 @@ def read_persisted_backtest_run(
     service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> BacktestRunRecord:
     return service.get_run(run_id)
+
+
+@app.get(
+    "/v1/backtest-runs/{run_id}/decision-events",
+    response_model=DecisionEventList,
+)
+def list_run_decision_events(
+    run_id: str,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> DecisionEventList:
+    return DecisionEventList(items=list(service.list_decision_events(run_id)))
+
+
+@app.get(
+    "/v1/backtest-runs/{run_id}/decision-events/{event_id}",
+    response_model=DecisionEventDetail,
+)
+def read_run_decision_event(
+    run_id: str,
+    event_id: str,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> DecisionEventDetail:
+    return service.get_decision_event(run_id, event_id)
 
 
 @app.get("/v1/strategies", response_model=StrategyList)

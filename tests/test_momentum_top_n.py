@@ -93,6 +93,7 @@ def test_momentum_lowers_to_lean_plan_and_codegen_without_source_leakage() -> No
     assert ".ThenBy(item => item.Key, StringComparer.Ordinal)" in source
     assert ".Take(2)" in source
     assert "RULETRADE_MOMENTUM|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "selection", "selection"' in source
     assert "RuleTradeRandom" not in source
     assert source.index("_dailyCloses[item.Key].Add(bar.Close);") < source.index(
         "ExecuteEvent0(eventIdentity);"
