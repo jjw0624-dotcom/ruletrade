@@ -161,3 +161,59 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   .guided-view { grid-template-columns: 1fr; }
   .result-metrics { grid-template-columns: repeat(3, 1fr); }
 }
+
+.card-actions, .dialog-actions { display: flex; gap: 9px; align-items: center; }
+.card-actions button { flex: 1; }
+.strategy-list { display: grid; gap: 12px; max-width: 900px; }
+.strategy-list-item { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 17px 19px; text-align: left; border: 1px solid #dce3de; border-radius: 14px; background: #fff; color: inherit; cursor: pointer; }
+.strategy-list-item:hover, .strategy-list-item:focus-visible { border-color: #4f8068; transform: translateY(-1px); }
+.strategy-list-item span:first-child { display: grid; gap: 4px; }
+.strategy-list-item small { color: #6f7a74; font-weight: 400; }
+.persisted-status { display: flex; gap: 7px; align-items: center; margin-top: 10px; color: #6f7a74; font-size: 13px; }
+.saved-dot, .dirty-dot { width: 8px; height: 8px; border-radius: 50%; background: #2f8f66; }
+.dirty-dot { background: #d08b2f; }
+.text-button { border: 0; background: transparent; color: #256447; text-decoration: underline; cursor: pointer; padding: 5px; }
+.text-button.danger { color: #a53c37; }
+.save-banner { margin: 0 0 16px; padding: 13px 16px; border-radius: 12px; background: #edf6f1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.save-banner.error, .save-banner.stale { background: #fff3e8; }
+.workspace-danger { margin-top: 32px; border-top: 1px solid #dce3de; padding-top: 16px; text-align: right; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(18, 28, 25, .55); }
+.create-dialog { width: min(448px, 100%); display: grid; gap: 16px; border: 0; border-radius: 18px; padding: 24px; background: #fff; box-shadow: 0 24px 70px rgba(0,0,0,.22); }
+.create-dialog h2, .create-dialog p { margin: 0; }
+.create-dialog label { display: grid; gap: 7px; font-weight: 650; }
+.create-dialog input { min-height: 44px; border: 1px solid #dce3de; border-radius: 9px; padding: 0 13px; font: inherit; }
+.dialog-actions { justify-content: flex-end; }
+
+@media (max-width: 760px) {
+  .card-actions, .workspace-actions { flex-wrap: wrap; }
+  .save-banner { align-items: flex-start; flex-direction: column; }
+}
+
+.run-policy { display: grid; gap: 4px; padding: 12px 14px; border-radius: 10px; background: #edf6f1; }
+.run-policy.temporary { background: #fff5e9; }
+.run-policy span { color: #5e6b64; font-size: 13px; line-height: 1.45; }
+.run-history { margin-top: 28px; padding: 20px; border: 1px solid #dce3de; border-radius: 14px; background: #fafbfa; }
+.run-history header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 12px; }
+.run-history h2 { margin: 4px 0 0; font-size: 18px; }
+.run-history header > span, .run-history > p { color: #6f7a74; font-size: 13px; }
+.run-history-item { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 4px; border: 0; border-top: 1px solid #e2e7e3; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.run-history-item > span:first-child { display: grid; gap: 4px; }
+.run-history-item small { color: #6f7a74; }
+.run-status { text-transform: capitalize; font-weight: 700; color: #476257; }
+.run-status.failed { color: #a53c37; }
+.run-status.pending, .run-status.running { color: #93651f; }
+.run-kind { display: inline-block; margin-top: 8px; padding: 5px 9px; border-radius: 99px; background: #edf6f1; color: #286448; font-size: 12px; font-weight: 700; }
+.run-kind.temporary { background: #fff5e9; color: #835b20; }
+.run-failure { margin: 22px 0; padding: 22px; border: 1px solid #e5c6c0; border-radius: 14px; background: #fff4f1; }
+.run-failure h2 { margin: 5px 0; }
+.run-details { margin-top: 18px; padding: 14px 16px; border: 1px solid #dce3de; border-radius: 12px; }
+.run-details summary { cursor: pointer; font-weight: 700; }
+.run-details dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0 0; }
+.run-details dl div { display: grid; gap: 3px; }
+.run-details dt { color: #6f7a74; font-size: 12px; }
+.run-details dd { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .run-history header { align-items: flex-start; flex-direction: column; }
+  .run-details dl { grid-template-columns: 1fr 1fr; }
+}
