@@ -6,6 +6,7 @@ from typing import Literal
 from ruletrade.ir.strategy import (
     AssetSetOp,
     MonthlyScheduleOp,
+    QuarterlyScheduleOp,
     RandomNOp,
     StrategyIR,
     TrailingReturnOp,
@@ -15,7 +16,7 @@ from ruletrade.ir.strategy import (
 @dataclass(frozen=True)
 class ScheduleRequirement:
     source_component_id: str
-    operation: Literal["schedule.monthly"]
+    operation: Literal["schedule.monthly", "schedule.quarterly"]
     day: int
 
 
@@ -57,7 +58,7 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
         operations.add(operation.operation)
         if isinstance(operation, AssetSetOp):
             assets.update(operation.symbols)
-        elif isinstance(operation, MonthlyScheduleOp):
+        elif isinstance(operation, (MonthlyScheduleOp, QuarterlyScheduleOp)):
             schedules.append(
                 ScheduleRequirement(
                     source_component_id=operation.provenance.component_id,

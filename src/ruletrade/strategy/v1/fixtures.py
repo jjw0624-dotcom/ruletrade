@@ -335,6 +335,26 @@ PORTFOLIO_SLEEVES_PAYLOAD["graph"]["connections"] = [
     {"source": {"component_id": "portfolio", "port": "targets"}, "target": {"component_id": "rebalance", "port": "targets"}},
 ]
 
+INDEPENDENT_SCHEDULES_PAYLOAD = deepcopy(PORTFOLIO_SLEEVES_PAYLOAD)
+INDEPENDENT_SCHEDULES_PAYLOAD["metadata"] = {
+    "name": "Independently Scheduled Growth / Defensive Portfolio",
+    "description": "Refresh Growth monthly and Defensive quarterly; rebalance the portfolio quarterly.",
+}
+monthly = next(
+    item
+    for item in INDEPENDENT_SCHEDULES_PAYLOAD["graph"]["components"]
+    if item["id"] == "monthly"
+)
+monthly["id"] = "growth_monthly"
+INDEPENDENT_SCHEDULES_PAYLOAD["graph"]["components"].append(
+    {"id": "portfolio_quarterly", "primitive": "quarterly@1", "config": {"day": 1}}
+)
+INDEPENDENT_SCHEDULES_PAYLOAD["entrypoints"] = [
+    {"event_component_id": "growth_monthly", "target_component_id": "growth_sleeve"},
+    {"event_component_id": "portfolio_quarterly", "target_component_id": "defensive_sleeve"},
+    {"event_component_id": "portfolio_quarterly", "target_component_id": "rebalance"},
+]
+
 
 def golden_portfolio_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
@@ -358,3 +378,7 @@ def fallback_momentum_strategy() -> CanonicalStrategyV1:
 
 def portfolio_sleeves_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(PORTFOLIO_SLEEVES_PAYLOAD)
+
+
+def independent_schedules_strategy() -> CanonicalStrategyV1:
+    return CanonicalStrategyV1.model_validate(INDEPENDENT_SCHEDULES_PAYLOAD)

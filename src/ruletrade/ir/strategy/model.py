@@ -31,6 +31,14 @@ class MonthlyScheduleOp:
 
 
 @dataclass(frozen=True)
+class QuarterlyScheduleOp:
+    id: str
+    day: int
+    provenance: SourceProvenance
+    operation: Literal["schedule.quarterly"] = "schedule.quarterly"
+
+
+@dataclass(frozen=True)
 class AssetSetOp:
     id: str
     symbols: tuple[str, ...]
@@ -114,6 +122,16 @@ class ScaleTargetsOp:
 
 
 @dataclass(frozen=True)
+class RetainTargetsOp:
+    """Latest semantic targets retained between independently scheduled events."""
+
+    id: str
+    targets: str
+    provenance: SourceProvenance
+    operation: Literal["portfolio.retain_targets"] = "portfolio.retain_targets"
+
+
+@dataclass(frozen=True)
 class FirstNonEmptyTargetsOp:
     id: str
     primary: str
@@ -134,6 +152,7 @@ class RebalanceOp:
 
 StrategyIROperation: TypeAlias = (
     MonthlyScheduleOp
+    | QuarterlyScheduleOp
     | AssetSetOp
     | RandomNOp
     | TrailingReturnOp
@@ -142,6 +161,7 @@ StrategyIROperation: TypeAlias = (
     | TopNOp
     | EqualWeightOp
     | ScaleTargetsOp
+    | RetainTargetsOp
     | MergeTargetsOp
     | FirstNonEmptyTargetsOp
     | RebalanceOp

@@ -10,6 +10,37 @@ export const goldenBootstrap = bootstrapPayload as unknown as EditorBootstrap;
 export const momentumBootstrap = momentumBootstrapPayload as unknown as EditorBootstrap;
 export const sleevesBootstrap = sleevesBootstrapPayload as unknown as EditorBootstrap;
 
+export const independentSchedulesBootstrap = structuredClone(sleevesBootstrap);
+independentSchedulesBootstrap.strategy.metadata = {
+  ...independentSchedulesBootstrap.strategy.metadata,
+  name: "Independently Scheduled Growth / Defensive Portfolio",
+};
+const monthlyComponent = independentSchedulesBootstrap.strategy.graph.components.find(
+  (item) => item.id === "monthly",
+)!;
+monthlyComponent.id = "growth_monthly";
+independentSchedulesBootstrap.strategy.graph.components.push({
+  id: "portfolio_quarterly",
+  primitive: "quarterly@1",
+  config: { day: 1 },
+  condition: null,
+  actions: [],
+});
+independentSchedulesBootstrap.strategy.entrypoints = [
+  { event_component_id: "growth_monthly", target_component_id: "growth_sleeve" },
+  { event_component_id: "portfolio_quarterly", target_component_id: "defensive_sleeve" },
+  { event_component_id: "portfolio_quarterly", target_component_id: "rebalance" },
+];
+const monthlyPrimitive = independentSchedulesBootstrap.registry.primitives.find(
+  (item) => item.id === "monthly@1",
+)!;
+if (!independentSchedulesBootstrap.registry.primitives.some((item) => item.id === "quarterly@1")) {
+  independentSchedulesBootstrap.registry.primitives.push({
+    ...structuredClone(monthlyPrimitive),
+    id: "quarterly@1",
+  });
+}
+
 export const filterBootstrap = structuredClone(momentumBootstrap);
 filterBootstrap.strategy.metadata = {
   ...filterBootstrap.strategy.metadata,

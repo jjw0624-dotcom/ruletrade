@@ -45,13 +45,19 @@ export interface PortfolioGuidedProjection {
     sleeveComponentId: string;
     sleeveName: string;
     allocation: string;
+    refreshScheduleComponentId?: string;
+    refreshSchedule?: string;
   };
   defensive: {
     sleeveComponentId: string;
     sleeveName: string;
     allocation: string;
     assets: string[];
+    refreshScheduleComponentId?: string;
+    refreshSchedule?: string;
   };
+  rebalanceScheduleComponentId?: string;
+  rebalanceSchedule?: string;
 }
 
 export type GuidedProjection = GoldenGuidedProjection | MomentumGuidedProjection | PortfolioGuidedProjection;
@@ -70,6 +76,18 @@ function assetsFor(strategy: CanonicalStrategyV1, componentId: string): string[]
   const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
   if (!definition) throw new Error(`Guided View cannot resolve asset set ${String(reference)}`);
   return definition.assets;
+}
+
+function scheduleForTarget(strategy: CanonicalStrategyV1, targetId: string) {
+  const entrypoint = strategy.entrypoints.find((item) => item.target_component_id === targetId);
+  const component = strategy.graph.components.find(
+    (item) => item.id === entrypoint?.event_component_id,
+  );
+  if (!component) return undefined;
+  return {
+    componentId: component.id,
+    label: component.primitive === "quarterly@1" ? "Quarterly" : "Monthly",
+  };
 }
 
 export function projectGuided(
@@ -123,6 +141,9 @@ export function projectGuided(
       const growthSleeve = sleeveComponents.find((item) => item.id === "growth_sleeve") ?? sleeveComponents[0];
       const defensiveSleeve = sleeveComponents.find((item) => item.id === "defensive_sleeve") ?? sleeveComponents[1];
       const defensiveAssets = strategy.graph.components.find((item) => item.id === "defensive_assets");
+      const growthSchedule = scheduleForTarget(strategy, growthSleeve.id);
+      const defensiveSchedule = scheduleForTarget(strategy, defensiveSleeve.id);
+      const rebalanceSchedule = scheduleForTarget(strategy, "rebalance");
       if (!defensiveAssets) throw new Error("Guided View cannot project Defensive sleeve assets");
       return {
         kind: "portfolio",
@@ -132,13 +153,19 @@ export function projectGuided(
           sleeveComponentId: growthSleeve.id,
           sleeveName: String(growthSleeve.config.name),
           allocation: String(growthSleeve.config.allocation),
+          refreshScheduleComponentId: growthSchedule?.componentId,
+          refreshSchedule: growthSchedule?.label,
         },
         defensive: {
           sleeveComponentId: defensiveSleeve.id,
           sleeveName: String(defensiveSleeve.config.name),
           allocation: String(defensiveSleeve.config.allocation),
           assets: assetsFor(strategy, defensiveAssets.id),
+          refreshScheduleComponentId: defensiveSchedule?.componentId,
+          refreshSchedule: defensiveSchedule?.label,
         },
+        rebalanceScheduleComponentId: rebalanceSchedule?.componentId,
+        rebalanceSchedule: rebalanceSchedule?.label,
       };
     }
     return {

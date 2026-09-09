@@ -43,12 +43,23 @@ export function GuidedView() {
           <div className="summary-row"><span>Signal</span><span>{guided.growth.lookbackBars}-day trailing return &gt; {percent(guided.growth.threshold ?? "0")}</span></div>
           <div className="summary-row"><span>Selection</span><span>Top {guided.growth.topN} · Equal Weight</span></div>
           <div className="summary-row"><span>If insufficient</span><span>Use {guided.growth.fallbackAsset}</span></div>
+          {guided.growth.refreshScheduleComponentId ? <label>Re-evaluate<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
+            type: "apply_semantic_patch",
+            operation: { kind: "update_schedule", componentId: guided.growth.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
+          })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
         </section>
         <section className="sleeve-card safe">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.defensive.sleeveName}</h2></div><strong>{percent(guided.defensive.allocation)}</strong></header>
           <label>Universe</label><AssetChips assets={guided.defensive.assets} />
           <div className="summary-row"><span>Weighting</span><span>Equal Weight</span></div>
+          {guided.defensive.refreshScheduleComponentId ? <label>Re-evaluate<select value={guided.defensive.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
+            type: "apply_semantic_patch",
+            operation: { kind: "update_schedule", componentId: guided.defensive.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
+          })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
         </section>
+        {guided.rebalanceScheduleComponentId ? <section className="sleeve-card portfolio-card">
+          <div className="summary-row"><span>Portfolio rebalance</span><strong>{guided.rebalanceSchedule}</strong></div>
+        </section> : null}
       </div>
     );
   }

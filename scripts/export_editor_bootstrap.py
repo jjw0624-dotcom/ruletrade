@@ -11,7 +11,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export the backend-owned editor bootstrap fixture")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
-        "--example", choices=("golden", "momentum", "filter", "fallback", "sleeves"), default="golden"
+        "--example",
+        choices=("golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules"),
+        default="golden",
     )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)

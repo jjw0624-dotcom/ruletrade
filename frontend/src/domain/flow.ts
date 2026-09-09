@@ -20,6 +20,7 @@ export interface StrategyFlowNodeData extends Record<string, unknown> {
     defensiveComponentId: string;
     value: string;
   };
+  scheduleCadence?: "monthly" | "quarterly";
 }
 
 export interface FlowProjection {
@@ -152,13 +153,19 @@ function nodeData(
   }
   const labels: Record<string, string> = {
     "monthly@1": "Monthly",
+    "quarterly@1": "Quarterly",
     "merge_targets@1": "Merge Targets",
     "rebalance@1": "Rebalance",
   };
   return {
     componentId: component.id,
     title: labels[component.primitive] ?? component.primitive,
-    details: component.primitive === "monthly@1" ? [`Day: ${String(component.config.day ?? 1)}`] : [],
+    details: ["monthly@1", "quarterly@1"].includes(component.primitive)
+      ? [`First trading day`, `Cadence: ${labels[component.primitive]}`]
+      : [],
+    scheduleCadence: component.primitive === "monthly@1"
+      ? "monthly"
+      : component.primitive === "quarterly@1" ? "quarterly" : undefined,
   };
 }
 

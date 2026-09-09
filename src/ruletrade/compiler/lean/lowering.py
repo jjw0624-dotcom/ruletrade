@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
@@ -9,9 +9,12 @@ from ruletrade.compiler.lean.plan import (
     LeanMonthlyEvent,
     LeanOnDataExecution,
     LeanPlan,
+    LeanQuarterlyEvent,
     LeanRandomSelection,
     LeanRebalance,
     LeanSubscription,
+    LeanSnapshotAllocation,
+    LeanTargetSnapshot,
     LeanTargetSleeve,
     normalize_lean_plan,
 )
@@ -22,9 +25,11 @@ from ruletrade.ir.strategy import (
     FirstNonEmptyTargetsOp,
     MergeTargetsOp,
     MonthlyScheduleOp,
+    QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
     RebalanceOp,
+    RetainTargetsOp,
     ScaleTargetsOp,
     StrategyIR,
     TopNOp,
@@ -34,6 +39,18 @@ from ruletrade.ir.strategy import (
 
 class LeanLoweringError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class _LoweredTargets:
+    sleeves: tuple[LeanTargetSleeve, ...] = ()
+    snapshot_allocations: tuple[LeanSnapshotAllocation, ...] = ()
+
+    def merged(self, other: "_LoweredTargets") -> "_LoweredTargets":
+        return _LoweredTargets(
+            sleeves=self.sleeves + other.sleeves,
+            snapshot_allocations=self.snapshot_allocations + other.snapshot_allocations,
+        )
 
 
 def lower_strategy_ir_to_lean_plan(
@@ -50,6 +67,7 @@ def lower_strategy_ir_to_lean_plan(
     selections: dict[str, LeanRandomSelection] = {}
     momentum_selections: dict[str, LeanMomentumSelection] = {}
     sleeves: dict[str, LeanTargetSleeve] = {}
+    snapshots: dict[str, LeanTargetSnapshot] = {}
 
     def lower_sleeve(operation_id: str) -> LeanTargetSleeve:
         operation = operations.get(operation_id)
@@ -129,21 +147,33 @@ def lower_strategy_ir_to_lean_plan(
         *,
         scale: Decimal = Decimal(1),
         source_sleeve_component_id: str | None = None,
-    ) -> tuple[LeanTargetSleeve, ...]:
+    ) -> _LoweredTargets:
         operation = operations.get(operation_id)
         if isinstance(operation, MergeTargetsOp):
             return lower_targets(
                 operation.left,
                 scale=scale,
                 source_sleeve_component_id=source_sleeve_component_id,
-            ) + lower_targets(
+            ).merged(lower_targets(
                 operation.right,
                 scale=scale,
                 source_sleeve_component_id=source_sleeve_component_id,
-            )
+            ))
         if isinstance(operation, ScaleTargetsOp):
             if source_sleeve_component_id is not None:
                 raise LeanLoweringError("nested portfolio sleeves are not supported")
+            retained = operations.get(operation.targets)
+            if isinstance(retained, RetainTargetsOp):
+                snapshot = lower_snapshot(retained)
+                return _LoweredTargets(
+                    snapshot_allocations=(
+                        LeanSnapshotAllocation(
+                            snapshot_id=snapshot.id,
+                            factor=scale * operation.factor,
+                            source_sleeve_component_id=operation.provenance.component_id,
+                        ),
+                    )
+                )
             return lower_targets(
                 operation.targets,
                 scale=scale * operation.factor,
@@ -163,7 +193,7 @@ def lower_strategy_ir_to_lean_plan(
                 ),
             )
             sleeves[lowered.id] = lowered
-            return (lowered,)
+            return _LoweredTargets(sleeves=(lowered,))
         if isinstance(operation, FirstNonEmptyTargetsOp):
             primary = operations.get(operation.primary)
             fallback = operations.get(operation.fallback)
@@ -203,44 +233,79 @@ def lower_strategy_ir_to_lean_plan(
                 ),
             )
             sleeves[lowered.id] = lowered
-            return (lowered,)
+            return _LoweredTargets(sleeves=(lowered,))
         raise LeanLoweringError(
             "Rebalance targets must lower from equal-weight, fallback, scaling, or merging"
         )
 
+    def lower_snapshot(operation: RetainTargetsOp) -> LeanTargetSnapshot:
+        existing = snapshots.get(operation.id)
+        if existing is not None:
+            return existing
+        lowered = lower_targets(operation.targets)
+        if lowered.snapshot_allocations:
+            raise LeanLoweringError("retained targets cannot depend on another retained snapshot")
+        snapshot = LeanTargetSnapshot(
+            id=operation.id,
+            sleeve_ids=tuple(item.id for item in lowered.sleeves),
+            source_sleeve_component_id=operation.provenance.component_id,
+        )
+        snapshots[snapshot.id] = snapshot
+        return snapshot
+
     rebalances: dict[str, LeanRebalance] = {}
     monthly_events: list[LeanMonthlyEvent] = []
+    quarterly_events: list[LeanQuarterlyEvent] = []
     required_symbols = requirements.assets
     if not required_symbols:
         raise LeanLoweringError("LEAN backend requires at least one asset subscription")
 
+    event_actions: dict[str, dict[str, list[str]]] = {}
     for entrypoint in strategy_ir.entrypoints:
         event = operations.get(entrypoint.event)
         target = operations.get(entrypoint.target)
-        if not isinstance(event, MonthlyScheduleOp):
-            raise LeanLoweringError("LEAN compiler v0 supports only monthly events")
+        if not isinstance(event, (MonthlyScheduleOp, QuarterlyScheduleOp)):
+            raise LeanLoweringError("LEAN compiler v0 supports monthly and quarterly events")
         if event.day != 1:
             raise LeanLoweringError(
-                "LEAN compiler v0 supports only the first trading day of the month"
+                "LEAN compiler v0 supports only the first trading day of a period"
             )
-        if not isinstance(target, RebalanceOp):
-            raise LeanLoweringError("monthly entrypoint must target Rebalance")
-        lowered_sleeves = lower_targets(target.targets)
-        if sum((sleeve.total_weight for sleeve in lowered_sleeves), Decimal(0)) != Decimal(1):
-            raise LeanLoweringError("target sleeve weights must sum to 1")
-        rebalances[target.id] = LeanRebalance(
-            id=target.id,
-            sleeve_ids=tuple(sleeve.id for sleeve in lowered_sleeves),
-        )
-        monthly_events.append(
-            LeanMonthlyEvent(
-                id=event.id,
-                day=event.day,
-                anchor_symbol=required_symbols[0],
-                rebalance_ids=(target.id,),
-                execution=LeanOnDataExecution(required_symbols=required_symbols),
+        actions = event_actions.setdefault(event.id, {"refresh": [], "rebalance": []})
+        if isinstance(target, RetainTargetsOp):
+            lower_snapshot(target)
+            actions["refresh"].append(target.id)
+        elif isinstance(target, RebalanceOp):
+            lowered = lower_targets(target.targets)
+            total_weight = sum(
+                (sleeve.total_weight for sleeve in lowered.sleeves), Decimal(0)
+            ) + sum(
+                (item.factor for item in lowered.snapshot_allocations), Decimal(0)
             )
+            if total_weight != Decimal(1):
+                raise LeanLoweringError("target sleeve weights must sum to 1")
+            rebalances[target.id] = LeanRebalance(
+                id=target.id,
+                sleeve_ids=tuple(sleeve.id for sleeve in lowered.sleeves),
+                snapshot_allocations=lowered.snapshot_allocations,
+            )
+            actions["rebalance"].append(target.id)
+        else:
+            raise LeanLoweringError("scheduled target must refresh targets or rebalance")
+
+    for event_id, actions in event_actions.items():
+        event = operations[event_id]
+        common = dict(
+            id=event.id,
+            day=event.day,
+            anchor_symbol=required_symbols[0],
+            refresh_ids=tuple(sorted(set(actions["refresh"]))),
+            rebalance_ids=tuple(sorted(set(actions["rebalance"]))),
+            execution=LeanOnDataExecution(required_symbols=required_symbols),
         )
+        if isinstance(event, MonthlyScheduleOp):
+            monthly_events.append(LeanMonthlyEvent(**common))
+        else:
+            quarterly_events.append(LeanQuarterlyEvent(**common))
 
     return normalize_lean_plan(
         LeanPlan(
@@ -251,5 +316,7 @@ def lower_strategy_ir_to_lean_plan(
             rebalances=tuple(rebalances.values()),
             monthly_events=tuple(monthly_events),
             momentum_selections=tuple(momentum_selections.values()),
+            target_snapshots=tuple(snapshots.values()),
+            quarterly_events=tuple(quarterly_events),
         )
     )

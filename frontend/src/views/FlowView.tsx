@@ -23,13 +23,18 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
     onTopNChange?: (value: number) => void;
     onFallbackChange?: (value: string) => void;
     onAllocationPairChange?: (value: string) => void;
+    onScheduleChange?: (value: "monthly" | "quarterly") => void;
   };
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.allocationPair !== undefined ? (
+      {node.scheduleCadence !== undefined ? (
+        <div className="node-fields"><label>Cadence<select value={node.scheduleCadence} onChange={(event) => node.onScheduleChange?.(event.target.value as "monthly" | "quarterly")}>
+          <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option>
+        </select></label></div>
+      ) : node.allocationPair !== undefined ? (
         <div className="node-fields"><label>Growth / Defensive<select value={node.allocationPair.value} onChange={(event) => node.onAllocationPairChange?.(event.target.value)}>
           <option value="0.70/0.30">70% / 30%</option>
           <option value="0.60/0.40">60% / 40%</option>
@@ -108,6 +113,10 @@ export function FlowView() {
             },
           });
         },
+        onScheduleChange: (cadence: "monthly" | "quarterly") => dispatch({
+          type: "apply_semantic_patch",
+          operation: { kind: "update_schedule", componentId: node.id, cadence },
+        }),
       },
     })),
     [projection.nodes, state.editor.selectedNodeId, dispatch],
