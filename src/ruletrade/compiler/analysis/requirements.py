@@ -9,12 +9,12 @@ from ruletrade.ir.strategy import (
     ElapsedSessionsGateOp,
     FilterOp,
     MonthlyScheduleOp,
-    RankOp,
     QuarterlyScheduleOp,
     RandomNOp,
+    RankOp,
     StrategyIR,
-    TrailingReturnOp,
     TopNOp,
+    TrailingReturnOp,
 )
 
 

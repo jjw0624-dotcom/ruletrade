@@ -80,9 +80,7 @@ def verify_cooldown_e2e(
         }
         event = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
         expected_scores[event] = scores
-        candidates[event] = (
-            sorted(scores, key=lambda symbol: (-scores[symbol], symbol))[0],
-        )
+        candidates[event] = (min(scores, key=lambda symbol: (-scores[symbol], symbol)),)
     sessions = tuple(sorted(candidates))
     reference = evaluate_cooldown(sessions, candidates)
     signals = {item.group("event"): item for item in SIGNAL_PATTERN.finditer(log_text)}

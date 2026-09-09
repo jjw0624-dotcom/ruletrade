@@ -46,7 +46,7 @@ def _fixture_reference():
         }
         events.append(event)
         scores_by_event[event] = scores
-        candidates[event] = (sorted(scores, key=lambda item: (-scores[item], item))[0],)
+        candidates[event] = (min(scores, key=lambda item: (-scores[item], item)),)
     return evaluate_cooldown(events, candidates), scores_by_event
 
 
