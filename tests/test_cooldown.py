@@ -104,6 +104,8 @@ def test_lean_plan_keeps_cooldown_state_distinct_from_target_snapshots() -> None
     assert plan.target_snapshots == ()
     assert plan.cooldown_states[0].required_completed_sessions == 20
     assert plan.cooldown_states[0].calendar_symbol == "QQQ"
+    assert plan.momentum_selections[0].selection_component_id == "top_n"
+    assert plan.momentum_selections[0].id == "cooldown"
     assert plan.rebalances[0].exit_state_ids == ("cooldown$last_exit",)
 
 

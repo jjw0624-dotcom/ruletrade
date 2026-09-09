@@ -35,7 +35,9 @@ Not included yet:
 - Browser-triggered LEAN backtests
 - Forward tests and competitions
 
-See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the current architecture boundary.
+See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the source-model boundary and
+[Compiler Foundation](docs/compiler-foundation.md) for the consolidated compiler and evidence
+boundaries proven through Cooldown.
 
 ## Strategy Editor
 

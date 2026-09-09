@@ -10,7 +10,15 @@ from zipfile import ZipFile
 import pytest
 
 from ruletrade.compiler import compile_strategy_to_lean_plan
-from ruletrade.compiler.lean.e2e import INTEREST_RATE_WARNING, validate_golden_e2e
+from ruletrade.compiler.lean.e2e import (
+    INTEREST_RATE_WARNING,
+    division_derived_scores_match,
+    parse_decimal_map,
+    parse_symbols,
+    validate_golden_e2e,
+    validate_lean_completion,
+    validate_zero_failed_data_requests,
+)
 from ruletrade.core.selection import select_symbols
 from ruletrade.strategy.models import RandomNSelection
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
@@ -45,6 +53,40 @@ EVENTS = (
     "2024-11-01",
     "2024-12-02",
 )
+
+
+def test_shared_verifier_mechanics_keep_exact_and_tolerant_values_separate() -> None:
+    validate_lean_completion("Algorithm Id: test completed")
+    validate_zero_failed_data_requests("Failed data requests: 0")
+    assert parse_symbols("QQQ,IEF") == ("QQQ", "IEF")
+    assert parse_decimal_map("QQQ=0.7,IEF=0.3") == {
+        "QQQ": Decimal("0.7"),
+        "IEF": Decimal("0.3"),
+    }
+    expected = {"QQQ": Decimal("0.123456789012345678901234567")}
+    assert division_derived_scores_match(
+        {"QQQ": Decimal("0.1234567890123456789012345671")},
+        expected,
+    )
+    assert not division_derived_scores_match(
+        {"QQQ": Decimal("0.123456789012345678902234567")},
+        expected,
+    )
+    assert not division_derived_scores_match(
+        {"IEF": expected["QQQ"]},
+        expected,
+    )
+
+
+def test_shared_verifier_health_checks_remain_strict() -> None:
+    with pytest.raises(ValueError, match="fatal LEAN execution error.*runtime error"):
+        validate_lean_completion("Runtime Error: boom\nAlgorithm Id: test completed")
+    with pytest.raises(ValueError, match="completion marker was not found"):
+        validate_lean_completion("no completion here")
+    with pytest.raises(ValueError, match="summary is missing"):
+        validate_zero_failed_data_requests("Algorithm Id: test completed")
+    with pytest.raises(ValueError, match="reported 1 failed"):
+        validate_zero_failed_data_requests("Failed data requests: 1")
 
 
 def _trading_dates_2024() -> tuple[date, ...]:

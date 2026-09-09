@@ -3,10 +3,15 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 from pathlib import Path
-from zipfile import ZipFile
 
 from ruletrade.backtests.normalization import normalize_lean_result
-from ruletrade.compiler.lean.e2e import COMPLETION_PATTERN, FATAL_PATTERNS, parse_target_records
+from ruletrade.compiler.lean.e2e import (
+    division_derived_scores_match,
+    load_aligned_daily_closes,
+    parse_decimal_map,
+    parse_target_records,
+    validate_lean_completion,
+)
 from ruletrade.strategy.v1.momentum import evaluate_trailing_return_top_n
 
 MOMENTUM_PATTERN = re.compile(
@@ -19,18 +24,7 @@ SYMBOLS = ("QQQ", "VGT", "SOXX", "SCHG")
 
 
 def _fixture_closes(fixture: Path) -> tuple[list[str], dict[str, list[Decimal]]]:
-    closes: dict[str, list[Decimal]] = {}
-    dates: list[str] = []
-    for symbol in SYMBOLS:
-        lower = symbol.lower()
-        with ZipFile(fixture / "equity" / "usa" / "daily" / f"{lower}.zip") as archive:
-            rows = [row.split(",") for row in archive.read(f"{lower}.csv").decode().splitlines()]
-        observed_dates = [row[0][:8] for row in rows]
-        if dates and observed_dates != dates:
-            raise ValueError("Momentum fixture assets must have aligned Daily bars")
-        dates = observed_dates
-        closes[symbol] = [Decimal(row[4]) for row in rows]
-    return dates, closes
+    return load_aligned_daily_closes(fixture, SYMBOLS, fixture_name="Momentum")
 
 
 def verify_momentum_e2e(
@@ -38,10 +32,7 @@ def verify_momentum_e2e(
     result_payload: object,
     fixture: Path,
 ) -> tuple[int, int]:
-    lowered = log_text.lower()
-    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal or COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
+    validate_lean_completion(log_text)
     traces = {match.group("event"): match for match in MOMENTUM_PATTERN.finditer(log_text)}
     targets = parse_target_records(log_text)
     if len(traces) != 12 or len(targets) != 12:
@@ -66,15 +57,9 @@ def verify_momentum_e2e(
             raise ValueError(f"target selection mismatch for {target.event_identity}")
         if target.weights != dict(reference.targets):
             raise ValueError(f"target weights mismatch for {target.event_identity}")
-        actual_scores = {
-            symbol: Decimal(value)
-            for symbol, value in (
-                item.split("=", 1) for item in trace.group("scores").split(",")
-            )
-        }
-        for symbol, expected in reference.scores:
-            if abs(actual_scores[symbol] - expected) > Decimal("1e-24"):
-                raise ValueError(f"score mismatch for {target.event_identity} {symbol}")
+        actual_scores = parse_decimal_map(trace.group("scores"))
+        if not division_derived_scores_match(actual_scores, dict(reference.scores)):
+            raise ValueError(f"score mismatch for {target.event_identity}")
     normalized = normalize_lean_result(result_payload)
     if normalized.total_orders <= 0:
         raise ValueError("Momentum backtest submitted no orders")

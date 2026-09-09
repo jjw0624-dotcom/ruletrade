@@ -4,11 +4,16 @@ import re
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from zipfile import ZipFile
 
 from ruletrade.backtests.normalization import normalize_lean_result
-from ruletrade.compiler.lean.e2e import COMPLETION_PATTERN, FATAL_PATTERNS, parse_target_records
-from ruletrade.compiler.lean.fallback_e2e import FAILED_DATA_REQUESTS_PATTERN
+from ruletrade.compiler.lean.e2e import (
+    division_derived_scores_match,
+    load_aligned_daily_closes,
+    parse_decimal_map,
+    parse_target_records,
+    validate_lean_completion,
+    validate_zero_failed_data_requests,
+)
 from ruletrade.strategy.v1.cooldown import evaluate_cooldown
 
 SIGNAL_PATTERN = re.compile(
@@ -33,22 +38,14 @@ STATE_PATTERN = re.compile(
     r"\|old=(?P<old>none|\d{4}-\d{2}-\d{2})"
     r"\|new=(?P<new>\d{4}-\d{2}-\d{2})\|cause=target_exit"
 )
-SCORE_TOLERANCE = Decimal("1e-24")
 
 
 def load_cooldown_fixture(fixture: Path) -> tuple[list[str], dict[str, list[Decimal]]]:
-    dates: list[str] = []
-    closes: dict[str, list[Decimal]] = {}
-    for symbol in ("QQQ", "IEF"):
-        lower = symbol.lower()
-        with ZipFile(fixture / "equity" / "usa" / "daily" / f"{lower}.zip") as archive:
-            rows = [row.split(",") for row in archive.read(f"{lower}.csv").decode().splitlines()]
-        observed = [row[0][:8] for row in rows]
-        if dates and observed != dates:
-            raise ValueError("Cooldown fixture assets must have aligned Daily bars")
-        dates = observed
-        closes[symbol] = [Decimal(row[4]) for row in rows]
-    return dates, closes
+    return load_aligned_daily_closes(
+        fixture,
+        ("QQQ", "IEF"),
+        fixture_name="Cooldown",
+    )
 
 
 def verify_cooldown_e2e(
@@ -56,13 +53,8 @@ def verify_cooldown_e2e(
     result_payload: object,
     fixture: Path,
 ) -> tuple[int, int, str]:
-    lowered = log_text.lower()
-    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal or COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
-    failed = FAILED_DATA_REQUESTS_PATTERN.search(log_text)
-    if failed is None or int(failed.group("count")) != 0:
-        raise ValueError("LEAN must report zero failed data requests")
+    validate_lean_completion(log_text)
+    validate_zero_failed_data_requests(log_text)
 
     all_dates, closes = load_cooldown_fixture(fixture)
     event_dates = [
@@ -98,15 +90,10 @@ def verify_cooldown_e2e(
 
     for expected in reference:
         signal = signals[expected.event]
-        actual_scores = {
-            symbol: Decimal(value)
-            for symbol, value in (
-                item.split("=", 1) for item in signal.group("scores").split(",")
-            )
-        }
-        if actual_scores.keys() != expected_scores[expected.event].keys() or any(
-            abs(actual_scores[symbol] - value) > SCORE_TOLERANCE
-            for symbol, value in expected_scores[expected.event].items()
+        actual_scores = parse_decimal_map(signal.group("scores"))
+        if not division_derived_scores_match(
+            actual_scores,
+            expected_scores[expected.event],
         ):
             raise ValueError(f"score mismatch for {expected.event}")
         ranked = tuple(signal.group("ranked").split(","))

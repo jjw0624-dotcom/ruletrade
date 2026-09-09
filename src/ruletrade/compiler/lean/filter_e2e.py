@@ -3,10 +3,16 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 from pathlib import Path
-from zipfile import ZipFile
 
 from ruletrade.backtests.normalization import normalize_lean_result
-from ruletrade.compiler.lean.e2e import COMPLETION_PATTERN, FATAL_PATTERNS, parse_target_records
+from ruletrade.compiler.lean.e2e import (
+    division_derived_scores_match,
+    load_aligned_daily_closes,
+    parse_decimal_map,
+    parse_symbols,
+    parse_target_records,
+    validate_lean_completion,
+)
 from ruletrade.strategy.v1.momentum import evaluate_filtered_trailing_return_top_n
 
 SYMBOLS = ("QQQ", "VGT", "SOXX", "SCHG")
@@ -30,25 +36,10 @@ SKIPPED_PATTERN = re.compile(
 )
 
 
-def _split_symbols(value: str) -> tuple[str, ...]:
-    return tuple(value.split(",")) if value else ()
-
-
 def load_filter_fixture_closes(
     fixture: Path,
 ) -> tuple[list[str], dict[str, list[Decimal]]]:
-    closes: dict[str, list[Decimal]] = {}
-    dates: list[str] = []
-    for symbol in SYMBOLS:
-        lower = symbol.lower()
-        with ZipFile(fixture / "equity" / "usa" / "daily" / f"{lower}.zip") as archive:
-            rows = [row.split(",") for row in archive.read(f"{lower}.csv").decode().splitlines()]
-        observed_dates = [row[0][:8] for row in rows]
-        if dates and observed_dates != dates:
-            raise ValueError("Filter fixture assets must have aligned Daily bars")
-        dates = observed_dates
-        closes[symbol] = [Decimal(row[4]) for row in rows]
-    return dates, closes
+    return load_aligned_daily_closes(fixture, SYMBOLS, fixture_name="Filter")
 
 
 def verify_filter_e2e(
@@ -56,10 +47,7 @@ def verify_filter_e2e(
     result_payload: object,
     fixture: Path,
 ) -> tuple[int, int, int, int]:
-    lowered = log_text.lower()
-    fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal or COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
+    validate_lean_completion(log_text)
     filters = {match.group("event"): match for match in FILTER_PATTERN.finditer(log_text)}
     momentums = {match.group("event"): match for match in MOMENTUM_PATTERN.finditer(log_text)}
     skipped = {match.group("event"): match for match in SKIPPED_PATTERN.finditer(log_text)}
@@ -81,26 +69,20 @@ def verify_filter_e2e(
             count=2,
         )
         momentum_trace = momentums[event_identity]
-        actual_scores = {
-            symbol: Decimal(value)
-            for symbol, value in (
-                item.split("=", 1) for item in momentum_trace.group("scores").split(",")
-            )
-        }
-        for symbol, expected in reference.scores:
-            if abs(actual_scores[symbol] - expected) > Decimal("1e-24"):
-                raise ValueError(f"score mismatch for {event_identity} {symbol}")
+        actual_scores = parse_decimal_map(momentum_trace.group("scores"))
+        if not division_derived_scores_match(actual_scores, dict(reference.scores)):
+            raise ValueError(f"score mismatch for {event_identity}")
         if Decimal(filter_trace.group("threshold")) != 0:
             raise ValueError(f"threshold mismatch for {event_identity}")
-        if _split_symbols(filter_trace.group("eligible")) != reference.eligible:
+        if parse_symbols(filter_trace.group("eligible")) != reference.eligible:
             raise ValueError(f"eligible-set mismatch for {event_identity}")
-        if _split_symbols(filter_trace.group("rejected")) != reference.rejected:
+        if parse_symbols(filter_trace.group("rejected")) != reference.rejected:
             raise ValueError(f"rejected-set mismatch for {event_identity}")
-        if _split_symbols(momentum_trace.group("ranked")) != reference.ranked:
+        if parse_symbols(momentum_trace.group("ranked")) != reference.ranked:
             raise ValueError(f"ranking mismatch for {event_identity}")
-        if _split_symbols(momentum_trace.group("candidate")) != reference.ranked[:2]:
+        if parse_symbols(momentum_trace.group("candidate")) != reference.ranked[:2]:
             raise ValueError(f"candidate mismatch for {event_identity}")
-        if _split_symbols(momentum_trace.group("selected")) != reference.selected:
+        if parse_symbols(momentum_trace.group("selected")) != reference.selected:
             raise ValueError(f"selection mismatch for {event_identity}")
         expected_decision = "executed" if reference.selected else "skipped"
         if momentum_trace.group("decision") != expected_decision:
