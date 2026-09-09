@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Disposable RuleTrade research-loop UX prototype" />
+    <title>RuleTrade · Research loop prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">R</span><span>RuleTrade</span></div>
+        <div class="strategy-name"><span>Research workspace</span><strong>Growth + Defensive sleeves</strong></div>
+        <div class="prototype-label"><span class="dot"></span>UX prototype · mock results</div>
+      </header>
+
+      <section class="summary" aria-label="Backtest summary">
+        <div class="summary-heading">
+          <div><p class="eyebrow">Backtest · Jan–Dec 2024</p><h1>How did the strategy behave?</h1></div>
+          <button class="quiet-button" id="strategyButton">View strategy</button>
+        </div>
+        <div class="metric-row">
+          <div><span>Return</span><strong id="summaryReturn">+14.2%</strong><small>QQQ +18.7%</small></div>
+          <div><span>Largest drop</span><strong>−8.4%</strong><small>Aug 2–8</small></div>
+          <div><span>Orders</span><strong id="summaryOrders">28</strong><small>12 rebalances</small></div>
+          <div class="trust-metric"><span>Result check</span><strong>Ready to explore</strong><button id="detailsButton">Details</button></div>
+        </div>
+      </section>
+
+      <section class="research-stage">
+        <div class="chart-card">
+          <div class="card-title-row">
+            <div><p class="eyebrow">Portfolio value</p><h2>Decisions are part of the chart</h2></div>
+            <div class="legend"><span><i class="decision"></i>Decision</span><span><i class="rebalance"></i>Rebalance</span></div>
+          </div>
+          <div class="chart-wrap" id="chartWrap">
+            <svg class="chart" viewBox="0 0 1000 300" role="img" aria-label="2024 portfolio value with decision markers">
+              <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c7251" stop-opacity=".18"/><stop offset="1" stop-color="#1c7251" stop-opacity="0"/></linearGradient></defs>
+              <g class="grid"><line x1="40" y1="55" x2="970" y2="55"/><line x1="40" y1="135" x2="970" y2="135"/><line x1="40" y1="215" x2="970" y2="215"/></g>
+              <path class="area" d="M40 236 L120 222 L198 207 L275 185 L352 164 L431 178 L508 142 L586 126 L663 166 L741 139 L818 106 L895 88 L970 72 L970 260 L40 260Z"/>
+              <path class="line" d="M40 236 L120 222 L198 207 L275 185 L352 164 L431 178 L508 142 L586 126 L663 166 L741 139 L818 106 L895 88 L970 72"/>
+              <g class="markers">
+                <circle cx="120" cy="222" r="5"/><circle cx="275" cy="185" r="5"/><circle cx="352" cy="164" r="5"/>
+                <circle class="focus-ring" cx="431" cy="178" r="12"/><circle class="focus" cx="431" cy="178" r="6"/>
+                <circle cx="586" cy="126" r="5"/><circle cx="741" cy="139" r="5"/><circle cx="895" cy="88" r="5"/>
+              </g>
+              <g class="axis"><text x="40" y="286">Jan</text><text x="275" y="286">Apr</text><text x="508" y="286">Jul</text><text x="741" y="286">Oct</text><text x="945" y="286">Dec</text></g>
+            </svg>
+            <button class="chart-marker" id="juneMarker" aria-label="Inspect June 3 decision"><span>Jun 3</span><b>TLT 85%</b><small>Why this?</small></button>
+          </div>
+        </div>
+
+        <div class="workspace-grid">
+          <aside class="timeline-card">
+            <div class="card-title-row"><div><p class="eyebrow">Timeline</p><h2>Interesting decisions</h2></div><button class="icon-button" title="Future feedback tools" disabled>＋</button></div>
+            <button class="timeline-item" data-date="2024-04-01"><time>Apr 1</time><span><strong>QQQ + SOXX</strong><small>Growth qualified normally</small></span></button>
+            <button class="timeline-item selected" id="juneTimeline"><time>Jun 3</time><span><strong>Fallback changed holdings</strong><small>TLT became 85% of portfolio</small></span><em>Inspect</em></button>
+            <button class="timeline-item" data-date="2024-08-01"><time>Aug 1</time><span><strong>QQQ + VGT</strong><small>Two assets qualified</small></span></button>
+            <button class="timeline-item" data-date="2024-10-01"><time>Oct 1</time><span><strong>Defensive refreshed</strong><small>Quarterly sleeve event</small></span></button>
+            <div class="future-actions"><button disabled>👍 Should have bought</button><button disabled>👎 Should not have bought</button><button disabled>? Review this</button><small>Feedback is a future interaction</small></div>
+          </aside>
+
+          <section class="inspector-card" id="inspector">
+            <div class="empty-inspector" id="emptyInspector"><p class="eyebrow">Decision inspector</p><h2>Select the June 3 marker</h2><p>Pick a chart marker or timeline event to see what happened and ask why.</p></div>
+            <div class="decision-inspector hidden" id="decisionInspector">
+              <div class="inspector-header"><div><p class="eyebrow">June 3, 2024 · Growth refresh</p><h2>TLT became 85% of the portfolio</h2></div><button class="close-button" id="closeInspector" aria-label="Close inspector">×</button></div>
+              <div class="holding-change"><div><span>Before</span><strong>QQQ 35% · SOXX 35%<br>TLT 15% · IEF 15%</strong></div><span class="arrow">→</span><div><span>After</span><strong class="highlight">TLT 85% · IEF 15%</strong></div></div>
+              <button class="why-button" id="whyButton"><span><b>Why was it TLT?</b><small>Follow the decision, not just the trade</small></span><span>Reveal why <b>→</b></span></button>
+
+              <div class="why-panel hidden" id="whyPanel">
+                <div class="reason-callout"><span class="reason-number">1</span><div><b>Only QQQ passed the Growth rule</b><p>Growth needed 2 qualified assets. With only 1, the explicit TLT fallback supplied the full 70% Growth sleeve.</p></div></div>
+                <div class="score-table" role="table" aria-label="Growth candidates">
+                  <div class="score-row header"><span>Asset</span><span>126-day return</span><span>Decision</span></div>
+                  <div class="score-row pass"><b>QQQ</b><span>+24.3%</span><em>Passed</em></div>
+                  <div class="score-row fail"><b>VGT</b><span>−3.2%</span><em>Rejected</em></div>
+                  <div class="score-row fail"><b>SOXX</b><span>−27.5%</span><em>Rejected</em></div>
+                  <div class="score-row fail"><b>SCHG</b><span>−33.2%</span><em>Rejected</em></div>
+                </div>
+                <div class="decision-chain"><div><span>Growth 70%</span><b>1 of 2 qualified</b></div><i>→</i><div><span>Fallback</span><b>TLT gets 70%</b></div><i>+</i><div><span>Defensive 30%</span><b>TLT 15% · IEF 15%</b></div><i>=</i><div class="chain-result"><span>Final</span><b>TLT 85% · IEF 15%</b></div></div>
+
+                <div class="condition-card">
+                  <div><span class="editable-label">Editable strategy condition</span><h3>126-day return <b>&gt;</b> <span id="conditionValue">0%</span></h3><p>Strict comparison · Growth sleeve · Filter</p></div>
+                  <button class="change-button" id="changeButton">Try a change</button>
+                </div>
+
+                <div class="quick-edit hidden" id="quickEdit">
+                  <div><p class="eyebrow">What if?</p><h3>Let slightly negative momentum qualify</h3><p>Change only this condition. Your original remains untouched.</p></div>
+                  <label>Current<input value="0%" disabled></label><span class="arrow">→</span><label>Try<input id="thresholdInput" type="number" value="-5" step="1"><small>%</small></label>
+                  <button class="compare-button" id="compareButton">Compare with original <span>→</span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="compare-view hidden" id="compareView">
+        <header class="compare-header"><div><button class="back-link" id="backToResult">← Back to result</button><p class="eyebrow">Comparison · one condition changed</p><h1>What changed when the threshold moved to −5%?</h1></div><div class="context-chip"><span>Focused decision</span><b>June 3, 2024</b></div></header>
+        <div class="variant-strip"><div><span>Original</span><b>126-day return &gt; 0%</b></div><div class="candidate"><span>Candidate</span><b>126-day return &gt; −5%</b></div><small>Everything else stayed the same</small></div>
+        <div class="comparison-metrics">
+          <div><span>Return</span><b>+14.2%</b><i>→</i><strong>+15.1%</strong><em>+0.9 pts</em></div>
+          <div><span>Largest drop</span><b>−8.4%</b><i>→</i><strong>−9.1%</strong><em class="risk">0.7 pts deeper</em></div>
+          <div><span>Orders</span><b>28</b><i>→</i><strong>34</strong><em>+6</em></div>
+          <div><span>Behavior changed</span><b>4 decisions</b><i>·</i><strong>3 holdings</strong><em>Largest gap: Jun–Jul</em></div>
+        </div>
+        <div class="compare-toolbar"><div><button class="segmented active" id="allButton">All periods</button><button class="segmented" id="differencesButton">Only differences <span>4</span></button></div><button class="quiet-button" id="advancedButton">Advanced metrics</button></div>
+        <div class="compare-grid">
+          <section class="divergence-card"><div class="card-title-row"><div><p class="eyebrow">Behavior timeline</p><h2 id="timelineTitle">The strategies diverged four times</h2></div><span class="largest-tag">Largest divergence · Jun–Jul</span></div>
+            <div class="dual-chart">
+              <svg viewBox="0 0 900 220" role="img" aria-label="Original and candidate performance comparison"><g class="grid"><line x1="30" y1="45" x2="870" y2="45"/><line x1="30" y1="105" x2="870" y2="105"/><line x1="30" y1="165" x2="870" y2="165"/></g><path class="original-line" d="M30 171 L105 160 L180 144 L255 126 L330 136 L405 101 L480 86 L555 122 L630 99 L705 72 L780 54 L870 43"/><path class="candidate-line" d="M30 171 L105 160 L180 144 L255 126 L330 128 L405 91 L480 74 L555 116 L630 91 L705 67 L780 48 L870 36"/><rect class="divergence-zone" x="312" y="22" width="190" height="170" rx="8"/></svg>
+              <div class="chart-key"><span><i class="original-key"></i>Original</span><span><i class="candidate-key"></i>Candidate</span></div>
+            </div>
+            <div class="difference-list" id="differenceList">
+              <button class="difference-row selected" data-difference="june"><time>Jun 3</time><span><b>Growth used a different path</b><small>Original: TLT fallback · Candidate: QQQ + VGT</small></span><em>Largest</em></button>
+              <button class="difference-row" data-difference="july"><time>Jul 1</time><span><b>Holdings remained different</b><small>Candidate kept VGT while original held TLT</small></span></button>
+              <button class="difference-row" data-difference="sep"><time>Sep 3</time><span><b>SOXX narrowly qualified</b><small>One additional Growth holding</small></span></button>
+              <button class="difference-row" data-difference="nov"><time>Nov 1</time><span><b>Order quantity changed</b><small>Same symbols, different target weights</small></span></button>
+            </div>
+          </section>
+          <aside class="difference-inspector" id="differenceInspector"><p class="eyebrow">Why different? · June 3</p><h2>VGT crossed only the Candidate rule</h2><div class="fact"><span>Observed result</span><strong>VGT 126-day return = −3.2%</strong></div><div class="threshold-compare"><div><span>Original threshold</span><b>0%</b><em class="rejected">−3.2% is below 0% · rejected</em></div><div class="candidate"><span>Candidate threshold</span><b>−5%</b><em class="passed">−3.2% is above −5% · passed</em></div></div><div class="causal-chain"><div><span>Condition difference</span><b>VGT passes</b></div><i>↓</i><div><span>Decision difference</span><b>Top 2 can execute</b></div><i>↓</i><div><span>Holding difference</span><b>QQQ 35% + VGT 35%</b></div><i>↓</i><div><span>Result difference</span><b>Higher return, slightly deeper drop</b></div></div><button class="secondary-action" id="inspectOriginal">See original June 3 decision</button></aside>
+        </div>
+      </section>
+
+      <dialog id="strategyDialog"><button class="close-button dialog-close">×</button><p class="eyebrow">Strategy used by this prototype</p><h2>Growth + Defensive sleeves</h2><div class="strategy-map"><section><b>Growth 70%</b><p>QQQ, VGT, SOXX, SCHG</p><p>126-day return &gt; 0% → rank descending → Top 2</p><p>If fewer than 2 qualify → TLT fallback</p></section><section><b>Defensive 30%</b><p>TLT / IEF · Equal Weight</p></section></div><small>These labels follow the existing RuleTrade Strategy Model semantics. The decision data in this prototype is deterministic mock data.</small></dialog>
+      <dialog id="detailsDialog"><button class="close-button dialog-close">×</button><p class="eyebrow">Result details</p><h2>Can I trust this result?</h2><p>This prototype does not run LEAN. Values are deterministic UX research fixtures.</p><div class="detail-list"><span>Dataset <b>Mock 2024 daily bars</b></span><span>Strategy semantics <b>Aligned to Canonical v1 slices</b></span><span>Advanced metrics <b>Sharpe 0.84 · Sortino 1.17</b></span></div></dialog>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
