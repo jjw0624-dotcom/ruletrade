@@ -29,6 +29,7 @@ export interface StrategyEditorState {
 
 export type StrategyEditorAction =
   | { type: "apply_semantic_patch"; operation: SemanticPatch }
+  | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }
   | { type: "set_active_view"; view: EditorView }
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
@@ -58,6 +59,8 @@ export function editorReducer(
   action: StrategyEditorAction,
 ): StrategyEditorState {
   switch (action.type) {
+    case "replace_canonical":
+      return { ...state, canonical: action.canonical, validation: { status: "valid", issues: [] } };
     case "apply_semantic_patch": {
       const result = applySemanticPatch(state.canonical, state.registry, action.operation);
       if (!result.ok) {
