@@ -560,9 +560,14 @@ def generate_csharp(
                         '        Debug("RULETRADE_TARGETS|" + eventIdentity'
                     ),
                     (
-                        f'            + "|selected=" + string.Join(",", {selected_variable}'
-                        + (".Distinct()" if has_source_sleeves else "")
-                        + ".OrderBy(item => item))"
+                        f'            + "|selected=" + string.Join(",", '
+                        + (
+                            f"{targets_variable}.Where(item => item.Value != 0m)"
+                            ".Select(item => item.Key.Value)"
+                            if has_source_sleeves
+                            else selected_variable
+                        )
+                        + ".OrderBy(item => item, StringComparer.Ordinal))"
                     ),
                     (
                         f'            + "|weights=" + string.Join(",", {targets_variable}'

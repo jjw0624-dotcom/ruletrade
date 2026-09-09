@@ -108,16 +108,20 @@ def test_codegen_aggregates_overlaps_and_emits_sleeve_contributions() -> None:
     assert "sleeve=growth_sleeve" not in source  # stable id is emitted as a quoted value
     assert '"growth_sleeve"' in source and '"defensive_sleeve"' in source
     assert "targets0_0[symbol] + weight" in source
-    assert ".Distinct().OrderBy(item => item)" in source
+    assert (
+        '"|selected=" + string.Join(",", targets0_0.Where(item => item.Value != 0m)'
+        in source
+    )
+    assert ".Select(item => item.Key.Value).OrderBy(item => item, StringComparer.Ordinal)" in source
 
 
 @pytest.mark.parametrize(
     ("closes", "expected_growth", "expected_final"),
     [
         (
-            {"QQQ": [Decimal(100), Decimal(120)], "VGT": [Decimal(100), Decimal(110)], "SOXX": [Decimal(100), Decimal(90)], "SCHG": [Decimal(100), Decimal(80)]},
-            (("QQQ", Decimal("0.5")), ("VGT", Decimal("0.5"))),
-            (("IEF", Decimal("0.15")), ("QQQ", Decimal("0.35")), ("TLT", Decimal("0.15")), ("VGT", Decimal("0.35"))),
+            {"QQQ": [Decimal(100), Decimal(90)], "VGT": [Decimal(100), Decimal(80)], "SOXX": [Decimal(100), Decimal(120)], "SCHG": [Decimal(100), Decimal(130)]},
+            (("SCHG", Decimal("0.5")), ("SOXX", Decimal("0.5"))),
+            (("IEF", Decimal("0.15")), ("SCHG", Decimal("0.35")), ("SOXX", Decimal("0.35")), ("TLT", Decimal("0.15"))),
         ),
         (
             {"QQQ": [Decimal(100), Decimal(101)], "VGT": [Decimal(100), Decimal(90)], "SOXX": [Decimal(100), Decimal(80)], "SCHG": [Decimal(100), Decimal(70)]},
@@ -128,8 +132,16 @@ def test_codegen_aggregates_overlaps_and_emits_sleeve_contributions() -> None:
 )
 def test_reference_oracle_scales_and_aggregates_exact_decimals(closes, expected_growth, expected_final) -> None:
     result = evaluate_portfolio_sleeves(closes, lookback_bars=1)
+    sleeves = {item.sleeve_id: item for item in result.sleeves}
     assert result.growth.final_targets == expected_growth
+    assert sleeves["growth_sleeve"].local_selected == tuple(
+        symbol for symbol, _ in expected_growth
+    )
+    assert sleeves["defensive_sleeve"].local_selected == ("IEF", "TLT")
     assert result.final_targets == expected_final
+    assert result.final_selected == tuple(symbol for symbol, _ in expected_final)
+    assert len(result.final_selected) == len(set(result.final_selected))
+    assert result.final_selected.count("TLT") == 1
     assert sum((weight for _, weight in result.final_targets), Decimal(0)) == Decimal(1)
 
 

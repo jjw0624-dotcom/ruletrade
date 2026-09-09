@@ -29,8 +29,11 @@ lean backtest "<project-directory>"
 The generated algorithm defaults to 2024-01-01 through 2024-12-31 with
 $100,000 cash. These run settings are `CSharpGenerationSettings`, not Canonical
 strategy semantics. Each monthly run emits a `RULETRADE_TARGETS` debug record
-whose event identity is the scheduled ISO date (`yyyy-MM-dd`), selected growth
-tickers, and target weights.
+whose event identity is the scheduled ISO date (`yyyy-MM-dd`), selected symbols,
+and target weights. For a final portfolio-level record, `selected` means exactly
+the symbols represented by non-zero final aggregated targets; it is not an
+upstream sleeve's selection. This keeps the trace consistent when sleeves add
+different symbols or contribute to the same symbol.
 
 ## Daily data execution timing
 
