@@ -62,7 +62,6 @@ from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 from ruletrade.strategy.v1.validation import collect_semantic_issues
 
-
 logger = logging.getLogger(__name__)
 
 

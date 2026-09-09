@@ -6,9 +6,9 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
 SCHEMA_VERSION = 1
