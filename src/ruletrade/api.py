@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 
 from ruletrade import __version__
 from ruletrade.backtests.errors import (
@@ -25,6 +27,7 @@ from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
+from ruletrade.persistence import SQLiteStrategyRepository
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
 from ruletrade.strategy.v1.fixtures import (
     cooldown_strategy,
@@ -38,6 +41,29 @@ from ruletrade.strategy.v1.fixtures import (
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategies.errors import (
+    InvalidStrategySourceError,
+    PersistenceError,
+    RevisionNotFoundError,
+    StaleRevisionError,
+    StrategyArchivedError,
+    StrategyDomainError,
+    StrategyNotFoundError,
+)
+from ruletrade.strategies.models import (
+    CreateStrategyRequest,
+    RenameStrategyRequest,
+    RevisionList,
+    RevisionRecord,
+    SaveRevisionRequest,
+    SaveRevisionResponse,
+    StrategyDetail,
+    StrategyList,
+)
+from ruletrade.strategies.service import StrategyService
+
+
+logger = logging.getLogger(__name__)
 
 
 def default_data_dir() -> Path:
@@ -47,13 +73,69 @@ def default_data_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "data"
 
 
+def default_strategy_db_path() -> Path:
+    configured = os.getenv("RULETRADE_DB_PATH")
+    if configured:
+        return Path(configured)
+    return default_data_dir() / "ruletrade.sqlite3"
+
+
 registry = DatasetRegistry(default_data_dir())
 app = FastAPI(title="RuleTrade MVP API", version=__version__)
 lean_backtest_service = BacktestService(DockerLeanRunner())
+strategy_service: StrategyService | None = None
+strategy_service_path: Path | None = None
 
 
 def get_lean_backtest_service() -> BacktestService:
     return lean_backtest_service
+
+
+def get_strategy_service() -> StrategyService:
+    global strategy_service, strategy_service_path
+    path = default_strategy_db_path()
+    if strategy_service is None or strategy_service_path != path:
+        strategy_service = StrategyService(SQLiteStrategyRepository(path))
+        strategy_service_path = path
+    return strategy_service
+
+
+@app.exception_handler(StrategyDomainError)
+async def strategy_domain_error(
+    _request: Request,
+    exc: StrategyDomainError,
+) -> JSONResponse:
+    status_code = 500
+    detail: dict[str, object] = {
+        "code": exc.code,
+        "message": "Strategy persistence is temporarily unavailable.",
+    }
+    if isinstance(exc, InvalidStrategySourceError):
+        status_code = 422
+        detail = {
+            "code": exc.code,
+            "message": str(exc),
+            "issues": [
+                {"path": issue.path, "message": issue.message}
+                for issue in exc.issues
+            ],
+        }
+    elif isinstance(exc, (StrategyNotFoundError, RevisionNotFoundError)):
+        status_code = 404
+        detail = {"code": exc.code, "message": str(exc)}
+    elif isinstance(exc, StrategyArchivedError):
+        status_code = 409
+        detail = {"code": exc.code, "message": str(exc)}
+    elif isinstance(exc, StaleRevisionError):
+        status_code = 409
+        detail = {
+            "code": exc.code,
+            "message": str(exc),
+            "current_revision_id": exc.current_revision_id,
+        }
+    elif isinstance(exc, PersistenceError):
+        logger.exception("Strategy persistence operation failed", exc_info=exc)
+    return JSONResponse(status_code=status_code, content={"detail": detail})
 
 
 @app.get("/health")
@@ -305,3 +387,86 @@ def execute_lean_backtest(
             status_code=502,
             detail={"code": exc.code, "message": str(exc)},
         ) from exc
+
+
+@app.get("/v1/strategies", response_model=StrategyList)
+def list_persisted_strategies(
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> StrategyList:
+    return StrategyList(items=list(service.list_strategies()))
+
+
+@app.post("/v1/strategies", response_model=StrategyDetail, status_code=201)
+def create_persisted_strategy(
+    request: CreateStrategyRequest,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> StrategyDetail:
+    return service.create_strategy(request.name, request.canonical_strategy)
+
+
+@app.get("/v1/strategies/{strategy_id}", response_model=StrategyDetail)
+def read_persisted_strategy(
+    strategy_id: str,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> StrategyDetail:
+    return service.get_strategy(strategy_id)
+
+
+@app.patch("/v1/strategies/{strategy_id}", response_model=StrategyDetail)
+def rename_persisted_strategy(
+    strategy_id: str,
+    request: RenameStrategyRequest,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> StrategyDetail:
+    return service.rename_strategy(strategy_id, request.name)
+
+
+@app.delete("/v1/strategies/{strategy_id}", status_code=204)
+def archive_persisted_strategy(
+    strategy_id: str,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> Response:
+    service.archive_strategy(strategy_id)
+    return Response(status_code=204)
+
+
+@app.get(
+    "/v1/strategies/{strategy_id}/revisions",
+    response_model=RevisionList,
+)
+def list_persisted_revisions(
+    strategy_id: str,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> RevisionList:
+    return RevisionList(items=list(service.list_revisions(strategy_id)))
+
+
+@app.post(
+    "/v1/strategies/{strategy_id}/revisions",
+    response_model=SaveRevisionResponse,
+)
+def save_persisted_revision(
+    strategy_id: str,
+    request: SaveRevisionRequest,
+    response: Response,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> SaveRevisionResponse:
+    result = service.save_revision(
+        strategy_id,
+        request.expected_parent_revision_id,
+        request.canonical_strategy,
+    )
+    response.status_code = 201 if result.created else 200
+    return result
+
+
+@app.get(
+    "/v1/strategies/{strategy_id}/revisions/{revision_id}",
+    response_model=RevisionRecord,
+)
+def read_persisted_revision(
+    strategy_id: str,
+    revision_id: str,
+    service: Annotated[StrategyService, Depends(get_strategy_service)],
+) -> RevisionRecord:
+    return service.get_revision(strategy_id, revision_id)

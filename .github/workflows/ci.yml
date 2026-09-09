@@ -50,6 +50,8 @@ jobs:
           src/ruletrade/compiler/lean/sleeves_e2e.py
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/ir
+          src/ruletrade/persistence
+          src/ruletrade/strategies
           scripts/generate_golden_lean_fixture.py
           scripts/generate_cooldown_lean.py
           scripts/generate_fallback_lean.py
@@ -79,6 +81,7 @@ jobs:
           tests/test_strategy_ir.py
           tests/test_strategy_ir_analysis.py
           tests/test_strategy_ir_differential.py
+          tests/test_strategy_persistence.py
 
       - name: Compile Python
         run: uv run python -m compileall -q src scripts tests
