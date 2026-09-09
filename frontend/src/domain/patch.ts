@@ -18,7 +18,13 @@ export interface UpdateSleeveAllocations {
   allocations: Array<{ componentId: string; value: JsonValue }>;
 }
 
-export type SemanticPatch = UpdateComponentConfig | UpdateSleeveAllocations;
+export interface UpdateSchedule {
+  kind: "update_schedule";
+  componentId: string;
+  cadence: "monthly" | "quarterly";
+}
+
+export type SemanticPatch = UpdateComponentConfig | UpdateSleeveAllocations | UpdateSchedule;
 
 export type PatchResult =
   | { ok: true; strategy: CanonicalStrategyV1 }
@@ -140,6 +146,38 @@ export function applySemanticPatch(
 ): PatchResult {
   if (operation.kind === "update_component_config") {
     return updateComponentConfig(strategy, registry, operation);
+  }
+  if (operation.kind === "update_schedule") {
+    const component = strategy.graph.components.find((item) => item.id === operation.componentId);
+    const primitive = `${operation.cadence}@1`;
+    const definition = registry.primitives.find((item) => item.id === primitive);
+    const currentDefinition = registry.primitives.find((item) => item.id === component?.primitive);
+    if (
+      !component
+      || currentDefinition?.category !== "event"
+      || !definition
+      || definition.category !== "event"
+    ) {
+      return {
+        ok: false,
+        issue: {
+          path: `graph.components[${operation.componentId}].primitive`,
+          message: "schedule must be Monthly or Quarterly",
+        },
+      };
+    }
+    return {
+      ok: true,
+      strategy: {
+        ...strategy,
+        graph: {
+          ...strategy.graph,
+          components: strategy.graph.components.map((item) =>
+            item.id === component.id ? { ...item, primitive } : item
+          ),
+        },
+      },
+    };
   }
   if (
     operation.allocations.length !== 2

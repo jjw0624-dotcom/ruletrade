@@ -30,6 +30,7 @@ from ruletrade.strategy.v1.fixtures import (
     fallback_momentum_strategy,
     filter_screening_strategy,
     golden_portfolio_strategy,
+    independent_schedules_strategy,
     momentum_top_n_strategy,
     portfolio_sleeves_strategy,
 )
@@ -215,7 +216,9 @@ def _editor_registry_payload() -> dict[str, object]:
 
 @app.get("/v1/editor/bootstrap")
 def editor_bootstrap(
-    example: Literal["golden", "momentum", "filter", "fallback", "sleeves"] = "golden",
+    example: Literal[
+        "golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules"
+    ] = "golden",
 ) -> dict[str, object]:
     examples = {
         "golden": golden_portfolio_strategy,
@@ -223,6 +226,7 @@ def editor_bootstrap(
         "filter": filter_screening_strategy,
         "fallback": fallback_momentum_strategy,
         "sleeves": portfolio_sleeves_strategy,
+        "independent_schedules": independent_schedules_strategy,
     }
     strategy = examples[example]()
     issues = collect_semantic_issues(strategy)

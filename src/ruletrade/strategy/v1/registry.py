@@ -122,6 +122,23 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 implementation_id="event.monthly",
             ),
             PrimitiveSpec(
+                id="quarterly@1",
+                category=PrimitiveCategory.EVENT,
+                fields=(
+                    PrimitiveFieldSpec(
+                        "day",
+                        ValueType.INTEGER,
+                        required=False,
+                        default=1,
+                        minimum=Decimal("1"),
+                        maximum=Decimal("31"),
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.NATIVE,
+                implementation_id="event.quarterly",
+            ),
+            PrimitiveSpec(
                 id="asset_set@1",
                 category=PrimitiveCategory.TRANSFORM,
                 outputs=(asset_set_port,),

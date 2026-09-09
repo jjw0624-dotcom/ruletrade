@@ -11,9 +11,11 @@ from ruletrade.ir.strategy.model import (
     IRType,
     MergeTargetsOp,
     MonthlyScheduleOp,
+    QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
     RebalanceOp,
+    RetainTargetsOp,
     ScaleTargetsOp,
     StrategyIR,
     StrategyIROperation,
@@ -38,7 +40,7 @@ class IRValidationError(ValueError):
 
 
 def _result_type(operation: StrategyIROperation) -> IRType:
-    if isinstance(operation, MonthlyScheduleOp):
+    if isinstance(operation, (MonthlyScheduleOp, QuarterlyScheduleOp)):
         return IRType.EVENT
     if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp)):
         return IRType.ASSET_SET
@@ -46,7 +48,10 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         return IRType.ASSET_SCORES
     if isinstance(operation, RankOp):
         return IRType.RANKED_ASSETS
-    if isinstance(operation, (EqualWeightOp, ScaleTargetsOp, MergeTargetsOp, FirstNonEmptyTargetsOp)):
+    if isinstance(
+        operation,
+        (EqualWeightOp, ScaleTargetsOp, RetainTargetsOp, MergeTargetsOp, FirstNonEmptyTargetsOp),
+    ):
         return IRType.PORTFOLIO_TARGETS
     if isinstance(operation, RebalanceOp):
         return IRType.EFFECT
@@ -67,6 +72,8 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
     if isinstance(operation, EqualWeightOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
     if isinstance(operation, ScaleTargetsOp):
+        return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
+    if isinstance(operation, RetainTargetsOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     if isinstance(operation, MergeTargetsOp):
         return (
@@ -92,6 +99,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
     operations: dict[str, StrategyIROperation] = {}
     known_types = (
         MonthlyScheduleOp,
+        QuarterlyScheduleOp,
         AssetSetOp,
         RandomNOp,
         TrailingReturnOp,
@@ -100,6 +108,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         TopNOp,
         EqualWeightOp,
         ScaleTargetsOp,
+        RetainTargetsOp,
         MergeTargetsOp,
         FirstNonEmptyTargetsOp,
         RebalanceOp,
@@ -127,6 +136,8 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
             issues.append(IRValidationIssue(f"{path}.provenance", "source component id is required"))
         if isinstance(operation, MonthlyScheduleOp) and not 1 <= operation.day <= 31:
             issues.append(IRValidationIssue(f"{path}.day", "monthly day must be between 1 and 31"))
+        if isinstance(operation, QuarterlyScheduleOp) and not 1 <= operation.day <= 31:
+            issues.append(IRValidationIssue(f"{path}.day", "quarterly day must be between 1 and 31"))
         if isinstance(operation, AssetSetOp) and (
             not operation.symbols or len(set(operation.symbols)) != len(operation.symbols)
         ):
@@ -246,12 +257,27 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         event = operations.get(entrypoint.event)
         target = operations.get(entrypoint.target)
         path = f"entrypoints[{index}]"
-        if not isinstance(event, MonthlyScheduleOp):
+        if not isinstance(event, (MonthlyScheduleOp, QuarterlyScheduleOp)):
             issues.append(IRValidationIssue(f"{path}.event", "entrypoint event must be a schedule"))
-        if not isinstance(target, RebalanceOp):
-            issues.append(IRValidationIssue(f"{path}.target", "entrypoint target must be rebalance"))
+        if not isinstance(target, (RetainTargetsOp, RebalanceOp)):
+            issues.append(
+                IRValidationIssue(
+                    f"{path}.target",
+                    "entrypoint target must refresh retained targets or rebalance",
+                )
+            )
         mark(entrypoint.event)
         mark(entrypoint.target)
+
+    entrypoint_targets = {item.target for item in strategy_ir.entrypoints}
+    for operation in operations.values():
+        if isinstance(operation, RetainTargetsOp) and operation.id not in entrypoint_targets:
+            issues.append(
+                IRValidationIssue(
+                    f"operations[{operation.id}]",
+                    "retained targets must have a scheduled refresh entrypoint",
+                )
+            )
 
     unused = sorted(set(operations) - reachable)
     if unused:

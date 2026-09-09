@@ -266,6 +266,27 @@ def test_editor_bootstrap_can_deliver_portfolio_sleeves_source_model() -> None:
     ]
 
 
+def test_editor_bootstrap_can_deliver_independent_schedule_source_model() -> None:
+    response = client.get("/v1/editor/bootstrap?example=independent_schedules")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["validation"] == {"valid": True, "issues": []}
+    components = {
+        item["id"]: item for item in payload["strategy"]["graph"]["components"]
+    }
+    assert components["growth_monthly"]["primitive"] == "monthly@1"
+    assert components["portfolio_quarterly"]["primitive"] == "quarterly@1"
+    assert {
+        (item["event_component_id"], item["target_component_id"])
+        for item in payload["strategy"]["entrypoints"]
+    } == {
+        ("growth_monthly", "growth_sleeve"),
+        ("portfolio_quarterly", "defensive_sleeve"),
+        ("portfolio_quarterly", "rebalance"),
+    }
+
+
 def test_rejects_semantically_invalid_canonical_v1_strategy() -> None:
     payload = {
         **GOLDEN_PORTFOLIO_PAYLOAD,

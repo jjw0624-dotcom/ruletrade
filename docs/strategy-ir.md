@@ -183,8 +183,27 @@ Requirements compose through ordinary IR dataflow: subscriptions are deduplicate
 while Daily momentum history remains attached only to the Growth trailing-return operands. LEAN
 receives only flat final target weights; no fake LEAN Sleeve abstraction is generated. Source
 provenance on scale operations and deterministic `RULETRADE_SLEEVE` traces expose local weights,
-allocation, and scaled contribution. Independent schedules, nested sleeves, and path-sensitive
-readiness remain deliberately deferred.
+allocation, and scaled contribution. Nested sleeves and path-sensitive readiness remain deliberately
+deferred.
+
+## Independent schedules v0
+
+`CanonicalStrategyV1` now distinguishes scheduled target refresh from portfolio execution through
+ordinary event entrypoints. The reference source uses `monthly@1 → growth_sleeve`,
+`quarterly@1 → defensive_sleeve`, and `quarterly@1 → rebalance`. Monthly means the first trading day
+of every month; Quarterly means the first trading day of January, April, July, and October.
+
+An independently scheduled source sleeve desugars to `portfolio.retain_targets` followed by the
+existing `portfolio.scale_targets`. `retain_targets` is the one new irreducible temporal IR semantic:
+it retains the latest semantic local `PortfolioTargets` and refresh provenance between events. It is
+compiler/runtime execution state, not user-authored Strategy State. Unscheduled sleeves retain the
+existing event-local lowering, so previous strategies do not silently acquire snapshot semantics.
+
+On a ready Daily slice the runtime performs two deterministic phases: all pending sleeve refreshes
+commit first, then all pending portfolio executions consume the committed snapshots. Registration or
+entrypoint ordering therefore cannot change same-day results. Portfolio execution is skipped until
+every referenced snapshot exists. A snapshot records local targets and its source event identity;
+LEAN-specific dictionaries remain confined to `LeanPlan → C#` lowering.
 
 ## Reproducibility and persistence boundary
 

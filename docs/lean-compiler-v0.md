@@ -1,7 +1,7 @@
 # LEAN compiler v0
 
 The compiler supports the Growth 70 / Safe 30 Golden strategy and the narrow
-trailing-return, Filter, Fallback, and Portfolio Sleeves slices. Its backend path is:
+trailing-return, Filter, Fallback, Portfolio Sleeves, and Independent Schedules slices. Its backend path is:
 
 `CanonicalStrategyV1 -> Strategy IR -> requirements analysis -> typed LeanPlan -> C# QCAlgorithm`
 
@@ -108,6 +108,16 @@ The verifier rejects fatal/runtime/price-readiness errors and incomplete runs.
 It requires 12 monthly records, exactly two growth assets, 35/35/15/15 weights,
 a 100% total, positive Total Orders, and exact monthly agreement with the
 retained Python v0 RandomSelect oracle.
+
+The independently scheduled acceptance path is:
+
+```bash
+scripts/run_independent_schedules_lean_e2e.sh
+```
+
+It reuses the deterministic Filter fixture and verifies 12 monthly Growth refreshes, four quarterly
+Defensive refreshes, four quarterly portfolio executions, refresh-before-execution ordering, snapshot
+timestamps, scaled/aggregated targets, fallback decisions, normalized results, and data-request health.
 
 ### Synthetic interest-rate data
 

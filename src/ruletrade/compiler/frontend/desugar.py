@@ -13,6 +13,7 @@ from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveRegistry
 SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
     {
         "event.monthly",
+        "event.quarterly",
         "asset_set.named",
         "selection.random_n_v1",
         "market.trailing_return",
@@ -52,6 +53,12 @@ def desugar_strategy(
         for component in strategy.graph.components
     }
     components = {component.id: component for component in strategy.graph.components}
+    scheduled_sleeves = {
+        entrypoint.target_component_id
+        for entrypoint in strategy.entrypoints
+        if implementations.get(entrypoint.target_component_id) == "portfolio.sleeve"
+    }
+    sleeve_outputs: dict[str, str] = {}
     unsupported = sorted(set(implementations.values()) - SUPPORTED_SOURCE_IMPLEMENTATIONS)
     if unsupported:
         raise StrategyDesugaringError(
@@ -86,6 +93,12 @@ def desugar_strategy(
         resolved = config(component)
         if implementation == "event.monthly":
             operation = strategy_ir.MonthlyScheduleOp(
+                id=component.id,
+                day=int(resolved["day"]),
+                provenance=provenance,
+            )
+        elif implementation == "event.quarterly":
+            operation = strategy_ir.QuarterlyScheduleOp(
                 id=component.id,
                 day=int(resolved["day"]),
                 provenance=provenance,
@@ -187,14 +200,35 @@ def desugar_strategy(
                 provenance=provenance,
             )
         elif implementation == "portfolio.sleeve":
-            operation = strategy_ir.ScaleTargetsOp(
-                id=component.id,
-                targets=input_id(component, "local_targets"),
-                factor=Decimal(str(resolved["allocation"])),
-                provenance=provenance,
-            )
+            local_targets = input_id(component, "local_targets")
+            if component.id in scheduled_sleeves:
+                operations.append(
+                    strategy_ir.RetainTargetsOp(
+                        id=component.id,
+                        targets=local_targets,
+                        provenance=provenance,
+                    )
+                )
+                output_id = f"{component.id}$scaled"
+                sleeve_outputs[component.id] = output_id
+                operation = strategy_ir.ScaleTargetsOp(
+                    id=output_id,
+                    targets=component.id,
+                    factor=Decimal(str(resolved["allocation"])),
+                    provenance=provenance,
+                )
+            else:
+                operation = strategy_ir.ScaleTargetsOp(
+                    id=component.id,
+                    targets=local_targets,
+                    factor=Decimal(str(resolved["allocation"])),
+                    provenance=provenance,
+                )
         elif implementation == "portfolio.compose":
-            sleeve_ids = input_ids(component, "sleeves")
+            sleeve_ids = tuple(
+                sleeve_outputs.get(item, item)
+                for item in input_ids(component, "sleeves")
+            )
             if len(sleeve_ids) != 2:
                 raise StrategyDesugaringError("portfolio v0 requires exactly two sleeves")
             operation = strategy_ir.MergeTargetsOp(

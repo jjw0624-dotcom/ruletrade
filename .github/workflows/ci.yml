@@ -42,6 +42,7 @@ jobs:
           src/ruletrade/compiler/lean/__init__.py
           src/ruletrade/compiler/lean/fallback_e2e.py
           src/ruletrade/compiler/lean/filter_e2e.py
+          src/ruletrade/compiler/lean/independent_schedules_e2e.py
           src/ruletrade/compiler/lean/lowering.py
           src/ruletrade/compiler/lean/momentum_e2e.py
           src/ruletrade/compiler/lean/sleeves_e2e.py
@@ -50,6 +51,7 @@ jobs:
           scripts/generate_golden_lean_fixture.py
           scripts/generate_fallback_lean.py
           scripts/generate_filter_lean.py
+          scripts/generate_independent_schedules_lean.py
           scripts/generate_momentum_lean.py
           scripts/generate_sleeves_lean.py
           scripts/run_editor_lean_e2e.py
@@ -57,10 +59,12 @@ jobs:
           scripts/verify_momentum_lean_e2e.py
           scripts/verify_fallback_lean_e2e.py
           scripts/verify_filter_lean_e2e.py
+          scripts/verify_independent_schedules_lean_e2e.py
           scripts/verify_sleeves_lean_e2e.py
           tests/test_api.py
           tests/test_fallback.py
           tests/test_filter_screening.py
+          tests/test_independent_schedules.py
           tests/test_lean_backtest_service.py
           tests/test_lean_e2e_validation.py
           tests/test_lean_result_normalization.py
@@ -82,6 +86,7 @@ jobs:
           scripts/run_filter_lean_e2e.sh
           scripts/run_fallback_lean_e2e.sh
           scripts/run_sleeves_lean_e2e.sh
+          scripts/run_independent_schedules_lean_e2e.sh
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 
@@ -125,7 +130,7 @@ jobs:
       - name: Install compiler dependencies
         run: uv sync --extra dev --locked
 
-      - name: Generate Momentum, Filter, Fallback, and Sleeves C#
+      - name: Generate compiler-slice C# algorithms
         run: |
           PYTHONPATH=src uv run python scripts/generate_momentum_lean.py \
             --output build/lean/momentum-ci/Main.cs
@@ -135,6 +140,8 @@ jobs:
             --output build/lean/fallback-ci/Main.cs
           PYTHONPATH=src uv run python scripts/generate_sleeves_lean.py \
             --output build/lean/sleeves-ci/Main.cs
+          PYTHONPATH=src uv run python scripts/generate_independent_schedules_lean.py \
+            --output build/lean/independent-schedules-ci/Main.cs
 
       - name: Free space for the LEAN Docker image
         run: |
@@ -162,6 +169,9 @@ jobs:
           ./scripts/build_golden_lean_docker.sh \
             build/lean/sleeves-ci/Main.cs \
             build/lean/sleeves-ci/bin
+          ./scripts/build_golden_lean_docker.sh \
+            build/lean/independent-schedules-ci/Main.cs \
+            build/lean/independent-schedules-ci/bin
 
       - name: Verify generated assemblies
         run: |
@@ -169,3 +179,4 @@ jobs:
           test -f build/lean/filter-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/fallback-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
+          test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
