@@ -141,7 +141,7 @@ export function FlowView() {
   }
 
   return (
-    <div className="flow-view" aria-label="Flow strategy editor">
+    <div className="flow-surface"><div className="flow-context"><span>Each step is part of the same strategy.</span>{state.editor.selectedNodeId && <button className="secondary-button" onClick={() => dispatch({ type: "set_active_view", view: "guided" })}>View selected step in Guided</button>}</div><div className="flow-view" aria-label="Flow strategy editor">
       <ReactFlow
         nodes={nodes}
         edges={projection.edges}
@@ -156,6 +156,6 @@ export function FlowView() {
         <MiniMap pannable zoomable />
         <Controls />
       </ReactFlow>
-    </div>
+    </div></div>
   );
 }

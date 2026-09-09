@@ -10,7 +10,7 @@ import type {
 import { DEFAULT_NODE_POSITIONS, type NodePositions } from "../domain/flow";
 import { applySemanticPatch, type SemanticPatch } from "../domain/patch";
 
-export type EditorView = "guided" | "flow";
+export type EditorView = "overview" | "guided" | "flow";
 
 export interface StrategyEditorState {
   canonical: CanonicalStrategyV1;
@@ -42,7 +42,7 @@ export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorSta
     canonical: bootstrap.strategy,
     registry: bootstrap.registry,
     editor: {
-      activeView: "guided",
+      activeView: "overview",
       nodePositions: { ...DEFAULT_NODE_POSITIONS },
       viewport: { x: 0, y: 0, zoom: 0.85 },
       selectedNodeId: null,

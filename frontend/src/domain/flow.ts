@@ -73,7 +73,7 @@ function nodeData(
 ): StrategyFlowNodeData {
   if (component.primitive === "asset_set@1") {
     const title = component.id === "universe_assets"
-      ? "Universe"
+      ? "Assets to consider"
       : component.id.startsWith("growth") ? "Growth Assets" : "Safe Assets";
     return { componentId: component.id, title, details: assetSetDetails(strategy, component) };
   }
@@ -90,7 +90,7 @@ function nodeData(
   }
   if (component.primitive === "trailing_return@1") {
     const lookback = resolvedConfigValue(strategy, registry, component.id, "lookback_bars");
-    return { componentId: component.id, title: "Trailing Return", details: [`Lookback: ${String(lookback)} trading days`, "Adjusted close"], lookbackBars: typeof lookback === "number" ? lookback : undefined };
+    return { componentId: component.id, title: `${String(lookback)}-day return`, details: ["Recent performance", "Adjusted close"], lookbackBars: typeof lookback === "number" ? lookback : undefined };
   }
   if (component.primitive === "filter@1") {
     const threshold = resolvedConfigValue(strategy, registry, component.id, "threshold");
@@ -103,7 +103,7 @@ function nodeData(
   }
   if (component.primitive === "rank@1") {
     const direction = resolvedConfigValue(strategy, registry, component.id, "direction");
-    return { componentId: component.id, title: "Rank", details: [`Direction: ${String(direction)}`, "Tie: ticker A–Z"] };
+    return { componentId: component.id, title: direction === "desc" ? "Rank strongest" : "Rank weakest", details: ["Compare qualifying assets", "Ties use ticker order"] };
   }
   if (component.primitive === "top_n@1") {
     const count = resolvedConfigValue(strategy, registry, component.id, "count");
@@ -131,8 +131,8 @@ function nodeData(
     const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
     return {
       componentId: component.id,
-      title: `Fallback: ${definition?.assets[0] ?? "Missing asset"}`,
-      details: ["If fewer than Top N qualify"],
+      title: `${definition?.assets[0] ?? "Missing asset"} fallback`,
+      details: ["Used when the primary selection is incomplete"],
       fallbackAssetSetRef: typeof reference === "string" ? reference : undefined,
       fallbackOptions: strategy.definitions.asset_sets
         .filter((item) => item.assets.length === 1)
