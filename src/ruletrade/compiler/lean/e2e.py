@@ -4,8 +4,8 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 from zipfile import ZipFile
+from typing import Any
 
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.core.selection import select_symbols
@@ -218,7 +218,7 @@ def validate_golden_e2e(
         }
         if record.weights != expected_weights:
             raise ValueError(f"target weight mismatch for {record.event_identity}")
-        if sum(record.weights.values(), Decimal("0")) != Decimal("1"):
+        if sum(record.weights.values(), Decimal(0)) != Decimal(1):
             raise ValueError(f"target weights do not sum to 1 for {record.event_identity}")
 
     total_orders = _total_orders(result_payload)
