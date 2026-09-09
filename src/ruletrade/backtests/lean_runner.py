@@ -7,7 +7,8 @@ import re
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from time import perf_counter_ns
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -23,9 +24,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class LeanRunnerTimings:
+    csharp_compile_ms: int = 0
+    lean_execution_ms: int = 0
+    result_load_ms: int = 0
+
+
+@dataclass(frozen=True)
 class LeanRunArtifact:
     log_text: str
     result_payload: dict[str, Any]
+    timings: LeanRunnerTimings = field(default_factory=LeanRunnerTimings)
 
 
 class LeanRunner(Protocol):
@@ -154,6 +163,7 @@ class DockerLeanRunner:
             relative_work = work.relative_to(self.repo_root).as_posix()
 
             try:
+                compile_started = perf_counter_ns()
                 self._run(
                     [
                         str(self.repo_root / "scripts" / "build_golden_lean_docker.sh"),
@@ -161,6 +171,8 @@ class DockerLeanRunner:
                         f"{relative_work}/bin",
                     ]
                 )
+                csharp_compile_ms = _elapsed_ms(compile_started)
+                lean_started = perf_counter_ns()
                 created = self._run(
                     [
                         "docker", "create", "--workdir", "/Lean/Launcher/bin/Debug",
@@ -213,11 +225,25 @@ class DockerLeanRunner:
                 if completion is None:
                     raise LeanExecutionError("LEAN completion marker was not found.")
                 self._run(["docker", "cp", f"{container_id}:/Lean/Results/.", str(results)])
+                lean_execution_ms = _elapsed_ms(lean_started)
+                result_started = perf_counter_ns()
                 payload = load_lean_backtest_result(results)
-                return LeanRunArtifact(log_text=log_text, result_payload=payload)
+                return LeanRunArtifact(
+                    log_text=log_text,
+                    result_payload=payload,
+                    timings=LeanRunnerTimings(
+                        csharp_compile_ms=csharp_compile_ms,
+                        lean_execution_ms=lean_execution_ms,
+                        result_load_ms=_elapsed_ms(result_started),
+                    ),
+                )
             finally:
                 if container_id:
                     try:
                         self._run(["docker", "rm", "--force", container_id], check=False)
                     except LeanExecutionError:
                         pass
+
+
+def _elapsed_ms(started_ns: int) -> int:
+    return max(0, (perf_counter_ns() - started_ns) // 1_000_000)

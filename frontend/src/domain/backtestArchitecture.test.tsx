@@ -29,6 +29,17 @@ const response: LeanBacktestResponse = {
       { timestamp: "2024-12-31T00:00:00Z", value: "133448.49" },
     ],
   },
+  timings: {
+    source_load_ms: 0,
+    validation_ms: 1,
+    compiler_ms: 2,
+    codegen_ms: 3,
+    csharp_compile_ms: 4,
+    lean_execution_ms: 5,
+    result_load_ms: 1,
+    normalization_ms: 1,
+    total_ms: 17,
+  },
 };
 
 

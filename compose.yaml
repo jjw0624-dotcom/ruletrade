@@ -6,6 +6,7 @@ services:
     environment:
       RULETRADE_DATA_DIR: /app/data
       RULETRADE_DB_PATH: /app/state/ruletrade.sqlite3
+      RULETRADE_BUILD_COMMIT: ${RULETRADE_BUILD_COMMIT:-}
     volumes:
       - ruletrade-state:/app/state
     healthcheck:

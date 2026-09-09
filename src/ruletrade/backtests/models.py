@@ -4,13 +4,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
 class BacktestConfig(BaseModel):
     """Run settings; deliberately separate from Canonical strategy semantics."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     start_date: date = date(2024, 1, 1)
     end_date: date = date(2024, 12, 31)
@@ -47,8 +49,23 @@ class BacktestResult(BaseModel):
     equity_curve: list[EquityPoint]
 
 
+class BacktestTimings(BaseModel):
+    """Measured wall-clock stage durations; diagnostic, never strategy semantics."""
+
+    source_load_ms: int = Field(default=0, ge=0)
+    validation_ms: int = Field(default=0, ge=0)
+    compiler_ms: int = Field(default=0, ge=0)
+    codegen_ms: int = Field(default=0, ge=0)
+    csharp_compile_ms: int = Field(default=0, ge=0)
+    lean_execution_ms: int = Field(default=0, ge=0)
+    result_load_ms: int = Field(default=0, ge=0)
+    normalization_ms: int = Field(default=0, ge=0)
+    total_ms: int = Field(default=0, ge=0)
+
+
 class LeanBacktestResponse(BaseModel):
     strategy_hash: str
     engine: Literal["lean"] = "lean"
     config: BacktestConfig
     result: BacktestResult
+    timings: BacktestTimings = Field(default_factory=BacktestTimings)

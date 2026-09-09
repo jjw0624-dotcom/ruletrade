@@ -35,6 +35,7 @@ jobs:
         run: >-
           uv run ruff check
           src/ruletrade/api.py
+          src/ruletrade/backtest_runs
           src/ruletrade/backtests
           src/ruletrade/compiler/__init__.py
           src/ruletrade/compiler/analysis
@@ -68,6 +69,7 @@ jobs:
           scripts/verify_independent_schedules_lean_e2e.py
           scripts/verify_sleeves_lean_e2e.py
           tests/test_api.py
+          tests/test_backtest_runs.py
           tests/test_cooldown.py
           tests/test_fallback.py
           tests/test_filter_screening.py

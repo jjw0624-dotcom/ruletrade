@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, SCHEMA_VERSION}:
+                if version not in {0, 1, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -84,9 +84,73 @@ class SQLiteStrategyRepository:
                     BEGIN
                         SELECT RAISE(ABORT, 'strategy revisions are immutable');
                     END;
+
+                    CREATE TABLE IF NOT EXISTS backtest_runs (
+                        id TEXT PRIMARY KEY,
+                        revision_id TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK (
+                            status IN ('pending', 'running', 'succeeded', 'failed')
+                        ),
+                        config_json TEXT NOT NULL,
+                        result_json TEXT,
+                        error_json TEXT,
+                        provenance_json TEXT NOT NULL,
+                        timings_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        started_at TEXT,
+                        completed_at TEXT,
+                        FOREIGN KEY (revision_id) REFERENCES strategy_revisions(id),
+                        CHECK (
+                            (status = 'pending' AND started_at IS NULL
+                                AND completed_at IS NULL AND result_json IS NULL
+                                AND error_json IS NULL)
+                            OR
+                            (status = 'running' AND started_at IS NOT NULL
+                                AND completed_at IS NULL AND result_json IS NULL
+                                AND error_json IS NULL)
+                            OR
+                            (status = 'succeeded' AND started_at IS NOT NULL
+                                AND completed_at IS NOT NULL AND result_json IS NOT NULL
+                                AND error_json IS NULL)
+                            OR
+                            (status = 'failed' AND started_at IS NOT NULL
+                                AND completed_at IS NOT NULL AND result_json IS NULL
+                                AND error_json IS NOT NULL)
+                        )
+                    );
+
+                    CREATE INDEX IF NOT EXISTS backtest_runs_revision_created
+                        ON backtest_runs(revision_id, created_at DESC, id DESC);
+
+                    CREATE TRIGGER IF NOT EXISTS backtest_runs_immutable_identity
+                    BEFORE UPDATE ON backtest_runs
+                    WHEN NEW.id != OLD.id
+                        OR NEW.revision_id != OLD.revision_id
+                        OR NEW.config_json != OLD.config_json
+                        OR NEW.provenance_json != OLD.provenance_json
+                        OR NEW.created_at != OLD.created_at
+                    BEGIN
+                        SELECT RAISE(ABORT, 'backtest run identity and inputs are immutable');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS backtest_runs_lifecycle
+                    BEFORE UPDATE ON backtest_runs
+                    WHEN NOT (
+                        (OLD.status = 'pending' AND NEW.status = 'running')
+                        OR (OLD.status = 'running' AND NEW.status IN ('succeeded', 'failed'))
+                    )
+                    BEGIN
+                        SELECT RAISE(ABORT, 'invalid backtest run lifecycle transition');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS backtest_runs_no_delete
+                    BEFORE DELETE ON backtest_runs
+                    BEGIN
+                        SELECT RAISE(ABORT, 'backtest runs are immutable historical artifacts');
+                    END;
                     """
                 )
-                if version == 0:
+                if version < SCHEMA_VERSION:
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         except PersistenceError:
             raise
@@ -131,6 +195,17 @@ class SQLiteStrategyRepository:
                     WHERE strategy_id = ? AND id = ?
                     """,
                     (strategy_id, revision_id),
+                ).fetchone()
+            return None if row is None else self._revision(row)
+        except sqlite3.Error as exc:
+            raise PersistenceError("Could not read Strategy Revision.") from exc
+
+    def get_revision_by_id(self, revision_id: str) -> RevisionRecord | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT * FROM strategy_revisions WHERE id = ?",
+                    (revision_id,),
                 ).fetchone()
             return None if row is None else self._revision(row)
         except sqlite3.Error as exc:

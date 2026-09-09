@@ -49,11 +49,24 @@ export interface BacktestResult {
   equity_curve: EquityPoint[];
 }
 
+export interface BacktestTimings {
+  source_load_ms: number;
+  validation_ms: number;
+  compiler_ms: number;
+  codegen_ms: number;
+  csharp_compile_ms: number;
+  lean_execution_ms: number;
+  result_load_ms: number;
+  normalization_ms: number;
+  total_ms: number;
+}
+
 export interface LeanBacktestResponse {
   strategy_hash: string;
   engine: "lean";
   config: BacktestConfig;
   result: BacktestResult;
+  timings: BacktestTimings;
 }
 
 export interface BacktestApiError {
