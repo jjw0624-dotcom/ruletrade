@@ -143,6 +143,8 @@ def test_filter_lowers_to_one_score_calculation_then_filter_rank_and_top_n() -> 
     assert source.count("window[0] / window[126] - 1m") == 1
     assert ".Where(item => item.Value > 0m)" in source
     assert "RULETRADE_FILTER|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "evaluation", "filter"' in source
+    assert '"filter_component", "positive_return"' in source
     assert '"|candidate="' in source
     assert '? "executed" : "skipped"' in source
     assert source.index("var scores0_0_0") < source.index("var eligibleScores0_0_0")

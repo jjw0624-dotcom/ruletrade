@@ -14,6 +14,7 @@ from ruletrade.compiler.lean.e2e import (
     validate_zero_failed_data_requests,
 )
 from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
+from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
 from ruletrade.strategy.v1.momentum import evaluate_fallback_trailing_return_top_n
 
 PRIMARY_PATTERN = re.compile(
@@ -48,6 +49,7 @@ def verify_fallback_e2e(
     fallbacks = {match.group("event"): match for match in FALLBACK_PATTERN.finditer(log_text)}
     finals = {match.group("event"): match for match in FINAL_PATTERN.finditer(log_text)}
     targets = {record.event_identity: record for record in parse_target_records(log_text)}
+    evidence = index_decision_evidence(log_text)
     counts = {len(filters), len(primaries), len(fallbacks), len(finals), len(targets)}
     if counts != {12}:
         raise ValueError(
@@ -109,6 +111,20 @@ def verify_fallback_e2e(
             raise ValueError(f"final selection mismatch for {event_identity}")
         if final_trace.group("source") != expected_source:
             raise ValueError(f"final source mismatch for {event_identity}")
+        if evidence:
+            fallback_evidence = one_evidence(
+                evidence, event_identity, "fallback"
+            ).evidence
+            final_evidence = one_evidence(
+                evidence, event_identity, "final_selection"
+            ).evidence
+            if (
+                fallback_evidence.asset != "TLT"
+                or fallback_evidence.activated != reference.fallback_activated
+                or final_evidence.selected != reference.final_selected
+                or final_evidence.source != expected_source
+            ):
+                raise ValueError(f"structured fallback evidence mismatch for {event_identity}")
         target = targets[event_identity]
         if target.selected != tuple(sorted(reference.final_selected)):
             raise ValueError(f"target selection mismatch for {event_identity}")

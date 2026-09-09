@@ -12,6 +12,7 @@ from ruletrade.compiler.lean.e2e import (
     parse_target_records,
     validate_lean_completion,
 )
+from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
 from ruletrade.strategy.v1.momentum import evaluate_trailing_return_top_n
 
 MOMENTUM_PATTERN = re.compile(
@@ -35,6 +36,7 @@ def verify_momentum_e2e(
     validate_lean_completion(log_text)
     traces = {match.group("event"): match for match in MOMENTUM_PATTERN.finditer(log_text)}
     targets = parse_target_records(log_text)
+    evidence = index_decision_evidence(log_text)
     if len(traces) != 12 or len(targets) != 12:
         raise ValueError(
             f"expected 12 Momentum events, got traces={len(traces)}, targets={len(targets)}"
@@ -60,6 +62,19 @@ def verify_momentum_e2e(
         actual_scores = parse_decimal_map(trace.group("scores"))
         if not division_derived_scores_match(actual_scores, dict(reference.scores)):
             raise ValueError(f"score mismatch for {target.event_identity}")
+        if evidence:
+            structured = one_evidence(
+                evidence, target.event_identity, "selection"
+            ).evidence
+            if (
+                structured.ranked != reference.ranked
+                or structured.candidates != reference.selected
+                or structured.primary_selected != reference.selected
+                or not division_derived_scores_match(
+                    structured.scores, dict(reference.scores)
+                )
+            ):
+                raise ValueError(f"structured selection mismatch for {target.event_identity}")
     normalized = normalize_lean_result(result_payload)
     if normalized.total_orders <= 0:
         raise ValueError("Momentum backtest submitted no orders")

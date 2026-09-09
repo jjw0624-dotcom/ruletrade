@@ -18,6 +18,11 @@ from ruletrade.compiler.lean.fallback_e2e import (
     PRIMARY_PATTERN,
 )
 from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
+from ruletrade.compiler.lean.evidence_e2e import (
+    evidence_for_source,
+    index_decision_evidence,
+    one_evidence,
+)
 from ruletrade.strategy.v1.temporal import evaluate_independent_schedules
 
 REFRESH_PATTERN = re.compile(
@@ -75,6 +80,7 @@ def verify_independent_schedules_e2e(
         for match in SLEEVE_PATTERN.finditer(log_text)
     }
     targets = {record.event_identity: record for record in parse_target_records(log_text)}
+    evidence = index_decision_evidence(log_text)
     if len(refreshes) != 16 or len(portfolio_events) != 4 or len(targets) != 4:
         raise ValueError("expected 12 Growth, 4 Defensive refreshes, and 4 portfolio events")
 
@@ -102,6 +108,21 @@ def verify_independent_schedules_e2e(
             raise ValueError(f"snapshot timestamp mismatch for {snapshot.refreshed_at}")
         if parse_decimal_map(actual.group("targets")) != dict(snapshot.local_targets):
             raise ValueError(f"local target mismatch for {snapshot.refreshed_at} {snapshot.sleeve_id}")
+        if evidence:
+            refresh_evidence = evidence_for_source(
+                evidence,
+                snapshot.refreshed_at,
+                "snapshot_refresh",
+                "sleeve",
+                snapshot.sleeve_id,
+            ).evidence
+            if (
+                refresh_evidence.snapshot_session.isoformat() != snapshot.refreshed_at
+                or refresh_evidence.local_targets != dict(snapshot.local_targets)
+            ):
+                raise ValueError(
+                    f"structured snapshot refresh mismatch for {snapshot.refreshed_at}"
+                )
         if snapshot.growth_decision is not None:
             decision = snapshot.growth_decision
             primary_trace = primaries[snapshot.refreshed_at]
@@ -150,10 +171,29 @@ def verify_independent_schedules_e2e(
         expected_timestamps = dict(decision.snapshot_timestamps)
         if _snapshots(actual.group("snapshots")) != expected_timestamps:
             raise ValueError(f"portfolio snapshot provenance mismatch for {decision.event}")
+        if evidence:
+            usage = one_evidence(evidence, decision.event, "snapshot_usage").evidence
+            if {
+                sleeve: timestamp.isoformat()
+                for sleeve, timestamp in usage.snapshots.items()
+            } != expected_timestamps or not usage.executed:
+                raise ValueError(f"structured snapshot usage mismatch for {decision.event}")
         for sleeve_id, contribution in decision.scaled_contributions:
             trace = sleeves[(decision.event, sleeve_id)]
             if parse_decimal_map(trace.group("scaled")) != dict(contribution):
                 raise ValueError(f"scaled contribution mismatch for {decision.event} {sleeve_id}")
+            if evidence:
+                structured = evidence_for_source(
+                    evidence,
+                    decision.event,
+                    "sleeve_contribution",
+                    "sleeve",
+                    sleeve_id,
+                ).evidence
+                if structured.scaled_targets != dict(contribution):
+                    raise ValueError(
+                        f"structured contribution mismatch for {decision.event} {sleeve_id}"
+                    )
         target = targets[decision.event]
         if target.weights != dict(decision.final_targets):
             raise ValueError(f"final target mismatch for {decision.event}")

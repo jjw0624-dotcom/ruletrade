@@ -13,6 +13,7 @@ from ruletrade.compiler.lean.e2e import (
     parse_target_records,
     validate_lean_completion,
 )
+from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
 from ruletrade.strategy.v1.momentum import evaluate_filtered_trailing_return_top_n
 
 SYMBOLS = ("QQQ", "VGT", "SOXX", "SCHG")
@@ -52,6 +53,7 @@ def verify_filter_e2e(
     momentums = {match.group("event"): match for match in MOMENTUM_PATTERN.finditer(log_text)}
     skipped = {match.group("event"): match for match in SKIPPED_PATTERN.finditer(log_text)}
     targets = {record.event_identity: record for record in parse_target_records(log_text)}
+    evidence = index_decision_evidence(log_text)
     if len(filters) != 12 or len(momentums) != 12:
         raise ValueError(
             f"expected 12 Filter events, got filters={len(filters)}, momentum={len(momentums)}"
@@ -84,6 +86,34 @@ def verify_filter_e2e(
             raise ValueError(f"candidate mismatch for {event_identity}")
         if parse_symbols(momentum_trace.group("selected")) != reference.selected:
             raise ValueError(f"selection mismatch for {event_identity}")
+        if evidence:
+            filter_evidence = one_evidence(evidence, event_identity, "filter").evidence
+            actual_evaluations = {
+                item.asset: (item.observed, item.passed)
+                for item in filter_evidence.evaluations
+            }
+            expected_evaluations = {
+                asset: (score, asset in reference.eligible)
+                for asset, score in reference.scores
+            }
+            if not division_derived_scores_match(
+                {asset: value[0] for asset, value in actual_evaluations.items()},
+                {asset: value[0] for asset, value in expected_evaluations.items()},
+            ) or {
+                asset: value[1] for asset, value in actual_evaluations.items()
+            } != {
+                asset: value[1] for asset, value in expected_evaluations.items()
+            }:
+                raise ValueError(f"structured filter evidence mismatch for {event_identity}")
+            selection_evidence = one_evidence(
+                evidence, event_identity, "selection"
+            ).evidence
+            if (
+                selection_evidence.ranked != reference.ranked
+                or selection_evidence.candidates != reference.ranked[:2]
+                or selection_evidence.primary_selected != reference.selected
+            ):
+                raise ValueError(f"structured selection evidence mismatch for {event_identity}")
         expected_decision = "executed" if reference.selected else "skipped"
         if momentum_trace.group("decision") != expected_decision:
             raise ValueError(f"decision mismatch for {event_identity}")

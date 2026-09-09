@@ -14,6 +14,7 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
+from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
 from ruletrade.strategy.v1.cooldown import evaluate_cooldown
 
 SIGNAL_PATTERN = re.compile(
@@ -85,6 +86,7 @@ def verify_cooldown_e2e(
         for item in STATE_PATTERN.finditer(log_text)
     }
     targets = {item.event_identity: item for item in parse_target_records(log_text)}
+    evidence = index_decision_evidence(log_text)
     if not (len(signals) == len(cooldowns) == len(targets) == len(reference)):
         raise ValueError("expected one signal, cooldown decision, and target record per session")
 
@@ -119,6 +121,25 @@ def verify_cooldown_e2e(
             or cooldown.group("decision") != eligibility.decision
         ):
             raise ValueError(f"cooldown decision mismatch for {expected.event}")
+        if evidence:
+            structured = one_evidence(evidence, expected.event, "cooldown").evidence
+            if (
+                structured.asset != eligibility.asset
+                or structured.signal_candidate is not True
+                or (
+                    None
+                    if structured.last_exit is None
+                    else structured.last_exit.isoformat()
+                )
+                != eligibility.last_exit
+                or structured.elapsed_completed_sessions
+                != eligibility.elapsed_trading_days
+                or structured.required_completed_sessions != 20
+                or structured.eligible != (eligibility.decision == "eligible")
+            ):
+                raise ValueError(
+                    f"structured cooldown evidence mismatch for {expected.event}"
+                )
         target = targets[expected.event]
         if target.selected != expected.selected or target.weights != dict(expected.targets):
             raise ValueError(f"target mismatch for {expected.event}")
@@ -126,6 +147,16 @@ def verify_cooldown_e2e(
             state = states.get((expected.event, asset))
             if state is None or state.group("new") != expected.event:
                 raise ValueError(f"last-exit state mismatch for {expected.event} {asset}")
+            if evidence:
+                mutations = evidence.get((expected.event, "state_mutation"), ())
+                if not any(
+                    item.evidence.asset == asset
+                    and item.evidence.new_value.isoformat() == expected.event
+                    for item in mutations
+                ):
+                    raise ValueError(
+                        f"structured state evidence mismatch for {expected.event} {asset}"
+                    )
 
     expected_state_updates = sum(len(item.exits) for item in reference)
     if len(states) != expected_state_updates:

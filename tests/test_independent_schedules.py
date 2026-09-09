@@ -140,6 +140,8 @@ def test_codegen_has_global_refresh_then_execution_phases_and_snapshot_traces() 
     assert defensive_refresh_call < execution_call
     assert "RULETRADE_REFRESH|" in source
     assert "RULETRADE_PORTFOLIO_EVENT|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "snapshot_commit", "snapshot_refresh"' in source
+    assert 'EmitDecisionEvidence(eventIdentity, "portfolio_execution", "snapshot_usage"' in source
     assert "if ((Time.Month - 1) % 3 != 0) return;" in source
     assert "_targetSnapshotTimestamp" in source
 

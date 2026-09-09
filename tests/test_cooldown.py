@@ -133,6 +133,8 @@ def test_codegen_uses_exchange_sessions_and_target_transition_state() -> None:
     assert "elapsed >= 20" in source
     assert "RULETRADE_COOLDOWN|" in source
     assert "RULETRADE_STATE|" in source
+    assert 'EmitDecisionEvidence(eventIdentity, "selection", "cooldown"' in source
+    assert 'EmitDecisionEvidence(eventIdentity, "state_mutation", "state_mutation"' in source
     assert source.index("RULETRADE_STATE|") < source.index("Liquidate(holding.Symbol)")
     assert "_targetSnapshot" not in source
     assert "RULETRADE_COOLDOWN|" not in generate_csharp(

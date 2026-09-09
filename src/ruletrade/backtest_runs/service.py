@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from ruletrade import __version__
 from ruletrade.backtest_runs.errors import (
     BacktestRunNotFoundError,
+    BacktestRunPersistenceError,
     InvalidRunConfigError,
     RunConfigIssue,
 )
@@ -36,6 +37,11 @@ from ruletrade.backtests.models import (
     LeanBacktestResponse,
 )
 from ruletrade.backtests.service import BacktestService
+from ruletrade.decision_evidence.errors import (
+    DecisionEventNotFoundError,
+    DecisionEvidenceError,
+)
+from ruletrade.decision_evidence.models import DecisionEventDetail, DecisionEventSummary
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
 
@@ -96,10 +102,28 @@ class BacktestRunService:
         self.repository.create_run(run)
         running = self.repository.mark_running(run.id, self._clock())
         try:
-            response = self.executor.execute(
+            execution = self.executor.execute_with_evidence(
                 LeanBacktestRequest(strategy=revision.canonical_strategy, config=run_config)
             )
-        except BacktestError as exc:
+            if not execution.decision_events:
+                raise DecisionEvidenceError("Successful execution emitted no Decision Evidence.")
+            source_component_ids = {
+                component.id for component in revision.canonical_strategy.graph.components
+            }
+            unknown_provenance = sorted(
+                {
+                    reference.component_id
+                    for event in execution.decision_events
+                    for reference in event.source_components
+                }
+                - source_component_ids
+            )
+            if unknown_provenance:
+                raise DecisionEvidenceError(
+                    "Decision Evidence referenced unknown source components: "
+                    + ", ".join(unknown_provenance)
+                )
+        except (BacktestError, DecisionEvidenceError) as exc:
             timings = BacktestTimings(
                 source_load_ms=source_load_ms,
                 total_ms=_elapsed_ms(total_started),
@@ -111,18 +135,34 @@ class BacktestRunService:
                 self._clock(),
             )
 
+        response = execution.response
         timings = response.timings.model_copy(
             update={
                 "source_load_ms": source_load_ms,
                 "total_ms": _elapsed_ms(total_started),
             }
         )
-        return self.repository.complete_succeeded(
-            running.id,
-            response.result,
-            timings,
-            self._clock(),
-        )
+        try:
+            return self.repository.complete_succeeded_with_evidence(
+                running.id,
+                response.result,
+                timings,
+                self._clock(),
+                execution.decision_events,
+            )
+        except BacktestRunPersistenceError as exc:
+            try:
+                return self.repository.complete_failed(
+                    running.id,
+                    BacktestRunError(
+                        code="evidence_persistence_failure",
+                        message="Backtest Decision Evidence could not be persisted.",
+                    ),
+                    timings,
+                    self._clock(),
+                )
+            except BacktestRunPersistenceError:
+                raise exc
 
     def list_runs(self, revision_id: str) -> tuple[BacktestRunRecord, ...]:
         self.strategies.get_revision_by_id(revision_id)
@@ -133,6 +173,17 @@ class BacktestRunService:
         if run is None:
             raise BacktestRunNotFoundError("Backtest Run was not found.")
         return run
+
+    def list_decision_events(self, run_id: str) -> tuple[DecisionEventSummary, ...]:
+        self.get_run(run_id)
+        return self.repository.list_decision_events(run_id)
+
+    def get_decision_event(self, run_id: str, event_id: str) -> DecisionEventDetail:
+        self.get_run(run_id)
+        event = self.repository.get_decision_event(run_id, event_id)
+        if event is None:
+            raise DecisionEventNotFoundError("Decision Event was not found.")
+        return event
 
     @staticmethod
     def _validate_config(config: BacktestConfig | Mapping[str, Any]) -> BacktestConfig:
@@ -149,7 +200,12 @@ class BacktestRunService:
             raise InvalidRunConfigError(issues) from exc
 
     @staticmethod
-    def _public_error(exc: BacktestError) -> BacktestRunError:
+    def _public_error(exc: BacktestError | DecisionEvidenceError) -> BacktestRunError:
+        if isinstance(exc, DecisionEvidenceError):
+            return BacktestRunError(
+                code="evidence_collection_failure",
+                message="Backtest Decision Evidence could not be recorded.",
+            )
         if isinstance(exc, LeanRuntimeUnavailableError):
             return BacktestRunError(code=exc.code, message=str(exc))
         if isinstance(exc, UnsupportedStrategyError):
