@@ -43,13 +43,13 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("explains filter rejection and fallback without inventing the missing required count", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} />);
-    expect(markup).toContain("primary selection was incomplete"); expect(markup).toContain("TLT fallback activated"); expect(markup).toContain("Did not pass the condition"); expect(markup).toContain("Greater than 0%"); expect(markup).not.toContain("needed 2");
+    expect(markup).toContain("primary selection was incomplete"); expect(markup).toContain("TLT fallback activated"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("-6.7% &gt; 0%"); expect(markup).not.toContain("needed 2");
   });
 
   it("distinguishes rank cutoff from filter rejection", () => {
     const ranking = [detail(1, "2024-02-01", { kind: "filter", operator: "gt", threshold: "0", evaluations: [{ asset: "QQQ", observed: ".2", passed: true }, { asset: "VGT", observed: ".1", passed: true }, { asset: "SOXX", observed: ".05", passed: true }] }), detail(2, "2024-02-01", { kind: "selection", scores: { QQQ: ".2", VGT: ".1", SOXX: ".05" }, ranked: ["QQQ", "VGT", "SOXX"], candidates: ["QQQ", "VGT", "SOXX"], primary_selected: ["QQQ", "VGT"], decision: "executed" })];
     const markup = renderToStaticMarkup(<AssetExplanation asset="SOXX" details={ranking} />);
-    expect(markup).toContain("Passed"); expect(markup).toContain("#3"); expect(markup).toContain("Not selected"); expect(markup).not.toContain("Rejected");
+    expect(markup).toContain("Qualification rule"); expect(markup).toContain("Rank #3"); expect(markup).toContain("Not selected"); expect(markup).not.toContain("Rejected");
     expect(assetOutcomes(ranking).find((item) => item.asset === "SOXX")).toMatchObject({ kind: "ranked_out", label: "Ranked #3 · not selected" });
   });
 
@@ -91,7 +91,8 @@ describe("Decision Timeline and Research Inspector", () => {
   it("does not turn missing asset evidence into no signal", () => {
     const unknown = [detail(1, "2024-05-01", { kind: "state_mutation", asset: "QQQ", state: "last_exit", old_value: null, new_value: "2024-05-01", cause: "target_exit" })];
     expect(assetOutcomes(unknown)[0]).toMatchObject({ kind: "unknown", label: "Outcome not proven by this evidence" });
-    expect(renderToStaticMarkup(<AssetExplanation asset="QQQ" details={unknown} />)).not.toContain("no signal");
+    const markup = renderToStaticMarkup(<AssetExplanation asset="QQQ" details={unknown} />);
+    expect(markup).toContain("does not prove"); expect(markup).not.toContain("Evidence explicitly records no candidate signal");
   });
 
   it("keeps transient results honest and without a Decision Analysis request", () => {
