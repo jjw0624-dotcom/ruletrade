@@ -8,8 +8,8 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
-from time import perf_counter_ns
 from pathlib import Path
+from time import perf_counter_ns
 from typing import Any, Protocol
 
 from ruletrade.backtests.errors import (
