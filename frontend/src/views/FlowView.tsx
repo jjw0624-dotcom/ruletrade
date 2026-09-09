@@ -29,7 +29,7 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
-      <span className="node-kicker">{node.componentId}</span>
+      <span className="node-kicker">Strategy step</span>
       <strong>{node.title}</strong>
       {node.cooldownDuration !== undefined ? (
         <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.cooldownDuration} onChange={(event) => node.onCooldownChange?.(Number(event.target.value))} /></label></div>

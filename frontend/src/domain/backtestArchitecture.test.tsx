@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { runLeanBacktest } from "../api";
 import { BacktestErrorPanel } from "../components/BacktestErrorPanel";
 import { BacktestResultPanel } from "../components/BacktestResultPanel";
-import type { LeanBacktestResponse } from "./backtest";
-import { createEditorState, editorReducer, canStartBacktest } from "../store/editorStore";
+import { backtestReducer, INITIAL_BACKTEST_STATUS, type LeanBacktestResponse } from "./backtest";
+import { createEditorState, editorReducer } from "../store/editorStore";
 import { goldenBootstrap } from "../test/fixture";
 
 
@@ -57,11 +57,9 @@ describe("Editor-to-LEAN backtest architecture", () => {
   });
 
   it("prevents another run while one is already running", () => {
-    const initial = createEditorState(goldenBootstrap);
-    const running = editorReducer(initial, { type: "backtest_started" });
-
-    expect(canStartBacktest(running)).toBe(false);
-    expect(editorReducer(running, { type: "backtest_started" })).toBe(running);
+    const running = backtestReducer(INITIAL_BACKTEST_STATUS, { type: "started" });
+    expect(running.status).toBe("running");
+    expect(backtestReducer(running, { type: "started" })).toBe(running);
   });
 
   it("renders normalized result metrics and an equity curve", () => {
@@ -79,25 +77,22 @@ describe("Editor-to-LEAN backtest architecture", () => {
       <BacktestErrorPanel error={{ code: "runtime_unavailable", message: "Docker runtime is unavailable." }} />,
     );
 
-    expect(markup).toContain("Backtest could not run");
+    expect(markup).toContain("backtest service is unavailable");
     expect(markup).toContain("Docker runtime is unavailable.");
     expect(markup).toContain("runtime_unavailable");
   });
 
-  it("does not mutate Canonical and editing still works after success", () => {
+  it("keeps backtest results separate from Canonical editor state", () => {
     const initial = createEditorState(goldenBootstrap);
     const canonicalBefore = initial.canonical;
-    const completed = editorReducer(
-      editorReducer(initial, { type: "backtest_started" }),
-      { type: "backtest_succeeded", result: response },
-    );
-    const edited = editorReducer(completed, {
+    const completed = backtestReducer(backtestReducer(INITIAL_BACKTEST_STATUS, { type: "started" }), { type: "succeeded", result: response });
+    const edited = editorReducer(initial, {
       type: "apply_semantic_patch",
       operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
     });
 
-    expect(completed.canonical).toBe(canonicalBefore);
+    expect(initial.canonical).toBe(canonicalBefore);
+    expect(completed.status).toBe("success");
     expect(edited.canonical.graph.components.find((item) => item.id === "growth_random")?.config.count).toBe(3);
-    expect(edited.backtest.status).toBe("success");
   });
 });

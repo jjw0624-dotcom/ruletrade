@@ -97,7 +97,7 @@ function nodeData(
     return {
       componentId: component.id,
       title: `Return > ${percentage(threshold)}`,
-      details: ["Strict comparison", "Keeps score values"],
+      details: ["Only assets above this return continue"],
       threshold: String(threshold),
     };
   }
