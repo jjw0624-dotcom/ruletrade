@@ -13,6 +13,7 @@ from ruletrade.compiler.frontend import lower_strategy_model_to_ir
 from ruletrade.compiler.lean import generate_csharp
 from ruletrade.compiler.lean.filter_e2e import load_filter_fixture_closes
 from ruletrade.compiler.lean.independent_schedules_e2e import (
+    _scores_match,
     verify_independent_schedules_e2e,
 )
 from ruletrade.ir.strategy import (
@@ -141,6 +142,23 @@ def test_codegen_has_global_refresh_then_execution_phases_and_snapshot_traces() 
     assert "RULETRADE_PORTFOLIO_EVENT|" in source
     assert "if ((Time.Month - 1) % 3 != 0) return;" in source
     assert "_targetSnapshotTimestamp" in source
+
+
+def test_temporal_verifier_tolerates_only_decimal_runtime_rounding() -> None:
+    expected = {"QQQ": Decimal("0.387738960438150099240400543")}
+
+    assert _scores_match(
+        {"QQQ": Decimal("0.3877389604381500992404005432")},
+        expected,
+    )
+    assert not _scores_match(
+        {"QQQ": Decimal("0.387738960438150099240500543")},
+        expected,
+    )
+    assert not _scores_match(
+        {"SCHG": Decimal("0.387738960438150099240400543")},
+        expected,
+    )
 
 
 def test_strict_temporal_verifier_compares_refresh_provenance_and_targets() -> None:

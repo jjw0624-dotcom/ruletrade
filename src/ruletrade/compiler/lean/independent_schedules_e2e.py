@@ -41,6 +41,7 @@ MONTHLY_EVENTS = (
     "2024-05-01", "2024-06-03", "2024-07-01", "2024-08-01",
     "2024-09-03", "2024-10-01", "2024-11-01", "2024-12-02",
 )
+SCORE_TOLERANCE = Decimal("1e-24")
 
 
 def _weights(value: str) -> dict[str, Decimal]:
@@ -60,6 +61,16 @@ def _snapshots(value: str) -> dict[str, str]:
 
 def _symbols(value: str) -> tuple[str, ...]:
     return tuple(value.split(",")) if value else ()
+
+
+def _scores_match(
+    actual: dict[str, Decimal],
+    expected: dict[str, Decimal],
+) -> bool:
+    return actual.keys() == expected.keys() and all(
+        abs(actual[symbol] - expected[symbol]) <= SCORE_TOLERANCE
+        for symbol in expected
+    )
 
 
 def verify_independent_schedules_e2e(
@@ -120,7 +131,10 @@ def verify_independent_schedules_e2e(
             primary_trace = primaries[snapshot.refreshed_at]
             filter_trace = filters[snapshot.refreshed_at]
             final_trace = finals[snapshot.refreshed_at]
-            if _weights(primary_trace.group("scores")) != dict(decision.scores):
+            if not _scores_match(
+                _weights(primary_trace.group("scores")),
+                dict(decision.scores),
+            ):
                 raise ValueError(f"score mismatch for {snapshot.refreshed_at}")
             if _symbols(filter_trace.group("eligible")) != decision.eligible:
                 raise ValueError(f"eligible mismatch for {snapshot.refreshed_at}")
