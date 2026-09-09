@@ -12,7 +12,7 @@ import { GuidedView } from "./views/GuidedView";
 import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type StrategyDetail } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
 
-export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, onOpenRun }: { example: StrategyExample; persisted?: StrategyDetail; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void }) {
+export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, onOpenRun, focusComponentId }: { example: StrategyExample; persisted?: StrategyDetail; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; focusComponentId?: string | null }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
   const [config, setConfig] = useState<BacktestConfig>(example.backtestDefaults);
@@ -27,6 +27,7 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
   const [runError, setRunError] = useState<string | null>(null);
   const dirty = base ? !sameCanonicalSnapshot(state.canonical, base.canonical_strategy) : false;
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => { if (focusComponentId) { dispatch({ type: "select_node", componentId: focusComponentId }); dispatch({ type: "set_active_view", view: "flow" }); } }, [focusComponentId, dispatch]);
   useEffect(() => {
     if (!strategy || !base) return;
     let cancelled = false; setRunsStatus("loading");
