@@ -33,7 +33,9 @@ export function DecisionAnalysis({ runId, onTimestamp, onShowInStrategy }: { run
 }
 
 export function Inspector({ details, onShowInStrategy }: { details: DecisionEventDetail[]; onShowInStrategy?: (componentId: string) => void }) {
-  const assets = relevantAssets(details);
+  const final = details.find((item) => item.evidence.kind === "final_selection")?.evidence;
+  const finalAssets = new Set(final?.kind === "final_selection" ? final.selected : []);
+  const assets = relevantAssets(details).filter((item) => !finalAssets.has(item));
   const firstRejected = details.find((item) => item.evidence.kind === "filter")?.evidence;
   const initialAsset = firstRejected?.kind === "filter" ? firstRejected.evaluations.find((item) => !item.passed)?.asset : undefined;
   const [asset, setAsset] = useState(initialAsset ?? assets[0] ?? null);
