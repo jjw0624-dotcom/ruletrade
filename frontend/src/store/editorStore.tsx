@@ -8,7 +8,7 @@ import type {
   ValidationIssue,
 } from "../domain/canonical";
 import { DEFAULT_NODE_POSITIONS, type NodePositions } from "../domain/flow";
-import { updateComponentConfig, type UpdateComponentConfig } from "../domain/patch";
+import { applySemanticPatch, type SemanticPatch } from "../domain/patch";
 import type { LeanBacktestResponse } from "../domain/backtest";
 
 export type EditorView = "guided" | "flow";
@@ -34,7 +34,7 @@ export interface StrategyEditorState {
 }
 
 export type StrategyEditorAction =
-  | { type: "apply_semantic_patch"; operation: UpdateComponentConfig }
+  | { type: "apply_semantic_patch"; operation: SemanticPatch }
   | { type: "set_active_view"; view: EditorView }
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
@@ -69,7 +69,7 @@ export function editorReducer(
 ): StrategyEditorState {
   switch (action.type) {
     case "apply_semantic_patch": {
-      const result = updateComponentConfig(state.canonical, state.registry, action.operation);
+      const result = applySemanticPatch(state.canonical, state.registry, action.operation);
       if (!result.ok) {
         return { ...state, validation: { status: "invalid", issues: [result.issue] } };
       }

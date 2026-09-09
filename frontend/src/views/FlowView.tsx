@@ -22,13 +22,19 @@ const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
     onThresholdChange?: (value: string) => void;
     onTopNChange?: (value: number) => void;
     onFallbackChange?: (value: string) => void;
+    onAllocationPairChange?: (value: string) => void;
   };
   return (
     <div className="strategy-node">
       <Handle type="target" position={Position.Left} />
       <span className="node-kicker">{node.componentId}</span>
       <strong>{node.title}</strong>
-      {node.fallbackAssetSetRef !== undefined ? (
+      {node.allocationPair !== undefined ? (
+        <div className="node-fields"><label>Growth / Defensive<select value={node.allocationPair.value} onChange={(event) => node.onAllocationPairChange?.(event.target.value)}>
+          <option value="0.70/0.30">70% / 30%</option>
+          <option value="0.60/0.40">60% / 40%</option>
+        </select></label></div>
+      ) : node.fallbackAssetSetRef !== undefined ? (
         <div className="node-fields"><label>Use asset<select value={node.fallbackAssetSetRef} onChange={(event) => node.onFallbackChange?.(event.target.value)}>
           {node.fallbackOptions?.map((option) => <option key={option.id} value={option.id}>{option.asset}</option>)}
         </select></label></div>
@@ -88,6 +94,20 @@ export function FlowView() {
           type: "apply_semantic_patch",
           operation: { kind: "update_component_config", componentId: node.id, field: "fallback_asset_set_ref", value },
         }),
+        onAllocationPairChange: (value: string) => {
+          if (!node.data.allocationPair) return;
+          const [growth, defensive] = value.split("/");
+          dispatch({
+            type: "apply_semantic_patch",
+            operation: {
+              kind: "update_sleeve_allocations",
+              allocations: [
+                { componentId: node.data.allocationPair.growthComponentId, value: growth },
+                { componentId: node.data.allocationPair.defensiveComponentId, value: defensive },
+              ],
+            },
+          });
+        },
       },
     })),
     [projection.nodes, state.editor.selectedNodeId, dispatch],

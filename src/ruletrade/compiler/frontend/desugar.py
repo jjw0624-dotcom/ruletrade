@@ -22,6 +22,8 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "allocation.equal_weight",
         "targets.merge",
         "targets.fallback_asset",
+        "portfolio.sleeve",
+        "portfolio.compose",
         "effect.rebalance",
     }
 )
@@ -40,10 +42,11 @@ def desugar_strategy(
     """Lower the validated Strategy Model into the small Strategy IR kernel."""
 
     asset_sets = {definition.id: tuple(definition.assets) for definition in strategy.definitions.asset_sets}
-    inputs = {
-        (connection.target.component_id, connection.target.port): connection.source.component_id
-        for connection in strategy.graph.connections
-    }
+    inputs: dict[tuple[str, str], list[str]] = {}
+    for connection in strategy.graph.connections:
+        inputs.setdefault(
+            (connection.target.component_id, connection.target.port), []
+        ).append(connection.source.component_id)
     implementations = {
         component.id: registry.get(component.primitive).implementation_id
         for component in strategy.graph.components
@@ -62,9 +65,18 @@ def desugar_strategy(
 
     def input_id(component: Component, port: str) -> str:
         try:
-            return inputs[(component.id, port)]
+            values = inputs[(component.id, port)]
         except KeyError as exc:
             raise StrategyDesugaringError(f"missing source for {component.id}.{port}") from exc
+        if len(values) != 1:
+            raise StrategyDesugaringError(f"expected one source for {component.id}.{port}")
+        return values[0]
+
+    def input_ids(component: Component, port: str) -> tuple[str, ...]:
+        values = tuple(sorted(inputs.get((component.id, port), ())))
+        if not values:
+            raise StrategyDesugaringError(f"missing source for {component.id}.{port}")
+        return values
 
     operations: list[strategy_ir.StrategyIROperation] = []
     bindings_json = canonical_parameter_bindings_json(strategy, parameter_bindings)
@@ -172,6 +184,23 @@ def desugar_strategy(
                 id=component.id,
                 primary=primary_id,
                 fallback=fallback_targets_id,
+                provenance=provenance,
+            )
+        elif implementation == "portfolio.sleeve":
+            operation = strategy_ir.ScaleTargetsOp(
+                id=component.id,
+                targets=input_id(component, "local_targets"),
+                factor=Decimal(str(resolved["allocation"])),
+                provenance=provenance,
+            )
+        elif implementation == "portfolio.compose":
+            sleeve_ids = input_ids(component, "sleeves")
+            if len(sleeve_ids) != 2:
+                raise StrategyDesugaringError("portfolio v0 requires exactly two sleeves")
+            operation = strategy_ir.MergeTargetsOp(
+                id=component.id,
+                left=sleeve_ids[0],
+                right=sleeve_ids[1],
                 provenance=provenance,
             )
         elif implementation == "effect.rebalance":

@@ -144,7 +144,7 @@ def test_requirements_separate_fallback_subscription_from_momentum_history() -> 
 
 def test_filter_fixture_covers_fallback_subscription_without_scoring_tlt() -> None:
     fixture = Path(__file__).parent / "fixtures" / "lean-filter-data"
-    expected = {"qqq", "schg", "soxx", "tlt", "vgt"}
+    expected = {"ief", "qqq", "schg", "soxx", "tlt", "vgt"}
     daily = {path.stem for path in (fixture / "equity" / "usa" / "daily").glob("*.zip")}
     maps = {path.stem for path in (fixture / "equity" / "usa" / "map_files").glob("*.csv")}
     factors = {
@@ -154,8 +154,11 @@ def test_filter_fixture_covers_fallback_subscription_without_scoring_tlt() -> No
     assert daily == maps == factors == expected
     with ZipFile(fixture / "equity" / "usa" / "daily" / "tlt.zip") as archive:
         tlt_rows = archive.read("tlt.csv").decode().splitlines()
+    with ZipFile(fixture / "equity" / "usa" / "daily" / "ief.zip") as archive:
+        ief_rows = archive.read("ief.csv").decode().splitlines()
     dates, closes = load_filter_fixture_closes(fixture)
     assert [row.split(",", 1)[0][:8] for row in tlt_rows] == dates
+    assert [row.split(",", 1)[0][:8] for row in ief_rows] == dates
     assert set(closes) == {"QQQ", "SCHG", "SOXX", "VGT"}
 
 

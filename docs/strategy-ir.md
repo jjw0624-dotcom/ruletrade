@@ -95,7 +95,7 @@ and ticker-ascending ties.
 The generated backend calculates each trailing return once, filters that dictionary, and ranks the
 filtered dictionary. If fewer than Top N scores remain, the entire rebalance is skipped and current
 holdings remain unchanged. It does not partially invest, silently reduce N, move to cash, or select
-a fallback. Fallback is intentionally deferred to a later source-level feature.
+a fallback unless an explicit source-level `fallback@1` component follows the filter pipeline.
 
 Runtime traces keep the partial Top N `candidate` distinct from the semantic `selected` result. A
 skipped decision records `selected=` and `decision=skipped`, while the skip trace records both the
@@ -154,18 +154,37 @@ kernel. Static analysis then derives immutable required assets, schedules, opera
 and deterministic-random requirements. Backend-specific subscription choices remain in LEAN
 lowering.
 
-## Portfolio vocabulary
+## Portfolio sleeves and hierarchical allocation
 
-Future source authoring may use conventional portfolio vocabulary:
+Source authoring uses conventional portfolio vocabulary:
 
 ```text
 Portfolio → Portfolio Sleeve → Universe → Screening → Signal / Score
           → Ranking → Selection → Weighting → Target Weights
 ```
 
-Those are not automatically fundamental IR or runtime objects. A future Portfolio Sleeve can
-desugar into smaller target/dataflow operations when a real vertical slice defines its
-requirements. It is not implemented in Strategy IR v0.
+`portfolio_sleeve@1` preserves stable source component identity, a human-readable name, allocation,
+and the local target-producing dataflow. `portfolio@1` preserves membership. Neither is an Asset or
+an IR runtime object. For the current two-sleeve, shared-monthly-schedule slice they desugar to:
+
+```text
+Growth local targets    → portfolio.scale_targets(0.70) ─┐
+                                                         ├→ portfolio.merge_targets
+Defensive local targets → portfolio.scale_targets(0.30) ─┘
+```
+
+`portfolio.scale_targets` is the only new irreducible IR operation. Existing additive
+`portfolio.merge_targets` semantics aggregate contributions by symbol, so Growth fallback TLT at
+70% plus Defensive TLT at 15% becomes one final TLT target of 85%, not two positions or a discarded
+contribution. Local targets sum to one within each sleeve and source validation requires the two
+reference allocations to sum to one.
+
+Requirements compose through ordinary IR dataflow: subscriptions are deduplicated across sleeves,
+while Daily momentum history remains attached only to the Growth trailing-return operands. LEAN
+receives only flat final target weights; no fake LEAN Sleeve abstraction is generated. Source
+provenance on scale operations and deterministic `RULETRADE_SLEEVE` traces expose local weights,
+allocation, and scaled contribution. Independent schedules, nested sleeves, and path-sensitive
+readiness remain deliberately deferred.
 
 ## Reproducibility and persistence boundary
 

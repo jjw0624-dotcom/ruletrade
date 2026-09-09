@@ -46,6 +46,9 @@ class LeanTargetSleeve:
     selection_id: str | None = None
     fallback_component_id: str | None = None
     fallback_symbols: tuple[str, ...] = ()
+    source_sleeve_component_id: str | None = None
+    local_total_weight: Decimal | None = None
+    source_allocation: Decimal | None = None
 
 
 @dataclass(frozen=True)

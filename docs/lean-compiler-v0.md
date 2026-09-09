@@ -1,7 +1,7 @@
 # LEAN compiler v0
 
 The compiler supports the Growth 70 / Safe 30 Golden strategy and the narrow
-trailing-return Top N slice. Its backend path is:
+trailing-return, Filter, Fallback, and Portfolio Sleeves slices. Its backend path is:
 
 `CanonicalStrategyV1 -> Strategy IR -> requirements analysis -> typed LeanPlan -> C# QCAlgorithm`
 
@@ -29,8 +29,11 @@ lean backtest "<project-directory>"
 The generated algorithm defaults to 2024-01-01 through 2024-12-31 with
 $100,000 cash. These run settings are `CSharpGenerationSettings`, not Canonical
 strategy semantics. Each monthly run emits a `RULETRADE_TARGETS` debug record
-whose event identity is the scheduled ISO date (`yyyy-MM-dd`), selected growth
-tickers, and target weights.
+whose event identity is the scheduled ISO date (`yyyy-MM-dd`), selected symbols,
+and target weights. For a final portfolio-level record, `selected` means exactly
+the symbols represented by non-zero final aggregated targets; it is not an
+upstream sleeve's selection. This keeps the trace consistent when sleeves add
+different symbols or contribute to the same symbol.
 
 ## Daily data execution timing
 
@@ -119,8 +122,10 @@ remove the warning without adding a custom provider.
 
 - Classic `QCAlgorithm` only; no Algorithm Framework abstraction.
 - Monthly first-trading-day intent with execution on the next complete Daily Slice.
-- Named asset sets, RandomSelect, EqualWeight, MergeTargets, and Rebalance only.
-- Trailing adjusted return, descending rank, and Top N with a fixed full-history policy.
-- No general indicators, filters, stateful rules, composites, generic execution IR, or second backend.
+- Named asset sets, RandomSelect, EqualWeight, target scaling/aggregation, and Rebalance.
+- Trailing adjusted return, strict score filtering, descending rank, Top N, and one-asset fallback.
+- Source Portfolio Sleeves lower to flat LEAN targets; LEAN has no generated Sleeve abstraction.
+- No general indicators, stateful rules, nested/independently scheduled sleeves, generic execution IR,
+  or second backend.
 - C# random selection contains only the CPython MT19937/sample behavior required
   to match the retained Python v0 selection oracle.

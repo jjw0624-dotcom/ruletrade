@@ -14,6 +14,7 @@ from ruletrade.ir.strategy.model import (
     RandomNOp,
     RankOp,
     RebalanceOp,
+    ScaleTargetsOp,
     StrategyIR,
     StrategyIROperation,
     TopNOp,
@@ -45,7 +46,7 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         return IRType.ASSET_SCORES
     if isinstance(operation, RankOp):
         return IRType.RANKED_ASSETS
-    if isinstance(operation, (EqualWeightOp, MergeTargetsOp, FirstNonEmptyTargetsOp)):
+    if isinstance(operation, (EqualWeightOp, ScaleTargetsOp, MergeTargetsOp, FirstNonEmptyTargetsOp)):
         return IRType.PORTFOLIO_TARGETS
     if isinstance(operation, RebalanceOp):
         return IRType.EFFECT
@@ -65,6 +66,8 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
         return (("ranked", operation.ranked, IRType.RANKED_ASSETS),)
     if isinstance(operation, EqualWeightOp):
         return (("assets", operation.assets, IRType.ASSET_SET),)
+    if isinstance(operation, ScaleTargetsOp):
+        return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     if isinstance(operation, MergeTargetsOp):
         return (
             ("left", operation.left, IRType.PORTFOLIO_TARGETS),
@@ -96,6 +99,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         RankOp,
         TopNOp,
         EqualWeightOp,
+        ScaleTargetsOp,
         MergeTargetsOp,
         FirstNonEmptyTargetsOp,
         RebalanceOp,
@@ -154,6 +158,13 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 IRValidationIssue(
                     f"{path}.total_weight",
                     "weight must be greater than 0 and at most 1",
+                )
+            )
+        if isinstance(operation, ScaleTargetsOp) and not 0 < operation.factor <= 1:
+            issues.append(
+                IRValidationIssue(
+                    f"{path}.factor",
+                    "scale factor must be greater than 0 and at most 1",
                 )
             )
         if (
