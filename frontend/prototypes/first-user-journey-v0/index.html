@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RuleTrade first-time user usability prototype" />
+  <title>RuleTrade — Test investment ideas</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="brand" data-go="landing" aria-label="RuleTrade home"><span>R</span>RuleTrade</button>
+    <nav id="productNav" class="product-nav hidden" aria-label="Prototype sections">
+      <button data-go="templates">Explore</button><button data-go="strategy">Strategy</button><button data-go="results">Results</button>
+    </nav>
+    <div class="header-actions"><span id="contextName" class="context-name hidden">Growth + Defensive</span><button id="resetButton" class="reset">Reset test</button></div>
+  </header>
+
+  <section id="landing" class="screen landing active">
+    <div class="landing-copy"><span class="kicker">Investment strategy laboratory</span><h1>Turn an investment idea<br>into something you can test.</h1><p>Build a simple set of rules, see how it would have behaved, then ask what would change.</p><button class="primary large" data-go="templates">Explore strategies <span>→</span></button></div>
+    <div class="loop-card" aria-label="RuleTrade workflow"><div><span>1</span><b>Start with an idea</b><small>Choose an example or shape your own.</small></div><i></i><div><span>2</span><b>Test the rules</b><small>See results and real decisions.</small></div><i></i><div><span>3</span><b>Ask what if</b><small>Change one assumption and compare.</small></div></div>
+  </section>
+
+  <section id="templates" class="screen templates">
+    <div class="page-heading"><span class="kicker">Explore</span><h1>What would you like to try?</h1><p>Start with an example. You can understand and change every rule before testing it.</p></div>
+    <div class="template-layout">
+      <div class="template-list">
+        <button class="template-card selected" data-template="growth"><span class="template-icon">↗</span><div><b>Growth + Defensive</b><p>Follow stronger growth assets, with bonds as a fallback.</p><small>Momentum · Two parts</small></div><em>Selected</em></button>
+        <button class="template-card" data-template="momentum"><span class="template-icon">◎</span><div><b>Simple Momentum</b><p>Hold the strongest recent performers.</p><small>One rule · Beginner</small></div></button>
+        <button class="template-card" data-template="monthly"><span class="template-icon">＋</span><div><b>Monthly Investing</b><p>Invest the same amount on a regular schedule.</p><small>Recurring · Simple</small></div></button>
+        <button class="template-card" data-template="balanced"><span class="template-icon">◐</span><div><b>Balanced Portfolio</b><p>Keep stocks and bonds at a steady mix.</p><small>Allocation · Low activity</small></div></button>
+      </div>
+      <aside class="template-preview" id="templatePreview">
+        <div class="preview-top"><span class="pill">Recommended example</span><span class="plain-label">Checks monthly</span></div><h2>Growth + Defensive</h2><p class="preview-lead">Try to capture growth when it is positive, and fall back to bonds when too few assets qualify.</p>
+        <div class="mini-sleeves"><div><header><b>Growth</b><strong>70%</strong></header><p>Choose from <b>QQQ, VGT, SOXX, SCHG</b></p><p>Keep assets with <b>126-day return above 0%</b></p><p>Pick the <b>top 2</b></p><p>If there aren't enough, <b>use TLT</b></p></div><div><header><b>Defensive</b><strong>30%</strong></header><p><b>TLT + IEF</b></p><p>Split equally</p></div></div>
+        <button class="primary full" id="useStrategy">Use this strategy <span>→</span></button>
+      </aside>
+    </div>
+  </section>
+
+  <section id="strategy" class="screen strategy-screen">
+    <div class="page-heading horizontal"><div><span class="kicker">Your strategy</span><h1>Growth + Defensive</h1><p>These are the rules the test will follow.</p></div><button class="primary" id="runBacktest">Run backtest <span>→</span></button></div>
+    <div class="strategy-layout">
+      <section class="sleeve growth"><header><div><span>Portfolio part</span><h2>Growth</h2></div><strong>70%</strong></header>
+        <div class="rule"><label>What can it choose from?</label><div class="chips"><span>QQQ</span><span>VGT</span><span>SOXX</span><span>SCHG</span></div></div>
+        <div class="rule editable"><label for="workspaceThreshold">Which assets qualify?</label><div class="sentence">126-day return is above <span class="input-wrap"><input id="workspaceThreshold" type="number" value="0" step="1"><small>%</small></span></div><span class="edit-hint">Editable rule</span></div>
+        <div class="rule editable"><label for="topCount">How many should it choose?</label><div class="sentence">Top <select id="topCount"><option>2</option><option>3</option></select> by return</div><span class="edit-hint">Editable rule</span></div>
+        <div class="rule"><label>What if there aren't enough?</label><b>Use TLT</b></div><div class="rule"><label>When should it check again?</label><b>Monthly</b></div>
+      </section>
+      <section class="sleeve defensive"><header><div><span>Portfolio part</span><h2>Defensive</h2></div><strong>30%</strong></header><div class="rule"><label>What does it hold?</label><div class="chips"><span>TLT</span><span>IEF</span></div></div><div class="rule"><label>How is it divided?</label><b>Split equally</b><p>15% TLT · 15% IEF</p></div></section>
+      <aside class="plain-summary"><span class="kicker">In plain language</span><h3>What this strategy tries to do</h3><p>Most of the portfolio follows the strongest growth assets that are still moving up.</p><p>If fewer than <b id="summaryTop">2</b> qualify, that whole part moves to TLT. The defensive part always keeps bonds.</p><button class="text-button" data-go="templates">← Choose another example</button></aside>
+    </div>
+  </section>
+
+  <section id="loading" class="screen loading"><div class="loader"><div class="orbit"><span></span></div><span class="kicker">Testing your strategy</span><h1>Following each rule through 2024…</h1><p>Checking monthly decisions, holdings, and portfolio value.</p></div></section>
+
+  <section id="results" class="screen results">
+    <div class="result-heading"><div><span class="kicker">Backtest result · 2024</span><h1>Growth + Defensive</h1><p><span id="testedRule">Original · Return above 0% · Top 2</span></p></div><button class="secondary" data-go="strategy">Edit strategy</button></div>
+    <div class="outcome-sentence"><span>$10,000</span><i>→</i><strong>$13,740</strong><small>after one historical test</small></div>
+    <div class="metrics"><div><span>Total return</span><b>+37.4%</b></div><div><span>Largest decline</span><b class="down">−18.2%</b><small>Largest peak-to-low point</small></div><div><span>Compared with S&amp;P 500</span><b>+4.8 points</b></div><div><span>Portfolio changes</span><b>12</b><small>28 orders</small></div></div>
+    <section class="chart-panel"><div class="panel-heading"><div><span class="kicker">How did it do?</span><h2>Portfolio value and monthly decisions</h2></div><button class="text-button" id="moreDetails">More details</button></div>
+      <div class="chart-wrap"><svg viewBox="0 0 1000 290" role="img" aria-label="Portfolio value during 2024"><defs><linearGradient id="resultArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#247653" stop-opacity=".18"/><stop offset="1" stop-color="#247653" stop-opacity="0"/></linearGradient></defs><g class="grid"><line x1="45" y1="55" x2="970" y2="55"/><line x1="45" y1="130" x2="970" y2="130"/><line x1="45" y1="205" x2="970" y2="205"/></g><path class="area" d="M45 220 L120 207 L195 190 L270 166 L345 147 L420 164 L495 125 L570 109 L645 158 L720 129 L795 91 L870 69 L970 47 L970 250 L45 250Z"/><path class="equity-line" d="M45 220 L120 207 L195 190 L270 166 L345 147 L420 164 L495 125 L570 109 L645 158 L720 129 L795 91 L870 69 L970 47"/><g class="dots"><circle cx="120" cy="207" r="5"/><circle cx="270" cy="166" r="5"/><circle cx="345" cy="147" r="5"/><circle class="unusual" cx="420" cy="164" r="7"/><circle cx="570" cy="109" r="5"/><circle cx="720" cy="129" r="5"/><circle cx="870" cy="69" r="5"/></g><g class="axis"><text x="45" y="278">Jan</text><text x="270" y="278">Apr</text><text x="495" y="278">Jul</text><text x="720" y="278">Oct</text><text x="945" y="278">Dec</text></g></svg><button class="marker" id="chartJune"><span>Jun 3</span><b>Growth used TLT</b></button></div>
+    </section>
+    <section class="look-card"><div class="look-icon">↳</div><div><span class="kicker">Worth a look</span><h2>Growth switched to its fallback on June 3.</h2><p>TLT became 85% of the portfolio after this decision.</p></div><button class="primary" id="seeWhy">See why <span>→</span></button></section>
+    <section id="whySection" class="why-section hidden">
+      <header><div><span class="kicker">June 3, 2024 · Decision</span><h2>Why did Growth use TLT?</h2></div><span class="date-context">Result context preserved</span></header>
+      <div class="why-grid"><div><p class="answer">The strategy needed <b>2 qualifying assets</b>. Only QQQ passed.</p><div class="scores"><div class="score-head"><span>Asset</span><span>126-day return</span><span>Qualified?</span></div><div><b>QQQ</b><span>+24.3%</span><em class="yes">Yes</em></div><div><b>VGT</b><span>−3.2%</span><em>No</em></div><div><b>SOXX</b><span>−27.5%</span><em>No</em></div><div><b>SCHG</b><span>−33.2%</span><em>No</em></div></div></div>
+      <div class="allocation-story"><div><span>Growth fallback</span><b>TLT 70%</b></div><i>+</i><div><span>Defensive</span><b>TLT 15% · IEF 15%</b></div><i>=</i><div class="final"><span>Final portfolio</span><b>TLT 85% · IEF 15%</b></div></div></div>
+      <div class="relevant-rule"><div><span class="editable-tag">Strategy rule that caused this</span><h3>Keep assets with 126-day return above <b>0%</b></h3><p>VGT's −3.2% did not pass this rule.</p></div><button class="secondary" id="tryChange">Try changing this</button></div>
+      <div id="quickChange" class="quick-change hidden"><div><span class="kicker">Try one change</span><h3>Would allowing slightly negative returns avoid the fallback?</h3><p>Your original strategy will be preserved.</p></div><label>Original <span>above <b>0%</b></span></label><i>→</i><label for="candidateThreshold">Candidate <span>above <input id="candidateThreshold" type="number" value="-5"><small>%</small></span></label><button class="primary" id="compareButton">Compare <span>→</span></button></div>
+    </section>
+  </section>
+
+  <section id="compare" class="screen compare">
+    <div class="compare-heading"><div><button class="text-button" data-go="results">← Back to original result</button><span class="kicker">Comparison · June 3 still in focus</span><h1>One rule changed how the strategy behaved.</h1></div><div class="comparison-labels"><span>Original <b>Return above 0%</b></span><span class="candidate">Candidate <b>Return above −5%</b></span></div></div>
+    <div class="delta-metrics"><div><span>Total return</span><b>37.4%</b><i>→</i><strong>38.3%</strong><small>+0.9 points</small></div><div><span>Largest decline</span><b>−18.2%</b><i>→</i><strong>−18.9%</strong><small class="caution">0.7 points deeper</small></div><div><span>Orders</span><b>28</b><i>→</i><strong>34</strong><small>6 more</small></div><div><span>Behavior changed</span><b>4 decisions</b><i>·</i><strong>3 holdings</strong><small>Largest difference: Jun–Jul</small></div></div>
+    <div class="compare-toolbar"><div><button id="allPeriods" class="toggle active">All periods</button><button id="onlyDifferences" class="toggle">Only differences <span>4</span></button></div><p>Everything except this threshold stayed the same.</p></div>
+    <div class="compare-layout"><section class="difference-timeline"><header><span class="kicker">What changed?</span><h2 id="differenceTitle">Four decisions were different</h2></header><div class="mini-chart"><svg viewBox="0 0 800 170"><g class="grid"><line x1="25" y1="40" x2="775" y2="40"/><line x1="25" y1="90" x2="775" y2="90"/><line x1="25" y1="140" x2="775" y2="140"/></g><rect x="276" y="18" width="175" height="135" rx="8"/><path class="original-line" d="M25 138 L100 127 L175 113 L250 96 L325 106 L400 76 L475 64 L550 94 L625 73 L700 51 L775 36"/><path class="candidate-line" d="M25 138 L100 127 L175 113 L250 96 L325 98 L400 67 L475 54 L550 89 L625 67 L700 47 L775 31"/></svg></div><button class="difference selected"><time>Jun 3</time><span><b>Fallback vs. two growth assets</b><small>Original: TLT · Candidate: QQQ + VGT</small></span><em>Largest</em></button><button class="difference"><time>Jul 1</time><span><b>Different holdings continued</b><small>The June decision carried forward.</small></span></button><button class="difference"><time>Sep 3</time><span><b>SOXX also passed the candidate rule</b><small>One additional growth holding.</small></span></button><button class="difference"><time>Nov 1</time><span><b>Same holdings, different order sizes</b><small>Earlier paths changed available capital.</small></span></button></section>
+      <aside class="different-why"><span class="kicker">Why different? · June 3</span><h2>VGT passed only the Candidate rule.</h2><div class="observed"><span>VGT's 126-day return</span><strong>−3.2%</strong></div><div class="rule-compare"><div><span>Original needed</span><b>Above 0%</b><em>−3.2% was rejected</em></div><div class="candidate"><span>Candidate needed</span><b>Above −5%</b><em>−3.2% passed</em></div></div><div class="cause"><div><span>Rule</span><b>VGT passes</b></div><i>↓</i><div><span>Decision</span><b>Two assets qualify</b></div><i>↓</i><div><span>Holdings</span><b>QQQ + VGT, no fallback</b></div><i>↓</i><div><span>Result</span><b>Return and decline both increased</b></div></div><button class="secondary full" data-go="results">Review original June 3 decision</button></aside></div>
+  </section>
+
+  <dialog id="detailsDialog"><button class="dialog-close" aria-label="Close">×</button><span class="kicker">More details</span><h2>About this test</h2><p>This usability prototype uses fixed historical-looking data. It does not run a live RuleTrade backtest.</p><div class="details"><span>Period <b>Jan–Dec 2024</b></span><span>Starting amount <b>$10,000</b></span><span>Data status <b>Prototype fixture</b></span><span>Advanced measures <b>Hidden from the main result</b></span></div></dialog>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
