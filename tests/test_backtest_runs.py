@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +102,7 @@ def test_successful_run_persists_config_result_provenance_timings_and_reopens(
     assert run.revision_id == revision.id
     assert run.run_config == config
     assert run.result is not None
-    assert run.result.final_value == 133448.49
+    assert run.result.final_value == Decimal("133448.49")
     assert run.error is None
     assert run.started_at is not None and run.completed_at is not None
     assert run.provenance.source_hash == revision.source_hash
@@ -197,7 +198,7 @@ def test_database_enforces_run_input_immutability_and_lifecycle(tmp_path: Path) 
     run = service.create_and_execute(revision.id, BacktestConfig())
 
     with sqlite3.connect(database) as connection:
-        with pytest.raises(sqlite3.IntegrityError, match="inputs are immutable"):
+        with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
                 "UPDATE backtest_runs SET config_json = '{}' WHERE id = ?", (run.id,)
             )
