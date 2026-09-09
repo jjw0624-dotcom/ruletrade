@@ -47,4 +47,12 @@ describe("Production MVP frontend foundation", () => {
   it("maps unknown paths back to Explore", () => {
     expect(routeFromPath("/compare/fake")).toEqual({ page: "explore" });
   });
+
+  it("keeps navigation state separate from the authoritative editor state", () => {
+    const editor = createEditorState(sleevesBootstrap);
+    const canonical = editor.canonical;
+    expect(pathForRoute({ page: "explore" })).toBe("/explore");
+    expect(pathForRoute({ page: "strategies" })).toBe("/strategies");
+    expect(editor.canonical).toBe(canonical);
+  });
 });
