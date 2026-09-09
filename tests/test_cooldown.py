@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -24,7 +26,6 @@ from ruletrade.strategy.v1.cooldown import evaluate_cooldown
 from ruletrade.strategy.v1.fixtures import COOLDOWN_PAYLOAD, cooldown_strategy, golden_portfolio_strategy
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.validation import StrategySemanticError, validate_strategy_v1
-from scripts.generate_golden_lean_fixture import generate_fixture
 
 FIXTURE = Path(__file__).parent / "fixtures" / "lean-cooldown-data"
 
@@ -139,7 +140,17 @@ def test_codegen_uses_exchange_sessions_and_target_transition_state() -> None:
 
 def test_cooldown_fixture_is_reproducible_and_uses_exchange_sessions(tmp_path: Path) -> None:
     generated = tmp_path / "lean-cooldown-data"
-    generate_fixture(generated, profile="cooldown")
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/generate_golden_lean_fixture.py",
+            "--profile",
+            "cooldown",
+            "--output",
+            str(generated),
+        ],
+        check=True,
+    )
     tracked_files = sorted(path.relative_to(FIXTURE) for path in FIXTURE.rglob("*") if path.is_file())
     generated_files = sorted(
         path.relative_to(generated) for path in generated.rglob("*") if path.is_file()
