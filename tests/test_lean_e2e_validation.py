@@ -79,9 +79,9 @@ def test_shared_verifier_mechanics_keep_exact_and_tolerant_values_separate() -> 
 
 
 def test_shared_verifier_health_checks_remain_strict() -> None:
-    with pytest.raises(ValueError, match="runtime error"):
+    with pytest.raises(ValueError, match="fatal LEAN execution error.*runtime error"):
         validate_lean_completion("Runtime Error: boom\nAlgorithm Id: test completed")
-    with pytest.raises(ValueError, match="completion marker missing"):
+    with pytest.raises(ValueError, match="completion marker was not found"):
         validate_lean_completion("no completion here")
     with pytest.raises(ValueError, match="summary is missing"):
         validate_zero_failed_data_requests("Algorithm Id: test completed")

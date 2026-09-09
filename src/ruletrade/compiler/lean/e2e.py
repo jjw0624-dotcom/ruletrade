@@ -57,8 +57,10 @@ def validate_lean_completion(log_text: str) -> None:
 
     lowered = log_text.lower()
     fatal = next((pattern for pattern in FATAL_PATTERNS if pattern in lowered), None)
-    if fatal or COMPLETION_PATTERN.search(log_text) is None:
-        raise ValueError(f"LEAN did not complete cleanly: {fatal or 'completion marker missing'}")
+    if fatal is not None:
+        raise ValueError(f"fatal LEAN execution error found: {fatal}")
+    if COMPLETION_PATTERN.search(log_text) is None:
+        raise ValueError("LEAN backtest completion marker was not found")
 
 
 def validate_zero_failed_data_requests(log_text: str) -> None:
