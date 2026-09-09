@@ -19,7 +19,7 @@ export function GuidedView() {
       <div className="guided-view" aria-label="Guided strategy editor">
         <section className="sleeve-card portfolio-card">
           <header><div><span className="eyebrow">Portfolio</span><h2>{guided.portfolio.name}</h2></div></header>
-          <label htmlFor="guided-sleeve-split">Sleeve allocation</label>
+          <label htmlFor="guided-sleeve-split">How should the money be split?</label>
           <select id="guided-sleeve-split" value={split} onChange={(event) => {
             const [growth, defensive] = event.target.value.split("/");
             dispatch({
@@ -39,26 +39,26 @@ export function GuidedView() {
         </section>
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
-          <label>Universe</label><AssetChips assets={guided.growth.assets} />
-          <div className="summary-row"><span>Signal</span><span>{guided.growth.lookbackBars}-day trailing return &gt; {percent(guided.growth.threshold ?? "0")}</span></div>
-          <div className="summary-row"><span>Selection</span><span>Top {guided.growth.topN} · Equal Weight</span></div>
-          <div className="summary-row"><span>If insufficient</span><span>Use {guided.growth.fallbackAsset}</span></div>
-          {guided.growth.refreshScheduleComponentId ? <label>Re-evaluate<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
+          <label>What can it choose from?</label><AssetChips assets={guided.growth.assets} />
+          <div className="summary-row"><span>Which assets qualify?</span><span>{guided.growth.lookbackBars}-day return above {percent(guided.growth.threshold ?? "0")}</span></div>
+          <div className="summary-row"><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally</span></div>
+          <div className="summary-row"><span>What if there aren't enough?</span><span>Use {guided.growth.fallbackAsset}</span></div>
+          {guided.growth.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
             type: "apply_semantic_patch",
             operation: { kind: "update_schedule", componentId: guided.growth.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
           })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
         </section>
         <section className="sleeve-card safe">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.defensive.sleeveName}</h2></div><strong>{percent(guided.defensive.allocation)}</strong></header>
-          <label>Universe</label><AssetChips assets={guided.defensive.assets} />
-          <div className="summary-row"><span>Weighting</span><span>Equal Weight</span></div>
-          {guided.defensive.refreshScheduleComponentId ? <label>Re-evaluate<select value={guided.defensive.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
+          <label>What does it hold?</label><AssetChips assets={guided.defensive.assets} />
+          <div className="summary-row"><span>How is it divided?</span><span>Split equally</span></div>
+          {guided.defensive.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.defensive.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
             type: "apply_semantic_patch",
             operation: { kind: "update_schedule", componentId: guided.defensive.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
           })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
         </section>
         {guided.rebalanceScheduleComponentId ? <section className="sleeve-card portfolio-card">
-          <div className="summary-row"><span>Portfolio rebalance</span><strong>{guided.rebalanceSchedule}</strong></div>
+          <div className="summary-row"><span>When should the whole portfolio rebalance?</span><strong>{guided.rebalanceSchedule}</strong></div>
         </section> : null}
       </div>
     );
@@ -69,16 +69,16 @@ export function GuidedView() {
       <div className="guided-view" aria-label="Guided strategy editor">
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Momentum strategy</span><h2>Highest trailing return</h2></div><strong>{percent(guided.momentum.total)}</strong></header>
-          <label>Which assets?</label>
+          <label>What can it choose from?</label>
           <AssetChips assets={guided.momentum.assets} />
           <div className="field-grid">
-            <label htmlFor="guided-lookback">Lookback (trading days)</label>
+            <label htmlFor="guided-lookback">How much recent history?</label>
             <input id="guided-lookback" type="number" min={1} value={guided.momentum.lookbackBars} onChange={(event) => dispatch({
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
             })} />
             {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <>
-              <label htmlFor="guided-threshold">Minimum return (%)</label>
+              <label htmlFor="guided-threshold">Which assets qualify? Return above (%)</label>
               <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
                 if (event.target.value === "") return;
                 dispatch({
@@ -87,14 +87,14 @@ export function GuidedView() {
                 });
               }} />
             </> : null}
-            <label htmlFor="guided-top-n">How many?</label>
+            <label htmlFor="guided-top-n">How many should it choose?</label>
             <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.selectionComponentId, field: "count", value: Number(event.target.value) },
             })} />
           </div>
-          <div className="summary-row"><span>Rank</span><span>{guided.momentum.rankDirection}</span></div>
-          <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.momentum.total)}</span></div>
+          <div className="summary-row"><span>How should it choose?</span><span>Highest return first</span></div>
+          <div className="summary-row"><span>How should the money be split?</span><span>Equally · {percent(guided.momentum.total)}</span></div>
           {guided.momentum.cooldownComponentId ? (
             <label htmlFor="guided-cooldown">After selling, wait
               <input id="guided-cooldown" type="number" min={1} value={guided.momentum.cooldownDuration} onChange={(event) => dispatch({
@@ -110,7 +110,7 @@ export function GuidedView() {
           ) : null}
           {guided.momentum.fallbackComponentId ? (
             <div className="summary-row">
-              <label htmlFor="guided-fallback">If fewer than {guided.momentum.topN} assets qualify</label>
+              <label htmlFor="guided-fallback">What if fewer than {guided.momentum.topN} assets qualify?</label>
               <select id="guided-fallback" value={guided.momentum.fallbackAssetSetRef} onChange={(event) => dispatch({
                 type: "apply_semantic_patch",
                 operation: {
@@ -128,7 +128,7 @@ export function GuidedView() {
           ) : (
             <div className="summary-row"><span>If fewer than {guided.momentum.topN} assets qualify</span><span>Skip this rebalance</span></div>
           )}
-          <div className="summary-row"><span>Re-evaluate</span><span>{guided.momentum.schedule}</span></div>
+          <div className="summary-row"><span>When should it check again?</span><span>{guided.momentum.schedule}</span></div>
         </section>
       </div>
     );

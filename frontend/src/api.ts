@@ -12,8 +12,8 @@ export class LeanBacktestApiError extends Error {
   }
 }
 
-export async function loadEditorBootstrap(): Promise<EditorBootstrap> {
-  const response = await fetch("/api/v1/editor/bootstrap?example=cooldown");
+export async function loadEditorBootstrap(example: string): Promise<EditorBootstrap> {
+  const response = await fetch(`/api/v1/editor/bootstrap?example=${encodeURIComponent(example)}`);
   if (!response.ok) throw new Error(`Editor bootstrap failed (${response.status})`);
   return (await response.json()) as EditorBootstrap;
 }
