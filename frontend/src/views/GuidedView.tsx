@@ -12,6 +12,7 @@ function percent(value: string) {
 export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
   const guided = projectGuided(state.canonical, state.registry);
+  const focusClass = (componentId?: string) => componentId && state.editor.selectedNodeId === componentId ? "guided-rule-focus" : "";
 
   if (guided.kind === "portfolio") {
     const split = `${guided.growth.allocation}/${guided.defensive.allocation}`;
@@ -40,9 +41,9 @@ export function GuidedView() {
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
           <label>What can it choose from?</label><AssetChips assets={guided.growth.assets} />
-          <div className="summary-row"><span>Which assets qualify?</span><span>{guided.growth.lookbackBars}-day return above {percent(guided.growth.threshold ?? "0")}</span></div>
-          <div className="summary-row"><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally</span></div>
-          <div className="summary-row"><span>What if there aren't enough?</span><span>Use {guided.growth.fallbackAsset}</span></div>
+          <div className={`summary-row editable-summary ${focusClass(guided.growth.filterComponentId)}`} data-component-id={guided.growth.filterComponentId} tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><label htmlFor="guided-growth-threshold">Which assets qualify?<small>{guided.growth.lookbackBars}-day return must be above</small></label><span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? "0") * 100} onChange={(event) => { if (event.target.value === "") return; dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></div>
+          <div className={`summary-row ${focusClass(guided.growth.selectionComponentId)}`}><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally</span></div>
+          <div className={`summary-row ${focusClass(guided.growth.fallbackComponentId)}`}><span>What if there aren't enough?</span><span>Use {guided.growth.fallbackAsset}</span></div>
           {guided.growth.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
             type: "apply_semantic_patch",
             operation: { kind: "update_schedule", componentId: guided.growth.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
@@ -77,7 +78,7 @@ export function GuidedView() {
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
             })} />
-            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <>
+            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <div className={`guided-field-pair ${focusClass(guided.momentum.filterComponentId)}`} data-component-id={guided.momentum.filterComponentId} tabIndex={state.editor.selectedNodeId === guided.momentum.filterComponentId ? -1 : undefined}>
               <label htmlFor="guided-threshold">Which assets qualify? Return above (%)</label>
               <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
                 if (event.target.value === "") return;
@@ -86,7 +87,7 @@ export function GuidedView() {
                   operation: { kind: "update_component_config", componentId: guided.momentum.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) },
                 });
               }} />
-            </> : null}
+            </div> : null}
             <label htmlFor="guided-top-n">How many should it choose?</label>
             <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
               type: "apply_semantic_patch",

@@ -1,46 +1,35 @@
-import { useEffect, useMemo, useState } from "react";
-import { decisionEvidenceApi, type DecisionEventDetail, type DecisionEventSummary, type SourceComponentRef } from "../decisionEvidenceApi";
-import { groupDecisionSessions, happenedText, relevantAssets, type DecisionSession } from "../domain/decisionPresentation";
+import { useEffect, useState } from "react";
+import { decisionEvidenceApi, type DecisionEventDetail, type SourceComponentRef } from "../decisionEvidenceApi";
+import { assetOutcomes, assetPath, happenedText, type DecisionSession, type PathStatus } from "../domain/decisionPresentation";
 
 const pct = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
 const score = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
 const day = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function DecisionAnalysis({ runId, onTimestamp, onShowInStrategy }: { runId: string; onTimestamp: (date: string | null) => void; onShowInStrategy?: (componentId: string) => void }) {
-  const [summaries, setSummaries] = useState<DecisionEventSummary[]>([]);
-  const [listState, setListState] = useState<"loading" | "loaded" | "error">("loading");
-  const [selected, setSelected] = useState<DecisionSession | null>(null);
+export function DecisionAnalysis({ runId, sessions, listState, selected, onSelect, onShowInStrategy }: { runId: string; sessions: DecisionSession[]; listState: "loading" | "loaded" | "error"; selected: DecisionSession | null; onSelect: (session: DecisionSession) => void; onShowInStrategy?: (componentId: string) => void }) {
   const [details, setDetails] = useState<DecisionEventDetail[]>([]);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
-  const sessions = useMemo(() => groupDecisionSessions(summaries), [summaries]);
 
   useEffect(() => {
-    let cancelled = false; setListState("loading");
-    decisionEvidenceApi.list(runId).then(({ items }) => { if (!cancelled) { setSummaries(items); setListState("loaded"); } }).catch(() => { if (!cancelled) setListState("error"); });
+    if (!selected) { setDetails([]); setDetailState("idle"); return; }
+    let cancelled = false; setDetailState("loading"); setDetails([]);
+    Promise.all(selected.events.map((event) => decisionEvidenceApi.get(runId, event.id))).then((items) => { if (!cancelled) { setDetails(items.sort((a, b) => a.ordinal - b.ordinal)); setDetailState("loaded"); } }).catch(() => { if (!cancelled) setDetailState("error"); });
     return () => { cancelled = true; };
-  }, [runId]);
-
-  function choose(session: DecisionSession) {
-    setSelected(session); setDetailState("loading"); setDetails([]); onTimestamp(session.sessionId);
-    Promise.all(session.events.map((event) => decisionEvidenceApi.get(runId, event.id))).then((items) => { setDetails(items.sort((a, b) => a.ordinal - b.ordinal)); setDetailState("loaded"); }).catch(() => setDetailState("error"));
-  }
+  }, [runId, selected]);
 
   if (listState === "loading") return <section className="analysis-workspace" aria-label="Decision analysis"><p role="status">Loading decision timeline…</p></section>;
   if (listState === "error") return <section className="analysis-workspace" aria-label="Decision analysis"><div className="analysis-empty" role="alert"><h2>Decision details are unavailable</h2><p>We couldn't load the evidence for this run.</p></div></section>;
-  if (summaries.length === 0) return <section className="analysis-workspace" aria-label="Decision analysis"><div className="analysis-empty"><h2>Decision details are not available for this older run</h2><p>The saved result is unchanged. RuleTrade will not invent or rerun missing evidence.</p></div></section>;
+  if (sessions.length === 0) return <section className="analysis-workspace" aria-label="Decision analysis"><div className="analysis-empty"><h2>Decision details are not available for this older run</h2><p>The saved result is unchanged. RuleTrade will not invent or rerun missing evidence.</p></div></section>;
 
-  return <section className="analysis-workspace" aria-label="Decision analysis"><header className="analysis-heading"><span className="eyebrow">Analysis</span><h2>Explore this strategy's decisions</h2><p>Select a date to see what happened and which saved rules mattered.</p></header><div className="research-layout"><aside className="decision-timeline" aria-label="Decision timeline"><h3>Decision timeline</h3>{sessions.map((session) => <button key={session.sessionId} className={selected?.sessionId === session.sessionId ? "timeline-event selected" : "timeline-event"} onClick={() => choose(session)} aria-pressed={selected?.sessionId === session.sessionId}><time>{day(session.sessionId)}</time><strong>{session.label}</strong><small>{session.events.length} recorded step{session.events.length === 1 ? "" : "s"}</small></button>)}</aside><div className="research-inspector">{!selected && <div className="inspector-prompt"><h3>Choose a decision</h3><p>Its explanation will stay tied to this historical run.</p></div>}{selected && detailState === "loading" && <p role="status">Opening this decision…</p>}{selected && detailState === "error" && <div role="alert"><h3>We couldn't open this decision</h3><p>The timeline evidence remains unchanged.</p></div>}{selected && detailState === "loaded" && <Inspector details={details} onShowInStrategy={onShowInStrategy} />}</div></div></section>;
+  return <section className="analysis-workspace" aria-label="Decision analysis"><header className="analysis-heading"><span className="eyebrow">Analysis</span><h2>Explore this strategy's decisions</h2><p>Choose a chart marker or browse the timeline. Both open the same decision context.</p></header><div className="research-layout"><aside className="decision-timeline" aria-label="Decision timeline"><h3>Decision timeline</h3>{sessions.map((session) => <button key={session.sessionId} className={selected?.sessionId === session.sessionId ? "timeline-event selected" : "timeline-event"} onClick={() => onSelect(session)} aria-pressed={selected?.sessionId === session.sessionId}><time>{day(session.sessionId)}</time><strong>{session.label}</strong><small>{session.events.length} recorded step{session.events.length === 1 ? "" : "s"}</small></button>)}</aside><div className="research-inspector">{!selected && <div className="inspector-prompt"><h3>Select a decision</h3><p>Use a marker on the chart or a date in the timeline.</p></div>}{selected && detailState === "loading" && <p role="status">Opening this decision…</p>}{selected && detailState === "error" && <div role="alert"><h3>We couldn't open this decision</h3><p>The timeline evidence remains unchanged.</p></div>}{selected && detailState === "loaded" && <Inspector key={selected.sessionId} details={details} onShowInStrategy={onShowInStrategy} />}</div></div></section>;
 }
 
 export function Inspector({ details, onShowInStrategy }: { details: DecisionEventDetail[]; onShowInStrategy?: (componentId: string) => void }) {
-  const final = details.find((item) => item.evidence.kind === "final_selection")?.evidence;
-  const finalAssets = new Set(final?.kind === "final_selection" ? final.selected : []);
-  const assets = relevantAssets(details).filter((item) => !finalAssets.has(item));
-  const firstRejected = details.find((item) => item.evidence.kind === "filter")?.evidence;
-  const initialAsset = firstRejected?.kind === "filter" ? firstRejected.evaluations.find((item) => !item.passed)?.asset : undefined;
-  const [asset, setAsset] = useState(initialAsset ?? assets[0] ?? null);
+  const outcomes = assetOutcomes(details);
+  const initialAsset = outcomes.find((item) => item.kind === "failed" || item.kind === "blocked" || item.kind === "ranked_out")?.asset;
+  const [asset, setAsset] = useState(initialAsset ?? outcomes[0]?.asset ?? null);
   const refs = dedupeRefs(details.flatMap((item) => item.source_components));
-  return <><section className="inspector-section"><span className="eyebrow">What happened?</span><h3>{happenedText(details)}</h3></section><Why details={details} /><Funnel details={details} /><Sleeves details={details} /><Snapshots details={details} />{assets.length > 0 && <section className="inspector-section"><span className="eyebrow">Why wasn't another asset selected?</span><div className="asset-tabs">{assets.map((item) => <button key={item} onClick={() => setAsset(item)} aria-pressed={asset === item}>{item}</button>)}</div>{asset && <AssetExplanation asset={asset} details={details} />}</section>}<section className="inspector-section"><span className="eyebrow">Strategy rule</span><h3>Rules recorded for this decision</h3><div className="source-list">{refs.map((ref) => <div key={`${ref.role}-${ref.component_id}`}><span>{friendlyRole(ref.role)}</span><code>{ref.component_id}</code>{onShowInStrategy && <button className="secondary-button" onClick={() => onShowInStrategy(ref.component_id)}>Show in strategy</button>}</div>)}</div></section><details className="evidence-details"><summary>Evidence details</summary>{details.map((item) => <div key={item.id}><b>#{item.ordinal} · {item.evidence.kind.replaceAll("_", " ")}</b><span>{item.phase.replaceAll("_", " ")}</span></div>)}</details></>;
+  return <><section className="inspector-section"><span className="eyebrow">What happened?</span><h3>{happenedText(details)}</h3></section><Why details={details} />{outcomes.length > 0 && <section className="inspector-section"><span className="eyebrow">Asset outcomes</span><h3>What happened to each asset?</h3><div className="asset-overview">{outcomes.map((item) => <button key={item.asset} className={`asset-outcome ${item.kind}`} onClick={() => setAsset(item.asset)} aria-pressed={asset === item.asset}><StatusIcon status={statusForOutcome(item.kind)} /><span><strong>{item.asset}</strong><small>{item.label}</small></span></button>)}</div>{asset && <AssetExplanation asset={asset} details={details} onShowInStrategy={onShowInStrategy} />}</section>}<Funnel details={details} /><Sleeves details={details} /><Snapshots details={details} /><section className="inspector-section"><span className="eyebrow">Strategy rules</span><h3>Other source components recorded here</h3><div className="source-list">{refs.map((ref) => <div key={`${ref.role}-${ref.component_id}`}><span>{friendlyRole(ref.role)}</span><code>{ref.component_id}</code>{onShowInStrategy && <button className="secondary-button" onClick={() => onShowInStrategy(ref.component_id)}>View rule</button>}</div>)}</div></section><details className="evidence-details"><summary>Evidence details</summary>{details.map((item) => <div key={item.id}><b>#{item.ordinal} · {item.evidence.kind.replaceAll("_", " ")}</b><span>{item.phase.replaceAll("_", " ")}</span></div>)}</details></>;
 }
 
 function Why({ details }: { details: DecisionEventDetail[] }) {
@@ -53,13 +42,18 @@ function Why({ details }: { details: DecisionEventDetail[] }) {
   return null;
 }
 
-export function AssetExplanation({ asset, details }: { asset: string; details: DecisionEventDetail[] }) {
+export function AssetExplanation({ asset, details, onShowInStrategy }: { asset: string; details: DecisionEventDetail[]; onShowInStrategy?: (componentId: string) => void }) {
   const filter = details.find((item) => item.evidence.kind === "filter")?.evidence;
   const evaluation = filter?.kind === "filter" ? filter.evaluations.find((item) => item.asset === asset) : undefined;
   const selection = details.find((item) => item.evidence.kind === "selection")?.evidence;
   const cooldown = details.find((item) => item.evidence.kind === "cooldown" && item.evidence.asset === asset)?.evidence;
-  return <div className="asset-explanation"><h4>{asset}</h4>{evaluation && filter?.kind === "filter" && <div className={evaluation.passed ? "fact passed" : "fact rejected"}><span>Observed value</span><strong>{score(evaluation.observed)}</strong><span>Required</span><strong>Greater than {score(filter.threshold)}</strong><b>{evaluation.passed ? "Passed the condition" : "Did not pass the condition"}</b></div>}{selection?.kind === "selection" && <div className="stage-list"><span>Filter<strong>{evaluation ? (evaluation.passed ? "Passed" : "Rejected") : "Not recorded"}</strong></span>{selection.ranked.includes(asset) && <span>Ranking<strong>#{selection.ranked.indexOf(asset) + 1}</strong></span>}{selection.candidates.includes(asset) && <span>Candidate<strong>Yes</strong></span>}<span>Primary selection<strong>{selection.primary_selected.includes(asset) ? "Selected" : evaluation?.passed ? "Not selected" : "Stopped earlier"}</strong></span></div>}{cooldown?.kind === "cooldown" && <div className="fact blocked"><span>Signal candidate</span><strong>{cooldown.signal_candidate ? "Yes" : "No"}</strong><span>Waiting period</span><strong>{cooldown.elapsed_completed_sessions ?? 0} / {cooldown.required_completed_sessions} sessions</strong><b>{cooldown.eligible ? "Eligible" : "Blocked by waiting period"}</b></div>}</div>;
+  const steps = assetPath(asset, details);
+  const firstStop = steps.find((item) => item.status === "failed");
+  return <div className="asset-explanation"><h4>{asset}</h4>{firstStop && <p className="stopping-reason"><strong>{asset} was not selected because it stopped at {firstStop.label.toLowerCase()}.</strong><span>{firstStop.detail}</span></p>}{!firstStop && evaluation && filter?.kind === "filter" && <p className="stopping-reason passed"><strong>{asset} passed the recorded qualification rule.</strong><span>{score(evaluation.observed)} was greater than {score(filter.threshold)}.</span></p>}<ol className="condition-path">{steps.map((step) => <li key={step.id} className={step.status}><StatusIcon status={step.status} /><span><strong>{step.label}</strong><small>{step.detail}</small></span>{step.sourceComponentId && onShowInStrategy && <button className="text-button" onClick={() => onShowInStrategy(step.sourceComponentId!)}>View rule</button>}</li>)}</ol>{!evaluation && !selection && !cooldown && <p className="evidence-caution">This evidence does not prove whether there was no signal, the asset was not evaluated, or it stopped elsewhere.</p>}</div>;
 }
+
+function StatusIcon({ status }: { status: PathStatus }) { return <span className="status-icon" aria-hidden="true">{status === "passed" ? "✓" : status === "failed" ? "✕" : status === "fallback" ? "◆" : "—"}</span>; }
+function statusForOutcome(kind: ReturnType<typeof assetOutcomes>[number]["kind"]): PathStatus { return kind === "selected" ? "passed" : kind === "failed" || kind === "blocked" ? "failed" : kind === "fallback" ? "fallback" : "neutral"; }
 
 function Funnel({ details }: { details: DecisionEventDetail[] }) {
   const filter = details.find((item) => item.evidence.kind === "filter")?.evidence;

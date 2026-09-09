@@ -4,7 +4,7 @@ import { decisionEvidenceApi, type DecisionEventDetail, type DecisionEventSummar
 import { AssetExplanation, Inspector, Sleeves, Snapshots } from "../components/DecisionAnalysis";
 import { BacktestResultPanel } from "../components/BacktestResultPanel";
 import { ResultWorkspace } from "../components/ResultWorkspace";
-import { groupDecisionSessions } from "./decisionPresentation";
+import { assetOutcomes, assetPath, groupDecisionSessions } from "./decisionPresentation";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { sleevesBootstrap } from "../test/fixture";
 
@@ -50,6 +50,13 @@ describe("Decision Timeline and Research Inspector", () => {
     const ranking = [detail(1, "2024-02-01", { kind: "filter", operator: "gt", threshold: "0", evaluations: [{ asset: "QQQ", observed: ".2", passed: true }, { asset: "VGT", observed: ".1", passed: true }, { asset: "SOXX", observed: ".05", passed: true }] }), detail(2, "2024-02-01", { kind: "selection", scores: { QQQ: ".2", VGT: ".1", SOXX: ".05" }, ranked: ["QQQ", "VGT", "SOXX"], candidates: ["QQQ", "VGT", "SOXX"], primary_selected: ["QQQ", "VGT"], decision: "executed" })];
     const markup = renderToStaticMarkup(<AssetExplanation asset="SOXX" details={ranking} />);
     expect(markup).toContain("Passed"); expect(markup).toContain("#3"); expect(markup).toContain("Not selected"); expect(markup).not.toContain("Rejected");
+    expect(assetOutcomes(ranking).find((item) => item.asset === "SOXX")).toMatchObject({ kind: "ranked_out", label: "Ranked #3 · not selected" });
+  });
+
+  it("shows a scannable asset overview and an exact failed condition path", () => {
+    const markup = renderToStaticMarkup(<Inspector details={fallback} />);
+    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("Fallback selected");
+    expect(assetPath("VGT", fallback)).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Qualification rule", detail: "-6.7% > 0%", status: "failed", sourceComponentId: "positive_filter" }), expect.objectContaining({ label: "Ranking", detail: "Not reached", status: "neutral" })]));
   });
 
   it("shows a blocked signal with elapsed and required Cooldown sessions", () => {
@@ -76,8 +83,15 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("connects a selected evidence date to the existing equity chart", () => {
     const result = { initial_value: "100", final_value: "110", total_return: ".1", total_orders: 2, total_fees: "1", equity_curve: [{ timestamp: "2024-06-03T00:00:00Z", value: "100" }, { timestamp: "2024-07-01T00:00:00Z", value: "110" }] };
-    const markup = renderToStaticMarkup(<BacktestResultPanel result={result} selectedTimestamp="2024-06-03" />);
-    expect(markup).toContain("Decision selected"); expect(markup).toContain("decision-crosshair");
+    const sessions = groupDecisionSessions(fallback.map(({ evidence: _evidence, ...item }) => item as DecisionEventSummary));
+    const markup = renderToStaticMarkup(<BacktestResultPanel result={result} selectedTimestamp="2024-06-03" decisionSessions={sessions} />);
+    expect(markup).toContain("Decision selected"); expect(markup).toContain("decision-crosshair"); expect(markup).toContain("decision-marker fallback"); expect(markup).toContain('role="button"');
+  });
+
+  it("does not turn missing asset evidence into no signal", () => {
+    const unknown = [detail(1, "2024-05-01", { kind: "state_mutation", asset: "QQQ", state: "last_exit", old_value: null, new_value: "2024-05-01", cause: "target_exit" })];
+    expect(assetOutcomes(unknown)[0]).toMatchObject({ kind: "unknown", label: "Outcome not proven by this evidence" });
+    expect(renderToStaticMarkup(<AssetExplanation asset="QQQ" details={unknown} />)).not.toContain("no signal");
   });
 
   it("keeps transient results honest and without a Decision Analysis request", () => {
