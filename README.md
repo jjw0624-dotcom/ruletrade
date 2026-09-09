@@ -28,10 +28,11 @@ Included:
 - Typed LEAN compiler v0 with Golden Strategy C# generation and local Docker E2E tooling
 - A React Strategy Editor where Guided and Flow project and patch one Canonical v1 document
 - Durable Strategy identities with immutable Canonical Revision history in SQLite
+- Durable BacktestRun history for saved Revisions, normalized results, provenance, and timings
 
 Not included yet:
 
-- User accounts, sharing, and persistent Backtest Runs
+- User accounts, sharing, and Structured Decision Evidence
 - Rules, Blocks, and editable Code authoring views
 - Browser-triggered LEAN backtests
 - Forward tests and competitions
@@ -40,7 +41,9 @@ See [Canonical Strategy v1 Foundation](docs/canonical-v1.md) for the source-mode
 [Compiler Foundation](docs/compiler-foundation.md) for the consolidated compiler and evidence
 boundaries proven through Cooldown, and
 [Strategy and immutable Revision persistence](docs/strategy-revision-persistence.md) for the first
-durable product-domain boundary.
+durable product-domain boundary, and
+[Persistent BacktestRun](docs/backtest-run-persistence.md) for immutable execution configuration,
+historical results, provenance, and latency instrumentation.
 
 ## Strategy Editor
 

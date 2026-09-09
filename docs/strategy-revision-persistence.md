@@ -28,7 +28,7 @@ process-reopenable persistence and fits the current single-service local/contain
 adds no dependency or ORM. In-memory dictionaries, local JSON documents, and browser storage are
 not authoritative.
 
-Schema version 1 uses `PRAGMA user_version` and two tables:
+Schema version 1 introduced these two tables using `PRAGMA user_version`:
 
 | Table | Stored fields |
 | --- | --- |
@@ -39,9 +39,9 @@ Foreign keys protect Strategy/current-Revision, Revision/Strategy, and parent re
 Database triggers reject every Revision update or delete. `BEGIN IMMEDIATE` transactions cover both
 aggregate creation and compare-parent/insert/advance saves.
 
-No migration framework is justified for one schema. Initialization is automatic and idempotent;
-an unknown `user_version` fails safely. A later schema change should add a small explicit numbered
-migration. Moving to PostgreSQL would replace this repository adapter and transaction SQL while
+Initialization is automatic and idempotent; an unknown `user_version` fails safely. Schema version
+2 adds Backtest Runs without changing these tables. Moving to PostgreSQL would replace this
+repository adapter and transaction SQL while
 leaving the service, domain objects, API, and Canonical serialization contract intact.
 
 ## Source snapshot and hash
@@ -89,8 +89,8 @@ smallest policy that lets future Backtest Runs safely retain Revision foreign ke
 ## Initialization and local use
 
 `RULETRADE_DB_PATH` selects the SQLite file. Without it, local execution uses
-`data/ruletrade.sqlite3`. Opening the repository initializes schema version 1 automatically; no SQL
-editing is required. Docker Compose uses the named `ruletrade-state` volume at `/app/state`.
+`data/ruletrade.sqlite3`. Opening the repository initializes or migrates the schema automatically;
+no SQL editing is required. Docker Compose uses the named `ruletrade-state` volume at `/app/state`.
 
 The intended frontend flow is:
 

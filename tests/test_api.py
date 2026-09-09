@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from ruletrade.api import app, get_lean_backtest_service
 from ruletrade.backtests.errors import LeanExecutionError, LeanRuntimeUnavailableError
 from ruletrade.backtests.lean_runner import LeanRunArtifact
+from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
 from ruletrade.strategy.v1.fixtures import (
     GOLDEN_PORTFOLIO_PAYLOAD,
@@ -375,8 +376,16 @@ class ApiFakeRunner:
         )
 
 
+class ApiTransientBacktestService:
+    def __init__(self, runner: ApiFakeRunner) -> None:
+        self.executor = BacktestService(runner)
+
+    def execute_transient(self, request: LeanBacktestRequest) -> LeanBacktestResponse:
+        return self.executor.execute(request)
+
+
 def post_lean_backtest(payload: dict[str, object], runner: ApiFakeRunner):
-    app.dependency_overrides[get_lean_backtest_service] = lambda: BacktestService(runner)
+    app.dependency_overrides[get_lean_backtest_service] = lambda: ApiTransientBacktestService(runner)
     try:
         return client.post("/v1/backtests/lean", json=payload)
     finally:

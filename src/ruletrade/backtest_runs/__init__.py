@@ -1,0 +1,1 @@
+"""Persistent BacktestRun domain."""

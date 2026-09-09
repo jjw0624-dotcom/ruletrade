@@ -118,6 +118,12 @@ class StrategyService:
             raise RevisionNotFoundError("Strategy Revision was not found.")
         return revision
 
+    def get_revision_by_id(self, revision_id: str) -> RevisionRecord:
+        revision = self.repository.get_revision_by_id(revision_id)
+        if revision is None:
+            raise RevisionNotFoundError("Strategy Revision was not found.")
+        return revision
+
     def save_revision(
         self,
         strategy_id: str,

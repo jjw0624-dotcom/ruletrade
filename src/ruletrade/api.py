@@ -11,6 +11,18 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from ruletrade import __version__
+from ruletrade.backtest_runs.errors import (
+    BacktestRunDomainError,
+    BacktestRunNotFoundError,
+    BacktestRunPersistenceError,
+    InvalidRunConfigError,
+)
+from ruletrade.backtest_runs.models import (
+    BacktestRunList,
+    BacktestRunRecord,
+    CreateBacktestRunRequest,
+)
+from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.backtests.errors import (
     InvalidStrategyError,
     LeanExecutionError,
@@ -27,7 +39,7 @@ from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
-from ruletrade.persistence import SQLiteStrategyRepository
+from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.errors import (
     InvalidStrategySourceError,
     PersistenceError,
@@ -81,13 +93,24 @@ def default_strategy_db_path() -> Path:
 
 registry = DatasetRegistry(default_data_dir())
 app = FastAPI(title="RuleTrade MVP API", version=__version__)
-lean_backtest_service = BacktestService(DockerLeanRunner())
+lean_executor = BacktestService(DockerLeanRunner())
 strategy_service: StrategyService | None = None
 strategy_service_path: Path | None = None
+backtest_run_service: BacktestRunService | None = None
+backtest_run_service_path: Path | None = None
 
 
-def get_lean_backtest_service() -> BacktestService:
-    return lean_backtest_service
+def get_lean_backtest_service() -> BacktestRunService:
+    global backtest_run_service, backtest_run_service_path
+    path = default_strategy_db_path()
+    if backtest_run_service is None or backtest_run_service_path != path:
+        backtest_run_service = BacktestRunService(
+            SQLiteBacktestRunRepository(path),
+            get_strategy_service(),
+            lean_executor,
+        )
+        backtest_run_service_path = path
+    return backtest_run_service
 
 
 def get_strategy_service() -> StrategyService:
@@ -135,6 +158,43 @@ async def strategy_domain_error(
     elif isinstance(exc, PersistenceError):
         logger.exception("Strategy persistence operation failed", exc_info=exc)
     return JSONResponse(status_code=status_code, content={"detail": detail})
+
+
+@app.exception_handler(BacktestRunDomainError)
+async def backtest_run_domain_error(
+    _request: Request,
+    exc: BacktestRunDomainError,
+) -> JSONResponse:
+    if isinstance(exc, InvalidRunConfigError):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": {
+                    "code": exc.code,
+                    "message": str(exc),
+                    "issues": [
+                        {"path": issue.path, "message": issue.message}
+                        for issue in exc.issues
+                    ],
+                }
+            },
+        )
+    if isinstance(exc, BacktestRunNotFoundError):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": {"code": exc.code, "message": str(exc)}},
+        )
+    if isinstance(exc, BacktestRunPersistenceError):
+        logger.exception("Backtest Run persistence operation failed", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": {
+                "code": "persistence_failure",
+                "message": "Backtest Run persistence is temporarily unavailable.",
+            }
+        },
+    )
 
 
 @app.get("/health")
@@ -350,10 +410,10 @@ def validate_canonical_strategy_v1(
 @app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
 def execute_lean_backtest(
     request: LeanBacktestRequest,
-    service: Annotated[BacktestService, Depends(get_lean_backtest_service)],
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> LeanBacktestResponse:
     try:
-        return service.execute(request)
+        return service.execute_transient(request)
     except InvalidStrategyError as exc:
         raise HTTPException(
             status_code=422,
@@ -386,6 +446,38 @@ def execute_lean_backtest(
             status_code=502,
             detail={"code": exc.code, "message": str(exc)},
         ) from exc
+
+
+@app.post(
+    "/v1/revisions/{revision_id}/backtest-runs",
+    response_model=BacktestRunRecord,
+    status_code=201,
+)
+def create_persisted_backtest_run(
+    revision_id: str,
+    request: CreateBacktestRunRequest,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> BacktestRunRecord:
+    return service.create_and_execute(revision_id, request.config)
+
+
+@app.get(
+    "/v1/revisions/{revision_id}/backtest-runs",
+    response_model=BacktestRunList,
+)
+def list_persisted_backtest_runs(
+    revision_id: str,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> BacktestRunList:
+    return BacktestRunList(items=list(service.list_runs(revision_id)))
+
+
+@app.get("/v1/backtest-runs/{run_id}", response_model=BacktestRunRecord)
+def read_persisted_backtest_run(
+    run_id: str,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> BacktestRunRecord:
+    return service.get_run(run_id)
 
 
 @app.get("/v1/strategies", response_model=StrategyList)
