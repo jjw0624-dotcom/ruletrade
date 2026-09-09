@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    RULETRADE_DATA_DIR=/app/data
+    RULETRADE_DATA_DIR=/app/data \
+    RULETRADE_DB_PATH=/app/state/ruletrade.sqlite3
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
@@ -11,6 +12,8 @@ COPY data ./data
 COPY examples ./examples
 COPY tests ./tests
 COPY scripts ./scripts
+
+RUN mkdir -p /app/state
 
 RUN pip install --no-cache-dir -e ".[bt,dev]"
 

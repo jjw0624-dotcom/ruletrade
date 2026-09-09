@@ -5,8 +5,14 @@ services:
       - "8000:8000"
     environment:
       RULETRADE_DATA_DIR: /app/data
+      RULETRADE_DB_PATH: /app/state/ruletrade.sqlite3
+    volumes:
+      - ruletrade-state:/app/state
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
       timeout: 3s
       retries: 5
+
+volumes:
+  ruletrade-state:
