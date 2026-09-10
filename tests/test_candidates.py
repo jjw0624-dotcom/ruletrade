@@ -24,9 +24,9 @@ from ruletrade.candidates.errors import (
 )
 from ruletrade.candidates.models import FilterThresholdChange
 from ruletrade.candidates.service import CandidateService
+from ruletrade.comparisons.service import ComparisonService
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean import CSharpGenerationSettings, generate_csharp
-from ruletrade.comparisons.service import ComparisonService
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
