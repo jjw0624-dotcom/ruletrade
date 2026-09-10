@@ -134,6 +134,9 @@ def test_codegen_uses_exchange_sessions_and_target_transition_state() -> None:
     assert "RULETRADE_COOLDOWN|" in source
     assert "RULETRADE_STATE|" in source
     assert 'EmitDecisionEvidence(eventIdentity, "selection", "cooldown"' in source
+    assert '"selection_field", "config.count"' in source
+    assert '"cooldown_field", "config.duration"' in source
+    assert '"stopping_stage", (allowed ? "" : "cooldown")' in source
     assert 'EmitDecisionEvidence(eventIdentity, "state_mutation", "state_mutation"' in source
     assert source.index("RULETRADE_STATE|") < source.index("Liquidate(holding.Symbol)")
     assert "_targetSnapshot" not in source

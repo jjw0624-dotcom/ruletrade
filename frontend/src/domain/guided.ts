@@ -26,6 +26,7 @@ export interface MomentumGuidedProjection {
     lookbackBars: number;
     filterComponentId?: string;
     threshold?: string;
+    rankComponentId: string;
     rankDirection: string;
     selectionComponentId: string;
     topN: number;
@@ -126,6 +127,7 @@ export function projectGuided(
         threshold: filter
           ? String(resolvedConfigValue(strategy, registry, filter.id, "threshold"))
           : undefined,
+        rankComponentId: rank.id,
         rankDirection: direction,
         selectionComponentId: topN.id,
         topN: count,

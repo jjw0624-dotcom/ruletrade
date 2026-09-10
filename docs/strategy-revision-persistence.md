@@ -40,7 +40,8 @@ Database triggers reject every Revision update or delete. `BEGIN IMMEDIATE` tran
 aggregate creation and compare-parent/insert/advance saves.
 
 Initialization is automatic and idempotent; an unknown `user_version` fails safely. Schema version
-2 adds Backtest Runs and schema version 3 adds Decision Events without changing these tables. Moving to PostgreSQL would replace this
+2 adds Backtest Runs, schema version 3 adds Decision Events, and schema version 4 admits the additive
+Evidence v2 contract without changing Strategy or Revision tables. Moving to PostgreSQL would replace this
 repository adapter and transaction SQL while
 leaving the service, domain objects, API, and Canonical serialization contract intact.
 

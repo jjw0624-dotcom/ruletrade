@@ -1,15 +1,17 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { decisionEvidenceApi, type DecisionEventDetail, type DecisionEventSummary } from "../decisionEvidenceApi";
+import { decisionEvidenceApi, type DecisionEventDetail, type DecisionEventSummary, type DecisionEvidenceV1, type DecisionEvidenceV2 } from "../decisionEvidenceApi";
 import { AssetExplanation, Inspector, Sleeves, Snapshots } from "../components/DecisionAnalysis";
 import { BacktestResultPanel } from "../components/BacktestResultPanel";
 import { ResultWorkspace } from "../components/ResultWorkspace";
 import { assetOutcomes, assetPath, groupDecisionSessions } from "./decisionPresentation";
-import { createEditorState, editorReducer } from "../store/editorStore";
+import { createEditorState, editorReducer, StrategyEditorProvider } from "../store/editorStore";
 import { sleevesBootstrap } from "../test/fixture";
+import { GuidedView } from "../views/GuidedView";
 
-const source = (role: string, component_id: string) => ({ role, component_id });
-function detail(ordinal: number, session_id: string, evidence: DecisionEventDetail["evidence"], refs = [source(evidence.kind, `${evidence.kind}_component`)]): DecisionEventDetail { return { id: `event-${String(ordinal).padStart(6, "0")}`, run_id: "run-1", ordinal, schema_version: 1, session_id, phase: evidence.kind === "filter" ? "evaluation" : evidence.kind === "snapshot_usage" || evidence.kind === "sleeve_contribution" || evidence.kind === "final_targets" ? "portfolio_execution" : "selection", kind: evidence.kind, source_components: refs, evidence }; }
+const source = (role: string, component_id: string, field_path?: string) => ({ role, component_id, field_path });
+function detail(ordinal: number, session_id: string, evidence: DecisionEvidenceV1, refs = [source(evidence.kind, `${evidence.kind}_component`)]): DecisionEventDetail { return { id: `event-${String(ordinal).padStart(6, "0")}`, run_id: "run-1", ordinal, schema_version: 1, session_id, phase: evidence.kind === "filter" ? "evaluation" : evidence.kind === "snapshot_usage" || evidence.kind === "sleeve_contribution" || evidence.kind === "final_targets" ? "portfolio_execution" : "selection", kind: evidence.kind, source_components: refs, evidence }; }
+function detailV2(ordinal: number, session_id: string, evidence: DecisionEvidenceV2, refs = [source(evidence.kind, `${evidence.kind}_component`)]): DecisionEventDetail { return { id: `event-${String(ordinal).padStart(6, "0")}`, run_id: "run-1", ordinal, schema_version: 2, session_id, phase: evidence.kind === "filter" ? "evaluation" : evidence.kind === "snapshot_usage" || evidence.kind === "sleeve_contribution" || evidence.kind === "final_targets" ? "portfolio_execution" : "selection", kind: evidence.kind, source_components: refs, evidence }; }
 
 const fallback: DecisionEventDetail[] = [
   detail(1, "2024-06-03", { kind: "filter", operator: "gt", threshold: "0", evaluations: [{ asset: "QQQ", observed: "0.243", passed: true }, { asset: "VGT", observed: "-0.067", passed: false }, { asset: "SOXX", observed: "-0.275", passed: false }] }, [source("filter", "positive_filter")]),
@@ -46,6 +48,27 @@ describe("Decision Timeline and Research Inspector", () => {
     expect(markup).toContain("primary selection was incomplete"); expect(markup).toContain("TLT fallback activated"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("-6.7% &gt; 0%"); expect(markup).not.toContain("needed 2");
   });
 
+  it("uses v2 cardinality and structural outcomes without weakening v1 unknowns", () => {
+    const v2 = [
+      detailV2(1, "2024-06-03", { kind: "filter", operator: "gt", threshold: "0", decision_universe: ["QQQ", "VGT", "SOXX", "XLK"], evaluations: [{ asset: "QQQ", observed: "0.243", passed: true, stopping_stage: null }, { asset: "VGT", observed: "0.1", passed: true, stopping_stage: null }, { asset: "SOXX", observed: "-0.2", passed: false, stopping_stage: "filter" }] }, [source("filter", "positive_filter", "config.threshold")]),
+      detailV2(2, "2024-06-03", { kind: "selection", scores: { QQQ: "0.243", VGT: "0.1", SOXX: "-0.2" }, ranked: ["QQQ", "VGT"], candidates: ["QQQ"], primary_selected: [], decision: "insufficient", required_count: 2, asset_outcomes: [{ asset: "QQQ", evaluated: true, signal: "present", rank: 1, primary_selected: false, stopping_stage: "fallback_replacement" }, { asset: "VGT", evaluated: true, signal: "absent", rank: 2, primary_selected: false, stopping_stage: "rank_cutoff" }] }, [source("rank", "rank", "config.direction"), source("selection", "top_n", "config.count")]),
+      detailV2(3, "2024-06-03", { kind: "fallback", asset: "TLT", activated: true }, [source("fallback", "fallback")]),
+      detailV2(4, "2024-06-03", { kind: "final_selection", selected: ["TLT"], source: "fallback" }, [source("selection", "fallback")]),
+    ];
+
+    const markup = renderToStaticMarkup(<Inspector details={v2} />);
+    expect(markup).toContain("1 of 2 assets qualified");
+    expect(markup).toContain("1 / 2");
+    expect(markup).toContain("Signal absent · ranked #2 below cutoff");
+    expect(markup).toContain("Candidate · replaced by fallback");
+    expect(assetOutcomes(v2).find((item) => item.asset === "XLK")).toMatchObject({ kind: "unknown", label: "Outcome not proven by this evidence" });
+    expect(assetOutcomes(v2).find((item) => item.asset === "MISSING")).toBeUndefined();
+    expect(assetPath("VGT", v2)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ detail: "Rank #2 · below cutoff", sourceComponentId: "top_n", sourceFieldPath: "config.count" }),
+    ]));
+    expect(renderToStaticMarkup(<Inspector details={fallback} />)).not.toContain("Signal absent");
+  });
+
   it("distinguishes rank cutoff from filter rejection", () => {
     const ranking = [detail(1, "2024-02-01", { kind: "filter", operator: "gt", threshold: "0", evaluations: [{ asset: "QQQ", observed: ".2", passed: true }, { asset: "VGT", observed: ".1", passed: true }, { asset: "SOXX", observed: ".05", passed: true }] }), detail(2, "2024-02-01", { kind: "selection", scores: { QQQ: ".2", VGT: ".1", SOXX: ".05" }, ranked: ["QQQ", "VGT", "SOXX"], candidates: ["QQQ", "VGT", "SOXX"], primary_selected: ["QQQ", "VGT"], decision: "executed" })];
     const markup = renderToStaticMarkup(<AssetExplanation asset="SOXX" details={ranking} />);
@@ -57,6 +80,12 @@ describe("Decision Timeline and Research Inspector", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} onShowInStrategy={() => undefined} />);
     expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
     expect(assetPath("VGT", fallback)).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Qualification rule", detail: "-6.7% > 0%", status: "failed", sourceComponentId: "positive_filter" }), expect.objectContaining({ label: "Ranking", detail: "Not reached", status: "neutral" })]));
+  });
+
+  it("restores the selected asset when a research context reopens the inspector", () => {
+    const markup = renderToStaticMarkup(<Inspector details={fallback} initialAsset="QQQ" />);
+    expect(markup).toContain('<button class="asset-outcome ranked_out" aria-pressed="true"><span class="status-icon"');
+    expect(markup).toContain("<h4>QQQ</h4>");
   });
 
   it("shows a blocked signal with elapsed and required Cooldown sessions", () => {
@@ -77,8 +106,17 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("keeps source focus in editor-only state", () => {
     const initial = createEditorState(sleevesBootstrap);
-    const selected = editorReducer(editorReducer(initial, { type: "select_node", componentId: "positive_filter" }), { type: "set_active_view", view: "flow" });
-    expect(selected.editor.selectedNodeId).toBe("positive_filter"); expect(selected.editor.activeView).toBe("flow"); expect(selected.canonical).toBe(initial.canonical);
+    const selected = editorReducer(editorReducer(initial, { type: "select_node", componentId: "positive_filter", fieldPath: "config.threshold" }), { type: "set_active_view", view: "flow" });
+    expect(selected.editor.selectedNodeId).toBe("positive_filter"); expect(selected.editor.selectedFieldPath).toBe("config.threshold"); expect(selected.editor.activeView).toBe("flow"); expect(selected.canonical).toBe(initial.canonical);
+    const componentOnly = editorReducer(selected, { type: "select_node", componentId: "positive_filter" });
+    expect(componentOnly.editor.selectedNodeId).toBe("positive_filter"); expect(componentOnly.editor.selectedFieldPath).toBeNull(); expect(componentOnly.canonical).toBe(initial.canonical);
+  });
+
+  it("provides Canonical field destinations while retaining component-level focus", () => {
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}><GuidedView /></StrategyEditorProvider>);
+    expect(markup).toContain('data-component-id="positive_return" data-field-path="config.threshold"');
+    expect(markup).toContain('data-component-id="top_n" data-field-path="config.count"');
+    expect(markup).toContain('data-field-path="config.lookback_bars"');
   });
 
   it("connects a selected evidence date to the existing equity chart", () => {

@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, 2, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, 3, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -153,7 +153,7 @@ class SQLiteStrategyRepository:
                         run_id TEXT NOT NULL,
                         id TEXT NOT NULL,
                         ordinal INTEGER NOT NULL CHECK (ordinal > 0),
-                        schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+                        schema_version INTEGER NOT NULL CHECK (schema_version IN (1, 2)),
                         session_id TEXT NOT NULL,
                         phase TEXT NOT NULL,
                         kind TEXT NOT NULL,
@@ -187,6 +187,8 @@ class SQLiteStrategyRepository:
                     END;
                     """
                 )
+                if version == 3:
+                    self._migrate_decision_events_v3_to_v4(connection)
                 if version < SCHEMA_VERSION:
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         except PersistenceError:
@@ -410,6 +412,68 @@ class SQLiteStrategyRepository:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 5000")
         return connection
+
+    @staticmethod
+    def _migrate_decision_events_v3_to_v4(connection: sqlite3.Connection) -> None:
+        """Allow additive Evidence v2 rows while preserving immutable v1 history."""
+        connection.executescript(
+            """
+            DROP TRIGGER decision_events_running_run_only;
+            DROP TRIGGER decision_events_no_update;
+            DROP TRIGGER decision_events_no_delete;
+            DROP INDEX decision_events_run_order;
+
+            ALTER TABLE decision_events RENAME TO decision_events_v3;
+
+            CREATE TABLE decision_events (
+                run_id TEXT NOT NULL,
+                id TEXT NOT NULL,
+                ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+                schema_version INTEGER NOT NULL CHECK (schema_version IN (1, 2)),
+                session_id TEXT NOT NULL,
+                phase TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                source_components_json TEXT NOT NULL,
+                evidence_json TEXT NOT NULL,
+                PRIMARY KEY (run_id, id),
+                UNIQUE (run_id, ordinal),
+                FOREIGN KEY (run_id) REFERENCES backtest_runs(id)
+            );
+
+            INSERT INTO decision_events (
+                run_id, id, ordinal, schema_version, session_id, phase, kind,
+                source_components_json, evidence_json
+            )
+            SELECT
+                run_id, id, ordinal, schema_version, session_id, phase, kind,
+                source_components_json, evidence_json
+            FROM decision_events_v3;
+
+            DROP TABLE decision_events_v3;
+
+            CREATE INDEX decision_events_run_order
+                ON decision_events(run_id, ordinal);
+
+            CREATE TRIGGER decision_events_running_run_only
+            BEFORE INSERT ON decision_events
+            WHEN (SELECT status FROM backtest_runs WHERE id = NEW.run_id) != 'running'
+            BEGIN
+                SELECT RAISE(ABORT, 'decision events may only complete a running run');
+            END;
+
+            CREATE TRIGGER decision_events_no_update
+            BEFORE UPDATE ON decision_events
+            BEGIN
+                SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
+            END;
+
+            CREATE TRIGGER decision_events_no_delete
+            BEFORE DELETE ON decision_events
+            BEGIN
+                SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
+            END;
+            """
+        )
 
     @staticmethod
     def _insert_revision(

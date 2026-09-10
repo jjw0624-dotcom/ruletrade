@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DECISION_EVIDENCE_SCHEMA_VERSION = 1
+DECISION_EVIDENCE_SCHEMA_VERSION = 2
 
 
 class EvidenceModel(BaseModel):
@@ -16,12 +16,17 @@ class EvidenceModel(BaseModel):
 class SourceComponentRef(EvidenceModel):
     role: str
     component_id: str
+    field_path: Annotated[
+        str,
+        Field(pattern=r"^config\.[a-z][a-z0-9_]*$"),
+    ] | None = None
 
 
 class AssetPredicate(EvidenceModel):
     asset: str
     observed: Decimal
     passed: bool
+    stopping_stage: Literal["filter"] | None = None
 
 
 class FilterEvidence(EvidenceModel):
@@ -29,6 +34,20 @@ class FilterEvidence(EvidenceModel):
     operator: Literal["gt"]
     threshold: Decimal
     evaluations: tuple[AssetPredicate, ...]
+    decision_universe: tuple[str, ...] | None = None
+
+
+class SelectionAssetOutcome(EvidenceModel):
+    asset: str
+    evaluated: Literal[True] = True
+    signal: Literal["present", "absent"]
+    rank: int = Field(ge=1)
+    primary_selected: bool
+    stopping_stage: Literal[
+        "rank_cutoff",
+        "primary_selection_incomplete",
+        "fallback_replacement",
+    ] | None = None
 
 
 class SelectionEvidence(EvidenceModel):
@@ -38,6 +57,8 @@ class SelectionEvidence(EvidenceModel):
     candidates: tuple[str, ...]
     primary_selected: tuple[str, ...]
     decision: Literal["executed", "insufficient", "skipped", "signal"]
+    required_count: int | None = Field(default=None, ge=1)
+    asset_outcomes: tuple[SelectionAssetOutcome, ...] | None = None
 
 
 class RandomSelectionEvidence(EvidenceModel):
@@ -45,6 +66,7 @@ class RandomSelectionEvidence(EvidenceModel):
     universe: tuple[str, ...]
     selected: tuple[str, ...]
     resample: Literal["once", "per_event"]
+    required_count: int | None = Field(default=None, ge=1)
 
 
 class FallbackEvidence(EvidenceModel):
@@ -67,6 +89,7 @@ class CooldownEvidence(EvidenceModel):
     elapsed_completed_sessions: int | None
     required_completed_sessions: int
     eligible: bool
+    stopping_stage: Literal["cooldown"] | None = None
 
 
 class StateMutationEvidence(EvidenceModel):
@@ -123,6 +146,7 @@ DecisionEvidence = Annotated[
 
 
 class CollectedDecisionEvent(EvidenceModel):
+    schema_version: Literal[1, 2]
     sequence: int = Field(ge=1)
     session_id: date
     phase: Literal[
@@ -140,7 +164,7 @@ class DecisionEventSummary(EvidenceModel):
     id: str
     run_id: str
     ordinal: int = Field(ge=1)
-    schema_version: Literal[1] = DECISION_EVIDENCE_SCHEMA_VERSION
+    schema_version: Literal[1, 2] = DECISION_EVIDENCE_SCHEMA_VERSION
     session_id: date
     phase: Literal[
         "evaluation",
