@@ -5,6 +5,7 @@ export interface GoldenGuidedProjection {
   kind: "golden";
   growth: {
     assets: string[];
+    assetSetId: string;
     selectionComponentId: string;
     randomCount: number;
     resample: string;
@@ -13,6 +14,7 @@ export interface GoldenGuidedProjection {
   };
   safe: {
     assets: string[];
+    assetSetId: string;
     allocationComponentId: string;
     total: string;
   };
@@ -22,12 +24,13 @@ export interface MomentumGuidedProjection {
   kind: "momentum";
   momentum: {
     assets: string[];
+    assetSetId: string;
     lookbackComponentId: string;
     lookbackBars: number;
     filterComponentId?: string;
     threshold?: string;
-    rankComponentId: string;
     rankDirection: string;
+    rankComponentId: string;
     selectionComponentId: string;
     topN: number;
     fallbackComponentId?: string;
@@ -39,6 +42,7 @@ export interface MomentumGuidedProjection {
     cooldownUnit?: string;
     total: string;
     schedule: string;
+    scheduleComponentId?: string;
   };
 }
 
@@ -57,6 +61,7 @@ export interface PortfolioGuidedProjection {
     sleeveName: string;
     allocation: string;
     assets: string[];
+    assetSetId: string;
     refreshScheduleComponentId?: string;
     refreshSchedule?: string;
   };
@@ -80,6 +85,13 @@ function assetsFor(strategy: CanonicalStrategyV1, componentId: string): string[]
   const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
   if (!definition) throw new Error(`Guided View cannot resolve asset set ${String(reference)}`);
   return definition.assets;
+}
+
+function assetSetFor(strategy: CanonicalStrategyV1, componentId: string): string {
+  const component = requireComponent(strategy, componentId);
+  const reference = component.config.asset_set_ref;
+  if (typeof reference !== "string") throw new Error(`Guided View cannot resolve asset set for ${componentId}`);
+  return reference;
 }
 
 function scheduleForTarget(strategy: CanonicalStrategyV1, targetId: string) {
@@ -121,14 +133,15 @@ export function projectGuided(
     }
     const momentum = {
         assets: assetsFor(strategy, assets.id),
+        assetSetId: assetSetFor(strategy, assets.id),
         lookbackComponentId: trailingReturn.id,
         lookbackBars,
         filterComponentId: filter?.id,
         threshold: filter
           ? String(resolvedConfigValue(strategy, registry, filter.id, "threshold"))
           : undefined,
-        rankComponentId: rank.id,
         rankDirection: direction,
+        rankComponentId: rank.id,
         selectionComponentId: topN.id,
         topN: count,
         fallbackComponentId: fallback?.id,
@@ -148,6 +161,7 @@ export function projectGuided(
           : undefined,
         total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
         schedule: schedule?.label ?? "Monthly",
+        scheduleComponentId: schedule?.componentId,
     };
     const sleeveComponents = strategy.graph.components.filter(
       (item) => item.primitive === "portfolio_sleeve@1",
@@ -177,6 +191,7 @@ export function projectGuided(
           sleeveName: String(defensiveSleeve.config.name),
           allocation: String(defensiveSleeve.config.allocation),
           assets: assetsFor(strategy, defensiveAssets.id),
+          assetSetId: assetSetFor(strategy, defensiveAssets.id),
           refreshScheduleComponentId: defensiveSchedule?.componentId,
           refreshSchedule: defensiveSchedule?.label,
         },
@@ -201,6 +216,7 @@ export function projectGuided(
     kind: "golden",
     growth: {
       assets: assetsFor(strategy, "growth_assets"),
+      assetSetId: assetSetFor(strategy, "growth_assets"),
       selectionComponentId: "growth_random",
       randomCount,
       resample,
@@ -209,6 +225,7 @@ export function projectGuided(
     },
     safe: {
       assets: assetsFor(strategy, "safe_assets"),
+      assetSetId: assetSetFor(strategy, "safe_assets"),
       allocationComponentId: "safe_weights",
       total: String(safeTotal),
     },

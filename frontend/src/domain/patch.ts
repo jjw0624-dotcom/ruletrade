@@ -21,7 +21,7 @@ export interface UpdateSleeveAllocations {
 export interface UpdateSchedule {
   kind: "update_schedule";
   componentId: string;
-  cadence: "monthly" | "quarterly";
+  cadence: "daily" | "monthly" | "quarterly";
 }
 
 export interface UpdateAssetSetAssets {
@@ -154,7 +154,7 @@ export function applySemanticPatch(
     const definition = strategy.definitions.asset_sets.find((item) => item.id === operation.assetSetId);
     if (!definition) return { ok: false, issue: { path: `definitions.asset_sets[${operation.assetSetId}]`, message: "asset group was not found" } };
     const assets = operation.assets.map((asset) => asset.trim().toUpperCase());
-    if (assets.length === 0 || assets.some((asset) => !/^[A-Z][A-Z0-9.-]{0,11}$/.test(asset))) {
+    if (assets.length === 0 || assets.some((asset) => !/^[A-Z0-9._:-]{1,32}$/.test(asset))) {
       return { ok: false, issue: { path: `definitions.asset_sets[${operation.assetSetId}].assets`, message: "use at least one valid ticker symbol" } };
     }
     if (new Set(assets).size !== assets.length) {
@@ -180,7 +180,7 @@ export function applySemanticPatch(
         ok: false,
         issue: {
           path: `graph.components[${operation.componentId}].primitive`,
-          message: "schedule must be Monthly or Quarterly",
+          message: "schedule must be Daily, Monthly, or Quarterly",
         },
       };
     }

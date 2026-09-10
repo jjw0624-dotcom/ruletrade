@@ -404,6 +404,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .split-total { padding: .7rem; border-radius: 8px; font-weight: 700; }
 .split-total.valid { background: #edf8f0; color: #26623a; }
 .split-total.invalid { background: #fff2ed; color: #963f2d; }
+.sr-only { position: absolute!important; width: 1px!important; height: 1px!important; padding: 0!important; margin: -1px!important; overflow: hidden!important; clip: rect(0,0,0,0)!important; white-space: nowrap!important; border: 0!important; }
+.asset-membership { display: grid; gap: .55rem; }
+.asset-membership > label { font-weight: 700; }
+.asset-membership .asset-chips span { display: inline-flex; align-items: center; gap: .25rem; padding: .35rem .55rem; border-radius: 999px; background: var(--surface-soft); }
+.asset-membership .asset-chips button { border: 0; background: transparent; cursor: pointer; color: var(--muted); }
+.asset-add { display: flex; gap: .5rem; }
+.asset-add input { min-width: 8rem; flex: 1; }
+.asset-membership small,.lookback-control small,.allocation-editor small { color: var(--muted); line-height: 1.45; }
+.lookback-control,.allocation-editor { display: grid; gap: .55rem; }
+.lookback-control > label,.allocation-editor > label { display: grid; gap: .3rem; font-weight: 700; }
+.library-legend { display: grid; gap: .6rem; margin: 1rem 0; }
+.library-legend span { display: flex; gap: .5rem; align-items: center; font-size: .82rem; }
+.legend-swatch { width: .7rem; height: .7rem; border-radius: 3px; background: var(--border); }
+.legend-swatch.split { background: #8264c7; }.legend-swatch.choose { background: var(--accent); }.legend-swatch.fallback { background: #ba762b; }
+.condition-input { display: grid!important; grid-template-columns: minmax(0,1fr) 5rem auto; gap: .35rem; align-items: center; }
+.fixed-setting { padding: .65rem; border-radius: 8px; background: var(--surface-soft); color: var(--muted); }
 @media (max-width: 850px) {
   .intuitive-flow { grid-template-columns: 160px minmax(420px,1fr); }
   .flow-inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); }

@@ -1,9 +1,6 @@
 import { projectGuided } from "../domain/guided";
 import { useStrategyEditor } from "../store/editorStore";
-
-function AssetChips({ assets }: { assets: string[] }) {
-  return <div className="asset-chips">{assets.map((asset) => <span key={asset}>{asset}</span>)}</div>;
-}
+import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
 
 function percent(value: string) {
   return `${Math.round(Number(value) * 100)}%`;
@@ -16,53 +13,31 @@ export function GuidedView() {
   const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
 
   if (guided.kind === "portfolio") {
-    const split = `${guided.growth.allocation}/${guided.defensive.allocation}`;
     return (
       <div className="guided-view" aria-label="Guided strategy editor">
         <section className="sleeve-card portfolio-card">
           <header><div><span className="eyebrow">Portfolio</span><h2>{guided.portfolio.name}</h2></div></header>
-          <label htmlFor="guided-sleeve-split">How should the money be split?</label>
-          <select id="guided-sleeve-split" value={split} onChange={(event) => {
-            const [growth, defensive] = event.target.value.split("/");
-            dispatch({
-              type: "apply_semantic_patch",
-              operation: {
-                kind: "update_sleeve_allocations",
-                allocations: [
-                  { componentId: guided.growth.sleeveComponentId, value: growth },
-                  { componentId: guided.defensive.sleeveComponentId, value: defensive },
-                ],
-              },
-            });
-          }}>
-            <option value="0.70/0.30">Growth 70% / Defensive 30%</option>
-            <option value="0.60/0.40">Growth 60% / Defensive 40%</option>
-          </select>
+          <label>How should the money be split?</label><SleeveAllocationEditor groups={[{id:"growth",label:guided.growth.sleeveName,componentId:guided.growth.sleeveComponentId,allocation:guided.growth.allocation},{id:"defensive",label:guided.defensive.sleeveName,componentId:guided.defensive.sleeveComponentId,allocation:guided.defensive.allocation}]}/>
         </section>
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
-          <label>What can it choose from?</label><AssetChips assets={guided.growth.assets} />
-          <div className={`summary-row ${focusClass(guided.growth.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.growth.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.growth.lookbackComponentId ? -1 : undefined}><span>How much recent history?</span><strong>{guided.growth.lookbackBars} trading days</strong></div>
+          <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
+          <div className={focusClass(guided.growth.lookbackComponentId, "config.lookback_bars")} data-component-id={guided.growth.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.growth.lookbackComponentId ? -1 : undefined}><LookbackControl id="guided-growth-lookback" componentId={guided.growth.lookbackComponentId} value={guided.growth.lookbackBars}/></div>
           {guided.growth.filterComponentId && <div className={`guided-question ${focusClass(guided.growth.filterComponentId, "config.threshold")}`} data-component-id={guided.growth.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><header><span>Which assets qualify?</span><button className="text-button" onClick={() => viewInFlow(guided.growth.filterComponentId!)}>View in Flow</button></header><label htmlFor="guided-growth-threshold">{guided.growth.lookbackBars}-day return above <span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? 0) * 100} onChange={(event) => { if (event.target.value !== "") dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></label></div>}
-          <div className={`summary-row ${focusClass(guided.growth.rankComponentId, "config.direction")}`} data-component-id={guided.growth.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.growth.rankComponentId ? -1 : undefined}><span>How should it choose?</span><strong>Highest return first</strong></div>
-          <div className={`summary-row ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally <button className="text-button" onClick={() => viewInFlow(guided.growth.selectionComponentId)}>View in Flow</button></span></div>
-          <div className={`summary-row ${focusClass(guided.growth.fallbackComponentId)}`} data-component-id={guided.growth.fallbackComponentId}><span>What if there aren't enough?</span><span>Use {guided.growth.fallbackAsset} {guided.growth.fallbackComponentId && <button className="text-button" onClick={() => viewInFlow(guided.growth.fallbackComponentId!)}>View in Flow</button>}</span></div>
-          {guided.growth.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
-            type: "apply_semantic_patch",
-            operation: { kind: "update_schedule", componentId: guided.growth.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
-          })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
+          <div className={`summary-row ${focusClass(guided.growth.rankComponentId, "config.direction")}`} data-component-id={guided.growth.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.growth.rankComponentId ? -1 : undefined}><span>How should it choose among them?</span><strong>Strongest return first</strong></div>
+          <label className={focusClass(guided.growth.selectionComponentId,"config.count")} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count">How many should it choose?<input type="number" min={1} value={guided.growth.topN} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.selectionComponentId,field:"count",value:Number(event.target.value)}})}/></label>
+          {guided.growth.fallbackComponentId&&<label className={focusClass(guided.growth.fallbackComponentId,"config.fallback_asset_set_ref")} data-component-id={guided.growth.fallbackComponentId} data-field-path="config.fallback_asset_set_ref">What if there aren't enough?<select value={guided.growth.fallbackAssetSetRef} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.fallbackComponentId!,field:"fallback_asset_set_ref",value:event.target.value}})}>{guided.growth.fallbackOptions.map(option=><option key={option.id} value={option.id}>Use {option.asset}</option>)}</select></label>}
+          {guided.growth.cooldownComponentId&&<label className={focusClass(guided.growth.cooldownComponentId,"config.duration")} data-component-id={guided.growth.cooldownComponentId} data-field-path="config.duration">After selling, wait<input type="number" min={1} value={guided.growth.cooldownDuration} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.cooldownComponentId!,field:"duration",value:Number(event.target.value)}})}/> completed trading days before buying again.</label>}
+          {guided.growth.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.growth.refreshScheduleComponentId} value={guided.growth.refreshSchedule!}/> : null}
         </section>
         <section className="sleeve-card safe">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.defensive.sleeveName}</h2></div><strong>{percent(guided.defensive.allocation)}</strong></header>
-          <label>What does it hold?</label><AssetChips assets={guided.defensive.assets} />
+          <AssetMembershipEditor question="What does it hold?" assetSetId={guided.defensive.assetSetId} assets={guided.defensive.assets}/>
           <div className="summary-row"><span>How is it divided?</span><span>Split equally</span></div>
-          {guided.defensive.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.defensive.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
-            type: "apply_semantic_patch",
-            operation: { kind: "update_schedule", componentId: guided.defensive.refreshScheduleComponentId!, cadence: event.target.value as "monthly" | "quarterly" },
-          })}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label> : null}
+          {guided.defensive.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.defensive.refreshScheduleComponentId} value={guided.defensive.refreshSchedule!}/> : null}
         </section>
         {guided.rebalanceScheduleComponentId ? <section className="sleeve-card portfolio-card">
-          <div className="summary-row"><span>When should the whole portfolio rebalance?</span><strong>{guided.rebalanceSchedule}</strong></div>
+          <ScheduleControl label="When should the whole portfolio rebalance?" componentId={guided.rebalanceScheduleComponentId} value={guided.rebalanceSchedule!}/>
         </section> : null}
       </div>
     );
@@ -73,14 +48,9 @@ export function GuidedView() {
       <div className="guided-view" aria-label="Guided strategy editor">
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Momentum strategy</span><h2>Highest trailing return</h2></div><strong>{percent(guided.momentum.total)}</strong></header>
-          <label>What can it choose from?</label>
-          <AssetChips assets={guided.momentum.assets} />
+          <AssetMembershipEditor assetSetId={guided.momentum.assetSetId} assets={guided.momentum.assets}/>
           <div className="field-grid">
-            <div className={`guided-field-pair ${focusClass(guided.momentum.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.momentum.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.momentum.lookbackComponentId ? -1 : undefined}><label htmlFor="guided-lookback">How much recent history?</label>
-            <input id="guided-lookback" type="number" min={1} value={guided.momentum.lookbackBars} onChange={(event) => dispatch({
-              type: "apply_semantic_patch",
-              operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
-            })} /></div>
+            <div className={`guided-field-pair ${focusClass(guided.momentum.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.momentum.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.momentum.lookbackComponentId ? -1 : undefined}><LookbackControl id="guided-lookback" componentId={guided.momentum.lookbackComponentId} value={guided.momentum.lookbackBars}/></div>
             {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <div className={`guided-field-pair ${focusClass(guided.momentum.filterComponentId, "config.threshold")}`} data-component-id={guided.momentum.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.momentum.filterComponentId ? -1 : undefined}>
               <label htmlFor="guided-threshold">Which assets qualify? Return above (%)</label>
               <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
@@ -92,12 +62,12 @@ export function GuidedView() {
               }} /><button className="text-button field-link" onClick={() => viewInFlow(guided.momentum.filterComponentId!)}>View in Flow</button>
             </div> : null}
             <div className={`guided-field-pair ${focusClass(guided.momentum.selectionComponentId, "config.count")}`} data-component-id={guided.momentum.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.momentum.selectionComponentId ? -1 : undefined}><label htmlFor="guided-top-n">How many should it choose?</label>
-            <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
+            <input id="guided-top-n" type="number" min={1} value={guided.momentum.topN} onChange={(event) => dispatch({
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.selectionComponentId, field: "count", value: Number(event.target.value) },
             })} /></div>
           </div>
-          <div className={`summary-row ${focusClass(guided.momentum.rankComponentId, "config.direction")}`} data-component-id={guided.momentum.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.momentum.rankComponentId ? -1 : undefined}><span>How should it choose?</span><span>Highest return first</span></div>
+          <div className={`summary-row ${focusClass(guided.momentum.rankComponentId, "config.direction")}`} data-component-id={guided.momentum.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.momentum.rankComponentId ? -1 : undefined}><span>How should it choose among them?</span><span>Strongest return first</span></div>
           <div className="summary-row"><span>How should the money be split?</span><span>Equally · {percent(guided.momentum.total)}</span></div>
           {guided.momentum.cooldownComponentId ? (
             <label className={focusClass(guided.momentum.cooldownComponentId, "config.duration")} data-component-id={guided.momentum.cooldownComponentId} data-field-path="config.duration" tabIndex={state.editor.selectedNodeId === guided.momentum.cooldownComponentId ? -1 : undefined} htmlFor="guided-cooldown">After selling, wait
@@ -132,7 +102,7 @@ export function GuidedView() {
           ) : (
             <div className="summary-row"><span>If fewer than {guided.momentum.topN} assets qualify</span><span>Skip this rebalance</span></div>
           )}
-          <div className="summary-row"><span>When should it check again?</span><span>{guided.momentum.schedule}</span></div>
+          {guided.momentum.scheduleComponentId?<ScheduleControl label="When should it check again?" componentId={guided.momentum.scheduleComponentId} value={guided.momentum.schedule}/>:<div className="summary-row"><span>When should it check again?</span><span>{guided.momentum.schedule}</span></div>}
         </section>
       </div>
     );
@@ -142,8 +112,7 @@ export function GuidedView() {
     <div className="guided-view" aria-label="Guided strategy editor">
       <section className="sleeve-card">
         <header><div><span className="eyebrow">Growth sleeve</span><h2>Growth</h2></div><strong>{percent(guided.growth.total)}</strong></header>
-        <label>Assets</label>
-        <AssetChips assets={guided.growth.assets} />
+        <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
         <div className="field-grid">
           <div className={`guided-field-pair ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><label htmlFor="guided-random-count">Random Select count</label>
           <input
@@ -185,8 +154,7 @@ export function GuidedView() {
 
       <section className="sleeve-card safe">
         <header><div><span className="eyebrow">Safety sleeve</span><h2>Safe</h2></div><strong>{percent(guided.safe.total)}</strong></header>
-        <label>Assets</label>
-        <AssetChips assets={guided.safe.assets} />
+        <AssetMembershipEditor question="What does it hold?" assetSetId={guided.safe.assetSetId} assets={guided.safe.assets}/>
         <div className="summary-row"><span>Selection</span><span>All assets</span></div>
         <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.safe.total)}</span></div>
       </section>
