@@ -73,8 +73,8 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
   return {
     kind: "portfolio", title: strategy.metadata.name, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId, guided.safe.allocationComponentId],
     groups: [
-      { id: "growth", label: "Growth", assets: guided.growth.assets, assetSetId: "growth", sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Random selection", sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
-      { id: "safe", label: "Safe", assets: guided.safe.assets, assetSetId: "safe", sourceComponentIds: [guided.safe.allocationComponentId] },
+      { id: "growth", label: "Growth", allocation:percentage(guided.growth.total), allocationValue:guided.growth.total, assets: guided.growth.assets, assetSetId: "growth", sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Random selection", sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
+      { id: "safe", label: "Safe", allocation:percentage(guided.safe.total), allocationValue:guided.safe.total, assets: guided.safe.assets, assetSetId: "safe", sourceComponentIds: [guided.safe.allocationComponentId] },
     ],
   };
 }
