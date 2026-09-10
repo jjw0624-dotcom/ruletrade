@@ -39,8 +39,8 @@ from ruletrade.candidates.errors import (
     CandidateDomainError,
     CandidateExpectedValueMismatchError,
     CandidateNotFoundError,
-    CandidateRunNotSucceededError,
     CandidatePersistenceError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import (
