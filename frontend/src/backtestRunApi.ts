@@ -16,6 +16,7 @@ export interface BacktestRunProvenance {
 export interface BacktestRunRecord {
   id: string;
   revision_id: string;
+  candidate_id?: string | null;
   status: BacktestRunStatus;
   run_config: BacktestConfig;
   result: BacktestResult | null;

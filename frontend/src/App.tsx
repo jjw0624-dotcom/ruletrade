@@ -12,6 +12,7 @@ import { StrategiesView } from "./views/StrategiesView";
 import { backtestRunApi, type BacktestRunRecord } from "./backtestRunApi";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { ResearchContext } from "./domain/researchContext";
+import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 
@@ -36,6 +37,7 @@ export default function App() {
   const [runError, setRunError] = useState<string | null>(null);
   const [sourceFocus, setSourceFocus] = useState<{ componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null>(null);
   const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
+  const [comparisonContext, setComparisonContext] = useState<{ comparisonId: string; context: ResearchContext } | null>(null);
 
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
     if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return;
@@ -107,7 +109,8 @@ export default function App() {
     {(route.page === "example" || route.page === "strategy") && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? workspace.example.id} bootstrap={workspace.bootstrap}><StrategyEditor example={workspace.example} persisted={workspace.detail} onDirtyChange={setDirty} onArchived={() => navigate({ page: "strategies" })} onOpenRun={(runId) => navigate({ page: "run", runId })} sourceFocus={sourceFocus} onBackToResearch={sourceFocus?.researchContext ? () => navigate({ page: "run", runId: sourceFocus.researchContext!.runId }) : undefined} backToResearchLabel={sourceFocus?.researchContext ? `Back to ${new Date(`${sourceFocus.researchContext.sessionId}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${sourceFocus.researchContext.asset ? ` · ${sourceFocus.researchContext.asset}` : ""}` : undefined} /></StrategyEditorProvider>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "strategies" })}>Back to My Strategies</button></div>}
-    {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace run={historicalRun} strategyName="Historical backtest" onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} />}
+    {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
+    {route.page === "comparison" && <ComparisonWorkspace comparisonId={route.comparisonId} initialContext={comparisonContext?.comparisonId === route.comparisonId ? comparisonContext.context : null} onOpenRun={(runId, context) => { if (context) setResearchContext(context); navigate({ page: "run", runId }); }} onViewRule={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} />}
     {createDraft && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="create-title" onSubmit={(event) => { event.preventDefault(); void confirmCreate(); }}><span className="eyebrow">New strategy</span><h2 id="create-title">Make this example yours</h2><p>The template stays unchanged. This creates your own saved strategy and first revision.</p><label>Strategy name<input autoFocus value={createDraft.name} maxLength={100} onChange={(event) => setCreateDraft({ ...createDraft, name: event.target.value })} /></label><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreateDraft(null)}>Cancel</button><button className="primary-button" disabled={!createDraft.name.trim() || creating !== null}>{creating ? "Creating…" : "Create strategy"}</button></div></form></div>}
   </AppShell>;
 }
