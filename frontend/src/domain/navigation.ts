@@ -1,11 +1,13 @@
 import type { ExampleId } from "./examples";
 
-export type AppRoute = { page: "explore" } | { page: "strategies" } | { page: "example"; exampleId: ExampleId } | { page: "strategy"; strategyId: string } | { page: "run"; runId: string };
+export type AppRoute = { page: "explore" } | { page: "strategies" } | { page: "example"; exampleId: ExampleId } | { page: "strategy"; strategyId: string } | { page: "run"; runId: string } | { page: "comparison"; comparisonId: string };
 
 export function routeFromPath(pathname: string): AppRoute {
   if (pathname === "/strategies") return { page: "strategies" };
   const run = pathname.match(/^\/backtest-runs\/([^/]+)$/);
   if (run) return { page: "run", runId: decodeURIComponent(run[1]) };
+  const comparison = pathname.match(/^\/comparisons\/([^/]+)$/);
+  if (comparison) return { page: "comparison", comparisonId: decodeURIComponent(comparison[1]) };
   const persisted = pathname.match(/^\/strategies\/([^/]+)$/);
   if (persisted) return { page: "strategy", strategyId: decodeURIComponent(persisted[1]) };
   const match = pathname.match(/^\/strategy\/([^/]+)$/);
@@ -20,5 +22,6 @@ export function pathForRoute(route: AppRoute): string {
   if (route.page === "example") return `/strategy/${route.exampleId}`;
   if (route.page === "strategy") return `/strategies/${encodeURIComponent(route.strategyId)}`;
   if (route.page === "run") return `/backtest-runs/${encodeURIComponent(route.runId)}`;
+  if (route.page === "comparison") return `/comparisons/${encodeURIComponent(route.comparisonId)}`;
   return "/explore";
 }
