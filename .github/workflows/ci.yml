@@ -69,8 +69,10 @@ jobs:
           scripts/generate_sleeves_lean.py
           scripts/run_editor_lean_e2e.py
           scripts/measure_research_pipeline.py
+          scripts/inspect_market_data.py
           scripts/run_candidate_comparison_lean_e2e.py
           scripts/run_lean_backtest.py
+          scripts/run_real_market_data_smoke.py
           scripts/verify_momentum_lean_e2e.py
           scripts/verify_cooldown_lean_e2e.py
           scripts/verify_fallback_lean_e2e.py
@@ -113,7 +115,9 @@ jobs:
           scripts/run_independent_schedules_lean_e2e.sh
           scripts/run_cooldown_lean_e2e.sh
           scripts/run_candidate_comparison_lean_e2e.sh
+          scripts/inspect_market_data.sh
           scripts/run_real_market_data_e2e.sh
+          scripts/run_real_market_data_smoke.sh
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 

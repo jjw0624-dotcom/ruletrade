@@ -11,10 +11,19 @@ from ruletrade.backtests.errors import MarketDataUnavailableError
 from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.models import BacktestConfig, LeanBacktestRequest
 from ruletrade.backtests.service import BacktestService
+from ruletrade.compiler import compile_strategy_to_lean_plan
+from ruletrade.compiler.lean import CSharpGenerationSettings, generate_csharp
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.fixtures import filter_screening_strategy
+from scripts.run_candidate_comparison_lean_e2e import acceptance_database
+from scripts.run_real_market_data_smoke import (
+    DEFAULT_VISIBLE_OBSERVATIONS,
+    WARMUP_OBSERVATIONS,
+    _covered_period,
+    _one_symbol_strategy,
+)
 
 
 class RecordingRunner:
@@ -117,6 +126,48 @@ def test_local_preflight_reports_available_coverage_and_cache_hit(tmp_path: Path
     assert all(item.warmup_observations_available >= 126 for item in result.symbols)
 
 
+def test_local_cache_inspection_reports_daily_and_security_master_independently(
+    tmp_path: Path,
+) -> None:
+    dates = _dates(date(2023, 1, 2), date(2024, 3, 1))
+    _write_symbol(tmp_path, "QQQ", dates)
+    _write_symbol(tmp_path, "SCHG", dates, security_master=False)
+    maps = tmp_path / "equity" / "usa" / "map_files"
+    factors = tmp_path / "equity" / "usa" / "factor_files"
+    maps.mkdir(parents=True, exist_ok=True)
+    factors.mkdir(parents=True, exist_ok=True)
+    (maps / "spy.csv").write_text("19980102,spy\n")
+    (factors / "spy.csv").write_text("19980102,1,1,1\n")
+
+    result = MarketDataService(tmp_path).inspect_local_cache(["QQQ", "SCHG", "SPY"])
+    symbols = {item.symbol: item for item in result.symbols}
+
+    assert result.provider_id == "lean-local-data"
+    assert (
+        symbols["QQQ"].daily_present,
+        symbols["QQQ"].map_present,
+        symbols["QQQ"].factor_present,
+        symbols["QQQ"].reason,
+    ) == (True, True, True, "available")
+    assert symbols["SCHG"].reason == "security_master_missing"
+    assert symbols["SCHG"].available_from == dates[0]
+    assert (
+        symbols["SPY"].daily_present,
+        symbols["SPY"].map_present,
+        symbols["SPY"].factor_present,
+        symbols["SPY"].reason,
+    ) == (False, True, True, "no_data")
+
+
+def test_local_cache_inspection_reports_nonexistent_root_as_provider_unavailable() -> None:
+    result = MarketDataService(Path("/does/not/exist")).inspect_local_cache(
+        ["QQQ", "SCHG", "SOXX", "VGT"]
+    )
+
+    assert result.data_root_available is False
+    assert {item.reason for item in result.symbols} == {"provider_unavailable"}
+
+
 def test_preflight_distinguishes_missing_symbol_from_evaluated_data(tmp_path: Path) -> None:
     _complete_cache(tmp_path)
     (tmp_path / "equity" / "usa" / "daily" / "vgt.zip").unlink()
@@ -152,6 +203,55 @@ def test_preflight_rejects_partial_requested_range_and_corrupt_cache(tmp_path: P
 
     assert outcomes["QQQ"] == "requested_period_unavailable"
     assert outcomes["VGT"] == "corrupt_cache"
+
+
+def test_single_symbol_smoke_strategy_uses_real_warmup_and_covered_default_period(
+    tmp_path: Path,
+) -> None:
+    dates = _dates(date(2023, 1, 2), date(2024, 3, 1))
+    _write_symbol(tmp_path, "QQQ", dates)
+    service = MarketDataService(tmp_path)
+    start, end = _covered_period(service, "QQQ", None, None)
+    strategy = _one_symbol_strategy("QQQ")
+    config = BacktestConfig(
+        dataset_id="us-equity-daily-local", start_date=start, end_date=end
+    )
+
+    assert start == dates[-DEFAULT_VISIBLE_OBSERVATIONS]
+    assert end == dates[-1]
+    requirement = service.derive_requirement(strategy, config)
+    assert requirement.symbols[0].warmup_observations == WARMUP_OBSERVATIONS
+    assert service.preflight(strategy, config).overall == "available"
+    source = generate_csharp(
+        compile_strategy_to_lean_plan(strategy),
+        CSharpGenerationSettings(start_date=start, end_date=end),
+    )
+    assert 'AddEquity("QQQ", Resolution.Daily)' in source
+    assert "SetWarmUp(21, Resolution.Daily)" in source
+    assert "window[0] / window[21] - 1m" in source
+
+
+def test_acceptance_owned_database_is_fresh_and_rerunnable(tmp_path: Path) -> None:
+    workspace = tmp_path / "acceptance"
+    observed: list[Path] = []
+    for _ in range(2):
+        with acceptance_database(None, workspace=workspace) as database:
+            observed.append(database)
+            database.touch()
+            assert database.exists()
+        assert not database.exists()
+
+    assert observed[0] != observed[1]
+
+
+def test_explicit_acceptance_database_is_never_removed(tmp_path: Path) -> None:
+    database = tmp_path / "caller-owned" / "ruletrade.sqlite3"
+    with acceptance_database(database) as selected:
+        selected.touch()
+    assert database.exists()
+    with pytest.raises(FileExistsError, match="already exists"):
+        with acceptance_database(database):
+            pass
 
 
 def test_real_data_execution_is_blocked_before_runner_when_cache_is_unavailable() -> None:
@@ -217,7 +317,7 @@ def test_real_data_run_persists_truthful_provenance_and_reopens(tmp_path: Path) 
     run = runs.create_and_execute(revision.id, _config())
 
     assert run.status.value == "succeeded"
-    assert run.provenance.market_data_provider_id == "quantconnect-lean-local"
+    assert run.provenance.market_data_provider_id == "lean-local-data"
     assert run.provenance.market_data_source_kind == "local_lean_data"
     assert run.provenance.data_normalization_mode == "adjusted"
     assert run.provenance.requested_symbols == ("QQQ", "SCHG", "SOXX", "VGT")

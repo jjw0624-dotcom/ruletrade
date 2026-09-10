@@ -404,7 +404,7 @@ class ApiTransientBacktestService:
             overall="available",
             dataset_id=config.dataset_id,
             source_kind="local_lean_data",
-            provider_id="quantconnect-lean-local",
+            provider_id="lean-local-data",
             requirement=requirement,
             symbols=(
                 MarketDataSymbolAvailability(

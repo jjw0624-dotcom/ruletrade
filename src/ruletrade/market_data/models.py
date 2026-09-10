@@ -28,6 +28,32 @@ class MarketDataRequirement(MarketDataModel):
     symbols: tuple[MarketDataSymbolRequirement, ...]
 
 
+class LocalLeanSymbolInspection(MarketDataModel):
+    """File-level facts about one symbol in the configured local LEAN cache."""
+
+    symbol: str
+    daily_present: bool
+    map_present: bool
+    factor_present: bool
+    available_from: date | None = None
+    available_to: date | None = None
+    observation_count: int = Field(ge=0)
+    status: Literal["available", "unavailable"]
+    reason: Literal[
+        "available",
+        "provider_unavailable",
+        "no_data",
+        "security_master_missing",
+        "corrupt_cache",
+    ]
+
+
+class LocalLeanDataInspection(MarketDataModel):
+    data_root_available: bool
+    provider_id: str = "lean-local-data"
+    symbols: tuple[LocalLeanSymbolInspection, ...]
+
+
 class MarketDataSymbolAvailability(MarketDataModel):
     symbol: str
     status: Literal["available", "unavailable"]

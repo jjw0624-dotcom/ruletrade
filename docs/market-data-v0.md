@@ -54,9 +54,12 @@ of launching LEAN with known-missing data.
 
 ## Provider decision and acquisition
 
-The v0 source is the QuantConnect US Equity dataset acquired through the authenticated
-LEAN CLI. It is the narrowest path already in LEAN's native format and supplies the US
-Equity Security Master needed for splits, dividends, and symbol changes.
+The v0 execution source is a caller-supplied, structurally valid local LEAN data directory.
+Run provenance identifies it conservatively as `lean-local-data`; RuleTrade cannot infer
+who produced or licensed files from their path or format. The QuantConnect US Equity
+dataset acquired through the authenticated LEAN CLI is one supported operator acquisition
+path. It is already in LEAN's native format and supplies the US Equity Security Master
+needed for splits, dividends, and symbol changes.
 
 QuantConnect documents that local CLI access requires a paid organization, the Security
 Master is a prerequisite, and daily per-ticker downloads cost credits. Acquisition is an
@@ -119,17 +122,72 @@ Coverage is file-level. v0 has no security-master search, delisted-ticker discov
 licensed server acquisition, or provider snapshot ID. These are the concrete limits that
 prevent a promise of arbitrary US-equity/ETF execution.
 
+## Operator workflow and local completeness
+
+Setting `RULETRADE_LEAN_DATA_DIR` only locates existing files. It does not acquire them.
+The operator workflow is:
+
+1. Obtain appropriately licensed LEAN-compatible US Equity daily bars and Security Master
+   files.
+2. Set `RULETRADE_LEAN_DATA_DIR` to that directory.
+3. Inspect the required symbols before starting Docker:
+
+   ```bash
+   ./scripts/inspect_market_data.sh QQQ SCHG SOXX VGT
+   ```
+
+4. Run the one-symbol smoke acceptance using a symbol that reports `available`.
+5. Run the full Candidate/Comparison acceptance only when its complete universe reports
+   `available`.
+
+The diagnostic reports daily ZIP, map-file, factor-file, coverage, and the production
+availability reason. It calls the same `MarketDataService` cache inspection used by
+preflight rather than maintaining shell-specific availability rules.
+
+Manual WSL testing found the following structurally observed local state. This is
+acceptance evidence about one developer cache, not a provider or licensing claim:
+
+| Symbol | Daily ZIP | Map | Factor | Result |
+| --- | --- | --- | --- | --- |
+| QQQ | yes | yes | yes | structurally complete; coverage is reported by the diagnostic |
+| SCHG | yes | no | no | `security_master_missing` |
+| SOXX | yes | no | no | `security_master_missing` |
+| VGT | yes | no | no | `security_master_missing` |
+| SPY, IWM, AAPL, GOOG, GOOGL, EEM | no | yes | yes | `no_data` |
+
+A nonexistent configured root reports `provider_unavailable` for every requested symbol.
+Daily ZIP presence without both Security Master files remains unavailable. These negative
+paths are successful acceptance outcomes and are not weakened to make a Run start.
+
 ## Real WSL/Docker acceptance
+
+The minimal smoke defaults to QQQ, a 21-observation trailing-return lookback, and the final
+63 stored sessions. It selects the period from the ZIP itself only after confirming at
+least 84 observations, so the start always has 21 real pre-start observations. Explicit
+dates may be supplied together when a stable locally retained interval is preferred:
+
+```bash
+export RULETRADE_LEAN_DATA_DIR="$HOME/dev/ruletrade/experiments/lean-spike/data"
+./scripts/run_real_market_data_smoke.sh --symbol QQQ
+```
+
+The smoke persists and reopens one normal BacktestRun and verifies a normalized result and
+Decision Evidence. It does not create a synthetic Candidate merely to broaden acceptance.
 
 After `QQQ`, `SCHG`, `SOXX`, `VGT`, and Security Master files are present:
 
 ```bash
-export RULETRADE_LEAN_DATA_DIR=/absolute/path/to/lean-workspace/data
+export RULETRADE_LEAN_DATA_DIR="$HOME/dev/ruletrade/experiments/lean-spike/data"
 ./scripts/run_real_market_data_e2e.sh
 ```
 
 The script runs an Original real-data Run, filter-threshold Candidate Run, Decision Evidence
-v2 persistence, and Comparison. Both Runs use the same read-only cache.
+v2 persistence, and Comparison. Both Runs use the same read-only cache. It intentionally
+continues to fail before LEAN when SCHG, SOXX, or VGT lacks map/factor files.
+
+Both acceptance programs use a unique temporary database by default, so a failed attempt
+does not poison the next run. Supplying an explicit database path remains supported; that
+caller-owned path must be fresh and is never removed or overwritten by the scripts.
 
 ## Architecture review
 

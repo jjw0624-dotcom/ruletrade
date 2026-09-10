@@ -10,11 +10,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/scripts/lib/ruletrade_python.sh"
 cd "$repo_root"
 
-database="${1:-$repo_root/build/lean/real-market-data-e2e/ruletrade.sqlite3}"
-mkdir -p "$(dirname "$database")"
+arguments=()
+if [[ $# -gt 0 ]]; then
+  arguments+=(--database "$1")
+fi
 
 PYTHONPATH=src ruletrade_python scripts/run_candidate_comparison_lean_e2e.py \
-  --database "$database" \
+  "${arguments[@]}" \
   --dataset-id us-equity-daily-local \
   --start-date 2024-01-01 \
   --end-date 2024-12-31

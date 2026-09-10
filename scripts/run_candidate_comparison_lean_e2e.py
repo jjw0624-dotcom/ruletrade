@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from ruletrade.backtest_runs.models import BacktestRunRecord, BacktestRunStatus
@@ -29,6 +32,25 @@ def _require_success(run: BacktestRunRecord, label: str) -> None:
         raise RuntimeError(f"{label} failed: {error}")
 
 
+@contextmanager
+def acceptance_database(
+    requested: Path | None,
+    *,
+    workspace: Path = Path("build/lean/candidate-comparison-e2e"),
+) -> Iterator[Path]:
+    """Yield a fresh acceptance-owned DB, or preserve an explicit caller path."""
+
+    if requested is not None:
+        if requested.exists():
+            raise FileExistsError(f"acceptance database already exists: {requested}")
+        requested.parent.mkdir(parents=True, exist_ok=True)
+        yield requested
+        return
+    workspace.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="run-", dir=workspace) as temporary:
+        yield Path(temporary) / "ruletrade.sqlite3"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run real Candidate numeric-codegen and Comparison acceptance."
@@ -36,7 +58,6 @@ def main() -> None:
     parser.add_argument(
         "--database",
         type=Path,
-        default=Path("build/lean/candidate-comparison-e2e/ruletrade.sqlite3"),
     )
     parser.add_argument(
         "--dataset-id",
@@ -46,20 +67,25 @@ def main() -> None:
     parser.add_argument("--start-date", default="2024-01-01")
     parser.add_argument("--end-date", default="2024-12-31")
     args = parser.parse_args()
-    if args.database.exists():
-        parser.error(f"acceptance database already exists: {args.database}")
+    try:
+        with acceptance_database(args.database) as database:
+            _run_acceptance(args, database)
+    except FileExistsError as exc:
+        parser.error(str(exc))
 
-    strategies = StrategyService(SQLiteStrategyRepository(args.database))
+
+def _run_acceptance(args, database: Path) -> None:
+    strategies = StrategyService(SQLiteStrategyRepository(database))
     runs = BacktestRunService(
-        SQLiteBacktestRunRepository(args.database),
+        SQLiteBacktestRunRepository(database),
         strategies,
         BacktestService(DockerLeanRunner(), MarketDataService()),
     )
     candidates = CandidateService(
-        SQLiteCandidateRepository(args.database), strategies, runs
+        SQLiteCandidateRepository(database), strategies, runs
     )
     comparisons = ComparisonService(
-        SQLiteComparisonRepository(args.database), candidates, runs
+        SQLiteComparisonRepository(database), candidates, runs
     )
 
     revision = strategies.create_strategy(

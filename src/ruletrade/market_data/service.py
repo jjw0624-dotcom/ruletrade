@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 from time import perf_counter_ns
@@ -11,6 +12,8 @@ from ruletrade.backtests.models import BacktestConfig
 from ruletrade.compiler import analyze_strategy_requirements
 from ruletrade.diagnostics import elapsed_ms
 from ruletrade.market_data.models import (
+    LocalLeanDataInspection,
+    LocalLeanSymbolInspection,
     MarketDataPreflight,
     MarketDataRequirement,
     MarketDataSymbolAvailability,
@@ -83,15 +86,59 @@ class MarketDataService:
                 elapsed_ms=elapsed_ms(started),
             )
 
-        root = self.lean_data_dir or default_lean_data_dir()
-        if root is None or not root.is_dir():
+        inspection = self.inspect_local_cache(
+            item.symbol for item in requirement.symbols
+        )
+        if not inspection.data_root_available:
             unavailable = tuple(
                 self._unavailable(item, "provider_unavailable")
                 for item in requirement.symbols
             )
             return self._result(requirement, unavailable, started)
-        outcomes = tuple(self._inspect_symbol(root, item, config) for item in requirement.symbols)
+        cache_by_symbol = {item.symbol: item for item in inspection.symbols}
+        outcomes = tuple(
+            self._inspect_symbol(cache_by_symbol[item.symbol], item, config)
+            for item in requirement.symbols
+        )
         return self._result(requirement, outcomes, started)
+
+    def inspect_local_cache(self, symbols: Iterable[str]) -> LocalLeanDataInspection:
+        """Inspect local LEAN files without implying that their provider is known."""
+
+        requested = tuple(sorted({str(symbol).upper() for symbol in symbols}))
+        root = self.lean_data_dir or default_lean_data_dir()
+        if root is None or not root.is_dir():
+            return LocalLeanDataInspection(
+                data_root_available=False,
+                symbols=tuple(
+                    LocalLeanSymbolInspection(
+                        symbol=symbol,
+                        daily_present=False,
+                        map_present=False,
+                        factor_present=False,
+                        observation_count=0,
+                        status="unavailable",
+                        reason="provider_unavailable",
+                    )
+                    for symbol in requested
+                ),
+            )
+        return LocalLeanDataInspection(
+            data_root_available=True,
+            symbols=tuple(self._inspect_cache_files(root, symbol) for symbol in requested),
+        )
+
+    def available_daily_dates(self, symbol: str) -> tuple[date, ...]:
+        """Return validated cached sessions for developer acceptance date selection."""
+
+        root = self.lean_data_dir or default_lean_data_dir()
+        if root is None or not root.is_dir():
+            return ()
+        path = root / "equity" / "usa" / "daily" / f"{symbol.lower()}.zip"
+        try:
+            return self._read_daily_dates(path) if path.is_file() else ()
+        except (OSError, BadZipFile, ValueError, UnicodeDecodeError):
+            return ()
 
     def require_available(
         self, strategy: CanonicalStrategyV1, config: BacktestConfig
@@ -120,7 +167,7 @@ class MarketDataService:
             overall=overall,
             dataset_id=requirement.dataset_id,
             source_kind="local_lean_data",
-            provider_id="quantconnect-lean-local",
+            provider_id="lean-local-data",
             requirement=requirement,
             symbols=symbols,
             cache_hit=overall == "available",
@@ -133,19 +180,14 @@ class MarketDataService:
             elapsed_ms=elapsed_ms(started),
         )
 
-    def _inspect_symbol(self, root, requirement, config):
-        symbol = requirement.symbol.lower()
-        bars_path = root / "equity" / "usa" / "daily" / f"{symbol}.zip"
-        map_path = root / "equity" / "usa" / "map_files" / f"{symbol}.csv"
-        factor_path = root / "equity" / "usa" / "factor_files" / f"{symbol}.csv"
-        if not bars_path.is_file():
+    def _inspect_symbol(self, cache, requirement, config):
+        if not cache.daily_present:
             return self._unavailable(requirement, "no_data")
-        if not map_path.is_file() or not factor_path.is_file():
+        if not cache.map_present or not cache.factor_present:
             return self._unavailable(requirement, "security_master_missing")
-        try:
-            dates = self._read_daily_dates(bars_path)
-        except (OSError, BadZipFile, ValueError, UnicodeDecodeError):
+        if cache.reason == "corrupt_cache":
             return self._unavailable(requirement, "corrupt_cache")
+        dates = self.available_daily_dates(requirement.symbol)
         if not dates:
             return self._unavailable(requirement, "no_data")
         warmup = sum(item < config.start_date for item in dates)
@@ -167,6 +209,40 @@ class MarketDataService:
                 status="unavailable", reason="requested_period_unavailable", **common
             )
         return MarketDataSymbolAvailability(status="available", reason="available", **common)
+
+    def _inspect_cache_files(self, root: Path, symbol: str) -> LocalLeanSymbolInspection:
+        name = symbol.lower()
+        bars_path = root / "equity" / "usa" / "daily" / f"{name}.zip"
+        map_path = root / "equity" / "usa" / "map_files" / f"{name}.csv"
+        factor_path = root / "equity" / "usa" / "factor_files" / f"{name}.csv"
+        daily_present = bars_path.is_file()
+        map_present = map_path.is_file()
+        factor_present = factor_path.is_file()
+        if not daily_present:
+            reason = "no_data"
+            dates = ()
+        else:
+            try:
+                dates = self._read_daily_dates(bars_path)
+                reason = "available"
+            except (OSError, BadZipFile, ValueError, UnicodeDecodeError):
+                dates = ()
+                reason = "corrupt_cache"
+        if reason == "available" and not dates:
+            reason = "no_data"
+        if reason == "available" and (not map_present or not factor_present):
+            reason = "security_master_missing"
+        return LocalLeanSymbolInspection(
+            symbol=symbol,
+            daily_present=daily_present,
+            map_present=map_present,
+            factor_present=factor_present,
+            available_from=dates[0] if dates else None,
+            available_to=dates[-1] if dates else None,
+            observation_count=len(dates),
+            status="available" if reason == "available" else "unavailable",
+            reason=reason,
+        )
 
     @staticmethod
     def _read_daily_dates(path: Path) -> tuple[date, ...]:
