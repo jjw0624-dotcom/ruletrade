@@ -53,7 +53,7 @@ def test_latest_previous_schema_adds_diagnostics_without_changing_sources(
 
     assert reopened.get_revision_by_id(expected_revision.id) == expected_revision
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
         for table in ("backtest_runs", "candidates", "comparisons"):
             columns = {
                 row[1] for row in connection.execute(f"PRAGMA table_info({table})")

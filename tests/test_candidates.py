@@ -331,7 +331,7 @@ def test_v4_database_migrates_to_candidate_schema(tmp_path: Path) -> None:
     SQLiteStrategyRepository(database)
 
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
         columns = {
             row[1] for row in connection.execute("PRAGMA table_info(backtest_runs)")
         }
