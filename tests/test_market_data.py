@@ -253,9 +253,11 @@ def test_explicit_acceptance_database_is_never_removed(tmp_path: Path) -> None:
     with acceptance_database(database) as selected:
         selected.touch()
     assert database.exists()
-    with pytest.raises(FileExistsError, match="already exists"):
-        with acceptance_database(database):
-            pass
+    with (
+        pytest.raises(FileExistsError, match="already exists"),
+        acceptance_database(database),
+    ):
+        pass
 
 
 def test_real_data_execution_is_blocked_before_runner_when_cache_is_unavailable() -> None:
