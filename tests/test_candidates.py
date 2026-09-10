@@ -125,7 +125,7 @@ def test_candidate_is_immutable_reproducible_and_uses_official_run_pipeline(tmp_
     assert execution.candidate.base_revision_id == detail.current_revision.id
     assert execution.candidate.originating_run_id == origin.id
     assert execution.candidate.originating_decision_event_id == "event-000001"
-    assert execution.candidate.change.expected_before == Decimal("0")
+    assert execution.candidate.change.expected_before == Decimal(0)
     changed = next(
         item for item in execution.candidate.canonical_strategy.graph.components
         if item.id == "positive_return"
@@ -148,12 +148,14 @@ def test_candidate_is_immutable_reproducible_and_uses_official_run_pipeline(tmp_
     ).get(execution.candidate.id)
     assert reopened == execution
     assert runs.list_decision_events(execution.run.id)
-    with sqlite3.connect(database) as connection:
-        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
-            connection.execute(
-                "UPDATE candidates SET source_hash = 'changed' WHERE id = ?",
-                (execution.candidate.id,),
-            )
+    with (
+        sqlite3.connect(database) as connection,
+        pytest.raises(sqlite3.IntegrityError, match="immutable"),
+    ):
+        connection.execute(
+            "UPDATE candidates SET source_hash = 'changed' WHERE id = ?",
+            (execution.candidate.id,),
+        )
 
 
 def test_candidate_targeting_and_expected_before_are_strict(tmp_path: Path) -> None:
@@ -183,7 +185,7 @@ def test_same_semantic_candidate_has_deterministic_hash_but_distinct_identity(
 def test_valid_candidate_survives_execution_failure_and_archive_preserves_history(tmp_path: Path) -> None:
     database = tmp_path / "ruletrade.sqlite3"
     runner = CandidateRunner()
-    strategies, runs, candidates, detail, origin = _origin(database, runner)
+    strategies, _, candidates, detail, origin = _origin(database, runner)
     runner.error = LeanExecutionError("boom")
     execution = candidates.create_and_execute(origin.id, _change())
     assert execution.run.status == BacktestRunStatus.FAILED
