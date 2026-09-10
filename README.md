@@ -31,6 +31,7 @@ Included:
 - Durable BacktestRun history for saved Revisions, normalized results, provenance, and timings
 - Durable, versioned Structured Decision Evidence for persisted Runs
 - Immutable filter-threshold Candidates executed as real Candidate Runs
+- Immutable Original-versus-Candidate Comparisons with Strategy, Behavior, and Result diffs
 
 Not included yet:
 
@@ -51,7 +52,9 @@ schema, source provenance, and Timeline/Inspector read API, plus the
 [Evidence v1.1 gap fill](docs/decision-evidence-v1-1.md) for explicit cardinality, signal, stopping
 stage, and Canonical field identity, and
 [Candidate Change v0](docs/candidate-change.md) for the first evidence-backed research hypothesis
-and real Candidate Run.
+and real Candidate Run, and
+[Comparison v0](docs/comparisons.md) for deterministic Strategy, Behavior, and Result diffs over
+immutable Original and Candidate Runs.
 
 ## Strategy Editor
 

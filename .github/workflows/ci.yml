@@ -38,6 +38,7 @@ jobs:
           src/ruletrade/backtest_runs
           src/ruletrade/backtests
           src/ruletrade/candidates
+          src/ruletrade/comparisons
           src/ruletrade/compiler/__init__.py
           src/ruletrade/compiler/analysis
           src/ruletrade/compiler/frontend
@@ -74,6 +75,7 @@ jobs:
           tests/test_api.py
           tests/test_backtest_runs.py
           tests/test_candidates.py
+          tests/test_comparisons.py
           tests/test_cooldown.py
           tests/test_decision_evidence.py
           tests/test_fallback.py

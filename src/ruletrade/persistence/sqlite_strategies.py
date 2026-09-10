@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, 2, 3, 4, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, 3, 4, 5, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -216,6 +216,31 @@ class SQLiteStrategyRepository:
                     BEFORE DELETE ON decision_events
                     BEGIN
                         SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
+                    END;
+
+                    CREATE TABLE IF NOT EXISTS comparisons (
+                        id TEXT PRIMARY KEY,
+                        candidate_id TEXT NOT NULL UNIQUE,
+                        original_run_id TEXT NOT NULL,
+                        candidate_run_id TEXT NOT NULL,
+                        schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+                        comparison_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (candidate_id) REFERENCES candidates(id),
+                        FOREIGN KEY (original_run_id) REFERENCES backtest_runs(id),
+                        FOREIGN KEY (candidate_run_id) REFERENCES backtest_runs(id)
+                    );
+
+                    CREATE TRIGGER IF NOT EXISTS comparisons_no_update
+                    BEFORE UPDATE ON comparisons
+                    BEGIN
+                        SELECT RAISE(ABORT, 'comparisons are immutable derived artifacts');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS comparisons_no_delete
+                    BEFORE DELETE ON comparisons
+                    BEGIN
+                        SELECT RAISE(ABORT, 'comparisons are immutable derived artifacts');
                     END;
                     """
                 )
