@@ -474,7 +474,12 @@ def test_comparison_rejects_incompatible_failed_or_legacy_runs(tmp_path: Path) -
             original.provenance.source_hash,
             candidate.source_hash,
             original,
-            candidate_run.model_copy(update={"status": BacktestRunStatus.FAILED}),
+            candidate_run.model_copy(
+                update={
+                    "run_config": original.run_config,
+                    "status": BacktestRunStatus.FAILED,
+                }
+            ),
             candidate.id,
         )
 
