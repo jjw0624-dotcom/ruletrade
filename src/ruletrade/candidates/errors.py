@@ -27,3 +27,7 @@ class CandidatePersistenceError(CandidateDomainError):
 
 class CandidateAdoptionLineageError(CandidateDomainError):
     code = "candidate_adoption_lineage_mismatch"
+
+
+class CandidateRunNotSucceededError(CandidateDomainError):
+    code = "candidate_run_not_succeeded"

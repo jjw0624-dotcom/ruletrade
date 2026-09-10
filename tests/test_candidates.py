@@ -20,6 +20,7 @@ from ruletrade.candidates.errors import (
     CandidateAdoptionLineageError,
     CandidateArchivedStrategyError,
     CandidateExpectedValueMismatchError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import FilterThresholdChange
@@ -416,6 +417,18 @@ def test_candidate_adoption_rejects_stale_lineage_and_archived_strategy(
             archived_execution.candidate.id, archived_detail.current_revision.id
         )
     assert len(archived_strategies.list_revisions(archived_detail.strategy.id)) == 1
+
+
+def test_failed_candidate_cannot_be_adopted(tmp_path: Path) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    runner = CandidateRunner(error=LeanExecutionError("boom"))
+    strategies, _, candidates, detail, origin = _origin(database, runner)
+    execution = candidates.create_and_execute(origin.id, _change())
+    assert execution.run.status == BacktestRunStatus.FAILED
+
+    with pytest.raises(CandidateRunNotSucceededError):
+        candidates.adopt(execution.candidate.id, detail.current_revision.id)
+    assert len(strategies.list_revisions(detail.strategy.id)) == 1
 
 
 def test_candidate_adoption_api_returns_revision_and_structured_stale_conflict(

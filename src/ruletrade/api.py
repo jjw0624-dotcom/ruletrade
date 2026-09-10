@@ -39,6 +39,7 @@ from ruletrade.candidates.errors import (
     CandidateDomainError,
     CandidateExpectedValueMismatchError,
     CandidateNotFoundError,
+    CandidateRunNotSucceededError,
     CandidatePersistenceError,
     InvalidCandidateChangeError,
 )
@@ -280,7 +281,7 @@ async def candidate_domain_error(
 ) -> JSONResponse:
     if isinstance(exc, CandidateNotFoundError):
         status_code = 404
-    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError, CandidateAdoptionLineageError)):
+    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError, CandidateAdoptionLineageError, CandidateRunNotSucceededError)):
         status_code = 409
     elif isinstance(exc, InvalidCandidateChangeError):
         status_code = 422

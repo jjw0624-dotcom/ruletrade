@@ -7,12 +7,14 @@ from decimal import Decimal
 from time import perf_counter_ns
 from uuid import uuid4
 
+from ruletrade.backtest_runs.models import BacktestRunStatus
 from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.candidates.errors import (
     CandidateAdoptionLineageError,
     CandidateArchivedStrategyError,
     CandidateExpectedValueMismatchError,
     CandidateNotFoundError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import (
@@ -151,9 +153,12 @@ class CandidateService:
         expected_current_revision_id: str,
     ):
         """Adopt a tested Candidate as one immutable next Revision without execution."""
-        candidate = self.repository.get(candidate_id)
-        if candidate is None:
-            raise CandidateNotFoundError("Candidate was not found.")
+        execution = self.get(candidate_id)
+        candidate = execution.candidate
+        if execution.run.status != BacktestRunStatus.SUCCEEDED:
+            raise CandidateRunNotSucceededError(
+                "Only a successfully completed Candidate can be adopted."
+            )
         base = self.strategies.get_revision_by_id(candidate.base_revision_id)
         if expected_current_revision_id != candidate.base_revision_id:
             raise CandidateAdoptionLineageError(
