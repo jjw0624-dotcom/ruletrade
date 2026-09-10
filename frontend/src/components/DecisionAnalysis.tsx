@@ -3,7 +3,7 @@ import { decisionEvidenceApi, type DecisionEventDetail, type SourceComponentRef 
 import { assetOutcomes, assetPath, type DecisionSession, type PathStatus } from "../domain/decisionPresentation";
 
 const pct = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
-const day = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const day = (value?: string) => new Date(`${value ?? "1970-01-01"}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 type ShowRule = (componentId: string, fieldPath: string | null | undefined, asset: string | null) => void;
 
 export function DecisionAnalysis({ runId, sessions, listState, selected, selectedAsset, onSelect, onSelectAsset, onShowInStrategy }: { runId: string; sessions: DecisionSession[]; listState: "loading" | "loaded" | "error"; selected: DecisionSession | null; selectedAsset?: string | null; onSelect: (session: DecisionSession) => void; onSelectAsset?: (asset: string) => void; onShowInStrategy?: ShowRule }) {
@@ -21,7 +21,7 @@ export function DecisionAnalysis({ runId, sessions, listState, selected, selecte
   return <section className="analysis-workspace" aria-label="Decision analysis"><header className="analysis-heading"><span className="eyebrow">Analysis</span><h2>See how the strategy made its choices</h2></header><div className="research-layout"><aside className="decision-timeline" aria-label="Decision timeline"><h3>Events</h3>{sessions.map((session) => <button key={session.sessionId} className={selected?.sessionId === session.sessionId ? "timeline-event selected" : "timeline-event"} onClick={() => onSelect(session)} aria-pressed={selected?.sessionId === session.sessionId}><time>{day(session.sessionId)}</time><strong>{session.label}</strong></button>)}</aside><div className="research-inspector">{!selected && <div className="inspector-prompt"><h3>Select an event</h3><p>Use a marker on the chart or a date here.</p></div>}{selected && detailState === "loading" && <p role="status">Opening this decision…</p>}{selected && detailState === "error" && <div role="alert"><h3>We couldn't open this decision</h3></div>}{selected && detailState === "loaded" && <Inspector key={selected.sessionId} date={selected.sessionId} details={details} initialAsset={selectedAsset} onSelectAsset={onSelectAsset} onShowInStrategy={onShowInStrategy} />}</div></div></section>;
 }
 
-export function Inspector({ date = details[0]?.session_id ?? "1970-01-01", details, initialAsset, onSelectAsset, onShowInStrategy }: { date?: string; details: DecisionEventDetail[]; initialAsset?: string | null; onSelectAsset?: (asset: string) => void; onShowInStrategy?: ShowRule }) {
+export function Inspector({ date, details, initialAsset, onSelectAsset, onShowInStrategy }: { date?: string; details: DecisionEventDetail[]; initialAsset?: string | null; onSelectAsset?: (asset: string) => void; onShowInStrategy?: ShowRule }) {
   const outcomes = assetOutcomes(details);
   const preferred = outcomes.find((item) => ["failed", "blocked", "ranked_out"].includes(item.kind))?.asset ?? outcomes[0]?.asset ?? null;
   const [asset, setAsset] = useState(initialAsset && outcomes.some((item) => item.asset === initialAsset) ? initialAsset : preferred);
@@ -29,7 +29,7 @@ export function Inspector({ date = details[0]?.session_id ?? "1970-01-01", detai
   return <><DecisionSummary date={date} details={details} />{outcomes.length > 0 && <section className="inspector-section asset-hero"><span className="eyebrow">Asset outcomes</span><div className="asset-overview">{outcomes.map((item) => { const observed=observedValue(item.asset,details); return <button key={item.asset} className={`asset-outcome ${item.kind}`} onClick={() => { setAsset(item.asset); onSelectAsset?.(item.asset); }} aria-pressed={asset === item.asset}><StatusIcon status={statusForOutcome(item.kind)} /><span><strong>{item.asset}</strong><small>{observed}{observed ? " · " : ""}{item.label}</small></span></button>; })}</div>{asset && <AssetExplanation asset={asset} details={details} onShowInStrategy={onShowInStrategy} />}</section>}<SelectionPath details={details} selectedAsset={asset} onSelectAsset={(next) => { setAsset(next); onSelectAsset?.(next); }} onShowInStrategy={onShowInStrategy} /><Portfolio details={details} onShowInStrategy={onShowInStrategy} /><MoreDetails details={details} onShowInStrategy={onShowInStrategy} /></>;
 }
 
-function DecisionSummary({ date, details }: { date: string; details: DecisionEventDetail[] }) {
+function DecisionSummary({ date, details }: { date?: string; details: DecisionEventDetail[] }) {
   const selection = details.find((item) => item.evidence.kind === "selection")?.evidence;
   const fallback = details.find((item) => item.evidence.kind === "fallback" && item.evidence.activated)?.evidence;
   const finalSelection = details.find((item) => item.evidence.kind === "final_selection")?.evidence;
