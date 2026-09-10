@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -99,6 +102,34 @@ def _complete_cache(root: Path, *, start=date(2023, 1, 2)) -> None:
     all_dates = _dates(start, date(2024, 3, 1))
     for symbol in ("IEF", "QQQ", "SCHG", "SOXX", "TLT", "VGT"):
         _write_symbol(root, symbol, all_dates)
+
+
+def test_diagnostic_runs_from_a_fresh_python_process(tmp_path: Path) -> None:
+    dates = _dates(date(2023, 1, 2), date(2024, 3, 1))
+    _write_symbol(tmp_path, "QQQ", dates)
+    repository_root = Path(__file__).parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(repository_root / "src")
+    environment["RULETRADE_LEAN_DATA_DIR"] = str(tmp_path)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repository_root / "scripts" / "inspect_market_data.py"),
+            "QQQ",
+        ],
+        cwd=repository_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "SYMBOL  DAILY  MAP  FACTOR  COVERAGE" in completed.stdout
+    assert "QQQ     yes    yes  yes" in completed.stdout
+    assert "2023-01-02..2024-03-01" in completed.stdout
+    assert completed.stdout.rstrip().endswith("available")
 
 
 def test_requirement_reuses_compiler_history_and_accounts_for_warmup() -> None:
