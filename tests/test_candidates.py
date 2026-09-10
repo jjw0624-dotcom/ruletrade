@@ -130,7 +130,7 @@ def test_candidate_is_immutable_reproducible_and_uses_official_run_pipeline(tmp_
         item for item in execution.candidate.canonical_strategy.graph.components
         if item.id == "positive_return"
     )
-    assert changed.config["threshold"] == Decimal("0.05")
+    assert changed.config["threshold"] == "0.05"
     assert execution.candidate.source_hash == execution.run.provenance.source_hash
     assert execution.run.candidate_id == execution.candidate.id
     assert execution.run.revision_id == detail.current_revision.id

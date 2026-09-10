@@ -141,7 +141,10 @@ class CandidateService:
             )
         if change.proposed_after == current_decimal:
             raise InvalidCandidateChangeError("Candidate change must alter the source value.")
-        updated_config = {**component.config, "threshold": change.proposed_after}
+        # Canonical config payloads represent percentage literals as decimal strings.
+        # Materialize that stored-source representation before hashing or execution so
+        # the in-memory Candidate and a reopened Candidate are identical.
+        updated_config = {**component.config, "threshold": str(change.proposed_after)}
         components[index] = component.model_copy(update={"config": updated_config})
         return source.model_copy(
             update={"graph": source.graph.model_copy(update={"components": tuple(components)})}
