@@ -4,6 +4,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter_ns
 from typing import Any
 
 from pydantic import BaseModel
@@ -15,13 +16,19 @@ from ruletrade.backtest_runs.models import (
     BacktestRunRecord,
     BacktestRunStatus,
 )
-from ruletrade.backtests.models import BacktestConfig, BacktestResult, BacktestTimings
+from ruletrade.backtests.models import (
+    BacktestConfig,
+    BacktestDiagnostics,
+    BacktestResult,
+    BacktestTimings,
+)
 from ruletrade.decision_evidence.models import (
     CollectedDecisionEvent,
     DecisionEventDetail,
     DecisionEventSummary,
     SourceComponentRef,
 )
+from ruletrade.diagnostics import elapsed_ms
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 
 
@@ -39,8 +46,9 @@ class SQLiteBacktestRunRepository:
                     """
                     INSERT INTO backtest_runs (
                         id, revision_id, candidate_id, status, config_json, result_json, error_json,
-                        provenance_json, timings_json, created_at, started_at, completed_at
-                    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)
+                        provenance_json, timings_json, diagnostics_json,
+                        created_at, started_at, completed_at
+                    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, NULL, NULL)
                     """,
                     (
                         run.id,
@@ -50,6 +58,7 @@ class SQLiteBacktestRunRepository:
                         _model_json(run.run_config),
                         _model_json(run.provenance),
                         _model_json(run.timings),
+                        _model_json(run.diagnostics),
                         _timestamp(run.created_at),
                     ),
                 )
@@ -72,6 +81,7 @@ class SQLiteBacktestRunRepository:
         timings: BacktestTimings,
         completed_at: datetime,
         events: tuple[CollectedDecisionEvent, ...],
+        diagnostics: BacktestDiagnostics | None = None,
     ) -> BacktestRunRecord:
         if not events or [item.sequence for item in events] != list(
             range(1, len(events) + 1)
@@ -80,6 +90,7 @@ class SQLiteBacktestRunRepository:
                 "Successful Backtest Runs require one contiguous Decision Evidence set."
             )
         try:
+            finalization_started = perf_counter_ns()
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 status = connection.execute(
@@ -114,16 +125,25 @@ class SQLiteBacktestRunRepository:
                             _model_json(event.evidence),
                         ),
                     )
+                finalization_ms = elapsed_ms(finalization_started)
+                finalized_timings = timings.model_copy(
+                    update={
+                        "finalization_ms": finalization_ms,
+                        "total_ms": timings.total_ms + finalization_ms,
+                    }
+                )
                 cursor = connection.execute(
                     """
                     UPDATE backtest_runs
-                    SET status = ?, result_json = ?, timings_json = ?, completed_at = ?
+                    SET status = ?, result_json = ?, timings_json = ?, diagnostics_json = ?,
+                        completed_at = ?
                     WHERE id = ? AND status = ?
                     """,
                     (
                         BacktestRunStatus.SUCCEEDED.value,
                         _model_json(result),
-                        _model_json(timings),
+                        _model_json(finalized_timings),
+                        _model_json(diagnostics or BacktestDiagnostics()),
                         _timestamp(completed_at),
                         run_id,
                         BacktestRunStatus.RUNNING.value,
@@ -288,6 +308,7 @@ class SQLiteBacktestRunRepository:
             ),
             provenance=BacktestRunProvenance.model_validate_json(row["provenance_json"]),
             timings=BacktestTimings.model_validate_json(row["timings_json"]),
+            diagnostics=BacktestDiagnostics.model_validate_json(row["diagnostics_json"]),
             created_at=_parse_timestamp(row["created_at"]),
             started_at=(
                 None if row["started_at"] is None else _parse_timestamp(row["started_at"])

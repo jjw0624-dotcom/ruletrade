@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, 2, 3, 4, 5, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -95,6 +95,7 @@ class SQLiteStrategyRepository:
                         source_hash TEXT NOT NULL,
                         schema_version TEXT NOT NULL,
                         created_at TEXT NOT NULL,
+                        diagnostics_json TEXT NOT NULL DEFAULT '{}',
                         FOREIGN KEY (base_revision_id) REFERENCES strategy_revisions(id),
                         FOREIGN KEY (originating_run_id) REFERENCES backtest_runs(id)
                     );
@@ -104,6 +105,15 @@ class SQLiteStrategyRepository:
 
                     CREATE TRIGGER IF NOT EXISTS candidates_no_update
                     BEFORE UPDATE ON candidates
+                    WHEN NEW.id != OLD.id
+                        OR NEW.base_revision_id != OLD.base_revision_id
+                        OR NEW.originating_run_id IS NOT OLD.originating_run_id
+                        OR NEW.originating_decision_event_id IS NOT OLD.originating_decision_event_id
+                        OR NEW.change_json != OLD.change_json
+                        OR NEW.canonical_json != OLD.canonical_json
+                        OR NEW.source_hash != OLD.source_hash
+                        OR NEW.schema_version != OLD.schema_version
+                        OR NEW.created_at != OLD.created_at
                     BEGIN
                         SELECT RAISE(ABORT, 'candidates are immutable research artifacts');
                     END;
@@ -126,6 +136,7 @@ class SQLiteStrategyRepository:
                         error_json TEXT,
                         provenance_json TEXT NOT NULL,
                         timings_json TEXT NOT NULL,
+                        diagnostics_json TEXT NOT NULL DEFAULT '{}',
                         created_at TEXT NOT NULL,
                         started_at TEXT,
                         completed_at TEXT,
@@ -226,6 +237,7 @@ class SQLiteStrategyRepository:
                         schema_version INTEGER NOT NULL CHECK (schema_version = 1),
                         comparison_json TEXT NOT NULL,
                         created_at TEXT NOT NULL,
+                        diagnostics_json TEXT NOT NULL DEFAULT '{}',
                         FOREIGN KEY (candidate_id) REFERENCES candidates(id),
                         FOREIGN KEY (original_run_id) REFERENCES backtest_runs(id),
                         FOREIGN KEY (candidate_run_id) REFERENCES backtest_runs(id)
@@ -233,6 +245,13 @@ class SQLiteStrategyRepository:
 
                     CREATE TRIGGER IF NOT EXISTS comparisons_no_update
                     BEFORE UPDATE ON comparisons
+                    WHEN NEW.id != OLD.id
+                        OR NEW.candidate_id != OLD.candidate_id
+                        OR NEW.original_run_id != OLD.original_run_id
+                        OR NEW.candidate_run_id != OLD.candidate_run_id
+                        OR NEW.schema_version != OLD.schema_version
+                        OR NEW.comparison_json != OLD.comparison_json
+                        OR NEW.created_at != OLD.created_at
                     BEGIN
                         SELECT RAISE(ABORT, 'comparisons are immutable derived artifacts');
                     END;
@@ -252,6 +271,65 @@ class SQLiteStrategyRepository:
                 }
                 if "candidate_id" not in run_columns:
                     self._migrate_candidates_to_v5(connection)
+                if "diagnostics_json" not in run_columns:
+                    connection.execute(
+                        "ALTER TABLE backtest_runs ADD COLUMN diagnostics_json "
+                        "TEXT NOT NULL DEFAULT '{}'"
+                    )
+                candidate_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(candidates)")
+                }
+                if "diagnostics_json" not in candidate_columns:
+                    connection.execute(
+                        "ALTER TABLE candidates ADD COLUMN diagnostics_json "
+                        "TEXT NOT NULL DEFAULT '{}'"
+                    )
+                connection.executescript(
+                    """
+                    DROP TRIGGER IF EXISTS candidates_no_update;
+                    CREATE TRIGGER candidates_no_update
+                    BEFORE UPDATE ON candidates
+                    WHEN NEW.id != OLD.id
+                        OR NEW.base_revision_id != OLD.base_revision_id
+                        OR NEW.originating_run_id IS NOT OLD.originating_run_id
+                        OR NEW.originating_decision_event_id IS NOT OLD.originating_decision_event_id
+                        OR NEW.change_json != OLD.change_json
+                        OR NEW.canonical_json != OLD.canonical_json
+                        OR NEW.source_hash != OLD.source_hash
+                        OR NEW.schema_version != OLD.schema_version
+                        OR NEW.created_at != OLD.created_at
+                    BEGIN
+                        SELECT RAISE(ABORT, 'candidates are immutable research artifacts');
+                    END;
+                    """
+                )
+                comparison_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(comparisons)")
+                }
+                if "diagnostics_json" not in comparison_columns:
+                    connection.execute(
+                        "ALTER TABLE comparisons ADD COLUMN diagnostics_json "
+                        "TEXT NOT NULL DEFAULT '{}'"
+                    )
+                connection.executescript(
+                    """
+                    DROP TRIGGER IF EXISTS comparisons_no_update;
+                    CREATE TRIGGER comparisons_no_update
+                    BEFORE UPDATE ON comparisons
+                    WHEN NEW.id != OLD.id
+                        OR NEW.candidate_id != OLD.candidate_id
+                        OR NEW.original_run_id != OLD.original_run_id
+                        OR NEW.candidate_run_id != OLD.candidate_run_id
+                        OR NEW.schema_version != OLD.schema_version
+                        OR NEW.comparison_json != OLD.comparison_json
+                        OR NEW.created_at != OLD.created_at
+                    BEGIN
+                        SELECT RAISE(ABORT, 'comparisons are immutable derived artifacts');
+                    END;
+                    """
+                )
                 self._ensure_candidate_run_constraints(connection)
                 if version < SCHEMA_VERSION:
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

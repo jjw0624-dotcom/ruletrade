@@ -395,6 +395,15 @@ def test_comparison_persists_strategy_behavior_and_result_diffs(tmp_path: Path) 
     assert comparison.result_diff.original_equity_run_id == original.id
     assert comparison.result_diff.candidate_equity_run_id == candidate_run.id
     assert comparison.compute_ms >= 0
+    assert comparison.diagnostics.total_ms >= (
+        comparison.diagnostics.artifact_load_ms
+        + comparison.diagnostics.comparability_validation_ms
+        + comparison.diagnostics.evidence_load_ms
+        + comparison.diagnostics.alignment_ms
+        + comparison.diagnostics.result_diff_ms
+        + comparison.diagnostics.persistence_ms
+    )
+    assert comparison.diagnostics.comparison_bytes > 0
     assert runner.calls == 0
 
     reopened = ComparisonService(
@@ -539,3 +548,7 @@ def test_persisted_comparison_is_proportional_and_fast(tmp_path: Path) -> None:
     serialized = json.dumps(comparison.model_dump(mode="json"), separators=(",", ":"))
     assert len(serialized) < 15_000
     assert comparison.compute_ms < 1_000
+    with sqlite3.connect(database) as connection:
+        assert "diagnostics_json" in {
+            row[1] for row in connection.execute("PRAGMA table_info(comparisons)")
+        }

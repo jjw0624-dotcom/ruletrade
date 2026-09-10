@@ -14,6 +14,17 @@ class CandidateModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class CandidateDiagnostics(CandidateModel):
+    context_load_ms: int = Field(default=0, ge=0)
+    evidence_target_validation_ms: int = Field(default=0, ge=0)
+    semantic_patch_ms: int = Field(default=0, ge=0)
+    canonical_validation_ms: int = Field(default=0, ge=0)
+    persistence_ms: int = Field(default=0, ge=0)
+    creation_overhead_ms: int = Field(default=0, ge=0)
+    request_total_ms: int = Field(default=0, ge=0)
+    canonical_bytes: int = Field(default=0, ge=0)
+
+
 class FilterThresholdChange(CandidateModel):
     kind: Literal["filter_threshold"] = "filter_threshold"
     component_id: Annotated[str, Field(min_length=1)]
@@ -39,6 +50,7 @@ class CandidateRecord(CandidateModel):
     source_hash: str
     schema_version: str
     created_at: datetime
+    diagnostics: CandidateDiagnostics = Field(default_factory=CandidateDiagnostics)
 
 
 class CandidateExecution(CandidateModel):

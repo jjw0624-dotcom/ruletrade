@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -19,6 +20,7 @@ from ruletrade.comparisons.errors import (
 from ruletrade.comparisons.models import (
     BehaviorDifference,
     BehaviorDifferenceKind,
+    ComparisonDiagnostics,
     ComparisonRecord,
     DecimalMetricDiff,
     DecisionContextDiff,
@@ -28,7 +30,10 @@ from ruletrade.comparisons.models import (
     StrategyDiff,
 )
 from ruletrade.decision_evidence.models import DecisionEventDetail
+from ruletrade.diagnostics import elapsed_ms, serialized_bytes
 from ruletrade.persistence.sqlite_comparisons import SQLiteComparisonRepository
+
+logger = logging.getLogger(__name__)
 
 _PHASE_ORDER = {
     "evaluation": 0,
@@ -75,6 +80,7 @@ class ComparisonService:
         if existing is not None:
             return existing
         started = perf_counter_ns()
+        stage_started = perf_counter_ns()
         execution = self.candidates.get(candidate_id)
         candidate = execution.candidate
         candidate_run = execution.run
@@ -84,6 +90,8 @@ class ComparisonService:
         base_revision = self.candidates.strategies.get_revision_by_id(
             candidate.base_revision_id
         )
+        artifact_load_ms = elapsed_ms(stage_started)
+        stage_started = perf_counter_ns()
         self._validate_pair(
             candidate.base_revision_id,
             base_revision.source_hash,
@@ -92,15 +100,30 @@ class ComparisonService:
             candidate_run,
             candidate.id,
         )
+        comparability_validation_ms = elapsed_ms(stage_started)
+        stage_started = perf_counter_ns()
         original_events = self._events(original_run.id)
         candidate_events = self._events(candidate_run.id)
+        evidence_load_ms = elapsed_ms(stage_started)
+        stage_started = perf_counter_ns()
         contexts, aligned_count = align_decision_evidence(original_events, candidate_events)
+        alignment_ms = elapsed_ms(stage_started)
         first = None
         if contexts:
             first = FirstDifference(
                 session_id=contexts[0].session_id,
                 difference_key=contexts[0].differences[0].key,
             )
+        stage_started = perf_counter_ns()
+        result_diff = _result_diff(original_run, candidate_run)
+        result_diff_ms = elapsed_ms(stage_started)
+        diagnostics = ComparisonDiagnostics(
+            artifact_load_ms=artifact_load_ms,
+            comparability_validation_ms=comparability_validation_ms,
+            evidence_load_ms=evidence_load_ms,
+            alignment_ms=alignment_ms,
+            result_diff_ms=result_diff_ms,
+        )
         comparison = ComparisonRecord(
             id=self._id_factory(),
             candidate_id=candidate.id,
@@ -115,11 +138,41 @@ class ComparisonService:
             aligned_evidence_records=aligned_count,
             changed_decision_contexts=contexts,
             first_difference=first,
-            result_diff=_result_diff(original_run, candidate_run),
-            compute_ms=max(0, (perf_counter_ns() - started) // 1_000_000),
+            result_diff=result_diff,
+            compute_ms=elapsed_ms(started),
             created_at=self._clock(),
+            diagnostics=diagnostics,
         )
-        self.repository.create(comparison)
+        diagnostics = diagnostics.model_copy(
+            update={"comparison_bytes": serialized_bytes(comparison)}
+        )
+        comparison = comparison.model_copy(update={"diagnostics": diagnostics})
+        persistence_ms = self.repository.create(comparison)
+        diagnostics = diagnostics.model_copy(
+            update={
+                "persistence_ms": persistence_ms,
+                "total_ms": max(
+                    elapsed_ms(started),
+                    diagnostics.artifact_load_ms
+                    + diagnostics.comparability_validation_ms
+                    + diagnostics.evidence_load_ms
+                    + diagnostics.alignment_ms
+                    + diagnostics.result_diff_ms
+                    + persistence_ms,
+                ),
+            }
+        )
+        comparison = comparison.model_copy(update={"diagnostics": diagnostics})
+        self.repository.update_diagnostics(comparison.id, diagnostics)
+        logger.info(
+            "comparison_computed",
+            extra={
+                "comparison_id": comparison.id,
+                "total_ms": diagnostics.total_ms,
+                "aligned_records": comparison.aligned_evidence_records,
+                "changed_contexts": len(comparison.changed_decision_contexts),
+            },
+        )
         return comparison
 
     def get(self, comparison_id: str) -> ComparisonRecord:

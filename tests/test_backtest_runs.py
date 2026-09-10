@@ -122,6 +122,18 @@ def test_successful_run_persists_config_result_provenance_timings_and_reopens(
     assert run.timings.lean_execution_ms == 22
     assert run.timings.result_load_ms == 3
     assert all(value >= 0 for value in run.timings.model_dump().values())
+    stage_total = sum(
+        value
+        for name, value in run.timings.model_dump().items()
+        if name != "total_ms"
+    )
+    assert run.timings.total_ms >= stage_total
+    assert run.diagnostics.canonical_bytes > 0
+    assert run.diagnostics.generated_csharp_bytes > 0
+    assert run.diagnostics.normalized_result_bytes > 0
+    assert run.diagnostics.equity_points == 2
+    assert run.diagnostics.evidence_events == 1
+    assert run.diagnostics.evidence_bytes > 0
 
     reopened_runner = FakeRunner()
     _strategies, reopened = _services(database, reopened_runner)
@@ -229,10 +241,13 @@ def test_schema_v1_database_migrates_to_current_schema(tmp_path: Path) -> None:
         connection.execute("PRAGMA user_version = 1")
     reopened = StrategyService(SQLiteStrategyRepository(database))
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'backtest_runs'"
         ).fetchone() == ("backtest_runs",)
+        assert "diagnostics_json" in {
+            row[1] for row in connection.execute("PRAGMA table_info(backtest_runs)")
+        }
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_events'"
         ).fetchone() == ("decision_events",)

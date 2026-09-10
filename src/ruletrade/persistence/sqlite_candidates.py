@@ -4,9 +4,15 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter_ns
 
 from ruletrade.candidates.errors import CandidatePersistenceError
-from ruletrade.candidates.models import CandidateRecord, FilterThresholdChange
+from ruletrade.candidates.models import (
+    CandidateDiagnostics,
+    CandidateRecord,
+    FilterThresholdChange,
+)
+from ruletrade.diagnostics import elapsed_ms
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
@@ -18,7 +24,8 @@ class SQLiteCandidateRepository:
         self.path = path
         SQLiteStrategyRepository(path)
 
-    def create(self, candidate: CandidateRecord) -> None:
+    def create(self, candidate: CandidateRecord) -> int:
+        started = perf_counter_ns()
         try:
             with self._connect() as connection:
                 connection.execute(
@@ -26,8 +33,8 @@ class SQLiteCandidateRepository:
                     INSERT INTO candidates (
                         id, base_revision_id, originating_run_id,
                         originating_decision_event_id, change_json, canonical_json,
-                        source_hash, schema_version, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        source_hash, schema_version, created_at, diagnostics_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         candidate.id,
@@ -39,8 +46,10 @@ class SQLiteCandidateRepository:
                         candidate.source_hash,
                         candidate.schema_version,
                         candidate.created_at.isoformat().replace("+00:00", "Z"),
+                        _json(candidate.diagnostics.model_dump(mode="json")),
                     ),
                 )
+            return elapsed_ms(started)
         except sqlite3.Error as exc:
             raise CandidatePersistenceError("Could not persist Candidate.") from exc
 
@@ -62,6 +71,9 @@ class SQLiteCandidateRepository:
                 source_hash=row["source_hash"],
                 schema_version=row["schema_version"],
                 created_at=datetime.fromisoformat(row["created_at"]),
+                diagnostics=CandidateDiagnostics.model_validate_json(
+                    row["diagnostics_json"]
+                ),
             )
         except sqlite3.Error as exc:
             raise CandidatePersistenceError("Could not read Candidate.") from exc
@@ -80,6 +92,24 @@ class SQLiteCandidateRepository:
             return tuple(candidate for candidate in candidates if candidate is not None)
         except sqlite3.Error as exc:
             raise CandidatePersistenceError("Could not list Candidates.") from exc
+
+    def update_diagnostics(
+        self, candidate_id: str, diagnostics: CandidateDiagnostics
+    ) -> None:
+        try:
+            with self._connect() as connection:
+                cursor = connection.execute(
+                    "UPDATE candidates SET diagnostics_json = ? WHERE id = ?",
+                    (_json(diagnostics.model_dump(mode="json")), candidate_id),
+                )
+                if cursor.rowcount != 1:
+                    raise CandidatePersistenceError("Candidate was not found.")
+        except CandidatePersistenceError:
+            raise
+        except sqlite3.Error as exc:
+            raise CandidatePersistenceError(
+                "Could not persist Candidate diagnostics."
+            ) from exc
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5)
