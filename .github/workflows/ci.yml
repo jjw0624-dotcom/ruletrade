@@ -188,7 +188,7 @@ jobs:
             /usr/share/dotnet \
             /opt/ghc \
             /opt/hostedtoolcache
-          rm -rf .venv "$UV_CACHE_DIR"
+          rm -rf .venv
           docker system prune --all --force
           df -h /
 
