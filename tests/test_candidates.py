@@ -25,8 +25,8 @@ from ruletrade.candidates.errors import (
 from ruletrade.candidates.models import FilterThresholdChange
 from ruletrade.candidates.service import CandidateService
 from ruletrade.compiler import compile_strategy_to_lean_plan
-from ruletrade.comparisons.service import ComparisonService
 from ruletrade.compiler.lean import CSharpGenerationSettings, generate_csharp
+from ruletrade.comparisons.service import ComparisonService
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
@@ -421,7 +421,7 @@ def test_candidate_adoption_rejects_stale_lineage_and_archived_strategy(
 def test_candidate_adoption_api_returns_revision_and_structured_stale_conflict(
     tmp_path: Path,
 ) -> None:
-    strategies, _, candidates, detail, origin = _origin(tmp_path / "ruletrade.sqlite3")
+    _strategies, _, candidates, detail, origin = _origin(tmp_path / "ruletrade.sqlite3")
     execution = candidates.create_and_execute(origin.id, _change())
     app.dependency_overrides[get_candidate_service] = lambda: candidates
     client = TestClient(app)
