@@ -34,6 +34,76 @@ def source_component(event: CollectedDecisionEvent, role: str) -> str:
     return matches[0]
 
 
+def verify_v2_filter_facts(
+    event: CollectedDecisionEvent,
+    *,
+    decision_universe: tuple[str, ...],
+    rejected: tuple[str, ...],
+) -> None:
+    if event.schema_version < 2:
+        return
+    evidence = event.evidence
+    if evidence.kind != "filter" or evidence.decision_universe != decision_universe:
+        raise ValueError("v2 filter decision-universe evidence mismatch")
+    stops = {
+        item.asset: item.stopping_stage
+        for item in evidence.evaluations
+        if item.stopping_stage is not None
+    }
+    if stops != {asset: "filter" for asset in rejected}:
+        raise ValueError("v2 filter stopping-stage evidence mismatch")
+    source = next(item for item in event.source_components if item.role == "filter")
+    if source.field_path != "config.threshold":
+        raise ValueError("v2 filter source field-path mismatch")
+
+
+def verify_v2_selection_facts(
+    event: CollectedDecisionEvent,
+    *,
+    ranked: tuple[str, ...],
+    candidates: tuple[str, ...],
+    primary_selected: tuple[str, ...],
+    required_count: int,
+    candidate_stop: str | None = None,
+) -> None:
+    if event.schema_version < 2:
+        return
+    evidence = event.evidence
+    if (
+        evidence.kind != "selection"
+        or evidence.required_count != required_count
+        or evidence.asset_outcomes is None
+    ):
+        raise ValueError("v2 selection cardinality evidence mismatch")
+    expected = {
+        asset: (
+            "present" if asset in candidates else "absent",
+            index,
+            asset in primary_selected,
+            (
+                candidate_stop
+                if asset in candidates and asset not in primary_selected
+                else ("rank_cutoff" if asset not in candidates else None)
+            ),
+        )
+        for index, asset in enumerate(ranked, start=1)
+    }
+    actual = {
+        item.asset: (
+            item.signal,
+            item.rank,
+            item.primary_selected,
+            item.stopping_stage,
+        )
+        for item in evidence.asset_outcomes
+    }
+    if actual != expected:
+        raise ValueError("v2 selection asset-outcome evidence mismatch")
+    source = next(item for item in event.source_components if item.role == "selection")
+    if source.field_path != "config.count":
+        raise ValueError("v2 selection source field-path mismatch")
+
+
 def evidence_for_source(
     index: EvidenceIndex,
     session: str,

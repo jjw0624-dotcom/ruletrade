@@ -20,6 +20,7 @@ export interface StrategyEditorState {
     nodePositions: NodePositions;
     viewport: Viewport;
     selectedNodeId: string | null;
+    selectedFieldPath: string | null;
   };
   validation: {
     status: "valid" | "dirty" | "invalid" | "checking";
@@ -33,7 +34,7 @@ export type StrategyEditorAction =
   | { type: "set_active_view"; view: EditorView }
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
-  | { type: "select_node"; componentId: string | null }
+  | { type: "select_node"; componentId: string | null; fieldPath?: string | null }
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
@@ -46,6 +47,7 @@ export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorSta
       nodePositions: { ...DEFAULT_NODE_POSITIONS },
       viewport: { x: 0, y: 0, zoom: 0.85 },
       selectedNodeId: null,
+      selectedFieldPath: null,
     },
     validation: {
       status: bootstrap.validation.valid ? "valid" : "invalid",
@@ -81,7 +83,7 @@ export function editorReducer(
     case "set_viewport":
       return { ...state, editor: { ...state.editor, viewport: action.viewport } };
     case "select_node":
-      return { ...state, editor: { ...state.editor, selectedNodeId: action.componentId } };
+      return { ...state, editor: { ...state.editor, selectedNodeId: action.componentId, selectedFieldPath: action.fieldPath ?? null } };
     case "validation_started":
       return { ...state, validation: { ...state.validation, status: "checking" } };
     case "validation_finished":

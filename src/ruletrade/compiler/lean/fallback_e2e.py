@@ -13,7 +13,12 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
-from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
+from ruletrade.compiler.lean.evidence_e2e import (
+    index_decision_evidence,
+    one_evidence,
+    verify_v2_filter_facts,
+    verify_v2_selection_facts,
+)
 from ruletrade.compiler.lean.filter_e2e import FILTER_PATTERN, load_filter_fixture_closes
 from ruletrade.strategy.v1.momentum import evaluate_fallback_trailing_return_top_n
 
@@ -112,6 +117,8 @@ def verify_fallback_e2e(
         if final_trace.group("source") != expected_source:
             raise ValueError(f"final source mismatch for {event_identity}")
         if evidence:
+            filter_event = one_evidence(evidence, event_identity, "filter")
+            selection_event = one_evidence(evidence, event_identity, "selection")
             fallback_evidence = one_evidence(
                 evidence, event_identity, "fallback"
             ).evidence
@@ -125,6 +132,21 @@ def verify_fallback_e2e(
                 or final_evidence.source != expected_source
             ):
                 raise ValueError(f"structured fallback evidence mismatch for {event_identity}")
+            verify_v2_filter_facts(
+                filter_event,
+                decision_universe=("QQQ", "VGT", "SOXX", "SCHG"),
+                rejected=reference.rejected,
+            )
+            verify_v2_selection_facts(
+                selection_event,
+                ranked=reference.ranked,
+                candidates=reference.candidate,
+                primary_selected=reference.primary_selected,
+                required_count=2,
+                candidate_stop=(
+                    "fallback_replacement" if reference.fallback_activated else None
+                ),
+            )
         target = targets[event_identity]
         if target.selected != tuple(sorted(reference.final_selected)):
             raise ValueError(f"target selection mismatch for {event_identity}")

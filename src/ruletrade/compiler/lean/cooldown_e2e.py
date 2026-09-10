@@ -14,7 +14,11 @@ from ruletrade.compiler.lean.e2e import (
     validate_lean_completion,
     validate_zero_failed_data_requests,
 )
-from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
+from ruletrade.compiler.lean.evidence_e2e import (
+    index_decision_evidence,
+    one_evidence,
+    verify_v2_selection_facts,
+)
 from ruletrade.strategy.v1.cooldown import evaluate_cooldown
 
 SIGNAL_PATTERN = re.compile(
@@ -122,7 +126,16 @@ def verify_cooldown_e2e(
         ):
             raise ValueError(f"cooldown decision mismatch for {expected.event}")
         if evidence:
-            structured = one_evidence(evidence, expected.event, "cooldown").evidence
+            selection_event = one_evidence(evidence, expected.event, "selection")
+            verify_v2_selection_facts(
+                selection_event,
+                ranked=expected_ranked,
+                candidates=expected.candidates,
+                primary_selected=(),
+                required_count=1,
+            )
+            cooldown_event = one_evidence(evidence, expected.event, "cooldown")
+            structured = cooldown_event.evidence
             if (
                 structured.asset != eligibility.asset
                 or structured.signal_candidate is not True
@@ -136,9 +149,20 @@ def verify_cooldown_e2e(
                 != eligibility.elapsed_trading_days
                 or structured.required_completed_sessions != 20
                 or structured.eligible != (eligibility.decision == "eligible")
+                or structured.stopping_stage
+                != (None if eligibility.decision == "eligible" else "cooldown")
             ):
                 raise ValueError(
                     f"structured cooldown evidence mismatch for {expected.event}"
+                )
+            source = next(
+                item
+                for item in cooldown_event.source_components
+                if item.role == "cooldown"
+            )
+            if source.field_path != "config.duration":
+                raise ValueError(
+                    f"structured cooldown field-path mismatch for {expected.event}"
                 )
         target = targets[expected.event]
         if target.selected != expected.selected or target.weights != dict(expected.targets):

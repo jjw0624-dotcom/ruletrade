@@ -20,9 +20,10 @@ result can be inspected without rerunning LEAN.
 | `RULETRADE_TARGETS` | aggregated targets submitted by the RuleTrade rebalance | `final_targets` / `portfolio_execution` |
 
 The old traces remain diagnostic and strict E2E evidence. They are not parsed into product records.
-Generated C# emits a separate `RULETRADE_EVIDENCE_V1` percent-encoded key/value record at the
-decision point. The collector accepts only that explicit contract and validates contiguous runtime
-sequence, types, filter partitions, and the v1 vocabulary before persistence.
+Generated C# originally emitted a separate `RULETRADE_EVIDENCE_V1` percent-encoded key/value record
+at the decision point. The backward-compatible v1.1 gap fill emits
+`RULETRADE_EVIDENCE_V2`; the collector accepts both explicit contracts without inventing v2 facts
+for v1 history. See `decision-evidence-v1-1.md`.
 
 ## Schema and identity
 
@@ -35,7 +36,7 @@ One machine record becomes one Decision Event. This intentionally keeps same-ses
 - `source_components` contains typed role/component-ID pairs such as `filter`, `rank`, `selection`,
   `fallback`, `cooldown`, `sleeve`, `schedule`, and `rebalance`.
 - `evidence` is a discriminated typed payload; there is no generic arbitrary JSON event.
-- `schema_version=1` versions this derived artifact independently of Canonical and SQLite schemas.
+- `schema_version` versions this derived artifact independently of Canonical and SQLite schemas.
 
 Numeric runtime observations and weights are persisted as exact decimal strings through Pydantic JSON.
 No presentation rounding occurs. Existing narrow cross-runtime score tolerance remains confined to
@@ -45,7 +46,9 @@ exact.
 ## Why / Why-not coverage
 
 Filter evidence contains an evaluation for every asset with the observed value and `passed`, including
-rejected assets. Selection separately records scores, rank, candidates, and primary-selected assets.
+rejected assets. Schema v2 also records the relevant decision universe. Selection separately records
+scores, rank, candidates, primary-selected assets, required cardinality, explicit per-evaluated-asset
+Top-N signal state, and structural stopping stages.
 Fallback and final selection are separate facts. Cooldown records a signal candidate even when blocked,
 including `last_exit`, elapsed completed exchange sessions, required sessions, and eligibility. This
 lets presentation later identify the condition where an asset stopped without fabricating prose.
@@ -61,12 +64,14 @@ aggregated executed target map. A client can therefore reconstruct, for example,
 
 ## Run lifecycle and storage
 
-SQLite schema v3 adds `decision_events` with one typed JSON payload per ordered row. It does not repeat
+SQLite schema v3 adds `decision_events` with one typed JSON payload per ordered row. SQLite schema v4
+widens the immutable row's evidence-version constraint to admit additive Evidence v2 while preserving
+historical v1 rows. It does not repeat
 the Canonical source, result, logs, IR, LeanPlan, or generated C#. Update/delete triggers make evidence
 immutable. New Runs become `succeeded` only in the same transaction that inserts their complete event
 set and result. Collection failure produces `failed/evidence_collection_failure`; storage failure is
 rolled back and produces `failed/evidence_persistence_failure`; both have no partial evidence. Execution
-failures likewise have no Decision Evidence in v1. Runs created under schema v2 remain truthful legacy
+failures likewise have no partial Decision Evidence. Runs created before SQLite schema v3 remain truthful legacy
 results with an empty evidence list rather than fabricated evidence.
 
 The deterministic cross-semantic contract fixture contains 10 events and 1,911 emitted machine-record

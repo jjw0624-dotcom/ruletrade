@@ -17,7 +17,6 @@ from ruletrade.backtest_runs.models import (
 )
 from ruletrade.backtests.models import BacktestConfig, BacktestResult, BacktestTimings
 from ruletrade.decision_evidence.models import (
-    DECISION_EVIDENCE_SCHEMA_VERSION,
     CollectedDecisionEvent,
     DecisionEventDetail,
     DecisionEventSummary,
@@ -102,7 +101,7 @@ class SQLiteBacktestRunRepository:
                             run_id,
                             event_id,
                             event.sequence,
-                            DECISION_EVIDENCE_SCHEMA_VERSION,
+                            event.schema_version,
                             event.session_id.isoformat(),
                             event.phase,
                             event.evidence.kind,

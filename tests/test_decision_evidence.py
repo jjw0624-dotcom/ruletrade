@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ruletrade.api import app, get_lean_backtest_service
@@ -17,12 +18,21 @@ from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.backtests.service import BacktestService
 from ruletrade.decision_evidence import collect_decision_evidence
+from ruletrade.decision_evidence.errors import DecisionEvidenceError
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 
 
-def _record(sequence: int, session: str, phase: str, kind: str, **fields: str) -> str:
+def _record(
+    sequence: int,
+    session: str,
+    phase: str,
+    kind: str,
+    *,
+    version: int = 2,
+    **fields: str,
+) -> str:
     values = {
         "sequence": str(sequence),
         "session": session,
@@ -30,7 +40,7 @@ def _record(sequence: int, session: str, phase: str, kind: str, **fields: str) -
         "kind": kind,
         **fields,
     }
-    return "RULETRADE_EVIDENCE_V1|" + "|".join(
+    return f"RULETRADE_EVIDENCE_V{version}|" + "|".join(
         f"{quote(key, safe='')}={quote(value, safe='')}" for key, value in values.items()
     )
 
@@ -43,8 +53,10 @@ def representative_log() -> str:
             "evaluation",
             "filter",
             filter_component="positive_filter",
+            filter_field="config.threshold",
             operator="gt",
             threshold="0",
+            decision_universe="QQQ,VGT,SOXX",
             scores="QQQ=0.12,VGT=-0.067",
             eligible="QQQ",
             rejected="VGT",
@@ -55,12 +67,21 @@ def representative_log() -> str:
             "selection",
             "selection",
             score_component="trailing_return",
+            score_field="config.lookback_bars",
             rank_component="rank",
+            rank_field="config.direction",
             selection_component="top_n",
+            selection_field="config.count",
             scores="QQQ=0.12,VGT=-0.067",
             ranked="QQQ",
             candidates="QQQ",
             primary_selected="",
+            required_count="2",
+            evaluated="QQQ",
+            signal_present="QQQ",
+            signal_absent="",
+            ranks="QQQ=1",
+            stops="QQQ=fallback_replacement",
             decision="insufficient",
         ),
         _record(
@@ -118,12 +139,14 @@ def representative_log() -> str:
             "selection",
             "cooldown",
             cooldown_component="cooldown",
+            cooldown_field="config.duration",
             asset="QQQ",
             signal_candidate="true",
             last_exit="2024-03-15",
             elapsed_sessions="12",
             required_sessions="20",
             eligible="false",
+            stopping_stage="cooldown",
         ),
         _record(
             9,
@@ -159,9 +182,11 @@ def golden_log() -> str:
                 "selection",
                 "random_selection",
                 selection_component="growth_random",
+                selection_field="config.count",
                 universe="QQQ,VGT,SOXX,SCHG",
                 selected="QQQ,VGT",
                 resample="per_event",
+                required_count="2",
             ),
             _record(
                 2,
@@ -173,6 +198,20 @@ def golden_log() -> str:
                 targets="IEF=0.15,QQQ=0.35,TLT=0.15,VGT=0.35",
             ),
         )
+    )
+
+
+def legacy_v1_log() -> str:
+    return _record(
+        1,
+        "2024-01-02",
+        "selection",
+        "random_selection",
+        version=1,
+        selection_component="growth_random",
+        universe="QQQ,VGT,SOXX,SCHG",
+        selected="QQQ,VGT",
+        resample="per_event",
     )
 
 
@@ -237,6 +276,15 @@ def test_machine_contract_preserves_why_why_not_and_semantic_boundaries() -> Non
     assert selection.kind == "selection"
     assert selection.candidates == ("QQQ",)
     assert selection.primary_selected == ()
+    assert selection.required_count == 2
+    assert selection.asset_outcomes is not None
+    assert selection.asset_outcomes[0].signal == "present"
+    assert selection.asset_outcomes[0].stopping_stage == "fallback_replacement"
+    assert rejected.decision_universe == ("QQQ", "VGT", "SOXX")
+    assert rejected.evaluations[1].stopping_stage == "filter"
+    assert "SOXX" not in {item.asset for item in rejected.evaluations}
+    assert events[0].source_components[0].field_path == "config.threshold"
+    assert events[2].source_components[0].field_path is None
     assert events[2].evidence.kind == "fallback"
     assert events[3].evidence.kind == "final_selection"
     assert events[4].phase == "snapshot_commit"
@@ -248,9 +296,111 @@ def test_machine_contract_preserves_why_why_not_and_semantic_boundaries() -> Non
     assert cooldown.signal_candidate and not cooldown.eligible
     assert cooldown.elapsed_completed_sessions == 12
     assert cooldown.required_completed_sessions == 20
+    assert cooldown.stopping_stage == "cooldown"
     assert events[8].evidence.state == "last_exit"
     assert events[9].evidence.targets == {"TLT": Decimal("0.7")}
     assert all(item.source_components for item in events)
+    assert all(item.schema_version == 2 for item in events)
+
+
+def test_selection_v2_distinguishes_rank_cutoff_from_unrepresented_asset() -> None:
+    event = collect_decision_evidence(
+        _record(
+            1,
+            "2024-05-01",
+            "selection",
+            "selection",
+            score_component="trailing_return",
+            rank_component="rank",
+            selection_component="top_n",
+            selection_field="config.count",
+            scores="QQQ=.3,VGT=.2,SOXX=.1",
+            ranked="QQQ,VGT,SOXX",
+            candidates="QQQ,VGT",
+            primary_selected="QQQ,VGT",
+            required_count="2",
+            evaluated="QQQ,VGT,SOXX",
+            signal_present="QQQ,VGT",
+            signal_absent="SOXX",
+            ranks="QQQ=1,VGT=2,SOXX=3",
+            stops="SOXX=rank_cutoff",
+            decision="executed",
+        )
+    )[0]
+    evidence = event.evidence
+    assert evidence.kind == "selection"
+    assert evidence.required_count == 2
+    assert evidence.asset_outcomes is not None
+    outcomes = {item.asset: item for item in evidence.asset_outcomes}
+    assert outcomes["QQQ"].signal == "present"
+    assert outcomes["SOXX"].signal == "absent"
+    assert outcomes["SOXX"].stopping_stage == "rank_cutoff"
+    assert "IWM" not in outcomes
+    selection_source = next(
+        item for item in event.source_components if item.role == "selection"
+    )
+    assert selection_source.component_id == "top_n"
+    assert selection_source.field_path == "config.count"
+
+
+def test_v1_absence_remains_unknown_when_historical_evidence_is_read() -> None:
+    event = collect_decision_evidence(
+        _record(
+            1,
+            "2024-01-02",
+            "selection",
+            "selection",
+            version=1,
+            score_component="trailing_return",
+            rank_component="rank",
+            selection_component="top_n",
+            scores="QQQ=.3,VGT=.2",
+            ranked="QQQ,VGT",
+            candidates="QQQ",
+            primary_selected="QQQ",
+            decision="executed",
+        )
+    )[0]
+    evidence = event.evidence
+    assert event.schema_version == 1
+    assert evidence.kind == "selection"
+    assert evidence.required_count is None
+    assert evidence.asset_outcomes is None
+    assert all(item.field_path is None for item in event.source_components)
+
+
+def test_one_run_cannot_mix_v1_unknowns_with_v2_explicit_facts() -> None:
+    first = legacy_v1_log()
+    second = golden_log().splitlines()[0].replace("sequence=1", "sequence=2")
+
+    with pytest.raises(DecisionEvidenceError, match="cannot mix"):
+        collect_decision_evidence(first + "\n" + second)
+
+
+def test_persisted_v1_run_reopens_without_inventing_v2_facts(tmp_path: Path) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    strategies, service = _services(
+        database, EvidenceRunner(log_text=legacy_v1_log())
+    )
+    revision = strategies.create_strategy(
+        "Historical v1", golden_portfolio_strategy()
+    ).current_revision
+    run = service.create_and_execute(revision.id, BacktestConfig())
+
+    # SQLite schema v3 admitted only Evidence v1 rows. Reopening must widen the
+    # constraint without rewriting or inventing facts in that historical event.
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA user_version = 3")
+
+    _strategies, reopened = _services(database)
+    event = reopened.get_decision_event(run.id, "event-000001")
+
+    assert event.schema_version == 1
+    assert event.evidence.kind == "random_selection"
+    assert event.evidence.required_count is None
+    assert event.source_components[0].field_path is None
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
 
 
 def test_successful_run_persists_ordered_versioned_evidence_and_reopens(
@@ -268,7 +418,7 @@ def test_successful_run_persists_ordered_versioned_evidence_and_reopens(
     assert run.status.value == "succeeded"
     assert len(summaries) == 2
     assert [item.ordinal for item in summaries] == [1, 2]
-    assert all(item.run_id == run.id and item.schema_version == 1 for item in summaries)
+    assert all(item.run_id == run.id and item.schema_version == 2 for item in summaries)
     assert detail.evidence.kind == "random_selection"
 
     reopened_runner = EvidenceRunner()
@@ -358,7 +508,7 @@ def test_database_schema_and_evidence_rows_are_immutable(tmp_path: Path) -> None
     revision = strategies.create_strategy("Schema", golden_portfolio_strategy()).current_revision
     run = service.create_and_execute(revision.id, BacktestConfig())
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
         row = connection.execute(
             """
             SELECT schema_version, evidence_json
@@ -366,7 +516,7 @@ def test_database_schema_and_evidence_rows_are_immutable(tmp_path: Path) -> None
             """,
             (run.id,),
         ).fetchone()
-        assert row[0] == 1 and json.loads(row[1])["kind"] == "random_selection"
+        assert row[0] == 2 and json.loads(row[1])["kind"] == "random_selection"
         try:
             connection.execute(
                 "UPDATE decision_events SET phase = 'changed' WHERE run_id = ?", (run.id,)
@@ -411,5 +561,4 @@ def test_schema_v2_database_migrates_without_changing_historical_runs(
     assert reopened.get_run(run.id) == run
     assert reopened.list_decision_events(run.id) == ()
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
-
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4

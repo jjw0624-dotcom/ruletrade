@@ -12,7 +12,7 @@ function percent(value: string) {
 export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
   const guided = projectGuided(state.canonical, state.registry);
-  const focusClass = (componentId?: string) => componentId && state.editor.selectedNodeId === componentId ? "guided-rule-focus" : "";
+  const focusClass = (componentId?: string, fieldPath?: string) => componentId && state.editor.selectedNodeId === componentId && (!state.editor.selectedFieldPath || state.editor.selectedFieldPath === fieldPath) ? "guided-rule-focus" : "";
   const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
 
   if (guided.kind === "portfolio") {
@@ -42,8 +42,10 @@ export function GuidedView() {
         <section className="sleeve-card">
           <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
           <label>What can it choose from?</label><AssetChips assets={guided.growth.assets} />
-          {guided.growth.filterComponentId && <div className={`guided-question ${focusClass(guided.growth.filterComponentId)}`} data-component-id={guided.growth.filterComponentId} tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><header><span>Which assets qualify?</span><button className="text-button" onClick={() => viewInFlow(guided.growth.filterComponentId!)}>View in Flow</button></header><label htmlFor="guided-growth-threshold">{guided.growth.lookbackBars}-day return above <span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? 0) * 100} onChange={(event) => { if (event.target.value !== "") dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></label></div>}
-          <div className={`summary-row ${focusClass(guided.growth.selectionComponentId)}`} data-component-id={guided.growth.selectionComponentId}><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally <button className="text-button" onClick={() => viewInFlow(guided.growth.selectionComponentId)}>View in Flow</button></span></div>
+          <div className={`summary-row ${focusClass(guided.growth.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.growth.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.growth.lookbackComponentId ? -1 : undefined}><span>How much recent history?</span><strong>{guided.growth.lookbackBars} trading days</strong></div>
+          {guided.growth.filterComponentId && <div className={`guided-question ${focusClass(guided.growth.filterComponentId, "config.threshold")}`} data-component-id={guided.growth.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><header><span>Which assets qualify?</span><button className="text-button" onClick={() => viewInFlow(guided.growth.filterComponentId!)}>View in Flow</button></header><label htmlFor="guided-growth-threshold">{guided.growth.lookbackBars}-day return above <span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? 0) * 100} onChange={(event) => { if (event.target.value !== "") dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></label></div>}
+          <div className={`summary-row ${focusClass(guided.growth.rankComponentId, "config.direction")}`} data-component-id={guided.growth.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.growth.rankComponentId ? -1 : undefined}><span>How should it choose?</span><strong>Highest return first</strong></div>
+          <div className={`summary-row ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><span>How many should it choose?</span><span>Top {guided.growth.topN} · split equally <button className="text-button" onClick={() => viewInFlow(guided.growth.selectionComponentId)}>View in Flow</button></span></div>
           <div className={`summary-row ${focusClass(guided.growth.fallbackComponentId)}`} data-component-id={guided.growth.fallbackComponentId}><span>What if there aren't enough?</span><span>Use {guided.growth.fallbackAsset} {guided.growth.fallbackComponentId && <button className="text-button" onClick={() => viewInFlow(guided.growth.fallbackComponentId!)}>View in Flow</button>}</span></div>
           {guided.growth.refreshScheduleComponentId ? <label>When should it check again?<select value={guided.growth.refreshSchedule?.toLowerCase()} onChange={(event) => dispatch({
             type: "apply_semantic_patch",
@@ -74,12 +76,12 @@ export function GuidedView() {
           <label>What can it choose from?</label>
           <AssetChips assets={guided.momentum.assets} />
           <div className="field-grid">
-            <label htmlFor="guided-lookback">How much recent history?</label>
+            <div className={`guided-field-pair ${focusClass(guided.momentum.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.momentum.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.momentum.lookbackComponentId ? -1 : undefined}><label htmlFor="guided-lookback">How much recent history?</label>
             <input id="guided-lookback" type="number" min={1} value={guided.momentum.lookbackBars} onChange={(event) => dispatch({
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.lookbackComponentId, field: "lookback_bars", value: Number(event.target.value) },
-            })} />
-            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <div className={`guided-field-pair ${focusClass(guided.momentum.filterComponentId)}`} data-component-id={guided.momentum.filterComponentId} tabIndex={state.editor.selectedNodeId === guided.momentum.filterComponentId ? -1 : undefined}>
+            })} /></div>
+            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <div className={`guided-field-pair ${focusClass(guided.momentum.filterComponentId, "config.threshold")}`} data-component-id={guided.momentum.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.momentum.filterComponentId ? -1 : undefined}>
               <label htmlFor="guided-threshold">Which assets qualify? Return above (%)</label>
               <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
                 if (event.target.value === "") return;
@@ -89,16 +91,16 @@ export function GuidedView() {
                 });
               }} /><button className="text-button field-link" onClick={() => viewInFlow(guided.momentum.filterComponentId!)}>View in Flow</button>
             </div> : null}
-            <label htmlFor="guided-top-n">How many should it choose?</label>
+            <div className={`guided-field-pair ${focusClass(guided.momentum.selectionComponentId, "config.count")}`} data-component-id={guided.momentum.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.momentum.selectionComponentId ? -1 : undefined}><label htmlFor="guided-top-n">How many should it choose?</label>
             <input id="guided-top-n" type="number" min={1} max={guided.momentum.assets.length} value={guided.momentum.topN} onChange={(event) => dispatch({
               type: "apply_semantic_patch",
               operation: { kind: "update_component_config", componentId: guided.momentum.selectionComponentId, field: "count", value: Number(event.target.value) },
-            })} />
+            })} /></div>
           </div>
-          <div className="summary-row"><span>How should it choose?</span><span>Highest return first</span></div>
+          <div className={`summary-row ${focusClass(guided.momentum.rankComponentId, "config.direction")}`} data-component-id={guided.momentum.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.momentum.rankComponentId ? -1 : undefined}><span>How should it choose?</span><span>Highest return first</span></div>
           <div className="summary-row"><span>How should the money be split?</span><span>Equally · {percent(guided.momentum.total)}</span></div>
           {guided.momentum.cooldownComponentId ? (
-            <label htmlFor="guided-cooldown">After selling, wait
+            <label className={focusClass(guided.momentum.cooldownComponentId, "config.duration")} data-component-id={guided.momentum.cooldownComponentId} data-field-path="config.duration" tabIndex={state.editor.selectedNodeId === guided.momentum.cooldownComponentId ? -1 : undefined} htmlFor="guided-cooldown">After selling, wait
               <input id="guided-cooldown" type="number" min={1} value={guided.momentum.cooldownDuration} onChange={(event) => dispatch({
                 type: "apply_semantic_patch",
                 operation: {
@@ -143,7 +145,7 @@ export function GuidedView() {
         <label>Assets</label>
         <AssetChips assets={guided.growth.assets} />
         <div className="field-grid">
-          <label htmlFor="guided-random-count">Random Select count</label>
+          <div className={`guided-field-pair ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><label htmlFor="guided-random-count">Random Select count</label>
           <input
             id="guided-random-count"
             type="number"
@@ -159,7 +161,7 @@ export function GuidedView() {
                 value: Number(event.target.value),
               },
             })}
-          />
+          /></div>
           <label htmlFor="guided-resample">Resample</label>
           <select
             id="guided-resample"

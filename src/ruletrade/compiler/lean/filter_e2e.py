@@ -13,7 +13,12 @@ from ruletrade.compiler.lean.e2e import (
     parse_target_records,
     validate_lean_completion,
 )
-from ruletrade.compiler.lean.evidence_e2e import index_decision_evidence, one_evidence
+from ruletrade.compiler.lean.evidence_e2e import (
+    index_decision_evidence,
+    one_evidence,
+    verify_v2_filter_facts,
+    verify_v2_selection_facts,
+)
 from ruletrade.strategy.v1.momentum import evaluate_filtered_trailing_return_top_n
 
 SYMBOLS = ("QQQ", "VGT", "SOXX", "SCHG")
@@ -87,7 +92,8 @@ def verify_filter_e2e(
         if parse_symbols(momentum_trace.group("selected")) != reference.selected:
             raise ValueError(f"selection mismatch for {event_identity}")
         if evidence:
-            filter_evidence = one_evidence(evidence, event_identity, "filter").evidence
+            filter_event = one_evidence(evidence, event_identity, "filter")
+            filter_evidence = filter_event.evidence
             actual_evaluations = {
                 item.asset: (item.observed, item.passed)
                 for item in filter_evidence.evaluations
@@ -105,15 +111,29 @@ def verify_filter_e2e(
                 asset: value[1] for asset, value in expected_evaluations.items()
             }:
                 raise ValueError(f"structured filter evidence mismatch for {event_identity}")
-            selection_evidence = one_evidence(
-                evidence, event_identity, "selection"
-            ).evidence
+            verify_v2_filter_facts(
+                filter_event,
+                decision_universe=SYMBOLS,
+                rejected=reference.rejected,
+            )
+            selection_event = one_evidence(evidence, event_identity, "selection")
+            selection_evidence = selection_event.evidence
             if (
                 selection_evidence.ranked != reference.ranked
                 or selection_evidence.candidates != reference.ranked[:2]
                 or selection_evidence.primary_selected != reference.selected
             ):
                 raise ValueError(f"structured selection evidence mismatch for {event_identity}")
+            verify_v2_selection_facts(
+                selection_event,
+                ranked=reference.ranked,
+                candidates=reference.ranked[:2],
+                primary_selected=reference.selected,
+                required_count=2,
+                candidate_stop=(
+                    None if reference.selected else "primary_selection_incomplete"
+                ),
+            )
         expected_decision = "executed" if reference.selected else "skipped"
         if momentum_trace.group("decision") != expected_decision:
             raise ValueError(f"decision mismatch for {event_identity}")

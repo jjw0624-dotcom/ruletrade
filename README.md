@@ -46,7 +46,9 @@ durable product-domain boundary, and
 [Persistent BacktestRun](docs/backtest-run-persistence.md) for immutable execution configuration,
 historical results, provenance, and latency instrumentation, and
 [Structured Decision Evidence](docs/decision-evidence.md) for the machine contract, immutable event
-schema, source provenance, and Timeline/Inspector read API.
+schema, source provenance, and Timeline/Inspector read API, plus the
+[Evidence v1.1 gap fill](docs/decision-evidence-v1-1.md) for explicit cardinality, signal, stopping
+stage, and Canonical field identity.
 
 ## Strategy Editor
 

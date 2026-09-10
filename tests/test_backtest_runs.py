@@ -229,7 +229,7 @@ def test_schema_v1_database_migrates_to_current_schema(tmp_path: Path) -> None:
         connection.execute("PRAGMA user_version = 1")
     reopened = StrategyService(SQLiteStrategyRepository(database))
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'backtest_runs'"
         ).fetchone() == ("backtest_runs",)

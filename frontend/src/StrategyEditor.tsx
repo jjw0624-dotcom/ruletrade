@@ -13,7 +13,7 @@ import { OverviewView } from "./views/OverviewView";
 import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type StrategyDetail } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
 
-export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, onOpenRun, focusComponentId }: { example: StrategyExample; persisted?: StrategyDetail; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; focusComponentId?: string | null }) {
+export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, onOpenRun, sourceFocus, onBackToResearch }: { example: StrategyExample; persisted?: StrategyDetail; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; sourceFocus?: { componentId: string; fieldPath?: string | null } | null; onBackToResearch?: () => void }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
   const [config, setConfig] = useState<BacktestConfig>(example.backtestDefaults);
@@ -28,8 +28,16 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
   const [runError, setRunError] = useState<string | null>(null);
   const dirty = base ? !sameCanonicalSnapshot(state.canonical, base.canonical_strategy) : false;
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
-  useEffect(() => { if (focusComponentId) { dispatch({ type: "select_node", componentId: focusComponentId }); dispatch({ type: "set_active_view", view: "guided" }); } }, [focusComponentId, dispatch]);
-  useEffect(() => { if (!state.editor.selectedNodeId || state.editor.activeView !== "guided") return; const target = document.querySelector<HTMLElement>(`[data-component-id="${CSS.escape(state.editor.selectedNodeId)}"]`); if (target) { target.scrollIntoView({ behavior: "smooth", block: "center" }); target.focus({ preventScroll: true }); } }, [state.editor.selectedNodeId, state.editor.activeView]);
+  useEffect(() => { if (sourceFocus) { dispatch({ type: "select_node", componentId: sourceFocus.componentId, fieldPath: sourceFocus.fieldPath }); dispatch({ type: "set_active_view", view: "guided" }); } }, [sourceFocus, dispatch]);
+  useEffect(() => {
+    if (!state.editor.selectedNodeId || state.editor.activeView !== "guided") return;
+    const component = CSS.escape(state.editor.selectedNodeId);
+    const exact = state.editor.selectedFieldPath
+      ? document.querySelector<HTMLElement>(`[data-component-id="${component}"][data-field-path="${CSS.escape(state.editor.selectedFieldPath)}"]`)
+      : null;
+    const target = exact ?? document.querySelector<HTMLElement>(`[data-component-id="${component}"]`);
+    if (target) { target.scrollIntoView({ behavior: "smooth", block: "center" }); target.focus({ preventScroll: true }); }
+  }, [state.editor.selectedNodeId, state.editor.selectedFieldPath, state.editor.activeView]);
   useEffect(() => {
     if (!strategy || !base) return;
     let cancelled = false; setRunsStatus("loading");
@@ -98,7 +106,7 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
   return <section className="strategy-workspace page">
     <header className="workspace-heading"><div><span className="eyebrow">Investment strategy</span><h1>{strategy?.name ?? state.canonical.metadata.name}</h1><p>{state.canonical.metadata.description}</p>{strategy && <div className="persisted-status"><span className={dirty ? "dirty-dot" : "saved-dot"} />{dirty ? "Unsaved changes" : "Saved"}<button className="text-button" onClick={rename}>Rename</button></div>}</div><div className="workspace-actions">{strategy && <button className="secondary-button" onClick={() => void save()} disabled={!dirty || saveStatus === "saving"}>{saveStatus === "saving" ? "Saving…" : "Save"}</button>}<button className="secondary-button" onClick={validate} disabled={state.validation.status === "checking"}>{state.validation.status === "checking" ? "Checking…" : "Check strategy"}</button><button className="primary-button" onClick={() => setShowSetup(true)}>{dirty ? "Test current changes" : "Test"}</button></div></header>
     {saveMessage && <div className={`save-banner ${saveStatus}`} role={saveStatus === "error" || saveStatus === "stale" ? "alert" : "status"}><span>{saveMessage}</span>{saveStatus === "stale" && <button className="secondary-button" onClick={() => void reloadLatest()}>Reload latest</button>}</div>}
-    {state.editor.selectedNodeId && <div className="source-focus-banner" role="status"><span><strong>Rule from the result</strong> The related strategy setting is highlighted below.</span><button className="text-button" onClick={() => dispatch({ type: "select_node", componentId: null })}>Dismiss</button></div>}
+    {state.editor.selectedNodeId && <div className="source-focus-banner" role="status"><span><strong>Rule from the result</strong> The related strategy setting is highlighted below.</span><div>{onBackToResearch && <button className="text-button" onClick={onBackToResearch}>Back to decision</button>}<button className="text-button" onClick={() => dispatch({ type: "select_node", componentId: null })}>Dismiss</button></div></div>}
     <div className="status-row"><div className="view-tabs">{tab("overview", "Overview")}{tab("guided", "Guided")}{tab("flow", "Flow")}</div><span className={`validation-pill ${state.validation.status}`}>{state.validation.status === "valid" ? "Strategy ready" : state.validation.status === "dirty" ? "Edited · check before sharing" : state.validation.status}</span></div>
     {state.validation.issues.length > 0 && <div className="error-panel" role="alert"><strong>Strategy needs attention</strong>{state.validation.issues.map((issue) => <p key={`${issue.path}-${issue.message}`}>{issue.message}</p>)}</div>}
     <div className="editing-boundary"><div><span>Strategy</span><b>What the rules do</b></div><p>Run settings such as dates and starting investment are chosen separately.</p></div>

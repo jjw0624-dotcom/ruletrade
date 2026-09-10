@@ -145,6 +145,12 @@ def test_filter_lowers_to_one_score_calculation_then_filter_rank_and_top_n() -> 
     assert "RULETRADE_FILTER|" in source
     assert 'EmitDecisionEvidence(eventIdentity, "evaluation", "filter"' in source
     assert '"filter_component", "positive_return"' in source
+    assert '"filter_field", "config.threshold"' in source
+    assert '"selection_field", "config.count"' in source
+    assert '"required_count", "2"' in source
+    assert '"decision_universe"' in source
+    assert '"signal_present"' in source
+    assert '"stops"' in source
     assert '"|candidate="' in source
     assert '? "executed" : "skipped"' in source
     assert source.index("var scores0_0_0") < source.index("var eligibleScores0_0_0")
