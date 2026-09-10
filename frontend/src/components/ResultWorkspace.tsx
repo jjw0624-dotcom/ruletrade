@@ -26,7 +26,7 @@ export function ResultWorkspace({ response, run, strategyName, onBack, researchC
   const analysisRef = useRef<HTMLDivElement>(null);
   const sessions = useMemo(() => groupDecisionSessions(summaries), [summaries]);
   useEffect(() => { if (run?.status !== "succeeded") return; let cancelled = false; setEvidenceState("loading"); decisionEvidenceApi.list(run.id).then(({ items }) => { if (!cancelled) { setSummaries(items); setEvidenceState("loaded"); } }).catch(() => { if (!cancelled) setEvidenceState("error"); }); return () => { cancelled = true; }; }, [run?.id, run?.status]);
-  useEffect(() => { if (!run || !researchContext || researchContext.runId !== run.id || selectedSession || sessions.length === 0) return; const restored = sessions.find((session) => session.sessionId === researchContext.sessionId); if (restored) setSelectedSession(restored); }, [researchContext, run, selectedSession, sessions]);
+  useEffect(() => { if (!run || !researchContext || researchContext.runId !== run.id || selectedSession || sessions.length === 0) return; const restored = sessions.find((session) => session.sessionId === researchContext.sessionId); if (restored) { setSelectedSession(restored); requestAnimationFrame(() => analysisRef.current?.scrollIntoView({ block: "start" })); } }, [researchContext, run, selectedSession, sessions]);
   function selectDecision(session: DecisionSession, reveal = false) { setSelectedSession(session); if (run) onResearchContextChange?.({ runId: run.id, sessionId: session.sessionId, asset: null }); if (reveal) requestAnimationFrame(() => analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }
   const config = run?.run_config ?? response?.config;
   const result = run?.result ?? response?.result;

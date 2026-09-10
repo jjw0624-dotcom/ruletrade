@@ -15,12 +15,12 @@ export function groupDecisionSessions(items: DecisionEventSummary[]): DecisionSe
 
 function sessionLabel(events: DecisionEventSummary[]): string {
   const kinds = new Set(events.map((event) => event.kind));
-  if (kinds.has("fallback")) return "Fallback decision";
-  if (kinds.has("cooldown")) return "Eligibility decision";
-  if (kinds.has("final_targets") || kinds.has("sleeve_contribution") || kinds.has("snapshot_usage")) return "Portfolio rebalance";
+  if (kinds.has("fallback")) return "Fallback used";
+  if (kinds.has("cooldown")) return "Asset still waiting";
+  if (kinds.has("final_targets") || kinds.has("sleeve_contribution") || kinds.has("snapshot_usage")) return "Portfolio updated";
   if (kinds.has("state_mutation")) return "Waiting period updated";
-  if (kinds.has("filter") || kinds.has("selection")) return "Asset selection";
-  if (kinds.has("random_selection")) return "Assets selected";
+  if (kinds.has("filter") || kinds.has("selection")) return "Assets evaluated";
+  if (kinds.has("random_selection")) return "Assets chosen";
   return "Strategy decision";
 }
 
