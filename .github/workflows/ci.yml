@@ -54,6 +54,7 @@ jobs:
           src/ruletrade/compiler/lean/sleeves_e2e.py
           src/ruletrade/compiler/pipeline.py
           src/ruletrade/decision_evidence
+          src/ruletrade/diagnostics.py
           src/ruletrade/ir
           src/ruletrade/persistence
           src/ruletrade/strategies
@@ -65,6 +66,7 @@ jobs:
           scripts/generate_momentum_lean.py
           scripts/generate_sleeves_lean.py
           scripts/run_editor_lean_e2e.py
+          scripts/measure_research_pipeline.py
           scripts/run_lean_backtest.py
           scripts/verify_momentum_lean_e2e.py
           scripts/verify_cooldown_lean_e2e.py
@@ -87,6 +89,7 @@ jobs:
           tests/test_lean_runner.py
           tests/test_momentum_top_n.py
           tests/test_portfolio_sleeves.py
+          tests/test_pipeline_observability.py
           tests/test_strategy_ir.py
           tests/test_strategy_ir_analysis.py
           tests/test_strategy_ir_differential.py

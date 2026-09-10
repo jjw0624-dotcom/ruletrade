@@ -32,6 +32,7 @@ Included:
 - Durable, versioned Structured Decision Evidence for persisted Runs
 - Immutable filter-threshold Candidates executed as real Candidate Runs
 - Immutable Original-versus-Candidate Comparisons with Strategy, Behavior, and Result diffs
+- Persisted pipeline timing and artifact-size diagnostics for Runs, Candidates, and Comparisons
 
 Not included yet:
 
@@ -54,7 +55,9 @@ stage, and Canonical field identity, and
 [Candidate Change v0](docs/candidate-change.md) for the first evidence-backed research hypothesis
 and real Candidate Run, and
 [Comparison v0](docs/comparisons.md) for deterministic Strategy, Behavior, and Result diffs over
-immutable Original and Candidate Runs.
+immutable Original and Candidate Runs, and the
+[backend observability audit](docs/backend-observability-audit.md) for measured pipeline boundaries,
+market-data constraints, and the real-LEAN measurement command.
 
 ## Strategy Editor
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from time import perf_counter_ns
 from uuid import uuid4
 
 from ruletrade.backtest_runs.service import BacktestRunService
@@ -13,14 +15,18 @@ from ruletrade.candidates.errors import (
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import (
+    CandidateDiagnostics,
     CandidateExecution,
     CandidateRecord,
     FilterThresholdChange,
 )
+from ruletrade.diagnostics import elapsed_ms, serialized_bytes
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence.sqlite_candidates import SQLiteCandidateRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
+
+logger = logging.getLogger(__name__)
 
 
 class CandidateService:
@@ -48,6 +54,8 @@ class CandidateService:
         *,
         originating_decision_event_id: str | None = None,
     ) -> CandidateExecution:
+        request_started = perf_counter_ns()
+        stage_started = perf_counter_ns()
         origin = self.runs.get_run(originating_run_id)
         if origin.candidate_id is not None:
             raise InvalidCandidateChangeError(
@@ -55,10 +63,12 @@ class CandidateService:
             )
         revision = self.strategies.get_revision_by_id(origin.revision_id)
         strategy = self.strategies.get_strategy(revision.strategy_id).strategy
+        context_load_ms = elapsed_ms(stage_started)
         if strategy.archived_at is not None:
             raise CandidateArchivedStrategyError(
                 "New Candidates cannot be created for an archived Strategy."
             )
+        stage_started = perf_counter_ns()
         if originating_decision_event_id is not None:
             event = self.runs.get_decision_event(
                 originating_run_id, originating_decision_event_id
@@ -71,9 +81,21 @@ class CandidateService:
                 raise InvalidCandidateChangeError(
                     "The Decision Event does not identify the requested Strategy field."
                 )
+        evidence_target_validation_ms = elapsed_ms(stage_started)
 
+        stage_started = perf_counter_ns()
         canonical = self._apply_filter_threshold(revision.canonical_strategy, change)
+        semantic_patch_ms = elapsed_ms(stage_started)
+        stage_started = perf_counter_ns()
         canonical = self.strategies.validate_source(canonical)
+        canonical_validation_ms = elapsed_ms(stage_started)
+        diagnostics = CandidateDiagnostics(
+            context_load_ms=context_load_ms,
+            evidence_target_validation_ms=evidence_target_validation_ms,
+            semantic_patch_ms=semantic_patch_ms,
+            canonical_validation_ms=canonical_validation_ms,
+            canonical_bytes=serialized_bytes(canonical),
+        )
         candidate = CandidateRecord(
             id=self._id_factory(),
             base_revision_id=revision.id,
@@ -84,8 +106,24 @@ class CandidateService:
             source_hash=strategy_hash(canonical),
             schema_version=canonical.api_version,
             created_at=self._clock(),
+            diagnostics=diagnostics,
         )
-        self.repository.create(candidate)
+        persistence_ms = self.repository.create(candidate)
+        diagnostics = diagnostics.model_copy(
+            update={
+                "persistence_ms": persistence_ms,
+                "creation_overhead_ms": elapsed_ms(request_started),
+            }
+        )
+        candidate = candidate.model_copy(update={"diagnostics": diagnostics})
+        self.repository.update_diagnostics(candidate.id, diagnostics)
+        logger.info(
+            "candidate_created",
+            extra={
+                "candidate_id": candidate.id,
+                "creation_overhead_ms": diagnostics.creation_overhead_ms,
+            },
+        )
         run = self.runs.create_and_execute_candidate(
             candidate_id=candidate.id,
             base_revision_id=candidate.base_revision_id,
@@ -94,6 +132,16 @@ class CandidateService:
             schema_version=candidate.schema_version,
             config=origin.run_config,
         )
+        diagnostics = diagnostics.model_copy(
+            update={
+                "request_total_ms": max(
+                    elapsed_ms(request_started),
+                    diagnostics.creation_overhead_ms + run.timings.total_ms,
+                )
+            }
+        )
+        candidate = candidate.model_copy(update={"diagnostics": diagnostics})
+        self.repository.update_diagnostics(candidate.id, diagnostics)
         return CandidateExecution(candidate=candidate, run=run)
 
     def get(self, candidate_id: str) -> CandidateExecution:

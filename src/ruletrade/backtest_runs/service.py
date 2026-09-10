@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
@@ -32,6 +33,7 @@ from ruletrade.backtests.errors import (
 )
 from ruletrade.backtests.models import (
     BacktestConfig,
+    BacktestDiagnostics,
     BacktestTimings,
     LeanBacktestRequest,
     LeanBacktestResponse,
@@ -42,9 +44,12 @@ from ruletrade.decision_evidence.errors import (
     DecisionEvidenceError,
 )
 from ruletrade.decision_evidence.models import DecisionEventDetail, DecisionEventSummary
+from ruletrade.diagnostics import elapsed_ms
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
+
+logger = logging.getLogger(__name__)
 
 
 class BacktestRunService:
@@ -82,7 +87,7 @@ class BacktestRunService:
         total_started = perf_counter_ns()
         source_started = perf_counter_ns()
         revision = self.strategies.get_revision_by_id(revision_id)
-        source_load_ms = _elapsed_ms(source_started)
+        source_load_ms = elapsed_ms(source_started)
         return self._create_and_execute_source(
             revision_id=revision.id,
             candidate_id=None,
@@ -146,14 +151,22 @@ class BacktestRunService:
                 dataset_id=run_config.dataset_id,
             ),
             timings=BacktestTimings(source_load_ms=source_load_ms),
+            diagnostics=BacktestDiagnostics(
+                canonical_bytes=len(canonical.model_dump_json().encode("utf-8"))
+            ),
             created_at=now,
         )
         self.repository.create_run(run)
+        logger.info(
+            "backtest_run_created",
+            extra={"run_id": run.id, "source_kind": "candidate" if candidate_id else "revision"},
+        )
         running = self.repository.mark_running(run.id, self._clock())
         try:
             execution = self.executor.execute_with_evidence(
                 LeanBacktestRequest(strategy=canonical, config=run_config)
             )
+            evidence_validation_started = perf_counter_ns()
             if not execution.decision_events:
                 raise DecisionEvidenceError("Successful execution emitted no Decision Evidence.")
             source_component_ids = {
@@ -172,10 +185,11 @@ class BacktestRunService:
                     "Decision Evidence referenced unknown source components: "
                     + ", ".join(unknown_provenance)
                 )
+            evidence_validation_ms = elapsed_ms(evidence_validation_started)
         except (BacktestError, DecisionEvidenceError) as exc:
             timings = BacktestTimings(
                 source_load_ms=source_load_ms,
-                total_ms=_elapsed_ms(total_started),
+                total_ms=elapsed_ms(total_started),
             )
             return self.repository.complete_failed(
                 running.id,
@@ -188,17 +202,31 @@ class BacktestRunService:
         timings = response.timings.model_copy(
             update={
                 "source_load_ms": source_load_ms,
-                "total_ms": _elapsed_ms(total_started),
+                "evidence_validation_ms": evidence_validation_ms,
+                "total_ms": max(
+                    elapsed_ms(total_started),
+                    response.timings.total_ms + source_load_ms + evidence_validation_ms,
+                ),
             }
         )
         try:
-            return self.repository.complete_succeeded_with_evidence(
+            completed = self.repository.complete_succeeded_with_evidence(
                 running.id,
                 response.result,
                 timings,
                 self._clock(),
                 execution.decision_events,
+                response.diagnostics,
             )
+            logger.info(
+                "backtest_run_succeeded",
+                extra={
+                    "run_id": completed.id,
+                    "total_ms": completed.timings.total_ms,
+                    "evidence_events": completed.diagnostics.evidence_events,
+                },
+            )
+            return completed
         except BacktestRunPersistenceError as exc:
             try:
                 return self.repository.complete_failed(
@@ -281,7 +309,3 @@ class BacktestRunService:
                 message="Backtest execution failed.",
             )
         return BacktestRunError(code="execution_failure", message="Backtest execution failed.")
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (perf_counter_ns() - started_ns) // 1_000_000)

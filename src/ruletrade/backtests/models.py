@@ -60,7 +60,21 @@ class BacktestTimings(BaseModel):
     lean_execution_ms: int = Field(default=0, ge=0)
     result_load_ms: int = Field(default=0, ge=0)
     normalization_ms: int = Field(default=0, ge=0)
+    evidence_collection_ms: int = Field(default=0, ge=0)
+    evidence_validation_ms: int = Field(default=0, ge=0)
+    finalization_ms: int = Field(default=0, ge=0)
     total_ms: int = Field(default=0, ge=0)
+
+
+class BacktestDiagnostics(BaseModel):
+    """Artifact cardinalities and sizes; diagnostic, never strategy semantics."""
+
+    canonical_bytes: int = Field(default=0, ge=0)
+    generated_csharp_bytes: int = Field(default=0, ge=0)
+    normalized_result_bytes: int = Field(default=0, ge=0)
+    equity_points: int = Field(default=0, ge=0)
+    evidence_events: int = Field(default=0, ge=0)
+    evidence_bytes: int = Field(default=0, ge=0)
 
 
 class LeanBacktestResponse(BaseModel):
@@ -69,3 +83,4 @@ class LeanBacktestResponse(BaseModel):
     config: BacktestConfig
     result: BacktestResult
     timings: BacktestTimings = Field(default_factory=BacktestTimings)
+    diagnostics: BacktestDiagnostics = Field(default_factory=BacktestDiagnostics)

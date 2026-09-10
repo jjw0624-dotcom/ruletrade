@@ -6,7 +6,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ruletrade.backtests.models import BacktestConfig, BacktestResult, BacktestTimings
+from ruletrade.backtests.models import (
+    BacktestConfig,
+    BacktestDiagnostics,
+    BacktestResult,
+    BacktestTimings,
+)
 
 
 class RunModel(BaseModel):
@@ -46,6 +51,7 @@ class BacktestRunRecord(RunModel):
     error: BacktestRunError | None = None
     provenance: BacktestRunProvenance
     timings: BacktestTimings
+    diagnostics: BacktestDiagnostics = Field(default_factory=BacktestDiagnostics)
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None

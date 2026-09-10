@@ -138,6 +138,12 @@ def test_candidate_is_immutable_reproducible_and_uses_official_run_pipeline(tmp_
     assert execution.run.status == BacktestRunStatus.SUCCEEDED
     assert execution.run.result is not None
     assert len(runner.calls) == 2
+    assert execution.candidate.diagnostics.canonical_bytes > 0
+    assert execution.candidate.diagnostics.creation_overhead_ms >= 0
+    assert execution.candidate.diagnostics.request_total_ms >= (
+        execution.candidate.diagnostics.creation_overhead_ms
+        + execution.run.timings.total_ms
+    )
     current = strategies.get_strategy(detail.strategy.id)
     assert current.current_revision.canonical_strategy == original_source
     assert current.strategy.current_revision_id == detail.current_revision.id
@@ -283,7 +289,7 @@ def test_v4_database_migrates_to_candidate_schema(tmp_path: Path) -> None:
     SQLiteStrategyRepository(database)
 
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
         columns = {
             row[1] for row in connection.execute("PRAGMA table_info(backtest_runs)")
         }
@@ -291,3 +297,6 @@ def test_v4_database_migrates_to_candidate_schema(tmp_path: Path) -> None:
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'candidates'"
         ).fetchone() == ("candidates",)
+        assert "diagnostics_json" in {
+            row[1] for row in connection.execute("PRAGMA table_info(candidates)")
+        }

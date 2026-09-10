@@ -31,6 +31,17 @@ class ComparisonModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class ComparisonDiagnostics(ComparisonModel):
+    artifact_load_ms: int = Field(default=0, ge=0)
+    comparability_validation_ms: int = Field(default=0, ge=0)
+    evidence_load_ms: int = Field(default=0, ge=0)
+    alignment_ms: int = Field(default=0, ge=0)
+    result_diff_ms: int = Field(default=0, ge=0)
+    persistence_ms: int = Field(default=0, ge=0)
+    total_ms: int = Field(default=0, ge=0)
+    comparison_bytes: int = Field(default=0, ge=0)
+
+
 class StrategyDiff(ComparisonModel):
     component_id: str
     field_path: str
@@ -91,3 +102,4 @@ class ComparisonRecord(ComparisonModel):
     result_diff: ResultDiff
     compute_ms: int = Field(ge=0)
     created_at: datetime
+    diagnostics: ComparisonDiagnostics = Field(default_factory=ComparisonDiagnostics)
