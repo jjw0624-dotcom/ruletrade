@@ -226,7 +226,11 @@ def test_single_symbol_smoke_strategy_uses_real_warmup_and_covered_default_perio
         compile_strategy_to_lean_plan(strategy),
         CSharpGenerationSettings(start_date=start, end_date=end),
     )
-    assert 'AddEquity("QQQ", Resolution.Daily)' in source
+    assert (
+        'AddEquity("QQQ", Resolution.Daily, '
+        "dataNormalizationMode: DataNormalizationMode.Adjusted)"
+    ) in source
+    assert source.count("AddEquity(") == 1
     assert "SetWarmUp(21, Resolution.Daily)" in source
     assert "window[0] / window[21] - 1m" in source
 
