@@ -237,6 +237,14 @@ class BacktestRunService:
             raise DecisionEventNotFoundError("Decision Event was not found.")
         return event
 
+    def list_decision_event_details(
+        self, run_id: str
+    ) -> tuple[DecisionEventDetail, ...]:
+        return tuple(
+            self.get_decision_event(run_id, event.id)
+            for event in self.list_decision_events(run_id)
+        )
+
     @staticmethod
     def _validate_config(config: BacktestConfig | Mapping[str, Any]) -> BacktestConfig:
         try:

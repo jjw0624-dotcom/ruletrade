@@ -48,6 +48,15 @@ from ruletrade.candidates.models import (
 )
 from ruletrade.candidates.service import CandidateService
 from ruletrade.compile_plan import build_bt_plan
+from ruletrade.comparisons.errors import (
+    ComparisonDomainError,
+    ComparisonEvidenceUnsupportedError,
+    ComparisonNotFoundError,
+    ComparisonPersistenceError,
+    IncomparableRunsError,
+)
+from ruletrade.comparisons.models import ComparisonRecord
+from ruletrade.comparisons.service import ComparisonService
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.decision_evidence.errors import DecisionEventNotFoundError
@@ -61,6 +70,7 @@ from ruletrade.hashing import strategy_hash
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
+    SQLiteComparisonRepository,
     SQLiteStrategyRepository,
 )
 from ruletrade.strategies.errors import (
@@ -123,6 +133,8 @@ backtest_run_service: BacktestRunService | None = None
 backtest_run_service_path: Path | None = None
 candidate_service: CandidateService | None = None
 candidate_service_path: Path | None = None
+comparison_service: ComparisonService | None = None
+comparison_service_path: Path | None = None
 
 
 def get_lean_backtest_service() -> BacktestRunService:
@@ -158,6 +170,19 @@ def get_candidate_service() -> CandidateService:
         )
         candidate_service_path = path
     return candidate_service
+
+
+def get_comparison_service() -> ComparisonService:
+    global comparison_service, comparison_service_path
+    path = default_strategy_db_path()
+    if comparison_service is None or comparison_service_path != path:
+        comparison_service = ComparisonService(
+            SQLiteComparisonRepository(path),
+            get_candidate_service(),
+            get_lean_backtest_service(),
+        )
+        comparison_service_path = path
+    return comparison_service
 
 
 @app.exception_handler(StrategyDomainError)
@@ -262,6 +287,28 @@ async def candidate_domain_error(
     if isinstance(exc, CandidatePersistenceError):
         logger.exception("Candidate persistence operation failed", exc_info=exc)
         message = "Candidate persistence is temporarily unavailable."
+    else:
+        message = str(exc)
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": {"code": exc.code, "message": message}},
+    )
+
+
+@app.exception_handler(ComparisonDomainError)
+async def comparison_domain_error(
+    _request: Request,
+    exc: ComparisonDomainError,
+) -> JSONResponse:
+    if isinstance(exc, ComparisonNotFoundError):
+        status_code = 404
+    elif isinstance(exc, (IncomparableRunsError, ComparisonEvidenceUnsupportedError)):
+        status_code = 409
+    else:
+        status_code = 500
+    if isinstance(exc, ComparisonPersistenceError):
+        logger.exception("Comparison persistence operation failed", exc_info=exc)
+        message = "Comparison persistence is temporarily unavailable."
     else:
         message = str(exc)
     return JSONResponse(
@@ -610,6 +657,26 @@ def read_candidate(
     service: Annotated[CandidateService, Depends(get_candidate_service)],
 ) -> CandidateExecution:
     return service.get(candidate_id)
+
+
+@app.post(
+    "/v1/candidates/{candidate_id}/comparison",
+    response_model=ComparisonRecord,
+    status_code=201,
+)
+def create_comparison(
+    candidate_id: str,
+    service: Annotated[ComparisonService, Depends(get_comparison_service)],
+) -> ComparisonRecord:
+    return service.create(candidate_id)
+
+
+@app.get("/v1/comparisons/{comparison_id}", response_model=ComparisonRecord)
+def read_comparison(
+    comparison_id: str,
+    service: Annotated[ComparisonService, Depends(get_comparison_service)],
+) -> ComparisonRecord:
+    return service.get(comparison_id)
 
 
 @app.get("/v1/strategies", response_model=StrategyList)

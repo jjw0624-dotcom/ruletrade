@@ -400,7 +400,7 @@ def test_persisted_v1_run_reopens_without_inventing_v2_facts(tmp_path: Path) -> 
     assert event.evidence.required_count is None
     assert event.source_components[0].field_path is None
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
 
 
 def test_successful_run_persists_ordered_versioned_evidence_and_reopens(
@@ -508,7 +508,7 @@ def test_database_schema_and_evidence_rows_are_immutable(tmp_path: Path) -> None
     revision = strategies.create_strategy("Schema", golden_portfolio_strategy()).current_revision
     run = service.create_and_execute(revision.id, BacktestConfig())
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
         row = connection.execute(
             """
             SELECT schema_version, evidence_json
@@ -561,4 +561,4 @@ def test_schema_v2_database_migrates_without_changing_historical_runs(
     assert reopened.get_run(run.id) == run
     assert reopened.list_decision_events(run.id) == ()
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
