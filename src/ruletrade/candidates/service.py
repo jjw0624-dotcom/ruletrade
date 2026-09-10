@@ -7,11 +7,14 @@ from decimal import Decimal
 from time import perf_counter_ns
 from uuid import uuid4
 
+from ruletrade.backtest_runs.models import BacktestRunStatus
 from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.candidates.errors import (
+    CandidateAdoptionLineageError,
     CandidateArchivedStrategyError,
     CandidateExpectedValueMismatchError,
     CandidateNotFoundError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import (
@@ -143,6 +146,38 @@ class CandidateService:
         candidate = candidate.model_copy(update={"diagnostics": diagnostics})
         self.repository.update_diagnostics(candidate.id, diagnostics)
         return CandidateExecution(candidate=candidate, run=run)
+
+    def adopt(
+        self,
+        candidate_id: str,
+        expected_current_revision_id: str,
+    ):
+        """Adopt a tested Candidate as one immutable next Revision without execution."""
+        execution = self.get(candidate_id)
+        candidate = execution.candidate
+        if execution.run.status != BacktestRunStatus.SUCCEEDED:
+            raise CandidateRunNotSucceededError(
+                "Only a successfully completed Candidate can be adopted."
+            )
+        base = self.strategies.get_revision_by_id(candidate.base_revision_id)
+        if expected_current_revision_id != candidate.base_revision_id:
+            raise CandidateAdoptionLineageError(
+                "Candidate adoption must be based on its immutable base Revision."
+            )
+        strategy = self.strategies.get_strategy(base.strategy_id).strategy
+        if strategy.archived_at is not None:
+            raise CandidateArchivedStrategyError(
+                "Archived Strategies cannot adopt a Candidate."
+            )
+        canonical = self.strategies.validate_source(candidate.canonical_strategy)
+        if strategy_hash(canonical) != candidate.source_hash:
+            raise InvalidCandidateChangeError("Candidate source integrity could not be verified.")
+        return self.strategies.adopt_candidate_revision(
+            candidate.id,
+            base.strategy_id,
+            expected_current_revision_id,
+            canonical,
+        )
 
     def get(self, candidate_id: str) -> CandidateExecution:
         candidate = self.repository.get(candidate_id)

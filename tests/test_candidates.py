@@ -17,17 +17,21 @@ from ruletrade.backtests.lean_runner import LeanRunArtifact, LeanRunnerTimings
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.backtests.service import BacktestService
 from ruletrade.candidates.errors import (
+    CandidateAdoptionLineageError,
     CandidateArchivedStrategyError,
     CandidateExpectedValueMismatchError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import FilterThresholdChange
 from ruletrade.candidates.service import CandidateService
+from ruletrade.comparisons.service import ComparisonService
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean import CSharpGenerationSettings, generate_csharp
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
+    SQLiteComparisonRepository,
     SQLiteStrategyRepository,
 )
 from ruletrade.strategies.errors import StaleRevisionError
@@ -328,7 +332,7 @@ def test_v4_database_migrates_to_candidate_schema(tmp_path: Path) -> None:
     SQLiteStrategyRepository(database)
 
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
         columns = {
             row[1] for row in connection.execute("PRAGMA table_info(backtest_runs)")
         }
@@ -339,3 +343,115 @@ def test_v4_database_migrates_to_candidate_schema(tmp_path: Path) -> None:
         assert "diagnostics_json" in {
             row[1] for row in connection.execute("PRAGMA table_info(candidates)")
         }
+
+
+def test_candidate_adoption_appends_once_without_rerunning_or_mutating_history(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    runner = CandidateRunner()
+    strategies, runs, candidates, detail, origin = _origin(database, runner)
+    execution = candidates.create_and_execute(origin.id, _change())
+    comparison = ComparisonService(
+        SQLiteComparisonRepository(database), candidates, runs
+    ).create(execution.candidate.id)
+    original_revision = detail.current_revision
+    original_candidate = candidates.get(execution.candidate.id)
+    calls_before_adoption = len(runner.calls)
+
+    adopted = candidates.adopt(execution.candidate.id, original_revision.id)
+
+    assert adopted.created is True
+    assert adopted.strategy.current_revision_id == adopted.revision.id
+    assert adopted.revision.parent_revision_id == original_revision.id
+    assert adopted.revision.canonical_strategy == execution.candidate.canonical_strategy
+    assert strategies.get_revision(detail.strategy.id, original_revision.id) == original_revision
+    assert candidates.get(execution.candidate.id) == original_candidate
+    assert runs.get_run(origin.id) == origin
+    assert ComparisonService(
+        SQLiteComparisonRepository(database), candidates, runs
+    ).get(comparison.id) == comparison
+    assert len(runner.calls) == calls_before_adoption
+
+    reopened_candidates = CandidateService(
+        SQLiteCandidateRepository(database), StrategyService(SQLiteStrategyRepository(database)), runs
+    )
+    retry = reopened_candidates.adopt(execution.candidate.id, original_revision.id)
+    assert retry.created is False
+    assert retry.revision.id == adopted.revision.id
+    assert len(strategies.list_revisions(detail.strategy.id)) == 2
+    assert len(runner.calls) == calls_before_adoption
+
+
+def test_candidate_adoption_rejects_stale_lineage_and_archived_strategy(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    strategies, _, candidates, detail, origin = _origin(database)
+    execution = candidates.create_and_execute(origin.id, _change())
+    advanced = detail.current_revision.canonical_strategy.model_copy(
+        update={
+            "metadata": detail.current_revision.canonical_strategy.metadata.model_copy(
+                update={"description": "advanced"}
+            )
+        }
+    )
+    strategies.save_revision(detail.strategy.id, detail.current_revision.id, advanced)
+
+    with pytest.raises(StaleRevisionError):
+        candidates.adopt(execution.candidate.id, detail.current_revision.id)
+    with pytest.raises(CandidateAdoptionLineageError):
+        candidates.adopt(execution.candidate.id, "wrong-revision")
+    assert len(strategies.list_revisions(detail.strategy.id)) == 2
+
+    archived_database = tmp_path / "archived.sqlite3"
+    archived_strategies, _, archived_candidates, archived_detail, archived_origin = _origin(
+        archived_database
+    )
+    archived_execution = archived_candidates.create_and_execute(
+        archived_origin.id, _change()
+    )
+    archived_strategies.archive_strategy(archived_detail.strategy.id)
+    with pytest.raises(CandidateArchivedStrategyError):
+        archived_candidates.adopt(
+            archived_execution.candidate.id, archived_detail.current_revision.id
+        )
+    assert len(archived_strategies.list_revisions(archived_detail.strategy.id)) == 1
+
+
+def test_failed_candidate_cannot_be_adopted(tmp_path: Path) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    runner = CandidateRunner(error=LeanExecutionError("boom"))
+    strategies, _, candidates, detail, origin = _origin(database, runner)
+    execution = candidates.create_and_execute(origin.id, _change())
+    assert execution.run.status == BacktestRunStatus.FAILED
+
+    with pytest.raises(CandidateRunNotSucceededError):
+        candidates.adopt(execution.candidate.id, detail.current_revision.id)
+    assert len(strategies.list_revisions(detail.strategy.id)) == 1
+
+
+def test_candidate_adoption_api_returns_revision_and_structured_stale_conflict(
+    tmp_path: Path,
+) -> None:
+    _strategies, _, candidates, detail, origin = _origin(tmp_path / "ruletrade.sqlite3")
+    execution = candidates.create_and_execute(origin.id, _change())
+    app.dependency_overrides[get_candidate_service] = lambda: candidates
+    client = TestClient(app)
+    try:
+        response = client.post(
+            f"/v1/candidates/{execution.candidate.id}/adopt",
+            json={"expected_current_revision_id": detail.current_revision.id},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["created"] is True
+        assert payload["revision"]["parent_revision_id"] == detail.current_revision.id
+        stale = client.post(
+            f"/v1/candidates/{execution.candidate.id}/adopt",
+            json={"expected_current_revision_id": "other"},
+        )
+        assert stale.status_code == 409
+        assert stale.json()["detail"]["code"] == "candidate_adoption_lineage_mismatch"
+    finally:
+        app.dependency_overrides.clear()

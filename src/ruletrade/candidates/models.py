@@ -40,6 +40,12 @@ class CreateCandidateRequest(BaseModel):
     originating_decision_event_id: str | None = None
 
 
+class AdoptCandidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_current_revision_id: Annotated[str, Field(min_length=1)]
+
+
 class CandidateRecord(CandidateModel):
     id: str
     base_revision_id: str

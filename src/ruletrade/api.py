@@ -34,14 +34,17 @@ from ruletrade.backtests.lean_runner import DockerLeanRunner
 from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
 from ruletrade.candidates.errors import (
+    CandidateAdoptionLineageError,
     CandidateArchivedStrategyError,
     CandidateDomainError,
     CandidateExpectedValueMismatchError,
     CandidateNotFoundError,
     CandidatePersistenceError,
+    CandidateRunNotSucceededError,
     InvalidCandidateChangeError,
 )
 from ruletrade.candidates.models import (
+    AdoptCandidateRequest,
     CandidateExecution,
     CandidateList,
     CreateCandidateRequest,
@@ -278,7 +281,7 @@ async def candidate_domain_error(
 ) -> JSONResponse:
     if isinstance(exc, CandidateNotFoundError):
         status_code = 404
-    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError)):
+    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError, CandidateAdoptionLineageError, CandidateRunNotSucceededError)):
         status_code = 409
     elif isinstance(exc, InvalidCandidateChangeError):
         status_code = 422
@@ -649,6 +652,18 @@ def list_candidates(
     service: Annotated[CandidateService, Depends(get_candidate_service)],
 ) -> CandidateList:
     return CandidateList(items=service.list_for_run(run_id))
+
+
+@app.post(
+    "/v1/candidates/{candidate_id}/adopt",
+    response_model=SaveRevisionResponse,
+)
+def adopt_candidate(
+    candidate_id: str,
+    request: AdoptCandidateRequest,
+    service: Annotated[CandidateService, Depends(get_candidate_service)],
+) -> SaveRevisionResponse:
+    return service.adopt(candidate_id, request.expected_current_revision_id)
 
 
 @app.get("/v1/candidates/{candidate_id}", response_model=CandidateExecution)

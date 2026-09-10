@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 class AppendStatus(str, Enum):
@@ -19,6 +19,7 @@ class AppendStatus(str, Enum):
     STALE = "stale"
     NOT_FOUND = "not_found"
     ARCHIVED = "archived"
+    ADOPTED = "adopted"
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -122,6 +123,28 @@ class SQLiteStrategyRepository:
                     BEFORE DELETE ON candidates
                     BEGIN
                         SELECT RAISE(ABORT, 'candidates are immutable research artifacts');
+                    END;
+
+                    CREATE TABLE IF NOT EXISTS candidate_adoptions (
+                        candidate_id TEXT PRIMARY KEY,
+                        strategy_id TEXT NOT NULL,
+                        revision_id TEXT NOT NULL UNIQUE,
+                        adopted_at TEXT NOT NULL,
+                        FOREIGN KEY (candidate_id) REFERENCES candidates(id),
+                        FOREIGN KEY (strategy_id) REFERENCES strategies(id),
+                        FOREIGN KEY (revision_id) REFERENCES strategy_revisions(id)
+                    );
+
+                    CREATE TRIGGER IF NOT EXISTS candidate_adoptions_no_update
+                    BEFORE UPDATE ON candidate_adoptions
+                    BEGIN
+                        SELECT RAISE(ABORT, 'candidate adoptions are immutable');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS candidate_adoptions_no_delete
+                    BEFORE DELETE ON candidate_adoptions
+                    BEGIN
+                        SELECT RAISE(ABORT, 'candidate adoptions are immutable');
                     END;
 
                     CREATE TABLE IF NOT EXISTS backtest_runs (
@@ -495,6 +518,96 @@ class SQLiteStrategyRepository:
             raise
         except sqlite3.Error as exc:
             raise PersistenceError("Could not save Strategy Revision.") from exc
+
+    def append_candidate_revision(
+        self,
+        candidate_id: str,
+        strategy_id: str,
+        expected_parent_revision_id: str,
+        revision: RevisionRecord,
+        canonical_json: str,
+    ) -> AppendResult:
+        """Atomically append a Candidate source once and retain its adoption identity."""
+        try:
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT strategy_id, revision_id FROM candidate_adoptions WHERE candidate_id = ?",
+                    (candidate_id,),
+                ).fetchone()
+                if existing is not None:
+                    if existing["strategy_id"] != strategy_id:
+                        raise PersistenceError("Candidate adoption Strategy lineage is invalid.")
+                    strategy_row = connection.execute(
+                        "SELECT * FROM strategies WHERE id = ?", (strategy_id,)
+                    ).fetchone()
+                    revision_row = connection.execute(
+                        "SELECT * FROM strategy_revisions WHERE id = ? AND strategy_id = ?",
+                        (existing["revision_id"], strategy_id),
+                    ).fetchone()
+                    if strategy_row is None or revision_row is None:
+                        raise PersistenceError("Candidate adoption history is incomplete.")
+                    connection.rollback()
+                    return AppendResult(
+                        AppendStatus.ADOPTED,
+                        self._strategy(strategy_row),
+                        self._revision(revision_row),
+                    )
+
+                strategy_row = connection.execute(
+                    "SELECT * FROM strategies WHERE id = ?", (strategy_id,)
+                ).fetchone()
+                if strategy_row is None:
+                    connection.rollback()
+                    return AppendResult(AppendStatus.NOT_FOUND)
+                strategy = self._strategy(strategy_row)
+                current_row = connection.execute(
+                    "SELECT * FROM strategy_revisions WHERE id = ?",
+                    (strategy.current_revision_id,),
+                ).fetchone()
+                if current_row is None:
+                    raise PersistenceError("Strategy current Revision is missing.")
+                current = self._revision(current_row)
+                if strategy.archived_at is not None:
+                    connection.rollback()
+                    return AppendResult(AppendStatus.ARCHIVED, strategy, current)
+                if strategy.current_revision_id != expected_parent_revision_id:
+                    connection.rollback()
+                    return AppendResult(AppendStatus.STALE, strategy, current)
+                if current_row["canonical_json"] == canonical_json:
+                    connection.rollback()
+                    return AppendResult(AppendStatus.IDENTICAL, strategy, current)
+
+                self._insert_revision(connection, revision, canonical_json)
+                connection.execute(
+                    """
+                    UPDATE strategies
+                    SET current_revision_id = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (revision.id, _timestamp(revision.created_at), strategy_id),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO candidate_adoptions (
+                        candidate_id, strategy_id, revision_id, adopted_at
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (candidate_id, strategy_id, revision.id, _timestamp(revision.created_at)),
+                )
+                connection.commit()
+                updated = StrategyRecord(
+                    **{
+                        **strategy.model_dump(),
+                        "current_revision_id": revision.id,
+                        "updated_at": revision.created_at,
+                    }
+                )
+                return AppendResult(AppendStatus.CREATED, updated, revision)
+        except PersistenceError:
+            raise
+        except sqlite3.Error as exc:
+            raise PersistenceError("Could not adopt Candidate as a Strategy Revision.") from exc
 
     def rename_strategy(
         self,
