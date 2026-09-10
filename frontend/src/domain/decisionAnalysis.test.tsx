@@ -33,7 +33,7 @@ describe("Decision Timeline and Research Inspector", () => {
     const fetcher = (async () => new Response(JSON.stringify({ items: summaries }), { status: 200 })) as typeof fetch;
     expect((await decisionEvidenceApi.list("run-1", fetcher)).items[0].id).toBe("event-000001");
     const groups = groupDecisionSessions(summaries);
-    expect(groups.map((group) => [group.sessionId, group.label])).toEqual([["2024-06-03", "Fallback decision"], ["2024-07-01", "Portfolio rebalance"]]);
+    expect(groups.map((group) => [group.sessionId, group.label])).toEqual([["2024-06-03", "Fallback used"], ["2024-07-01", "Portfolio updated"]]);
   });
 
   it("fetches one selected event detail through the exact API", async () => {
@@ -45,7 +45,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("explains filter rejection and fallback without inventing the missing required count", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} />);
-    expect(markup).toContain("primary selection was incomplete"); expect(markup).toContain("TLT fallback activated"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("-6.7% &gt; 0%"); expect(markup).not.toContain("needed 2");
+    expect(markup).toContain("normal selection was incomplete"); expect(markup).toContain("TLT instead"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("-6.7% · Needed &gt; 0%"); expect(markup).not.toContain("of 2 assets");
   });
 
   it("uses v2 cardinality and structural outcomes without weakening v1 unknowns", () => {
@@ -58,7 +58,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
     const markup = renderToStaticMarkup(<Inspector details={v2} />);
     expect(markup).toContain("1 of 2 assets qualified");
-    expect(markup).toContain("1 / 2");
+    expect(markup).toContain("Where did each asset stop?");
     expect(markup).toContain("Signal absent · ranked #2 below cutoff");
     expect(markup).toContain("Candidate · replaced by fallback");
     expect(assetOutcomes(v2).find((item) => item.asset === "XLK")).toMatchObject({ kind: "unknown", label: "Outcome not proven by this evidence" });
@@ -78,7 +78,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("shows a scannable asset overview and an exact failed condition path", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} onShowInStrategy={() => undefined} />);
-    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
+    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
     expect(assetPath("VGT", fallback)).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Qualification rule", detail: "-6.7% > 0%", status: "failed", sourceComponentId: "positive_filter" }), expect.objectContaining({ label: "Ranking", detail: "Not reached", status: "neutral" })]));
   });
 
@@ -91,12 +91,12 @@ describe("Decision Timeline and Research Inspector", () => {
   it("shows a blocked signal with elapsed and required Cooldown sessions", () => {
     const cooldown = [detail(1, "2024-04-02", { kind: "cooldown", asset: "QQQ", signal_candidate: true, last_exit: "2024-03-15", elapsed_completed_sessions: 12, required_completed_sessions: 20, eligible: false }, [source("cooldown", "cooldown")])];
     const markup = renderToStaticMarkup(<Inspector details={cooldown} />);
-    expect(markup).toContain("had a signal"); expect(markup).toContain("12 of 20 completed trading sessions"); expect(markup).toContain("Blocked by waiting period");
+    expect(markup).toContain("still waiting"); expect(markup).toContain("12 of 20 sessions"); expect(markup).toContain("Blocked by waiting period");
   });
 
   it("reconstructs sleeve contribution math and final aggregation", () => {
     const markup = renderToStaticMarkup(<Sleeves details={portfolio} />);
-    expect(markup).toContain("100% local"); expect(markup).toContain("70% sleeve"); expect(markup).toContain("70% portfolio"); expect(markup).toContain("Final TLT"); expect(markup).toContain("85%");
+    expect(markup).toContain("Where the money went"); expect(markup).toContain("Growth"); expect(markup).toContain("70%"); expect(markup).toContain("Final"); expect(markup).toContain("85%");
   });
 
   it("shows the exact retained snapshot dates used by a portfolio rebalance", () => {

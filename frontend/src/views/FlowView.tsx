@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 
 import { projectFlow, type StrategyFlowNodeData } from "../domain/flow";
 import { useStrategyEditor } from "../store/editorStore";
+import { ConceptualFlowPreview } from "./ConceptualFlowPreview";
 
 const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
   const node = data as StrategyFlowNodeData & {
@@ -71,6 +72,7 @@ const nodeTypes = { strategy: StrategyNode };
 
 export function FlowView() {
   const { state, dispatch } = useStrategyEditor();
+  const [conceptualPreview, setConceptualPreview] = useState(false);
   const projection = projectFlow(state.canonical, state.registry, state.editor.nodePositions);
   const nodes = useMemo(
     () => projection.nodes.map((node) => ({
@@ -140,8 +142,9 @@ export function FlowView() {
     }
   }
 
+  if (conceptualPreview) return <ConceptualFlowPreview onClose={() => setConceptualPreview(false)} />;
   return (
-    <div className="flow-surface"><div className="flow-context"><span>Each step is part of the same strategy.</span>{state.editor.selectedNodeId && <button className="secondary-button" onClick={() => dispatch({ type: "set_active_view", view: "guided" })}>View selected step in Guided</button>}</div><div className="flow-view" aria-label="Flow strategy editor">
+    <div className="flow-surface"><div className="flow-context"><span>Each step is part of the same strategy.</span><div>{state.editor.selectedNodeId && <button className="secondary-button" onClick={() => dispatch({ type: "set_active_view", view: "guided" })}>View selected step in Guided</button>}<button className="secondary-button" onClick={() => setConceptualPreview(true)}>Preview conceptual Flow</button></div></div><div className="flow-view" aria-label="Flow strategy editor">
       <ReactFlow
         nodes={nodes}
         edges={projection.edges}
