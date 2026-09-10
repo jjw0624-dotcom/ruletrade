@@ -142,12 +142,21 @@ class DockerLeanRunner:
             "filter-synthetic": "lean-filter-data",
             "cooldown-synthetic": "lean-cooldown-data",
         }
-        if dataset_id not in fixture_names:
+        is_local_real_data = dataset_id == "us-equity-daily-local"
+        if dataset_id not in fixture_names and not is_local_real_data:
             raise LeanExecutionError(f"Unsupported LEAN dataset: {dataset_id}")
         self._ensure_runtime()
-        fixture = self.repo_root / "tests" / "fixtures" / fixture_names[dataset_id]
-        if not fixture.is_dir():
-            raise LeanExecutionError("Synthetic LEAN fixture is missing.")
+        if is_local_real_data:
+            configured = os.getenv("RULETRADE_LEAN_DATA_DIR")
+            if not configured:
+                raise LeanExecutionError("Local LEAN market data is not configured.")
+            data_directory = Path(configured).expanduser().resolve()
+            if not data_directory.is_dir():
+                raise LeanExecutionError("Local LEAN market data is unavailable.")
+        else:
+            data_directory = self.repo_root / "tests" / "fixtures" / fixture_names[dataset_id]
+            if not data_directory.is_dir():
+                raise LeanExecutionError("Synthetic LEAN fixture is missing.")
 
         runs_root = self.repo_root / "build" / "lean" / "runs"
         runs_root.mkdir(parents=True, exist_ok=True)
@@ -173,9 +182,14 @@ class DockerLeanRunner:
                 )
                 csharp_compile_ms = _elapsed_ms(compile_started)
                 lean_started = perf_counter_ns()
-                created = self._run(
+                create_arguments = ["docker", "create"]
+                if is_local_real_data:
+                    create_arguments.extend(
+                        ["--volume", f"{data_directory}:/Lean/Data:ro"]
+                    )
+                create_arguments.extend(
                     [
-                        "docker", "create", "--workdir", "/Lean/Launcher/bin/Debug",
+                        "--workdir", "/Lean/Launcher/bin/Debug",
                         "--entrypoint", "dotnet", self.image,
                         "QuantConnect.Lean.Launcher.dll",
                         "--algorithm-type-name", "RuleTradeGeneratedAlgorithm",
@@ -186,6 +200,7 @@ class DockerLeanRunner:
                         "--results-destination-folder", "/Lean/Results",
                     ]
                 )
+                created = self._run(create_arguments)
                 container_id = created.stdout.strip()
                 if not container_id:
                     raise LeanExecutionError("Docker did not return a LEAN container id.")
@@ -197,7 +212,10 @@ class DockerLeanRunner:
                         f"{container_id}:/Lean/Launcher/bin/Debug/RuleTradeGenerated.dll",
                     ]
                 )
-                self._run(["docker", "cp", f"{fixture}/.", f"{container_id}:/Lean/Data/"])
+                if not is_local_real_data:
+                    self._run(
+                        ["docker", "cp", f"{data_directory}/.", f"{container_id}:/Lean/Data/"]
+                    )
                 execution = self._run(["docker", "start", "--attach", container_id], check=False)
                 log_text = execution.stdout + execution.stderr
                 if execution.returncode != 0:

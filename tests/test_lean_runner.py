@@ -70,10 +70,12 @@ class _FakeDocker:
         self.fail_build = fail_build
         self.work_directories: list[Path] = []
         self.container_number = 0
+        self.commands: list[list[str]] = []
 
     def __call__(
         self, arguments: list[str], *, check: bool = True
     ) -> subprocess.CompletedProcess[str]:
+        self.commands.append(arguments)
         if arguments[0].endswith("build_golden_lean_docker.sh"):
             work = (self.repo_root / arguments[1]).parent
             self.work_directories.append(work)
@@ -146,6 +148,28 @@ def test_cooldown_dataset_uses_its_own_fixture(tmp_path: Path) -> None:
     result = runner.run("// cooldown", dataset_id="cooldown-synthetic")
 
     assert result.result_payload == {"statistics": {}}
+
+
+def test_local_real_data_is_read_only_mounted_and_not_copied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = tmp_path / "licensed-lean-data"
+    data.mkdir()
+    monkeypatch.setenv("RULETRADE_LEAN_DATA_DIR", str(data))
+    fake = _FakeDocker(tmp_path)
+    runner = _runner_with_fake_docker(tmp_path, fake)
+
+    result = runner.run("// real data", dataset_id="us-equity-daily-local")
+
+    assert result.result_payload == {"statistics": {}}
+    create = next(command for command in fake.commands if command[:2] == ["docker", "create"])
+    assert ["--volume", f"{data}:/Lean/Data:ro"] == create[2:4]
+    assert not any(
+        command[:2] == ["docker", "cp"]
+        and len(command) > 3
+        and command[3].endswith("/Lean/Data/")
+        for command in fake.commands
+    )
 
 
 def test_docker_build_keeps_intermediates_off_host_and_maps_user() -> None:

@@ -12,6 +12,7 @@ from ruletrade.backtests.service import BacktestService
 from ruletrade.candidates.models import FilterThresholdChange
 from ruletrade.candidates.service import CandidateService
 from ruletrade.comparisons.service import ComparisonService
+from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
@@ -37,6 +38,13 @@ def main() -> None:
         type=Path,
         default=Path("build/lean/candidate-comparison-e2e/ruletrade.sqlite3"),
     )
+    parser.add_argument(
+        "--dataset-id",
+        choices=("filter-synthetic", "us-equity-daily-local"),
+        default="filter-synthetic",
+    )
+    parser.add_argument("--start-date", default="2024-01-01")
+    parser.add_argument("--end-date", default="2024-12-31")
     args = parser.parse_args()
     if args.database.exists():
         parser.error(f"acceptance database already exists: {args.database}")
@@ -45,7 +53,7 @@ def main() -> None:
     runs = BacktestRunService(
         SQLiteBacktestRunRepository(args.database),
         strategies,
-        BacktestService(DockerLeanRunner()),
+        BacktestService(DockerLeanRunner(), MarketDataService()),
     )
     candidates = CandidateService(
         SQLiteCandidateRepository(args.database), strategies, runs
@@ -58,7 +66,12 @@ def main() -> None:
         "Candidate negative-threshold acceptance", filter_screening_strategy()
     ).current_revision
     original = runs.create_and_execute(
-        revision.id, BacktestConfig(dataset_id="filter-synthetic")
+        revision.id,
+        BacktestConfig(
+            dataset_id=args.dataset_id,
+            start_date=args.start_date,
+            end_date=args.end_date,
+        ),
     )
     _require_success(original, "Original Run")
     original_events = runs.list_decision_events(original.id)
@@ -89,6 +102,7 @@ def main() -> None:
                 "candidate_source_hash": execution.candidate.source_hash,
                 "candidate_run_id": execution.run.id,
                 "candidate_run_status": execution.run.status.value,
+                "market_data_cache_hit": execution.run.diagnostics.market_data_cache_hit,
                 "candidate_evidence_events": len(candidate_events),
                 "comparison_id": comparison.id,
                 "changed_decision_contexts": len(

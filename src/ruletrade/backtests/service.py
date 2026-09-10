@@ -21,6 +21,7 @@ from ruletrade.decision_evidence.collector import collect_decision_evidence
 from ruletrade.decision_evidence.models import CollectedDecisionEvent
 from ruletrade.diagnostics import elapsed_ms, serialized_bytes
 from ruletrade.hashing import strategy_hash
+from ruletrade.market_data.service import MarketDataService
 from ruletrade.strategy.v1.validation import collect_semantic_issues
 
 
@@ -31,8 +32,9 @@ class BacktestExecution:
 
 
 class BacktestService:
-    def __init__(self, runner: LeanRunner) -> None:
+    def __init__(self, runner: LeanRunner, market_data: MarketDataService | None = None) -> None:
         self.runner = runner
+        self.market_data = market_data
 
     def execute(self, request: LeanBacktestRequest) -> LeanBacktestResponse:
         """Execute the compatibility path and return its established response shape."""
@@ -56,6 +58,13 @@ class BacktestService:
             compiler_ms = elapsed_ms(stage_started)
         except LeanLoweringError as exc:
             raise UnsupportedStrategyError(str(exc)) from exc
+        preflight = None
+        if self.market_data is not None:
+            stage_started = perf_counter_ns()
+            preflight = self.market_data.require_available(request.strategy, request.config)
+            data_preflight_ms = elapsed_ms(stage_started)
+        else:
+            data_preflight_ms = 0
         settings = CSharpGenerationSettings(
             start_date=request.config.start_date,
             end_date=request.config.end_date,
@@ -74,6 +83,7 @@ class BacktestService:
         measured_stage_total = sum(
             (
                 validation_ms,
+                data_preflight_ms,
                 compiler_ms,
                 codegen_ms,
                 artifact.timings.csharp_compile_ms,
@@ -90,6 +100,7 @@ class BacktestService:
                 result=result,
                 timings=BacktestTimings(
                     validation_ms=validation_ms,
+                    data_preflight_ms=data_preflight_ms,
                     compiler_ms=compiler_ms,
                     codegen_ms=codegen_ms,
                     csharp_compile_ms=artifact.timings.csharp_compile_ms,
@@ -107,6 +118,13 @@ class BacktestService:
                     "evidence_events": len(decision_events),
                     "evidence_bytes": serialized_bytes(
                         [event.model_dump(mode="json") for event in decision_events]
+                    ),
+                    "market_data_cache_hit": preflight.cache_hit if preflight else None,
+                    "required_symbols": len(preflight.symbols) if preflight else 0,
+                    "unavailable_symbols": (
+                        sum(item.status != "available" for item in preflight.symbols)
+                        if preflight
+                        else 0
                     ),
                 },
             ),
