@@ -27,7 +27,10 @@ def _csharp_string(value: str) -> str:
 
 
 def _decimal_literal(value: Decimal) -> str:
-    return f'{format(value.normalize(), "f")}m'
+    literal = f'{format(value.normalize(), "f")}m'
+    # Member access binds before unary minus in C#. Parenthesize negative literals
+    # so both arithmetic use and generated ``literal.ToString(...)`` remain numeric.
+    return f"({literal})" if value < 0 else literal
 
 
 def _seed_expression(plan: LeanPlan, selection: LeanRandomSelection) -> str:

@@ -59,6 +59,7 @@ jobs:
           src/ruletrade/persistence
           src/ruletrade/strategies
           scripts/generate_golden_lean_fixture.py
+          scripts/generate_candidate_lean.py
           scripts/generate_cooldown_lean.py
           scripts/generate_fallback_lean.py
           scripts/generate_filter_lean.py
@@ -67,6 +68,7 @@ jobs:
           scripts/generate_sleeves_lean.py
           scripts/run_editor_lean_e2e.py
           scripts/measure_research_pipeline.py
+          scripts/run_candidate_comparison_lean_e2e.py
           scripts/run_lean_backtest.py
           scripts/verify_momentum_lean_e2e.py
           scripts/verify_cooldown_lean_e2e.py
@@ -108,6 +110,7 @@ jobs:
           scripts/run_sleeves_lean_e2e.sh
           scripts/run_independent_schedules_lean_e2e.sh
           scripts/run_cooldown_lean_e2e.sh
+          scripts/run_candidate_comparison_lean_e2e.sh
           scripts/check_momentum_lean_compile.sh
           scripts/build_golden_lean_docker.sh
 
@@ -167,6 +170,8 @@ jobs:
             --output build/lean/independent-schedules-ci/Main.cs
           PYTHONPATH=src uv run python scripts/generate_cooldown_lean.py \
             --output build/lean/cooldown-ci/Main.cs
+          PYTHONPATH=src uv run python scripts/generate_candidate_lean.py \
+            --output build/lean/candidate-ci/Main.cs
 
       - name: Free space for the LEAN Docker image
         run: |
@@ -203,6 +208,9 @@ jobs:
           ./scripts/build_golden_lean_docker.sh \
             build/lean/cooldown-ci/Main.cs \
             build/lean/cooldown-ci/bin
+          ./scripts/build_golden_lean_docker.sh \
+            build/lean/candidate-ci/Main.cs \
+            build/lean/candidate-ci/bin
 
       - name: Verify generated assemblies
         run: |
@@ -213,3 +221,4 @@ jobs:
           test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/cooldown-ci/bin/RuleTradeGenerated.dll
+          test -f build/lean/candidate-ci/bin/RuleTradeGenerated.dll

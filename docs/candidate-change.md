@@ -37,6 +37,21 @@ A runtime failure therefore leaves an immutable Candidate and an honest failed C
 
 Candidate v0 must originate from a Revision-backed Run. It does not allow Candidate-on-Candidate branching.
 
+Canonical percentage literals use deterministic decimal strings in persisted source. The official
+desugaring boundary converts those strings to `Decimal` before Strategy IR and LeanPlan creation.
+Code generation therefore receives semantic numeric values; persistence formatting is never emitted
+as a runtime string expression. Negative C# decimal literals are parenthesized so member calls such
+as invariant `ToString` formatting remain numeric under C# operator precedence.
+
+Run the real Candidate-to-Comparison acceptance path with Docker/LEAN:
+
+```bash
+./scripts/run_candidate_comparison_lean_e2e.sh
+```
+
+It creates a Revision-backed Original Run, applies `0 → -0.01` to the evidence-targeted filter,
+executes and persists the Candidate Run and Evidence v2, then creates a Comparison.
+
 ## API
 
 - `POST /v1/backtest-runs/{run_id}/candidates` — validate, persist, execute, and return Candidate plus Candidate Run.

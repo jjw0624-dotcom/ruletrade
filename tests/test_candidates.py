@@ -23,6 +23,8 @@ from ruletrade.candidates.errors import (
 )
 from ruletrade.candidates.models import FilterThresholdChange
 from ruletrade.candidates.service import CandidateService
+from ruletrade.compiler import compile_strategy_to_lean_plan
+from ruletrade.compiler.lean import CSharpGenerationSettings, generate_csharp
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
@@ -162,6 +164,43 @@ def test_candidate_is_immutable_reproducible_and_uses_official_run_pipeline(tmp_
             "UPDATE candidates SET source_hash = 'changed' WHERE id = ?",
             (execution.candidate.id,),
         )
+
+
+def test_reopened_negative_threshold_candidate_codegen_remains_numeric(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    runner = CandidateRunner()
+    _, _, candidates, _, origin = _origin(database, runner)
+
+    execution = candidates.create_and_execute(
+        origin.id,
+        _change(proposed_after="-0.01"),
+        originating_decision_event_id="event-000001",
+    )
+    reopened = candidates.get(execution.candidate.id)
+
+    assert reopened.candidate == execution.candidate
+    threshold = next(
+        component.config["threshold"]
+        for component in reopened.candidate.canonical_strategy.graph.components
+        if component.id == "positive_return"
+    )
+    assert threshold == "-0.01"
+    plan = compile_strategy_to_lean_plan(reopened.candidate.canonical_strategy)
+    assert plan.momentum_selections[0].filter_threshold == Decimal("-0.01")
+    generated = generate_csharp(
+        plan,
+        CSharpGenerationSettings(
+            start_date=origin.run_config.start_date,
+            end_date=origin.run_config.end_date,
+            initial_cash=origin.run_config.initial_cash,
+        ),
+    )
+    assert generated == runner.calls[1][0]
+    assert "item.Value > (-0.01m)" in generated
+    assert '(-0.01m).ToString("G29"' in generated
+    assert '-0.01m.ToString("G29"' not in generated
 
 
 def test_candidate_targeting_and_expected_before_are_strict(tmp_path: Path) -> None:
