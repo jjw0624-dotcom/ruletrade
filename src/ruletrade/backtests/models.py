@@ -78,7 +78,7 @@ class BacktestDiagnostics(BaseModel):
     equity_points: int = Field(default=0, ge=0)
     evidence_events: int = Field(default=0, ge=0)
     evidence_bytes: int = Field(default=0, ge=0)
-    market_data_cache_hit: bool | None = None
+    market_data_cache_hit: bool = False
     required_symbols: int = Field(default=0, ge=0)
     unavailable_symbols: int = Field(default=0, ge=0)
 

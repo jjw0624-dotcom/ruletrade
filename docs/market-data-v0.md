@@ -121,7 +121,7 @@ prevent a promise of arbitrary US-equity/ETF execution.
 
 ## Real WSL/Docker acceptance
 
-After `IEF`, `QQQ`, `SCHG`, `SOXX`, `TLT`, `VGT`, and Security Master files are present:
+After `QQQ`, `SCHG`, `SOXX`, `VGT`, and Security Master files are present:
 
 ```bash
 export RULETRADE_LEAN_DATA_DIR=/absolute/path/to/lean-workspace/data

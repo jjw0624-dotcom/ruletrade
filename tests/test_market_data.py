@@ -95,16 +95,12 @@ def _complete_cache(root: Path, *, start=date(2023, 1, 2)) -> None:
 def test_requirement_reuses_compiler_history_and_accounts_for_warmup() -> None:
     requirement = MarketDataService().derive_requirement(filter_screening_strategy(), _config())
 
-    assert [item.symbol for item in requirement.symbols] == [
-        "IEF", "QQQ", "SCHG", "SOXX", "TLT", "VGT"
-    ]
+    assert [item.symbol for item in requirement.symbols] == ["QQQ", "SCHG", "SOXX", "VGT"]
     warmups = {item.symbol: item.warmup_observations for item in requirement.symbols}
     assert warmups == {
-        "IEF": 0,
         "QQQ": 126,
         "SCHG": 126,
         "SOXX": 126,
-        "TLT": 0,
         "VGT": 126,
     }
     assert requirement.normalization_mode == "adjusted"
@@ -180,7 +176,7 @@ def test_ready_data_runs_official_pipeline_and_records_diagnostics(tmp_path: Pat
     assert response.timings.data_preflight_ms >= 0
     assert response.timings.data_acquisition_ms == 0
     assert response.diagnostics.market_data_cache_hit is True
-    assert response.diagnostics.required_symbols == 6
+    assert response.diagnostics.required_symbols == 4
     assert response.diagnostics.unavailable_symbols == 0
 
 
@@ -224,7 +220,7 @@ def test_real_data_run_persists_truthful_provenance_and_reopens(tmp_path: Path) 
     assert run.provenance.market_data_provider_id == "quantconnect-lean-local"
     assert run.provenance.market_data_source_kind == "local_lean_data"
     assert run.provenance.data_normalization_mode == "adjusted"
-    assert run.provenance.requested_symbols == ("IEF", "QQQ", "SCHG", "SOXX", "TLT", "VGT")
+    assert run.provenance.requested_symbols == ("QQQ", "SCHG", "SOXX", "VGT")
     assert run.provenance.dataset_version is None
     assert run.diagnostics.market_data_cache_hit is True
 
