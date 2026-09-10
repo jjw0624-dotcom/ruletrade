@@ -161,6 +161,46 @@ class StrategyService:
             revision=result.revision,
         )
 
+    def adopt_candidate_revision(
+        self,
+        candidate_id: str,
+        strategy_id: str,
+        expected_parent_revision_id: str,
+        source: CanonicalStrategyV1 | Mapping[str, Any],
+    ) -> SaveRevisionResponse:
+        """Append an immutable Candidate source through the normal Revision boundary."""
+        canonical = self.validate_source(source)
+        timestamp = self._clock()
+        revision = RevisionRecord(
+            id=self._id_factory(),
+            strategy_id=strategy_id,
+            parent_revision_id=expected_parent_revision_id,
+            canonical_strategy=canonical,
+            source_hash=strategy_hash(canonical),
+            schema_version=canonical.api_version,
+            created_at=timestamp,
+        )
+        result = self.repository.append_candidate_revision(
+            candidate_id,
+            strategy_id,
+            expected_parent_revision_id,
+            revision,
+            serialize_source_snapshot(canonical),
+        )
+        if result.status == AppendStatus.NOT_FOUND:
+            raise StrategyNotFoundError("Strategy was not found.")
+        if result.status == AppendStatus.ARCHIVED:
+            raise StrategyArchivedError("Archived Strategies cannot accept a Candidate.")
+        if result.status == AppendStatus.STALE:
+            assert result.strategy is not None
+            raise StaleRevisionError(result.strategy.current_revision_id)
+        assert result.strategy is not None and result.revision is not None
+        return SaveRevisionResponse(
+            created=result.status == AppendStatus.CREATED,
+            strategy=result.strategy,
+            revision=result.revision,
+        )
+
     def _require_strategy(self, strategy_id: str) -> StrategyRecord:
         strategy = self.repository.get_strategy(strategy_id)
         if strategy is None:

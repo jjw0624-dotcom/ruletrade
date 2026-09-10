@@ -23,3 +23,7 @@ class CandidateArchivedStrategyError(CandidateDomainError):
 
 class CandidatePersistenceError(CandidateDomainError):
     code = "candidate_persistence_failure"
+
+
+class CandidateAdoptionLineageError(CandidateDomainError):
+    code = "candidate_adoption_lineage_mismatch"
