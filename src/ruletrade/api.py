@@ -34,8 +34,6 @@ from ruletrade.backtests.errors import (
 from ruletrade.backtests.lean_runner import DockerLeanRunner
 from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
-from ruletrade.market_data.models import MarketDataPreflight, MarketDataPreflightRequest
-from ruletrade.market_data.service import MarketDataService
 from ruletrade.candidates.errors import (
     CandidateArchivedStrategyError,
     CandidateDomainError,
@@ -70,6 +68,8 @@ from ruletrade.decision_evidence.models import (
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
+from ruletrade.market_data.models import MarketDataPreflight, MarketDataPreflightRequest
+from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,

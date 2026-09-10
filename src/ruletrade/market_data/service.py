@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from time import perf_counter_ns
 from zipfile import BadZipFile, ZipFile
@@ -149,13 +149,13 @@ class MarketDataService:
         if not dates:
             return self._unavailable(requirement, "no_data")
         warmup = sum(item < config.start_date for item in dates)
-        common = dict(
-            symbol=requirement.symbol,
-            available_from=dates[0],
-            available_to=dates[-1],
-            warmup_observations_required=requirement.warmup_observations,
-            warmup_observations_available=warmup,
-        )
+        common = {
+            "symbol": requirement.symbol,
+            "available_from": dates[0],
+            "available_to": dates[-1],
+            "warmup_observations_required": requirement.warmup_observations,
+            "warmup_observations_available": warmup,
+        }
         if warmup < requirement.warmup_observations:
             return MarketDataSymbolAvailability(
                 status="unavailable", reason="insufficient_history", **common
@@ -175,10 +175,14 @@ class MarketDataService:
             if len(members) != 1:
                 raise ValueError("daily archive must contain one data file")
             rows = archive.read(members[0]).decode("utf-8").splitlines()
-        dates = {
-            datetime.strptime(row.split(",", 1)[0].split(" ", 1)[0], "%Y%m%d").date()
+        raw_dates = (
+            row.split(",", 1)[0].split(" ", 1)[0]
             for row in rows
             if row.strip()
+        )
+        dates = {
+            date(int(raw[:4]), int(raw[4:6]), int(raw[6:8]))
+            for raw in raw_dates
         }
         return tuple(sorted(dates))
 
