@@ -130,6 +130,14 @@ python -m pip install -e ".[bt,dev]"
 ./scripts/smoke_test.sh
 ```
 
+### Real US equity/ETF daily data
+
+Market Data v0 can run the existing LEAN pipeline against licensed local LEAN-format daily
+US equity data. Configure `RULETRADE_LEAN_DATA_DIR` and use dataset ID
+`us-equity-daily-local`. Preflight, provider/licensing constraints, warm-up behavior, and the
+real Candidate-to-Comparison acceptance command are documented in
+[`docs/market-data-v0.md`](docs/market-data-v0.md).
+
 ## CLI
 
 ```bash

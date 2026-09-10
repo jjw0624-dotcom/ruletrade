@@ -29,6 +29,7 @@ from ruletrade.backtests.errors import (
     LeanExecutionError,
     LeanRuntimeUnavailableError,
     MalformedLeanResultError,
+    MarketDataUnavailableError,
     UnsupportedStrategyError,
 )
 from ruletrade.backtests.models import (
@@ -45,6 +46,7 @@ from ruletrade.decision_evidence.errors import (
 )
 from ruletrade.decision_evidence.models import DecisionEventDetail, DecisionEventSummary
 from ruletrade.diagnostics import elapsed_ms
+from ruletrade.market_data.models import MarketDataPreflight
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
@@ -77,6 +79,17 @@ class BacktestRunService:
         """Compatibility path for an explicitly unsaved editor working copy."""
 
         return self.executor.execute(request)
+
+    def preflight(
+        self,
+        revision_id: str,
+        config: BacktestConfig | Mapping[str, Any],
+    ) -> MarketDataPreflight:
+        run_config = self._validate_config(config)
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if self.executor.market_data is None:
+            raise RuntimeError("Market-data preflight is not configured.")
+        return self.executor.market_data.preflight(revision.canonical_strategy, run_config)
 
     def create_and_execute(
         self,
@@ -136,6 +149,11 @@ class BacktestRunService:
         total_started: int,
     ) -> BacktestRunRecord:
         now = self._clock()
+        preflight = (
+            self.executor.market_data.preflight(canonical, run_config)
+            if self.executor.market_data is not None
+            else None
+        )
         run = BacktestRunRecord(
             id=self._id_factory(),
             revision_id=revision_id,
@@ -149,6 +167,22 @@ class BacktestRunService:
                 build_commit=self._build_commit,
                 engine_image=self.executor.engine_image,
                 dataset_id=run_config.dataset_id,
+                market_data_provider_id=preflight.provider_id if preflight else None,
+                market_data_source_kind=preflight.source_kind if preflight else None,
+                data_normalization_mode=(
+                    preflight.requirement.normalization_mode if preflight else None
+                ),
+                requested_symbols=(
+                    tuple(item.symbol for item in preflight.symbols) if preflight else ()
+                ),
+                available_coverage=(
+                    {
+                        item.symbol: (item.available_from, item.available_to)
+                        for item in preflight.symbols
+                    }
+                    if preflight
+                    else {}
+                ),
             ),
             timings=BacktestTimings(source_load_ms=source_load_ms),
             diagnostics=BacktestDiagnostics(
@@ -303,6 +337,8 @@ class BacktestRunService:
                 code="invalid_strategy_source",
                 message="Stored Strategy source failed validation.",
             )
+        if isinstance(exc, MarketDataUnavailableError):
+            return BacktestRunError(code=exc.code, message=str(exc))
         if isinstance(exc, (LeanExecutionError, MalformedLeanResultError)):
             return BacktestRunError(
                 code="execution_failure",

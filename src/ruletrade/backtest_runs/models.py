@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
 
@@ -34,6 +34,11 @@ class BacktestRunProvenance(RunModel):
     engine_image: str | None = None
     dataset_id: str
     dataset_version: str | None = None
+    market_data_provider_id: str | None = None
+    market_data_source_kind: Literal["synthetic_fixture", "local_lean_data"] | None = None
+    data_normalization_mode: Literal["adjusted"] | None = None
+    requested_symbols: tuple[str, ...] = ()
+    available_coverage: dict[str, tuple[date | None, date | None]] = Field(default_factory=dict)
 
 
 class BacktestRunError(RunModel):

@@ -7,6 +7,12 @@ from ruletrade.backtests.errors import LeanExecutionError, LeanRuntimeUnavailabl
 from ruletrade.backtests.lean_runner import LeanRunArtifact
 from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
+from ruletrade.market_data.models import (
+    MarketDataPreflight,
+    MarketDataRequirement,
+    MarketDataSymbolAvailability,
+    MarketDataSymbolRequirement,
+)
 from ruletrade.strategy.v1.fixtures import (
     GOLDEN_PORTFOLIO_PAYLOAD,
     GOLDEN_STATEFUL_RULE_PAYLOAD,
@@ -383,6 +389,36 @@ class ApiTransientBacktestService:
     def execute_transient(self, request: LeanBacktestRequest) -> LeanBacktestResponse:
         return self.executor.execute(request)
 
+    def preflight(self, revision_id: str, config) -> MarketDataPreflight:
+        assert revision_id == "revision-1"
+        assert config.dataset_id == "us-equity-daily-local"
+        requirement = MarketDataRequirement(
+            dataset_id=config.dataset_id,
+            requested_start=config.start_date,
+            requested_end=config.end_date,
+            symbols=(
+                MarketDataSymbolRequirement(symbol="QQQ", warmup_observations=126),
+            ),
+        )
+        return MarketDataPreflight(
+            overall="available",
+            dataset_id=config.dataset_id,
+            source_kind="local_lean_data",
+            provider_id="lean-local-data",
+            requirement=requirement,
+            symbols=(
+                MarketDataSymbolAvailability(
+                    symbol="QQQ",
+                    status="available",
+                    reason="available",
+                    warmup_observations_required=126,
+                    warmup_observations_available=300,
+                ),
+            ),
+            cache_hit=True,
+            elapsed_ms=0,
+        )
+
 
 def post_lean_backtest(payload: dict[str, object], runner: ApiFakeRunner):
     app.dependency_overrides[get_lean_backtest_service] = lambda: ApiTransientBacktestService(runner)
@@ -390,6 +426,23 @@ def post_lean_backtest(payload: dict[str, object], runner: ApiFakeRunner):
         return client.post("/v1/backtests/lean", json=payload)
     finally:
         app.dependency_overrides.clear()
+
+
+def test_market_data_preflight_api_returns_structured_availability() -> None:
+    service = ApiTransientBacktestService(ApiFakeRunner())
+    app.dependency_overrides[get_lean_backtest_service] = lambda: service
+    try:
+        response = client.post(
+            "/v1/revisions/revision-1/market-data/preflight",
+            json={"config": {"dataset_id": "us-equity-daily-local"}},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["overall"] == "available"
+    assert body["symbols"][0]["warmup_observations_required"] == 126
 
 
 def test_lean_backtest_api_executes_submitted_canonical() -> None:

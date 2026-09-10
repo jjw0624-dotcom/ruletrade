@@ -39,3 +39,7 @@ class LeanExecutionError(BacktestError):
 
 class MalformedLeanResultError(BacktestError):
     code = "malformed_result"
+
+
+class MarketDataUnavailableError(BacktestError):
+    code = "market_data_unavailable"

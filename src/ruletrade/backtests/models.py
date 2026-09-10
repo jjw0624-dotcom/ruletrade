@@ -21,6 +21,7 @@ class BacktestConfig(BaseModel):
         "golden-synthetic",
         "filter-synthetic",
         "cooldown-synthetic",
+        "us-equity-daily-local",
     ] = "golden-synthetic"
 
     @model_validator(mode="after")
@@ -54,6 +55,8 @@ class BacktestTimings(BaseModel):
 
     source_load_ms: int = Field(default=0, ge=0)
     validation_ms: int = Field(default=0, ge=0)
+    data_preflight_ms: int = Field(default=0, ge=0)
+    data_acquisition_ms: int = Field(default=0, ge=0)
     compiler_ms: int = Field(default=0, ge=0)
     codegen_ms: int = Field(default=0, ge=0)
     csharp_compile_ms: int = Field(default=0, ge=0)
@@ -75,6 +78,9 @@ class BacktestDiagnostics(BaseModel):
     equity_points: int = Field(default=0, ge=0)
     evidence_events: int = Field(default=0, ge=0)
     evidence_bytes: int = Field(default=0, ge=0)
+    market_data_cache_hit: bool = False
+    required_symbols: int = Field(default=0, ge=0)
+    unavailable_symbols: int = Field(default=0, ge=0)
 
 
 class LeanBacktestResponse(BaseModel):

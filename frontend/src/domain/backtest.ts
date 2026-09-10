@@ -2,7 +2,11 @@ export interface BacktestConfig {
   start_date: string;
   end_date: string;
   initial_cash: string;
-  dataset_id: "golden-synthetic" | "filter-synthetic" | "cooldown-synthetic";
+  dataset_id:
+    | "golden-synthetic"
+    | "filter-synthetic"
+    | "cooldown-synthetic"
+    | "us-equity-daily-local";
 }
 
 export const DEFAULT_BACKTEST_CONFIG: BacktestConfig = {

@@ -28,6 +28,7 @@ from ruletrade.backtests.errors import (
     LeanExecutionError,
     LeanRuntimeUnavailableError,
     MalformedLeanResultError,
+    MarketDataUnavailableError,
     UnsupportedStrategyError,
 )
 from ruletrade.backtests.lean_runner import DockerLeanRunner
@@ -70,6 +71,8 @@ from ruletrade.decision_evidence.models import (
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
+from ruletrade.market_data.models import MarketDataPreflight, MarketDataPreflightRequest
+from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import (
     SQLiteBacktestRunRepository,
     SQLiteCandidateRepository,
@@ -129,7 +132,7 @@ def default_strategy_db_path() -> Path:
 
 registry = DatasetRegistry(default_data_dir())
 app = FastAPI(title="RuleTrade MVP API", version=__version__)
-lean_executor = BacktestService(DockerLeanRunner())
+lean_executor = BacktestService(DockerLeanRunner(), MarketDataService())
 strategy_service: StrategyService | None = None
 strategy_service_path: Path | None = None
 backtest_run_service: BacktestRunService | None = None
@@ -564,6 +567,11 @@ def execute_lean_backtest(
             status_code=502,
             detail={"code": exc.code, "message": str(exc)},
         ) from exc
+    except MarketDataUnavailableError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
     except LeanExecutionError as exc:
         raise HTTPException(
             status_code=502,
@@ -582,6 +590,18 @@ def create_persisted_backtest_run(
     service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> BacktestRunRecord:
     return service.create_and_execute(revision_id, request.config)
+
+
+@app.post(
+    "/v1/revisions/{revision_id}/market-data/preflight",
+    response_model=MarketDataPreflight,
+)
+def preflight_revision_market_data(
+    revision_id: str,
+    request: MarketDataPreflightRequest,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> MarketDataPreflight:
+    return service.preflight(revision_id, request.config)
 
 
 @app.get(

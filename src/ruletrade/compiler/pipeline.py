@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ruletrade.compiler.analysis import analyze_strategy_ir
+from ruletrade.compiler.analysis import StrategyRequirements, analyze_strategy_ir
 from ruletrade.compiler.frontend import StrategyDesugaringError, lower_strategy_model_to_ir
 from ruletrade.compiler.lean.lowering import LeanLoweringError, lower_strategy_ir_to_lean_plan
 from ruletrade.compiler.lean.plan import LeanPlan
@@ -29,3 +29,16 @@ def compile_strategy_to_lean_plan(
         raise LeanLoweringError(f"unsupported LEAN v0: {exc}") from exc
     requirements = analyze_strategy_ir(strategy_ir)
     return lower_strategy_ir_to_lean_plan(strategy_ir, requirements)
+
+
+def analyze_strategy_requirements(
+    strategy: CanonicalStrategyV1,
+    registry: PrimitiveRegistry = BUILTIN_REGISTRY,
+) -> StrategyRequirements:
+    """Derive backend-independent execution requirements through the official frontend."""
+
+    try:
+        strategy_ir = lower_strategy_model_to_ir(strategy, registry)
+    except (StrategyDesugaringError, IRValidationError) as exc:
+        raise LeanLoweringError(f"unsupported LEAN v0: {exc}") from exc
+    return analyze_strategy_ir(strategy_ir)
