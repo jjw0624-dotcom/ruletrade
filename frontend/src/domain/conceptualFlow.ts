@@ -11,6 +11,19 @@ export interface ConceptualChoose {
   cooldown?: string;
   timing?: string;
   sourceComponentIds: string[];
+  lookbackComponentId?: string;
+  filterComponentId?: string;
+  selectionComponentId: string;
+  fallbackComponentId?: string;
+  fallbackAssetSetRef?: string;
+  fallbackOptions: Array<{ id: string; asset: string }>;
+  cooldownComponentId?: string;
+  scheduleComponentId?: string;
+  lookbackBars?: number;
+  threshold?: string;
+  rankDirection?: string;
+  topN?: number;
+  cooldownDuration?: number;
 }
 export interface ConceptualGroup {
   id: string;
@@ -20,6 +33,10 @@ export interface ConceptualGroup {
   timing?: string;
   choose?: ConceptualChoose;
   sourceComponentIds: string[];
+  assetSetId?: string;
+  sleeveComponentId?: string;
+  allocationValue?: string;
+  scheduleComponentId?: string;
 }
 export interface ConceptualFlowProjection {
   kind: "portfolio" | "single";
@@ -27,6 +44,8 @@ export interface ConceptualFlowProjection {
   groups: ConceptualGroup[];
   rebalance?: string;
   sourceComponentIds: string[];
+  split?: { groups: Array<{ id: string; label: string; componentId: string; allocation: string }> };
+  rebalanceScheduleComponentId?: string;
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
@@ -36,27 +55,31 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
     return {
       kind: "portfolio", title: guided.portfolio.name, rebalance: guided.rebalanceSchedule,
       sourceComponentIds: [guided.portfolio.componentId, guided.growth.sleeveComponentId, guided.defensive.sleeveComponentId],
+      split: { groups: [{ id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, componentId: guided.growth.sleeveComponentId, allocation: guided.growth.allocation }, { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, componentId: guided.defensive.sleeveComponentId, allocation: guided.defensive.allocation }] },
+      rebalanceScheduleComponentId: guided.rebalanceScheduleComponentId,
       groups: [
         {
           id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, allocation: percentage(guided.growth.allocation), assets: guided.growth.assets,
           timing: guided.growth.refreshSchedule ?? guided.growth.schedule,
           sourceComponentIds: [guided.growth.sleeveComponentId, guided.growth.lookbackComponentId, guided.growth.selectionComponentId, ...(guided.growth.filterComponentId ? [guided.growth.filterComponentId] : []), ...(guided.growth.fallbackComponentId ? [guided.growth.fallbackComponentId] : []), ...(guided.growth.cooldownComponentId ? [guided.growth.cooldownComponentId] : [])],
+          assetSetId: assetSetIdFor(strategy, guided.growth.assets), sleeveComponentId: guided.growth.sleeveComponentId, allocationValue: guided.growth.allocation, scheduleComponentId: guided.growth.refreshScheduleComponentId,
           choose: chooseFrom(guided.growth),
         },
-        { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, allocation: percentage(guided.defensive.allocation), assets: guided.defensive.assets, timing: guided.defensive.refreshSchedule, sourceComponentIds: [guided.defensive.sleeveComponentId] },
+        { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, allocation: percentage(guided.defensive.allocation), assets: guided.defensive.assets, timing: guided.defensive.refreshSchedule, sourceComponentIds: [guided.defensive.sleeveComponentId], assetSetId: assetSetIdFor(strategy, guided.defensive.assets), sleeveComponentId: guided.defensive.sleeveComponentId, allocationValue: guided.defensive.allocation, scheduleComponentId: guided.defensive.refreshScheduleComponentId },
       ],
     };
   }
-  if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], choose: chooseFrom(guided.momentum) }] };
+  if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], assetSetId: assetSetIdFor(strategy, guided.momentum.assets), choose: chooseFrom(guided.momentum) }] };
   return {
     kind: "portfolio", title: strategy.metadata.name, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId, guided.safe.allocationComponentId],
     groups: [
-      { id: "growth", label: "Growth", assets: guided.growth.assets, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Random selection", sourceComponentIds: [guided.growth.selectionComponentId] } },
-      { id: "safe", label: "Safe", assets: guided.safe.assets, sourceComponentIds: [guided.safe.allocationComponentId] },
+      { id: "growth", label: "Growth", assets: guided.growth.assets, assetSetId: "growth", sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Random selection", sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
+      { id: "safe", label: "Safe", assets: guided.safe.assets, assetSetId: "safe", sourceComponentIds: [guided.safe.allocationComponentId] },
     ],
   };
 }
-function chooseFrom(value: { assets: string[]; lookbackBars: number; threshold?: string; rankDirection: string; topN: number; fallbackAsset?: string; cooldownDuration?: number; schedule: string; lookbackComponentId: string; filterComponentId?: string; selectionComponentId: string; fallbackComponentId?: string; cooldownComponentId?: string }): ConceptualChoose {
+function assetSetIdFor(strategy: CanonicalStrategyV1, assets: string[]) { return strategy.definitions.asset_sets.find((item) => item.assets.join("|") === assets.join("|"))?.id; }
+function chooseFrom(value: { assets: string[]; lookbackBars: number; threshold?: string; rankDirection: string; topN: number; fallbackAsset?: string; fallbackAssetSetRef?: string; fallbackOptions: Array<{id:string;asset:string}>; cooldownDuration?: number; schedule: string; lookbackComponentId: string; filterComponentId?: string; selectionComponentId: string; fallbackComponentId?: string; cooldownComponentId?: string; refreshScheduleComponentId?: string }): ConceptualChoose {
   const months = Math.max(1, Math.round(value.lookbackBars / 21));
   return {
     kind: "choose", label: `Choose ${value.topN}`, from: value.assets,
@@ -66,6 +89,7 @@ function chooseFrom(value: { assets: string[]; lookbackBars: number; threshold?:
     cooldown: value.cooldownDuration ? `After selling, wait ${value.cooldownDuration} trading days` : undefined,
     timing: value.schedule,
     sourceComponentIds: [value.lookbackComponentId, value.selectionComponentId, ...(value.filterComponentId ? [value.filterComponentId] : []), ...(value.fallbackComponentId ? [value.fallbackComponentId] : []), ...(value.cooldownComponentId ? [value.cooldownComponentId] : [])],
+    lookbackComponentId: value.lookbackComponentId, filterComponentId: value.filterComponentId, selectionComponentId: value.selectionComponentId, fallbackComponentId: value.fallbackComponentId, fallbackAssetSetRef: value.fallbackAssetSetRef, fallbackOptions: value.fallbackOptions, cooldownComponentId: value.cooldownComponentId, scheduleComponentId: value.refreshScheduleComponentId, lookbackBars: value.lookbackBars, threshold: value.threshold, rankDirection: value.rankDirection, topN: value.topN, cooldownDuration: value.cooldownDuration,
   };
 }
 export const conceptualOnlyAllocationExample = {
@@ -74,4 +98,3 @@ export const conceptualOnlyAllocationExample = {
   summary: "When Index > 5,000: Growth 70% / Safe 30%. Otherwise: 60% / 40%.",
   reason: "Current Canonical strategies do not express this allocation condition.",
 } as const;
-

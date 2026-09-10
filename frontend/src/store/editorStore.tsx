@@ -21,6 +21,8 @@ export interface StrategyEditorState {
     viewport: Viewport;
     selectedNodeId: string | null;
     selectedFieldPath: string | null;
+    selectedConceptId: string | null;
+    openGroupId: string | null;
   };
   validation: {
     status: "valid" | "dirty" | "invalid" | "checking";
@@ -35,6 +37,8 @@ export type StrategyEditorAction =
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
   | { type: "select_node"; componentId: string | null; fieldPath?: string | null }
+  | { type: "select_concept"; conceptId: string | null }
+  | { type: "open_group"; groupId: string | null }
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
@@ -48,6 +52,8 @@ export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorSta
       viewport: { x: 0, y: 0, zoom: 0.85 },
       selectedNodeId: null,
       selectedFieldPath: null,
+      selectedConceptId: null,
+      openGroupId: null,
     },
     validation: {
       status: bootstrap.validation.valid ? "valid" : "invalid",
@@ -84,6 +90,10 @@ export function editorReducer(
       return { ...state, editor: { ...state.editor, viewport: action.viewport } };
     case "select_node":
       return { ...state, editor: { ...state.editor, selectedNodeId: action.componentId, selectedFieldPath: action.fieldPath ?? null } };
+    case "select_concept":
+      return { ...state, editor: { ...state.editor, selectedConceptId: action.conceptId } };
+    case "open_group":
+      return { ...state, editor: { ...state.editor, openGroupId: action.groupId, selectedConceptId: null } };
     case "validation_started":
       return { ...state, validation: { ...state.validation, status: "checking" } };
     case "validation_finished":
