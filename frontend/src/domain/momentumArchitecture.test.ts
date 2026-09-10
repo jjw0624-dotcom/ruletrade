@@ -17,7 +17,7 @@ describe("Momentum TopN cross-view architecture", () => {
     expect(guided.momentum.lookbackBars).toBe(126);
     expect(guided.momentum.topN).toBe(2);
     expect(flow.nodes.map((node) => node.data.title)).toEqual(expect.arrayContaining([
-      "Trailing Return", "Rank", "Top 2", "Equal Weight 100%", "Rebalance",
+      "126-day return", "Rank weakest", "Top 2", "Equal Weight 100%", "Rebalance",
     ]));
     expect(flow.edges).toHaveLength(6);
   });

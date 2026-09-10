@@ -11,6 +11,8 @@ import { createEditorState, editorReducer } from "../store/editorStore";
 import { projectFlow } from "./flow";
 import { projectGuided } from "./guided";
 import { sleevesBootstrap } from "../test/fixture";
+import { StrategyEditorProvider } from "../store/editorStore";
+import { OverviewView } from "../views/OverviewView";
 
 describe("Production MVP frontend foundation", () => {
   it("exposes only real backend-supported examples and opens a Strategy route", () => {
@@ -24,7 +26,7 @@ describe("Production MVP frontend foundation", () => {
   it("provides an empty persisted Strategies boundary", () => {
     const markup = renderToStaticMarkup(<StrategiesView status="loaded" strategies={[]} error={null} onExplore={() => undefined} onOpen={() => undefined} onRetry={() => undefined} />);
     expect(markup).toContain("No saved strategies yet");
-    expect(markup).toContain("Explore examples");
+    expect(markup).toContain("Explore ideas");
   });
 
   it("keeps a Guided edit in the one Canonical model projected by Flow", () => {
@@ -32,6 +34,13 @@ describe("Production MVP frontend foundation", () => {
     const edited = editorReducer(initial, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
     expect(projectGuided(edited.canonical, edited.registry).kind).toBe("portfolio");
     expect(projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions).nodes.find((node) => node.id === "top_n")?.data.topN).toBe(3);
+  });
+
+  it("starts shallow and projects Overview from the same Canonical strategy", () => {
+    const editor = createEditorState(sleevesBootstrap);
+    expect(editor.editor.activeView).toBe("overview");
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}><OverviewView onTest={() => undefined} /></StrategyEditorProvider>);
+    expect(markup).toContain("This strategy"); expect(markup).toContain("QQQ, VGT, SOXX, SCHG"); expect(markup).toContain("Quick settings"); expect(markup).toContain("Customize"); expect(markup).toContain("Test");
   });
 
   it("submits visible setup values while preserving the internal real dataset mapping", async () => {

@@ -51,7 +51,7 @@ describe("persistent BacktestRun frontend", () => {
   it("labels clean runs as historical and unsaved working-copy tests as temporary", () => {
     const saved = renderToStaticMarkup(<BacktestSetup config={config} onChange={() => undefined} onClose={() => undefined} onRun={() => undefined} persistence="historical" />);
     const draft = renderToStaticMarkup(<BacktestSetup config={config} onChange={() => undefined} onClose={() => undefined} onRun={() => undefined} persistence="temporary" />);
-    expect(saved).toContain("Saved backtest"); expect(saved).toContain("Run and save result");
-    expect(draft).toContain("Temporary backtest"); expect(draft).toContain("Test unsaved changes");
+    expect(saved).toContain("Saved test"); expect(saved).toContain("Run and save result");
+    expect(draft).toContain("Testing current changes"); expect(draft).toContain("Test current changes");
   });
 });

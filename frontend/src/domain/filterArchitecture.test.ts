@@ -16,7 +16,7 @@ describe("Filter screening cross-view architecture", () => {
     expect(guided.momentum.threshold).toBe("0");
     expect(guided.momentum.topN).toBe(2);
     expect(flow.nodes.map((node) => node.data.title)).toEqual(expect.arrayContaining([
-      "Trailing Return", "Return > 0%", "Rank", "Top 2", "Equal Weight 100%", "Rebalance",
+      "126-day return", "Return > 0%", "Rank weakest", "Top 2", "Equal Weight 100%", "Rebalance",
     ]));
     expect(flow.edges).toHaveLength(7);
   });
