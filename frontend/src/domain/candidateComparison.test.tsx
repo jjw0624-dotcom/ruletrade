@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { candidateApi } from "../candidateApi";
-import { comparisonApi, type ComparisonRecord } from "../comparisonApi";
+import { comparisonApi, type ComparisonRecord, type DecisionContextDiff } from "../comparisonApi";
 import { Inspector } from "../components/DecisionAnalysis";
 import { selectInitialDifference } from "../components/ComparisonWorkspace";
 import type { DecisionEventDetail } from "../decisionEvidenceApi";
@@ -39,7 +39,8 @@ describe("Candidate and Comparison research loop", () => {
 
   it("keeps backend chronological alignment and restores the originating asset when it changed", () => {
     const before = filter(false); const after = filter(true);
-    const contexts = [{ session_id: "2024-06-03", differences: [{ key: "qualification", presence: "both" as const, kinds: ["qualification_changed" as const], original_event: before, candidate_event: after }] }, { session_id: "2024-07-01", differences: [{ key: "fallback", presence: "original_only" as const, kinds: ["event_presence_changed" as const, "fallback_activation_changed" as const], original_event: { ...before, id: "fallback", kind: "fallback", phase: "selection", evidence: { kind: "fallback", asset: "TLT", activated: true } }, candidate_event: null }] }];
+    const fallbackEvent: DecisionEventDetail = { id: "fallback", run_id: "run-original", ordinal: 2, schema_version: 2, session_id: "2024-07-01", phase: "selection", kind: "fallback", source_components: [{ role: "fallback", component_id: "fallback" }], evidence: { kind: "fallback", asset: "TLT", activated: true } };
+    const contexts: DecisionContextDiff[] = [{ session_id: "2024-06-03", differences: [{ key: "qualification", presence: "both", kinds: ["qualification_changed"], original_event: before, candidate_event: after }] }, { session_id: "2024-07-01", differences: [{ key: "fallback", presence: "original_only", kinds: ["event_presence_changed", "fallback_activation_changed"], original_event: fallbackEvent, candidate_event: null }] }];
     const selected = selectInitialDifference(comparison(contexts), { runId: "run-original", sessionId: "2024-06-03", asset: "VGT" });
     expect(selected?.context.session_id).toBe("2024-06-03"); expect(selected?.difference.key).toBe("qualification");
     expect(comparison(contexts).changed_decision_contexts.map((item) => item.session_id)).toEqual(["2024-06-03", "2024-07-01"]);
