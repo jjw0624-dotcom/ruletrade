@@ -1,4 +1,5 @@
 import type { BacktestConfig, BacktestResult, BacktestTimings } from "./domain/backtest";
+import { jsonBody, readApiErrorDetail } from "./apiError";
 
 export type BacktestRunStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -37,15 +38,12 @@ export class BacktestRunApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api${path}`, init);
   if (response.ok) return (await response.json()) as T;
-  let payload: { detail?: BacktestRunApiDetail | string } = {};
-  try { payload = (await response.json()) as typeof payload; } catch { /* unavailable or malformed response */ }
-  const raw = payload.detail;
-  const detail = raw && typeof raw === "object" ? raw : { code: "request_failed", message: typeof raw === "string" ? raw : `Backtest request failed (${response.status})` };
+  const detail = await readApiErrorDetail(response, `Backtest request failed (${response.status})`) as BacktestRunApiDetail;
   throw new BacktestRunApiError(response.status, detail);
 }
 
 export const backtestRunApi = {
-  create: (revisionId: string, config: BacktestConfig, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v1/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ config }) }, fetcher),
+  create: (revisionId: string, config: BacktestConfig, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v1/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, jsonBody("POST", { config }), fetcher),
   list: (revisionId: string, fetcher?: typeof fetch) => request<{ items: BacktestRunRecord[] }>(`/v1/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, {}, fetcher),
   get: (runId: string, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v1/backtest-runs/${encodeURIComponent(runId)}`, {}, fetcher),
 };

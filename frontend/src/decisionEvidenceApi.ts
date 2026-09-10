@@ -46,12 +46,12 @@ export class DecisionEvidenceApiError extends Error {
 async function request<T>(path: string, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api${path}`);
   if (response.ok) return (await response.json()) as T;
-  let detail: { code?: string; message?: string } = {};
-  try { detail = ((await response.json()) as { detail?: typeof detail }).detail ?? {}; } catch { /* unavailable or malformed response */ }
-  throw new DecisionEvidenceApiError(response.status, detail.code ?? "request_failed", detail.message ?? `Decision evidence request failed (${response.status})`);
+  const detail = await readApiErrorDetail(response, `Decision evidence request failed (${response.status})`);
+  throw new DecisionEvidenceApiError(response.status, detail.code, detail.message);
 }
 
 export const decisionEvidenceApi = {
   list: (runId: string, fetcher?: typeof fetch) => request<{ items: DecisionEventSummary[] }>(`/v1/backtest-runs/${encodeURIComponent(runId)}/decision-events`, fetcher),
   get: (runId: string, eventId: string, fetcher?: typeof fetch) => request<DecisionEventDetail>(`/v1/backtest-runs/${encodeURIComponent(runId)}/decision-events/${encodeURIComponent(eventId)}`, fetcher),
 };
+import { readApiErrorDetail } from "./apiError";

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { backtestRunApi, type BacktestRunRecord } from "../backtestRunApi";
 import { comparisonApi, type BehaviorDifference, type ComparisonRecord, type DecisionContextDiff } from "../comparisonApi";
 import type { DecisionEvidence, DecisionEventDetail } from "../decisionEvidenceApi";
@@ -7,6 +7,7 @@ import type { ResearchContext } from "../domain/researchContext";
 type Props = {
   comparisonId: string;
   initialContext?: ResearchContext | null;
+  onContextChange?: (context: ResearchContext) => void;
   onOpenRun: (runId: string, context?: ResearchContext) => void;
   onViewRule?: (revisionId: string, componentId: string, fieldPath: string, context: ResearchContext) => void;
 };
@@ -14,30 +15,36 @@ const percent = (value: string | number) => new Intl.NumberFormat("en-US", { sty
 const money = (value: string | number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value));
 const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function ComparisonWorkspace({ comparisonId, initialContext, onOpenRun, onViewRule }: Props) {
+export function ComparisonWorkspace({ comparisonId, initialContext, onContextChange, onOpenRun, onViewRule }: Props) {
   const [comparison, setComparison] = useState<ComparisonRecord | null>(null);
   const [runs, setRuns] = useState<{ original: BacktestRunRecord; candidate: BacktestRunRecord } | null>(null);
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<{ context: DecisionContextDiff; difference: BehaviorDifference } | null>(null);
+  const initialContextRef = useRef(initialContext);
+  initialContextRef.current = initialContext;
   useEffect(() => {
-    let cancelled = false; setState("loading"); setError("");
+    let cancelled = false; setState("loading"); setError(""); setComparison(null); setRuns(null); setSelected(null);
     comparisonApi.get(comparisonId).then(async (record) => {
       const [original, candidate] = await Promise.all([backtestRunApi.get(record.original_run_id), backtestRunApi.get(record.candidate_run_id)]);
       if (cancelled) return;
       setComparison(record); setRuns({ original, candidate });
-      setSelected(selectInitialDifference(record, initialContext)); setState("loaded");
+      setSelected(selectInitialDifference(record, initialContextRef.current)); setState("loaded");
     }).catch((reason: unknown) => { if (!cancelled) { setError(reason instanceof Error ? reason.message : "We couldn't open this comparison."); setState("error"); } });
     return () => { cancelled = true; };
-  }, [comparisonId, initialContext]);
+  }, [comparisonId]);
   if (state === "loading") return <main className="page comparison-page"><div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening comparison…</h1><p>Loading the saved research artifacts. No backtest is being rerun.</p></div></main>;
   if (state === "error" || !comparison || !runs) return <main className="page comparison-page"><div className="page-state error-state" role="alert"><h1>We couldn't open this comparison</h1><p>{error}</p></div></main>;
   const context = selected?.context;
   const researchContext = context ? { runId: comparison.original_run_id, sessionId: context.session_id, asset: selected ? differenceAsset(selected.difference) : null } : undefined;
+  const choose = (next: { context: DecisionContextDiff; difference: BehaviorDifference }) => {
+    setSelected(next);
+    onContextChange?.(researchContextForSelection(comparison, next));
+  };
   return <main className="page comparison-page"><header className="workspace-heading compare-heading"><div><span className="eyebrow">Comparison</span><h1>See what your change actually affected</h1><p>Original and Candidate used the same test settings. Your saved strategy is unchanged.</p></div><nav className="compare-nav" aria-label="Comparison views"><button className="secondary-button" onClick={() => onOpenRun(comparison.original_run_id, researchContext)}>Original result</button><button className="secondary-button" onClick={() => onOpenRun(comparison.candidate_run_id)}>Candidate result</button></nav></header>
     <section className="comparison-change"><span className="eyebrow">You changed</span><h2>Return threshold</h2><div className="before-after"><div><span>Original</span><strong>&gt; {percent(comparison.strategy_diff.before)}</strong></div><span aria-hidden="true">→</span><div><span>Candidate</span><strong>&gt; {percent(comparison.strategy_diff.after)}</strong></div></div>{onViewRule && researchContext && <button className="text-button" onClick={() => onViewRule(runs.original.revision_id, comparison.strategy_diff.component_id, comparison.strategy_diff.field_path, researchContext)}>View rule</button>}</section>
     <section className="comparison-behavior"><header><div><span className="eyebrow">Behavior</span><h2>{comparison.changed_decision_contexts.length} decision {comparison.changed_decision_contexts.length === 1 ? "context" : "contexts"} changed</h2><p>These are strategy decisions—not necessarily trades or orders.</p></div><span className="difference-filter" aria-label="Only differences enabled">✓ Only differences</span></header>
-      {comparison.changed_decision_contexts.length === 0 ? <div className="zero-differences"><h3>This change did not alter any strategy decisions during this test period.</h3><p>That is useful evidence: this threshold did not affect behavior in the dates tested.</p></div> : <div className="compare-research-layout"><aside className="difference-list" aria-label="Changed decisions">{comparison.changed_decision_contexts.map((item) => <button key={item.session_id} className={context?.session_id === item.session_id ? "difference-item selected" : "difference-item"} onClick={() => setSelected({ context: item, difference: item.differences[0] })}><time>{shortDay(item.session_id)}</time><strong>{contextLabel(item)}</strong><small>{item.differences.length} {item.differences.length === 1 ? "change" : "changes"}</small></button>)}</aside>{selected && <WhyDifferent selected={selected} strategyDiff={comparison.strategy_diff} onSelect={(difference) => setSelected({ context: selected.context, difference })} onViewRule={onViewRule ? () => onViewRule(runs.original.revision_id, comparison.strategy_diff.component_id, comparison.strategy_diff.field_path, researchContext!) : undefined} />}</div>}
+      {comparison.changed_decision_contexts.length === 0 ? <div className="zero-differences"><h3>This change did not alter any strategy decisions during this test period.</h3><p>That is useful evidence: this threshold did not affect behavior in the dates tested.</p></div> : <div className="compare-research-layout"><aside className="difference-list" aria-label="Changed decisions">{comparison.changed_decision_contexts.map((item) => <button key={item.session_id} className={context?.session_id === item.session_id ? "difference-item selected" : "difference-item"} onClick={() => choose({ context: item, difference: item.differences[0] })}><time>{shortDay(item.session_id)}</time><strong>{contextLabel(item)}</strong><small>{item.differences.length} {item.differences.length === 1 ? "change" : "changes"}</small></button>)}</aside>{selected && <WhyDifferent selected={selected} strategyDiff={comparison.strategy_diff} onSelect={(difference) => choose({ context: selected.context, difference })} onViewRule={onViewRule ? () => onViewRule(runs.original.revision_id, comparison.strategy_diff.component_id, comparison.strategy_diff.field_path, researchContext!) : undefined} />}</div>}
     </section>
     <PortfolioDifference comparison={comparison} />
     <ResultDifference comparison={comparison} runs={runs} />
@@ -86,6 +93,16 @@ export function selectInitialDifference(comparison: ComparisonRecord, context?: 
   const first = comparison.first_difference; const firstContext = first ? comparison.changed_decision_contexts.find((item) => item.session_id === first.session_id) : comparison.changed_decision_contexts[0];
   if (!firstContext) return null;
   return { context: firstContext, difference: firstContext.differences.find((item) => item.key === first?.difference_key) ?? firstContext.differences[0] };
+}
+export function researchContextForSelection(
+  comparison: ComparisonRecord,
+  selected: { context: DecisionContextDiff; difference: BehaviorDifference },
+): ResearchContext {
+  return {
+    runId: comparison.original_run_id,
+    sessionId: selected.context.session_id,
+    asset: differenceAsset(selected.difference),
+  };
 }
 function contextLabel(context: DecisionContextDiff): string { return differenceLabel(context.differences[0]); }
 function differenceLabel(difference: BehaviorDifference): string { return difference.kinds.map(kindLabel).join(" · "); }
