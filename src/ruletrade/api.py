@@ -47,7 +47,6 @@ from ruletrade.candidates.models import (
     CreateCandidateRequest,
 )
 from ruletrade.candidates.service import CandidateService
-from ruletrade.compile_plan import build_bt_plan
 from ruletrade.comparisons.errors import (
     ComparisonDomainError,
     ComparisonEvidenceUnsupportedError,
@@ -57,6 +56,7 @@ from ruletrade.comparisons.errors import (
 )
 from ruletrade.comparisons.models import ComparisonRecord
 from ruletrade.comparisons.service import ComparisonService
+from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
 from ruletrade.decision_evidence.errors import DecisionEventNotFoundError

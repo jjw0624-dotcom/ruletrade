@@ -34,7 +34,6 @@ from ruletrade.decision_evidence.models import (
     FinalTargetsEvidence,
     SelectionAssetOutcome,
     SelectionEvidence,
-    SourceComponentRef,
 )
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence import (
@@ -226,9 +225,9 @@ def _candidate_events() -> tuple[CollectedDecisionEvent, ...]:
 
 def _result(final: str, orders: int, fees: str) -> BacktestResult:
     return BacktestResult(
-        initial_value=Decimal("100000"),
+        initial_value=Decimal(100000),
         final_value=Decimal(final),
-        total_return=(Decimal(final) / Decimal("100000")) - 1,
+        total_return=(Decimal(final) / Decimal(100000)) - 1,
         total_orders=orders,
         total_fees=Decimal(fees),
         equity_curve=[EquityPoint(timestamp=NOW, value=Decimal(final))],
