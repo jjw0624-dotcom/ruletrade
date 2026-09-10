@@ -180,7 +180,7 @@ export function applySemanticPatch(
         ok: false,
         issue: {
           path: `graph.components[${operation.componentId}].primitive`,
-          message: "schedule must be Daily, Monthly, or Quarterly",
+          message: "schedule must be Monthly or Quarterly, or Daily",
         },
       };
     }

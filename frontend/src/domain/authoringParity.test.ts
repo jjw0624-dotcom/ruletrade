@@ -27,7 +27,7 @@ describe("Guided and intuitive Flow authoring parity",()=>{
   it("keeps Cooldown and schedules in both projections",()=>{
     let state=createEditorState(cooldownBootstrap);
     state=editorReducer(state,{type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:"cooldown",field:"duration",value:30}});
-    state=editorReducer(state,{type:"apply_semantic_patch",operation:{kind:"update_schedule",componentId:"monthly",cadence:"quarterly"}});
+    state=editorReducer(state,{type:"apply_semantic_patch",operation:{kind:"update_schedule",componentId:"daily",cadence:"quarterly"}});
     const guided=projectGuided(state.canonical,state.registry); const flow=projectConceptualFlow(state.canonical,state.registry);
     expect(guided.kind==="momentum"&&guided.momentum).toMatchObject({cooldownDuration:30,schedule:"Quarterly"});
     expect(flow.groups[0].choose).toMatchObject({cooldownDuration:30,timing:"Quarterly"});
