@@ -63,7 +63,7 @@ export function assetOutcomes(details: DecisionEventDetail[]): AssetOutcome[] {
     const cooldown = details.find((item) => item.evidence.kind === "cooldown" && item.evidence.asset === asset)?.evidence;
     if (fallback?.kind === "fallback" && fallback.activated && fallback.asset === asset) return { asset, kind: "fallback", label: "Fallback selected" };
     if (cooldown?.kind === "cooldown" && cooldown.signal_candidate && !cooldown.eligible) return { asset, kind: "blocked", label: "Blocked by waiting period" };
-    if (evaluation && !evaluation.passed) return { asset, kind: "failed", label: "Failed qualification rule" };
+    if (evaluation && !evaluation.passed && filter?.kind === "filter") return { asset, kind: "failed", label: `Needed > ${formatScore(filter.threshold)}` };
     if (selectionOutcome?.stopping_stage === "fallback_replacement") return { asset, kind: "replaced", label: "Candidate · replaced by fallback" };
     if (selectionOutcome?.stopping_stage === "primary_selection_incomplete") return { asset, kind: "replaced", label: "Candidate · primary selection incomplete" };
     if (selectionOutcome?.signal === "absent") return { asset, kind: "ranked_out", label: `Signal absent · ranked #${selectionOutcome.rank} below cutoff` };

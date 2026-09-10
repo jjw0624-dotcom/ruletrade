@@ -45,7 +45,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("explains filter rejection and fallback without inventing the missing required count", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} />);
-    expect(markup).toContain("normal selection was incomplete"); expect(markup).toContain("TLT instead"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("-6.7% &gt; 0%"); expect(markup).not.toContain("of 2 assets");
+    expect(markup).toContain("normal selection was incomplete"); expect(markup).toContain("TLT instead"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("-6.7% · Needed &gt; 0%"); expect(markup).not.toContain("of 2 assets");
   });
 
   it("uses v2 cardinality and structural outcomes without weakening v1 unknowns", () => {
@@ -78,7 +78,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("shows a scannable asset overview and an exact failed condition path", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} onShowInStrategy={() => undefined} />);
-    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Failed qualification rule"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
+    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
     expect(assetPath("VGT", fallback)).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Qualification rule", detail: "-6.7% > 0%", status: "failed", sourceComponentId: "positive_filter" }), expect.objectContaining({ label: "Ranking", detail: "Not reached", status: "neutral" })]));
   });
 
