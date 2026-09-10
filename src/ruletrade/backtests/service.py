@@ -119,7 +119,7 @@ class BacktestService:
                     "evidence_bytes": serialized_bytes(
                         [event.model_dump(mode="json") for event in decision_events]
                     ),
-                    "market_data_cache_hit": preflight.cache_hit if preflight else None,
+                    "market_data_cache_hit": preflight.cache_hit if preflight else False,
                     "required_symbols": len(preflight.symbols) if preflight else 0,
                     "unavailable_symbols": (
                         sum(item.status != "available" for item in preflight.symbols)
