@@ -30,6 +30,7 @@ Included:
 - Durable Strategy identities with immutable Canonical Revision history in SQLite
 - Durable BacktestRun history for saved Revisions, normalized results, provenance, and timings
 - Durable, versioned Structured Decision Evidence for persisted Runs
+- Immutable filter-threshold Candidates executed as real Candidate Runs
 
 Not included yet:
 
@@ -48,7 +49,9 @@ historical results, provenance, and latency instrumentation, and
 [Structured Decision Evidence](docs/decision-evidence.md) for the machine contract, immutable event
 schema, source provenance, and Timeline/Inspector read API, plus the
 [Evidence v1.1 gap fill](docs/decision-evidence-v1-1.md) for explicit cardinality, signal, stopping
-stage, and Canonical field identity.
+stage, and Canonical field identity, and
+[Candidate Change v0](docs/candidate-change.md) for the first evidence-backed research hypothesis
+and real Candidate Run.
 
 ## Strategy Editor
 

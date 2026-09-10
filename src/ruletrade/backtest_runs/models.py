@@ -39,6 +39,7 @@ class BacktestRunError(RunModel):
 class BacktestRunRecord(RunModel):
     id: str
     revision_id: str
+    candidate_id: str | None = None
     status: BacktestRunStatus
     run_config: BacktestConfig
     result: BacktestResult | None = None

@@ -37,6 +37,7 @@ jobs:
           src/ruletrade/api.py
           src/ruletrade/backtest_runs
           src/ruletrade/backtests
+          src/ruletrade/candidates
           src/ruletrade/compiler/__init__.py
           src/ruletrade/compiler/analysis
           src/ruletrade/compiler/frontend
@@ -72,6 +73,7 @@ jobs:
           scripts/verify_sleeves_lean_e2e.py
           tests/test_api.py
           tests/test_backtest_runs.py
+          tests/test_candidates.py
           tests/test_cooldown.py
           tests/test_decision_evidence.py
           tests/test_fallback.py
@@ -206,4 +208,3 @@ jobs:
           test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
           test -f build/lean/cooldown-ci/bin/RuleTradeGenerated.dll
-
