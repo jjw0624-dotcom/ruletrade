@@ -342,7 +342,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .evidence-details h4 { margin: .4rem 0; }
 .evidence-details p { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; }
 
-/* Conceptual Flow v2 remains an experimental projection. */
+/* Intuitive Flow uses the conceptual projection as the product editor. */
 .concept-flow { display: grid; gap: 1rem; }
 .concept-flow > header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
 .concept-flow h2 { margin: .2rem 0; }
@@ -370,7 +370,43 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .concept-inspector dd { margin: 0; font-weight: 650; }
 .concept-inspector small { display: block; margin-top: 1.4rem; color: var(--muted); }
 .concept-only-example { padding: 1rem; border: 1px dashed var(--border); border-radius: 12px; }
+.intuitive-flow { display: grid; grid-template-columns: 210px minmax(480px,1fr) 300px; min-height: 650px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--surface); }
+.object-library,.flow-inspector { padding: 1.1rem; background: var(--surface); }
+.object-library { border-right: 1px solid var(--border); }
+.flow-inspector { border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: .75rem; }
+.object-library h3,.flow-inspector h3 { margin: .3rem 0 1rem; }
+.library-question { margin: 1.1rem 0 .45rem; font-size: .78rem; font-weight: 750; color: var(--muted); }
+.palette-item { display: grid; gap: .1rem; margin-bottom: .4rem; padding: .65rem; border: 1px solid var(--border); border-radius: 9px; }
+.palette-item span,.library-hint,.object-library small,.flow-inspector small { color: var(--muted); font-size: .75rem; }
+.palette-item.muted { opacity: .55; }
+.add-asset label { font-size: .78rem; }
+.add-asset div { display: flex; margin: .3rem 0 .6rem; }
+.add-asset input { min-width: 0; width: 100%; border-radius: 7px 0 0 7px; }
+.add-asset button { border: 0; border-radius: 0 7px 7px 0; padding: 0 .6rem; background: var(--accent); color: white; }
+.intuitive-canvas-wrap { display: grid; grid-template-rows: auto 1fr; min-width: 0; background: var(--surface-soft); }
+.intuitive-canvas-wrap .concept-breadcrumb { padding: .8rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.intuitive-canvas { position: relative; min-height: 590px; overflow: auto; background-image: radial-gradient(circle,var(--border) 1px,transparent 1px); background-size: 24px 24px; }
+.intuitive-node { position: absolute; display: grid; gap: .35rem; width: 210px; padding: .9rem 1rem; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: inherit; box-shadow: 0 8px 20px rgba(18,32,44,.08); cursor: grab; touch-action: none; }
+.intuitive-node:active { cursor: grabbing; }
+.intuitive-node strong { font-size: .93rem; }
+.intuitive-node span,.intuitive-node em,.intuitive-node small { color: var(--muted); font-size: .78rem; font-style: normal; }
+.intuitive-node.selected { outline: 3px solid color-mix(in srgb,var(--accent) 42%,transparent); border-color: var(--accent); }
+.intuitive-node.choose { border-top: 4px solid var(--accent); }
+.intuitive-node.split { border-top: 4px solid #8264c7; }
+.intuitive-node.fallback { border-top: 4px solid #ba762b; }
+.flow-inspector label { display: grid; gap: .3rem; font-size: .8rem; font-weight: 700; }
+.flow-inspector input,.flow-inspector select { width: 100%; }
+.flow-inspector label > span { font-weight: 400; color: var(--muted); }
+.asset-chips { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; list-style: none; }
+.asset-chips li { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem; background: var(--surface-soft); border-radius: 999px; }
+.asset-chips button { border: 0; background: transparent; cursor: pointer; }
+.percent-field { display: flex; align-items: center; gap: .35rem; }
+.split-total { padding: .7rem; border-radius: 8px; font-weight: 700; }
+.split-total.valid { background: #edf8f0; color: #26623a; }
+.split-total.invalid { background: #fff2ed; color: #963f2d; }
 @media (max-width: 850px) {
+  .intuitive-flow { grid-template-columns: 160px minmax(420px,1fr); }
+  .flow-inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); }
   .asset-overview { grid-template-columns: 1fr; }
   .concept-workspace { grid-template-columns: 1fr; }
   .concept-inspector { border-left: 0; border-top: 1px solid var(--border); }

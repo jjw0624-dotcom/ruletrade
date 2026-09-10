@@ -1,164 +1,32 @@
-import { memo, useMemo, useState } from "react";
-import {
-  Background,
-  Controls,
-  Handle,
-  MiniMap,
-  Position,
-  ReactFlow,
-  type NodeProps,
-  type NodeChange,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-
-import { projectFlow, type StrategyFlowNodeData } from "../domain/flow";
+import { useMemo, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { projectConceptualFlow, type ConceptualChoose, type ConceptualGroup } from "../domain/conceptualFlow";
 import { useStrategyEditor } from "../store/editorStore";
-import { ConceptualFlowPreview } from "./ConceptualFlowPreview";
 
-const StrategyNode = memo(function StrategyNode({ data }: NodeProps) {
-  const node = data as StrategyFlowNodeData & {
-    onCountChange?: (value: number) => void;
-    onResampleChange?: (value: string) => void;
-    onLookbackChange?: (value: number) => void;
-    onThresholdChange?: (value: string) => void;
-    onTopNChange?: (value: number) => void;
-    onFallbackChange?: (value: string) => void;
-    onAllocationPairChange?: (value: string) => void;
-    onScheduleChange?: (value: "monthly" | "quarterly") => void;
-    onCooldownChange?: (value: number) => void;
-  };
-  return (
-    <div className="strategy-node">
-      <Handle type="target" position={Position.Left} />
-      <span className="node-kicker">Strategy step</span>
-      <strong>{node.title}</strong>
-      {node.cooldownDuration !== undefined ? (
-        <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.cooldownDuration} onChange={(event) => node.onCooldownChange?.(Number(event.target.value))} /></label></div>
-      ) : node.scheduleCadence !== undefined ? (
-        <div className="node-fields"><label>Cadence<select value={node.scheduleCadence} onChange={(event) => node.onScheduleChange?.(event.target.value as "monthly" | "quarterly")}>
-          <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option>
-        </select></label></div>
-      ) : node.allocationPair !== undefined ? (
-        <div className="node-fields"><label>Growth / Defensive<select value={node.allocationPair.value} onChange={(event) => node.onAllocationPairChange?.(event.target.value)}>
-          <option value="0.70/0.30">70% / 30%</option>
-          <option value="0.60/0.40">60% / 40%</option>
-        </select></label></div>
-      ) : node.fallbackAssetSetRef !== undefined ? (
-        <div className="node-fields"><label>Use asset<select value={node.fallbackAssetSetRef} onChange={(event) => node.onFallbackChange?.(event.target.value)}>
-          {node.fallbackOptions?.map((option) => <option key={option.id} value={option.id}>{option.asset}</option>)}
-        </select></label></div>
-      ) : node.threshold !== undefined ? (
-        <div className="node-fields"><label>Threshold (%)<input type="number" step="0.1" value={Number(node.threshold) * 100} onChange={(event) => {
-          if (event.target.value !== "") node.onThresholdChange?.(String(Number(event.target.value) / 100));
-        }} /></label></div>
-      ) : node.lookbackBars !== undefined ? (
-        <div className="node-fields"><label>Trading days<input type="number" min={1} value={node.lookbackBars} onChange={(event) => node.onLookbackChange?.(Number(event.target.value))} /></label></div>
-      ) : node.topN !== undefined ? (
-        <div className="node-fields"><label>Count<input type="number" min={1} value={node.topN} onChange={(event) => node.onTopNChange?.(Number(event.target.value))} /></label></div>
-      ) : node.randomCount === undefined ? (
-        node.details.map((detail) => <span key={detail}>{detail}</span>)
-      ) : (
-        <div className="node-fields">
-          <label>Count<input type="number" min={1} value={node.randomCount} onChange={(event) => node.onCountChange?.(Number(event.target.value))} /></label>
-          <label>Resample<select value={node.resample} onChange={(event) => node.onResampleChange?.(event.target.value)}><option value="per_event">per_event</option><option value="once">once</option></select></label>
-        </div>
-      )}
-      <Handle type="source" position={Position.Right} />
-    </div>
-  );
-});
-
-const nodeTypes = { strategy: StrategyNode };
+type Selection = { kind: "portfolio" } | { kind: "split" } | { kind: "group"; group: ConceptualGroup } | { kind: "choose"; group: ConceptualGroup; choose: ConceptualChoose };
+const defaults: Record<string, { x: number; y: number }> = { "concept:portfolio": {x:310,y:35}, "concept:split":{x:325,y:165}, "concept:group:0":{x:90,y:325}, "concept:group:1":{x:500,y:325}, "concept:assets":{x:90,y:120}, "concept:choose":{x:405,y:120}, "concept:fallback":{x:430,y:350} };
 
 export function FlowView() {
   const { state, dispatch } = useStrategyEditor();
-  const [conceptualPreview, setConceptualPreview] = useState(false);
-  const projection = projectFlow(state.canonical, state.registry, state.editor.nodePositions);
-  const nodes = useMemo(
-    () => projection.nodes.map((node) => ({
-      ...node,
-      selected: state.editor.selectedNodeId === node.id,
-      data: {
-        ...node.data,
-        onCountChange: (value: number) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "count", value },
-        }),
-        onResampleChange: (value: string) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "resample", value },
-        }),
-        onLookbackChange: (value: number) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "lookback_bars", value },
-        }),
-        onThresholdChange: (value: string) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "threshold", value },
-        }),
-        onTopNChange: (value: number) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "count", value },
-        }),
-        onFallbackChange: (value: string) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "fallback_asset_set_ref", value },
-        }),
-        onAllocationPairChange: (value: string) => {
-          if (!node.data.allocationPair) return;
-          const [growth, defensive] = value.split("/");
-          dispatch({
-            type: "apply_semantic_patch",
-            operation: {
-              kind: "update_sleeve_allocations",
-              allocations: [
-                { componentId: node.data.allocationPair.growthComponentId, value: growth },
-                { componentId: node.data.allocationPair.defensiveComponentId, value: defensive },
-              ],
-            },
-          });
-        },
-        onScheduleChange: (cadence: "monthly" | "quarterly") => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_schedule", componentId: node.id, cadence },
-        }),
-        onCooldownChange: (value: number) => dispatch({
-          type: "apply_semantic_patch",
-          operation: { kind: "update_component_config", componentId: node.id, field: "duration", value },
-        }),
-      },
-    })),
-    [projection.nodes, state.editor.selectedNodeId, dispatch],
-  );
-
-  function onNodesChange(changes: NodeChange[]) {
-    for (const change of changes) {
-      if (change.type === "position" && change.position) {
-        dispatch({ type: "move_node", componentId: change.id, position: change.position });
-      }
-      if (change.type === "select") {
-        dispatch({ type: "select_node", componentId: change.selected ? change.id : null });
-      }
-    }
-  }
-
-  if (conceptualPreview) return <ConceptualFlowPreview onClose={() => setConceptualPreview(false)} />;
-  return (
-    <div className="flow-surface"><div className="flow-context"><span>Each step is part of the same strategy.</span><div>{state.editor.selectedNodeId && <button className="secondary-button" onClick={() => dispatch({ type: "set_active_view", view: "guided" })}>View selected step in Guided</button>}<button className="secondary-button" onClick={() => setConceptualPreview(true)}>Preview conceptual Flow</button></div></div><div className="flow-view" aria-label="Flow strategy editor">
-      <ReactFlow
-        nodes={nodes}
-        edges={projection.edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        defaultViewport={state.editor.viewport}
-        onMoveEnd={(_, viewport) => dispatch({ type: "set_viewport", viewport })}
-        fitView
-        minZoom={0.45}
-      >
-        <Background gap={24} size={1} />
-        <MiniMap pannable zoomable />
-        <Controls />
-      </ReactFlow>
-    </div></div>
-  );
+  const projection = useMemo(() => projectConceptualFlow(state.canonical, state.registry), [state.canonical, state.registry]);
+  const group = projection.groups.find((item) => item.id === state.editor.openGroupId);
+  const selected = selectionFor(state.editor.selectedConceptId, group, projection.groups);
+  const select = (conceptId: string, componentId?: string) => { dispatch({type:"select_concept",conceptId}); if(componentId) dispatch({type:"select_node",componentId}); };
+  const move=(id:string,x:number,y:number)=>dispatch({type:"move_node",componentId:id,position:{x,y}});
+  return <section className="intuitive-flow" aria-label="Visual strategy builder" onKeyDown={(e)=>{if(e.key==="Escape")dispatch({type:"select_concept",conceptId:null})}} tabIndex={-1}>
+    <Library group={group}/><main className="intuitive-canvas-wrap"><nav className="concept-breadcrumb" aria-label="Strategy hierarchy"><button onClick={()=>dispatch({type:"open_group",groupId:null})}>Portfolio</button>{group&&<><span>/</span><strong>{group.label}</strong></>}</nav><div className="intuitive-canvas" onClick={(e)=>{if(e.currentTarget===e.target)dispatch({type:"select_concept",conceptId:null})}}>{group?<GroupCanvas group={group} selectedId={state.editor.selectedConceptId} positions={state.editor.nodePositions} onSelect={select} onMove={move}/>:<PortfolioCanvas groups={projection.groups} rebalance={projection.rebalance} selectedId={state.editor.selectedConceptId} positions={state.editor.nodePositions} onSelect={select} onOpen={(g)=>dispatch({type:"open_group",groupId:g.id})} onMove={move}/>}</div></main><Inspector selection={selected} projection={projection}/>
+  </section>;
 }
+
+function Library({group}:{group?:ConceptualGroup}){const{dispatch}=useStrategyEditor();const[ticker,setTicker]=useState("");function add(){if(!group?.assetSetId||!ticker.trim())return;dispatch({type:"apply_semantic_patch",operation:{kind:"update_asset_set_assets",assetSetId:group.assetSetId,assets:[...group.assets,ticker]}});setTicker("")}return <aside className="object-library"><span className="eyebrow">Add</span><h3>Objects</h3><p className="library-question">Where can money go?</p>{group?.assetSetId?<div className="add-asset"><label htmlFor="flow-ticker">Asset ticker</label><div><input id="flow-ticker" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} placeholder="e.g. VTI"/><button onClick={add}>Add</button></div></div>:<p className="library-hint">Open a Group to add an asset.</p>}<PaletteItem label="Group" note="Defined by this strategy"/><PaletteItem label="Cash" note="Not supported here" muted/><p className="library-question">How should it choose?</p><PaletteItem label="Choose" note="Select on the canvas"/><p className="library-question">How should money be split?</p><PaletteItem label="Split" note="Select on the canvas"/><small>New Groups and free-form connections need a validated Canonical graph operation.</small></aside>}
+function PaletteItem({label,note,muted=false}:{label:string;note:string;muted?:boolean}){return <div className={`palette-item${muted?" muted":""}`}><strong>{label}</strong><span>{note}</span></div>}
+
+function DraggableNode({id,position,selected,onMove,onClick,onDoubleClick,children,className=""}:{id:string;position:{x:number;y:number};selected:boolean;onMove:(id:string,x:number,y:number)=>void;onClick:()=>void;onDoubleClick?:()=>void;children:ReactNode;className?:string}){function down(event:ReactPointerEvent<HTMLButtonElement>){const startX=event.clientX,startY=event.clientY,origin=position;event.currentTarget.setPointerCapture(event.pointerId);const move=(e:PointerEvent)=>onMove(id,Math.max(8,origin.x+e.clientX-startX),Math.max(8,origin.y+e.clientY-startY));const up=()=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up)};window.addEventListener("pointermove",move);window.addEventListener("pointerup",up)}return <button className={`intuitive-node ${className}${selected?" selected":""}`} style={{left:position.x,top:position.y}} onPointerDown={down} onClick={e=>{e.stopPropagation();onClick()}} onDoubleClick={onDoubleClick} aria-pressed={selected}>{children}</button>}
+function pos(positions:Record<string,{x:number;y:number}>,id:string,index?:number){return positions[id]??defaults[index===undefined?id:`concept:group:${index}`]??{x:80,y:80}}
+function PortfolioCanvas({groups,rebalance,selectedId,positions,onSelect,onOpen,onMove}:{groups:ConceptualGroup[];rebalance?:string;selectedId:string|null;positions:Record<string,{x:number;y:number}>;onSelect:(id:string,c?:string)=>void;onOpen:(g:ConceptualGroup)=>void;onMove:(id:string,x:number,y:number)=>void}){return <><DraggableNode id="concept:portfolio" position={pos(positions,"concept:portfolio")} selected={selectedId==="portfolio"} onMove={onMove} onClick={()=>onSelect("portfolio")} className="portfolio"><strong>Portfolio</strong><span>{rebalance?`Rebalance: ${rebalance}`:"All invested money"}</span></DraggableNode><DraggableNode id="concept:split" position={pos(positions,"concept:split")} selected={selectedId==="split"} onMove={onMove} onClick={()=>onSelect("split")} className="split"><strong>Split money</strong><span>{groups.map(g=>g.allocation).filter(Boolean).join(" / ")||"Destinations"}</span></DraggableNode>{groups.map((g,i)=><DraggableNode key={g.id} id={`concept:group:${i}`} position={pos(positions,"",i)} selected={selectedId===`group:${g.id}`} onMove={onMove} onClick={()=>onSelect(`group:${g.id}`,g.sourceComponentIds[0])} onDoubleClick={()=>onOpen(g)} className="group"><strong>{g.label} {g.allocation}</strong><span>{g.choose?.label??g.assets.join(" · ")}</span>{g.timing&&<em>Re-evaluate: {g.timing}</em>}<small>Double-click to open</small></DraggableNode>)}</>}
+function GroupCanvas({group,selectedId,positions,onSelect,onMove}:{group:ConceptualGroup;selectedId:string|null;positions:Record<string,{x:number;y:number}>;onSelect:(id:string,c?:string)=>void;onMove:(id:string,x:number,y:number)=>void}){return <><DraggableNode id="concept:assets" position={pos(positions,"concept:assets")} selected={selectedId===`group:${group.id}`} onMove={onMove} onClick={()=>onSelect(`group:${group.id}`,group.sourceComponentIds[0])} className="group"><strong>{group.label} assets</strong><span>{group.assets.join(" · ")}</span></DraggableNode>{group.choose&&<DraggableNode id="concept:choose" position={pos(positions,"concept:choose")} selected={selectedId==="choose"} onMove={onMove} onClick={()=>onSelect("choose",group.choose!.selectionComponentId)} className="choose"><strong>{group.choose.label}</strong>{group.choose.condition&&<span>{group.choose.condition}</span>}<span>{group.choose.ranking}</span>{group.choose.otherwise&&<em>{group.choose.otherwise}</em>}</DraggableNode>}{group.choose?.otherwise&&<DraggableNode id="concept:fallback" position={pos(positions,"concept:fallback")} selected={selectedId==="fallback"} onMove={onMove} onClick={()=>onSelect("fallback",group.choose!.fallbackComponentId)} className="fallback"><strong>{group.choose.otherwise.replace("Otherwise → ","")}</strong><span>Otherwise destination</span></DraggableNode>}</>}
+
+function selectionFor(id:string|null,group:ConceptualGroup|undefined,groups:ConceptualGroup[]):Selection{if(id==="split")return{kind:"split"};if((id==="choose"||id==="fallback")&&group?.choose)return{kind:"choose",group,choose:group.choose};if(id?.startsWith("group:")){const found=groups.find(g=>`group:${g.id}`===id);if(found)return{kind:"group",group:found}}return{kind:"portfolio"}}
+function Inspector({selection,projection}:{selection:Selection;projection:ReturnType<typeof projectConceptualFlow>}){const{dispatch}=useStrategyEditor();if(selection.kind==="split"&&projection.split)return <SplitInspector groups={projection.split.groups}/>;if(selection.kind==="choose")return <ChooseInspector group={selection.group} choose={selection.choose}/>;if(selection.kind==="group")return <GroupInspector group={selection.group}/>;return <aside className="flow-inspector"><span className="eyebrow">Portfolio</span><h3>{projection.title}</h3><p>Money can go to {projection.groups.map(g=>g.label).join(" and ")}.</p>{projection.rebalanceScheduleComponentId&&<label>Rebalance<select value={projection.rebalance?.toLowerCase()} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_schedule",componentId:projection.rebalanceScheduleComponentId!,cadence:e.target.value as "monthly"|"quarterly"}})}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></label>}<small>Position, selection, and open Group are editor-only. They never change the strategy.</small></aside>}
+function ChooseInspector({group,choose}:{group:ConceptualGroup;choose:ConceptualChoose}){const{dispatch}=useStrategyEditor();return <aside className="flow-inspector"><span className="eyebrow">Choose assets</span><h3>{choose.label}</h3><label>From<input value={group.label} disabled/></label>{choose.lookbackComponentId&&<label>Return period (trading days)<input type="number" min={1} value={choose.lookbackBars} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:choose.lookbackComponentId!,field:"lookback_bars",value:Number(e.target.value)}})}/></label>}{choose.filterComponentId&&<label>Only include above (%)<input type="number" step="0.1" value={Number(choose.threshold)*100} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:choose.filterComponentId!,field:"threshold",value:String(Number(e.target.value)/100)}})}/></label>}<label>Choose<input type="number" min={1} value={choose.topN} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:choose.selectionComponentId,field:"count",value:Number(e.target.value)}})}/></label>{choose.fallbackComponentId&&<label>If there aren't enough<select value={choose.fallbackAssetSetRef} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:choose.fallbackComponentId!,field:"fallback_asset_set_ref",value:e.target.value}})}>{choose.fallbackOptions.map(o=><option key={o.id} value={o.id}>{o.asset}</option>)}</select></label>}{choose.cooldownComponentId&&<label>After selling, wait<input type="number" min={1} value={choose.cooldownDuration} onChange={e=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:choose.cooldownComponentId!,field:"duration",value:Number(e.target.value)}})}/><span>completed trading days</span></label>}<small>Every change is validated against the same strategy used by Guided.</small></aside>}
+function GroupInspector({group}:{group:ConceptualGroup}){const{dispatch}=useStrategyEditor();return <aside className="flow-inspector"><span className="eyebrow">Group</span><h3>{group.label}</h3><p>Where money can go</p><ul className="asset-chips">{group.assets.map(asset=><li key={asset}>{asset}{group.assetSetId&&group.assets.length>1&&<button aria-label={`Remove ${asset}`} onClick={()=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_asset_set_assets",assetSetId:group.assetSetId!,assets:group.assets.filter(x=>x!==asset)}})}>×</button>}</li>)}</ul></aside>}
+function SplitInspector({groups}:{groups:Array<{id:string;label:string;componentId:string;allocation:string}>}){const{dispatch}=useStrategyEditor();const[values,setValues]=useState(groups.map(g=>String(Number(g.allocation)*100)));const total=values.reduce((n,v)=>n+Number(v),0);return <aside className="flow-inspector"><span className="eyebrow">Split money</span><h3>Portfolio allocation</h3>{groups.map((g,i)=><label key={g.id}>{g.label}<span className="percent-field"><input type="number" min={0} max={100} value={values[i]} onChange={e=>setValues(values.map((v,j)=>j===i?e.target.value:v))}/>%</span></label>)}<div className={total===100?"split-total valid":"split-total invalid"}>Total {total}% {total===100?"✓":"— must equal 100%"}</div><button className="primary-button" disabled={total!==100} onClick={()=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_sleeve_allocations",allocations:groups.map((g,i)=>({componentId:g.componentId,value:String(Number(values[i])/100)}))}})}>Apply split</button><small>Both allocations update together. An invalid total never changes the strategy.</small></aside>}

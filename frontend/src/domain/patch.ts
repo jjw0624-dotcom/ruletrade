@@ -24,7 +24,13 @@ export interface UpdateSchedule {
   cadence: "monthly" | "quarterly";
 }
 
-export type SemanticPatch = UpdateComponentConfig | UpdateSleeveAllocations | UpdateSchedule;
+export interface UpdateAssetSetAssets {
+  kind: "update_asset_set_assets";
+  assetSetId: string;
+  assets: string[];
+}
+
+export type SemanticPatch = UpdateComponentConfig | UpdateSleeveAllocations | UpdateSchedule | UpdateAssetSetAssets;
 
 export type PatchResult =
   | { ok: true; strategy: CanonicalStrategyV1 }
@@ -144,6 +150,18 @@ export function applySemanticPatch(
   registry: RegistryPayload,
   operation: SemanticPatch,
 ): PatchResult {
+  if (operation.kind === "update_asset_set_assets") {
+    const definition = strategy.definitions.asset_sets.find((item) => item.id === operation.assetSetId);
+    if (!definition) return { ok: false, issue: { path: `definitions.asset_sets[${operation.assetSetId}]`, message: "asset group was not found" } };
+    const assets = operation.assets.map((asset) => asset.trim().toUpperCase());
+    if (assets.length === 0 || assets.some((asset) => !/^[A-Z][A-Z0-9.-]{0,11}$/.test(asset))) {
+      return { ok: false, issue: { path: `definitions.asset_sets[${operation.assetSetId}].assets`, message: "use at least one valid ticker symbol" } };
+    }
+    if (new Set(assets).size !== assets.length) {
+      return { ok: false, issue: { path: `definitions.asset_sets[${operation.assetSetId}].assets`, message: "ticker symbols must be unique" } };
+    }
+    return { ok: true, strategy: { ...strategy, definitions: { ...strategy.definitions, asset_sets: strategy.definitions.asset_sets.map((item) => item.id === definition.id ? { ...item, assets } : item) } } };
+  }
   if (operation.kind === "update_component_config") {
     return updateComponentConfig(strategy, registry, operation);
   }
