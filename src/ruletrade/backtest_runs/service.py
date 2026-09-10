@@ -44,6 +44,7 @@ from ruletrade.decision_evidence.errors import (
 from ruletrade.decision_evidence.models import DecisionEventDetail, DecisionEventSummary
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 
 class BacktestRunService:
@@ -82,15 +83,63 @@ class BacktestRunService:
         source_started = perf_counter_ns()
         revision = self.strategies.get_revision_by_id(revision_id)
         source_load_ms = _elapsed_ms(source_started)
+        return self._create_and_execute_source(
+            revision_id=revision.id,
+            candidate_id=None,
+            canonical=revision.canonical_strategy,
+            source_hash=revision.source_hash,
+            schema_version=revision.schema_version,
+            run_config=run_config,
+            source_load_ms=source_load_ms,
+            total_started=total_started,
+        )
+
+    def create_and_execute_candidate(
+        self,
+        *,
+        candidate_id: str,
+        base_revision_id: str,
+        canonical: CanonicalStrategyV1,
+        source_hash: str,
+        schema_version: str,
+        config: BacktestConfig,
+    ) -> BacktestRunRecord:
+        """Execute an immutable Candidate through the same official Run pipeline."""
+
+        total_started = perf_counter_ns()
+        return self._create_and_execute_source(
+            revision_id=base_revision_id,
+            candidate_id=candidate_id,
+            canonical=canonical,
+            source_hash=source_hash,
+            schema_version=schema_version,
+            run_config=self._validate_config(config),
+            source_load_ms=0,
+            total_started=total_started,
+        )
+
+    def _create_and_execute_source(
+        self,
+        *,
+        revision_id: str,
+        candidate_id: str | None,
+        canonical: CanonicalStrategyV1,
+        source_hash: str,
+        schema_version: str,
+        run_config: BacktestConfig,
+        source_load_ms: int,
+        total_started: int,
+    ) -> BacktestRunRecord:
         now = self._clock()
         run = BacktestRunRecord(
             id=self._id_factory(),
-            revision_id=revision.id,
+            revision_id=revision_id,
+            candidate_id=candidate_id,
             status=BacktestRunStatus.PENDING,
             run_config=run_config,
             provenance=BacktestRunProvenance(
-                source_hash=revision.source_hash,
-                strategy_schema_version=revision.schema_version,
+                source_hash=source_hash,
+                strategy_schema_version=schema_version,
                 application_version=__version__,
                 build_commit=self._build_commit,
                 engine_image=self.executor.engine_image,
@@ -103,12 +152,12 @@ class BacktestRunService:
         running = self.repository.mark_running(run.id, self._clock())
         try:
             execution = self.executor.execute_with_evidence(
-                LeanBacktestRequest(strategy=revision.canonical_strategy, config=run_config)
+                LeanBacktestRequest(strategy=canonical, config=run_config)
             )
             if not execution.decision_events:
                 raise DecisionEvidenceError("Successful execution emitted no Decision Evidence.")
             source_component_ids = {
-                component.id for component in revision.canonical_strategy.graph.components
+                component.id for component in canonical.graph.components
             }
             unknown_provenance = sorted(
                 {
@@ -173,6 +222,9 @@ class BacktestRunService:
         if run is None:
             raise BacktestRunNotFoundError("Backtest Run was not found.")
         return run
+
+    def get_candidate_run(self, candidate_id: str) -> BacktestRunRecord | None:
+        return self.repository.get_candidate_run(candidate_id)
 
     def list_decision_events(self, run_id: str) -> tuple[DecisionEventSummary, ...]:
         self.get_run(run_id)

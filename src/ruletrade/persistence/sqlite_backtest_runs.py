@@ -38,13 +38,14 @@ class SQLiteBacktestRunRepository:
                 connection.execute(
                     """
                     INSERT INTO backtest_runs (
-                        id, revision_id, status, config_json, result_json, error_json,
+                        id, revision_id, candidate_id, status, config_json, result_json, error_json,
                         provenance_json, timings_json, created_at, started_at, completed_at
-                    ) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)
+                    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)
                     """,
                     (
                         run.id,
                         run.revision_id,
+                        run.candidate_id,
                         run.status.value,
                         _model_json(run.run_config),
                         _model_json(run.provenance),
@@ -179,7 +180,7 @@ class SQLiteBacktestRunRepository:
                 rows = connection.execute(
                     """
                     SELECT * FROM backtest_runs
-                    WHERE revision_id = ?
+                    WHERE revision_id = ? AND candidate_id IS NULL
                     ORDER BY created_at DESC, id DESC
                     """,
                     (revision_id,),
@@ -187,6 +188,16 @@ class SQLiteBacktestRunRepository:
             return tuple(self._run(row) for row in rows)
         except sqlite3.Error as exc:
             raise BacktestRunPersistenceError("Could not list Backtest Runs.") from exc
+
+    def get_candidate_run(self, candidate_id: str) -> BacktestRunRecord | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT * FROM backtest_runs WHERE candidate_id = ?", (candidate_id,)
+                ).fetchone()
+            return None if row is None else self._run(row)
+        except sqlite3.Error as exc:
+            raise BacktestRunPersistenceError("Could not read Candidate Run.") from exc
 
     def list_decision_events(self, run_id: str) -> tuple[DecisionEventSummary, ...]:
         try:
@@ -262,6 +273,7 @@ class SQLiteBacktestRunRepository:
         return BacktestRunRecord(
             id=row["id"],
             revision_id=row["revision_id"],
+            candidate_id=row["candidate_id"],
             status=BacktestRunStatus(row["status"]),
             run_config=BacktestConfig.model_validate_json(row["config_json"]),
             result=(

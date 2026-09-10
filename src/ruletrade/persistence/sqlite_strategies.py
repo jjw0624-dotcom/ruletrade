@@ -10,7 +10,7 @@ from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class AppendStatus(str, Enum):
@@ -40,7 +40,7 @@ class SQLiteStrategyRepository:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, 1, 2, 3, SCHEMA_VERSION}:
+                if version not in {0, 1, 2, 3, 4, SCHEMA_VERSION}:
                     raise PersistenceError(
                         f"unsupported Strategy database schema version: {version}"
                     )
@@ -85,9 +85,39 @@ class SQLiteStrategyRepository:
                         SELECT RAISE(ABORT, 'strategy revisions are immutable');
                     END;
 
+                    CREATE TABLE IF NOT EXISTS candidates (
+                        id TEXT PRIMARY KEY,
+                        base_revision_id TEXT NOT NULL,
+                        originating_run_id TEXT,
+                        originating_decision_event_id TEXT,
+                        change_json TEXT NOT NULL,
+                        canonical_json TEXT NOT NULL,
+                        source_hash TEXT NOT NULL,
+                        schema_version TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (base_revision_id) REFERENCES strategy_revisions(id),
+                        FOREIGN KEY (originating_run_id) REFERENCES backtest_runs(id)
+                    );
+
+                    CREATE INDEX IF NOT EXISTS candidates_originating_run_created
+                        ON candidates(originating_run_id, created_at DESC, id DESC);
+
+                    CREATE TRIGGER IF NOT EXISTS candidates_no_update
+                    BEFORE UPDATE ON candidates
+                    BEGIN
+                        SELECT RAISE(ABORT, 'candidates are immutable research artifacts');
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS candidates_no_delete
+                    BEFORE DELETE ON candidates
+                    BEGIN
+                        SELECT RAISE(ABORT, 'candidates are immutable research artifacts');
+                    END;
+
                     CREATE TABLE IF NOT EXISTS backtest_runs (
                         id TEXT PRIMARY KEY,
                         revision_id TEXT NOT NULL,
+                        candidate_id TEXT,
                         status TEXT NOT NULL CHECK (
                             status IN ('pending', 'running', 'succeeded', 'failed')
                         ),
@@ -100,6 +130,7 @@ class SQLiteStrategyRepository:
                         started_at TEXT,
                         completed_at TEXT,
                         FOREIGN KEY (revision_id) REFERENCES strategy_revisions(id),
+                        FOREIGN KEY (candidate_id) REFERENCES candidates(id),
                         CHECK (
                             (status = 'pending' AND started_at IS NULL
                                 AND completed_at IS NULL AND result_json IS NULL
@@ -126,6 +157,7 @@ class SQLiteStrategyRepository:
                     BEFORE UPDATE ON backtest_runs
                     WHEN NEW.id != OLD.id
                         OR NEW.revision_id != OLD.revision_id
+                        OR NEW.candidate_id IS NOT OLD.candidate_id
                         OR NEW.config_json != OLD.config_json
                         OR NEW.provenance_json != OLD.provenance_json
                         OR NEW.created_at != OLD.created_at
@@ -189,6 +221,13 @@ class SQLiteStrategyRepository:
                 )
                 if version == 3:
                     self._migrate_decision_events_v3_to_v4(connection)
+                run_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(backtest_runs)")
+                }
+                if "candidate_id" not in run_columns:
+                    self._migrate_candidates_to_v5(connection)
+                self._ensure_candidate_run_constraints(connection)
                 if version < SCHEMA_VERSION:
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         except PersistenceError:
@@ -471,6 +510,54 @@ class SQLiteStrategyRepository:
             BEFORE DELETE ON decision_events
             BEGIN
                 SELECT RAISE(ABORT, 'decision events are immutable derived artifacts');
+            END;
+            """
+        )
+
+    @staticmethod
+    def _migrate_candidates_to_v5(connection: sqlite3.Connection) -> None:
+        """Add immutable Candidates and the narrow Candidate Run source link."""
+        connection.executescript(
+            """
+            DROP TRIGGER backtest_runs_immutable_identity;
+            ALTER TABLE backtest_runs ADD COLUMN candidate_id TEXT REFERENCES candidates(id);
+
+            CREATE UNIQUE INDEX backtest_runs_candidate
+                ON backtest_runs(candidate_id) WHERE candidate_id IS NOT NULL;
+
+            CREATE TRIGGER backtest_runs_immutable_identity
+            BEFORE UPDATE ON backtest_runs
+            WHEN NEW.id != OLD.id
+                OR NEW.revision_id != OLD.revision_id
+                OR NEW.candidate_id IS NOT OLD.candidate_id
+                OR NEW.config_json != OLD.config_json
+                OR NEW.provenance_json != OLD.provenance_json
+                OR NEW.created_at != OLD.created_at
+            BEGIN
+                SELECT RAISE(ABORT, 'backtest run identity and inputs are immutable');
+            END;
+            """
+        )
+
+    @staticmethod
+    def _ensure_candidate_run_constraints(connection: sqlite3.Connection) -> None:
+        """Install v5 Run constraints after fresh creation or migration."""
+        connection.executescript(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS backtest_runs_candidate
+                ON backtest_runs(candidate_id) WHERE candidate_id IS NOT NULL;
+
+            DROP TRIGGER IF EXISTS backtest_runs_immutable_identity;
+            CREATE TRIGGER backtest_runs_immutable_identity
+            BEFORE UPDATE ON backtest_runs
+            WHEN NEW.id != OLD.id
+                OR NEW.revision_id != OLD.revision_id
+                OR NEW.candidate_id IS NOT OLD.candidate_id
+                OR NEW.config_json != OLD.config_json
+                OR NEW.provenance_json != OLD.provenance_json
+                OR NEW.created_at != OLD.created_at
+            BEGIN
+                SELECT RAISE(ABORT, 'backtest run identity and inputs are immutable');
             END;
             """
         )

@@ -52,7 +52,7 @@ class StrategyService:
         name: str,
         source: CanonicalStrategyV1 | Mapping[str, Any],
     ) -> StrategyDetail:
-        canonical = self._validate_source(source)
+        canonical = self.validate_source(source)
         timestamp = self._clock()
         strategy_id = self._id_factory()
         revision_id = self._id_factory()
@@ -130,7 +130,7 @@ class StrategyService:
         expected_parent_revision_id: str,
         source: CanonicalStrategyV1 | Mapping[str, Any],
     ) -> SaveRevisionResponse:
-        canonical = self._validate_source(source)
+        canonical = self.validate_source(source)
         timestamp = self._clock()
         revision = RevisionRecord(
             id=self._id_factory(),
@@ -168,7 +168,7 @@ class StrategyService:
         return strategy
 
     @staticmethod
-    def _validate_source(
+    def validate_source(
         source: CanonicalStrategyV1 | Mapping[str, Any],
     ) -> CanonicalStrategyV1:
         try:

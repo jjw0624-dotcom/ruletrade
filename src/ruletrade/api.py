@@ -33,6 +33,20 @@ from ruletrade.backtests.errors import (
 from ruletrade.backtests.lean_runner import DockerLeanRunner
 from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
+from ruletrade.candidates.errors import (
+    CandidateArchivedStrategyError,
+    CandidateDomainError,
+    CandidateExpectedValueMismatchError,
+    CandidateNotFoundError,
+    CandidatePersistenceError,
+    InvalidCandidateChangeError,
+)
+from ruletrade.candidates.models import (
+    CandidateExecution,
+    CandidateList,
+    CreateCandidateRequest,
+)
+from ruletrade.candidates.service import CandidateService
 from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
@@ -44,7 +58,11 @@ from ruletrade.decision_evidence.models import (
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
-from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
+from ruletrade.persistence import (
+    SQLiteBacktestRunRepository,
+    SQLiteCandidateRepository,
+    SQLiteStrategyRepository,
+)
 from ruletrade.strategies.errors import (
     InvalidStrategySourceError,
     PersistenceError,
@@ -103,6 +121,8 @@ strategy_service: StrategyService | None = None
 strategy_service_path: Path | None = None
 backtest_run_service: BacktestRunService | None = None
 backtest_run_service_path: Path | None = None
+candidate_service: CandidateService | None = None
+candidate_service_path: Path | None = None
 
 
 def get_lean_backtest_service() -> BacktestRunService:
@@ -125,6 +145,19 @@ def get_strategy_service() -> StrategyService:
         strategy_service = StrategyService(SQLiteStrategyRepository(path))
         strategy_service_path = path
     return strategy_service
+
+
+def get_candidate_service() -> CandidateService:
+    global candidate_service, candidate_service_path
+    path = default_strategy_db_path()
+    if candidate_service is None or candidate_service_path != path:
+        candidate_service = CandidateService(
+            SQLiteCandidateRepository(path),
+            get_strategy_service(),
+            get_lean_backtest_service(),
+        )
+        candidate_service_path = path
+    return candidate_service
 
 
 @app.exception_handler(StrategyDomainError)
@@ -210,6 +243,30 @@ async def decision_event_not_found(
     return JSONResponse(
         status_code=404,
         content={"detail": {"code": exc.code, "message": str(exc)}},
+    )
+
+
+@app.exception_handler(CandidateDomainError)
+async def candidate_domain_error(
+    _request: Request,
+    exc: CandidateDomainError,
+) -> JSONResponse:
+    if isinstance(exc, CandidateNotFoundError):
+        status_code = 404
+    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError)):
+        status_code = 409
+    elif isinstance(exc, InvalidCandidateChangeError):
+        status_code = 422
+    else:
+        status_code = 500
+    if isinstance(exc, CandidatePersistenceError):
+        logger.exception("Candidate persistence operation failed", exc_info=exc)
+        message = "Candidate persistence is temporarily unavailable."
+    else:
+        message = str(exc)
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": {"code": exc.code, "message": message}},
     )
 
 
@@ -517,6 +574,42 @@ def read_run_decision_event(
     service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> DecisionEventDetail:
     return service.get_decision_event(run_id, event_id)
+
+
+@app.post(
+    "/v1/backtest-runs/{run_id}/candidates",
+    response_model=CandidateExecution,
+    status_code=201,
+)
+def create_candidate(
+    run_id: str,
+    request: CreateCandidateRequest,
+    service: Annotated[CandidateService, Depends(get_candidate_service)],
+) -> CandidateExecution:
+    return service.create_and_execute(
+        run_id,
+        request.change,
+        originating_decision_event_id=request.originating_decision_event_id,
+    )
+
+
+@app.get(
+    "/v1/backtest-runs/{run_id}/candidates",
+    response_model=CandidateList,
+)
+def list_candidates(
+    run_id: str,
+    service: Annotated[CandidateService, Depends(get_candidate_service)],
+) -> CandidateList:
+    return CandidateList(items=service.list_for_run(run_id))
+
+
+@app.get("/v1/candidates/{candidate_id}", response_model=CandidateExecution)
+def read_candidate(
+    candidate_id: str,
+    service: Annotated[CandidateService, Depends(get_candidate_service)],
+) -> CandidateExecution:
+    return service.get(candidate_id)
 
 
 @app.get("/v1/strategies", response_model=StrategyList)
