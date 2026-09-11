@@ -32,7 +32,8 @@ export interface StrategyEditorState {
 
 export type StrategyEditorAction =
   | { type: "apply_semantic_patch"; operation: SemanticPatch }
-  | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }\n  | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selectedNodeId?: string | null; selectedConceptId?: string | null }
+  | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }
+  | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selectedNodeId?: string | null; selectedConceptId?: string | null }
   | { type: "set_active_view"; view: EditorView }
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
