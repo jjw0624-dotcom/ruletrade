@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { sleevesBootstrap } from "../test/fixture";
 import { sameCanonicalSnapshot, strategyApi } from "../strategyApi";
-import { StrategiesView } from "../views/StrategiesView";
+import { HomeView } from "../views/HomeView";
 import { createEditorState, editorReducer } from "../store/editorStore";
 
 const record = { id: "s1", name: "Growth + Defensive", created_at: "2026-09-09T10:00:00Z", updated_at: "2026-09-09T11:00:00Z", current_revision_id: "r1", archived_at: null };
@@ -11,7 +11,7 @@ function jsonResponse(body: unknown, status = 200) { return new Response(JSON.st
 
 describe("Strategy and immutable Revision frontend", () => {
   it("renders a backend Strategy list", () => {
-    const markup = renderToStaticMarkup(<StrategiesView status="loaded" strategies={[record]} error={null} onExplore={() => undefined} onOpen={() => undefined} onRetry={() => undefined} />);
+    const markup = renderToStaticMarkup(<HomeView status="loaded" strategies={[record]} error={null} onOpen={() => undefined} onRetry={() => undefined} onCreate={() => undefined} onExample={() => undefined} />);
     expect(markup).toContain("Growth + Defensive");
     expect(markup).toContain("Updated");
   });

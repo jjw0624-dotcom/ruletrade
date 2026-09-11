@@ -12,6 +12,15 @@ export function GuidedView() {
   const focusClass = (componentId?: string, fieldPath?: string) => componentId && state.editor.selectedNodeId === componentId && (!state.editor.selectedFieldPath || state.editor.selectedFieldPath === fieldPath) ? "guided-rule-focus" : "";
   const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
 
+  if (guided.kind === "single") {
+    return <div className="guided-view" aria-label="Guided strategy editor"><section className="sleeve-card">
+      <header><div><span className="eyebrow">One investment</span><h2>{guided.investment.assets[0]}</h2></div><strong>{percent(guided.investment.total)}</strong></header>
+      <AssetMembershipEditor question="What should it hold?" assetSetId={guided.investment.assetSetId} assets={guided.investment.assets} />
+      <div className="summary-row"><span>How should the money be invested?</span><span>All in this investment</span></div>
+      {guided.investment.scheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.investment.scheduleComponentId} value={guided.investment.schedule} /> : null}
+    </section></div>;
+  }
+
   if (guided.kind === "portfolio") {
     return (
       <div className="guided-view" aria-label="Guided strategy editor">

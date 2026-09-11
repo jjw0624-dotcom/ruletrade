@@ -73,6 +73,14 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
     };
   }
   if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], rebalanceScheduleComponentId: guided.momentum.scheduleComponentId, groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], assetSetId: guided.momentum.assetSetId, choose: chooseFrom(guided.momentum) }] };
+  if (guided.kind === "single") return {
+    kind: "single",
+    title: strategy.metadata.name,
+    rebalance: guided.investment.schedule,
+    sourceComponentIds: [guided.investment.assetComponentId],
+    rebalanceScheduleComponentId: guided.investment.scheduleComponentId,
+    groups: [{ id: "investment", label: "Investment", allocation: percentage(guided.investment.total), assets: guided.investment.assets, timing: guided.investment.schedule, sourceComponentIds: [guided.investment.assetComponentId], assetSetId: guided.investment.assetSetId }],
+  };
   return {
     kind: "portfolio", title: strategy.metadata.name, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId, guided.safe.allocationComponentId],
     groups: [

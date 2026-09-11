@@ -42,12 +42,12 @@ export type StrategyEditorAction =
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
-export function createEditorState(bootstrap: EditorBootstrap): StrategyEditorState {
+export function createEditorState(bootstrap: EditorBootstrap, initialView: EditorView = "overview"): StrategyEditorState {
   return {
     canonical: bootstrap.strategy,
     registry: bootstrap.registry,
     editor: {
-      activeView: "overview",
+      activeView: initialView,
       nodePositions: { ...DEFAULT_NODE_POSITIONS },
       viewport: { x: 0, y: 0, zoom: 0.85 },
       selectedNodeId: null,
@@ -113,12 +113,14 @@ const StrategyEditorContext = createContext<StrategyEditorContextValue | null>(n
 
 export function StrategyEditorProvider({
   bootstrap,
+  initialView = "overview",
   children,
 }: {
   bootstrap: EditorBootstrap;
+  initialView?: EditorView;
   children: ReactNode;
 }) {
-  const [state, dispatch] = useReducer(editorReducer, bootstrap, createEditorState);
+  const [state, dispatch] = useReducer(editorReducer, bootstrap, (value) => createEditorState(value, initialView));
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <StrategyEditorContext.Provider value={value}>{children}</StrategyEditorContext.Provider>;
 }

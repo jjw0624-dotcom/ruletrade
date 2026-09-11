@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
-
 GOLDEN_PORTFOLIO_PAYLOAD = {
     "metadata": {
         "name": "Growth 70 / Safe 30",
@@ -71,6 +70,44 @@ GOLDEN_PORTFOLIO_PAYLOAD = {
             },
             {
                 "source": {"component_id": "targets", "port": "targets"},
+                "target": {"component_id": "rebalance", "port": "targets"},
+            },
+        ],
+    },
+    "entrypoints": [
+        {"event_component_id": "monthly", "target_component_id": "rebalance"}
+    ],
+}
+
+
+ONE_INVESTMENT_PAYLOAD = {
+    "metadata": {
+        "name": "One investment",
+        "description": "Invest fully in QQQ and check the allocation monthly.",
+    },
+    "definitions": {"asset_sets": [{"id": "investment", "assets": ["QQQ"]}]},
+    "graph": {
+        "components": [
+            {"id": "monthly", "primitive": "monthly@1", "config": {"day": 1}},
+            {
+                "id": "investment_assets",
+                "primitive": "asset_set@1",
+                "config": {"asset_set_ref": "investment"},
+            },
+            {
+                "id": "weights",
+                "primitive": "equal_weight@1",
+                "config": {"total": "1.0"},
+            },
+            {"id": "rebalance", "primitive": "rebalance@1"},
+        ],
+        "connections": [
+            {
+                "source": {"component_id": "investment_assets", "port": "assets"},
+                "target": {"component_id": "weights", "port": "assets"},
+            },
+            {
+                "source": {"component_id": "weights", "port": "targets"},
                 "target": {"component_id": "rebalance", "port": "targets"},
             },
         ],
@@ -409,6 +446,10 @@ COOLDOWN_PAYLOAD = {
 
 def golden_portfolio_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(GOLDEN_PORTFOLIO_PAYLOAD)
+
+
+def one_investment_strategy() -> CanonicalStrategyV1:
+    return CanonicalStrategyV1.model_validate(ONE_INVESTMENT_PAYLOAD)
 
 
 def golden_stateful_rule_strategy() -> CanonicalStrategyV1:

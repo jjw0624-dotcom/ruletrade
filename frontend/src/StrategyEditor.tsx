@@ -25,11 +25,11 @@ import {
   type MarketDataPreflight,
 } from "./marketDataApi";
 
-export function StrategyEditor({ example, persisted, confirmation, onDirtyChange, onArchived, onOpenRun, sourceFocus, onBackToResearch, backToResearchLabel }: { example: StrategyExample; persisted?: StrategyDetail; confirmation?: string | null; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; sourceFocus?: { componentId: string; fieldPath?: string | null } | null; onBackToResearch?: () => void; backToResearchLabel?: string }) {
+export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, onArchived, onOpenRun, sourceFocus, onBackToResearch, backToResearchLabel }: { example: StrategyExample; persisted?: StrategyDetail; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; sourceFocus?: { componentId: string; fieldPath?: string | null } | null; onBackToResearch?: () => void; backToResearchLabel?: string }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
   const [config, setConfig] = useState<BacktestConfig>(example.backtestDefaults);
-  const [showSetup, setShowSetup] = useState(false);
+  const [showSetup, setShowSetup] = useState(initialTestOpen);
   const [base, setBase] = useState(persisted?.current_revision ?? null);
   const [strategy, setStrategy] = useState(persisted?.strategy ?? null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error" | "stale">("idle");

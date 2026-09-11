@@ -213,6 +213,20 @@ def test_editor_bootstrap_can_deliver_momentum_source_model() -> None:
     ]
 
 
+def test_editor_bootstrap_can_deliver_one_investment_starting_strategy() -> None:
+    response = client.get("/v1/editor/bootstrap?example=one_investment")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["validation"] == {"valid": True, "issues": []}
+    assert payload["strategy"]["definitions"]["asset_sets"] == [
+        {"id": "investment", "assets": ["QQQ"]}
+    ]
+    assert [
+        component["primitive"] for component in payload["strategy"]["graph"]["components"]
+    ] == ["monthly@1", "asset_set@1", "equal_weight@1", "rebalance@1"]
+
+
 def test_editor_bootstrap_can_deliver_filter_source_model_and_registry_contract() -> None:
     response = client.get("/v1/editor/bootstrap?example=filter")
 
