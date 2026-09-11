@@ -4,6 +4,12 @@ import { BacktestErrorPanel } from "./components/BacktestErrorPanel";
 import { BacktestSetup } from "./components/BacktestSetup";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { BacktestConfig } from "./domain/backtest";
+import {
+  dataReadinessKey,
+  freshDataReadiness,
+  readinessFromResult,
+  type DataReadiness,
+} from "./domain/marketDataReadiness";
 import type { StrategyExample } from "./domain/examples";
 import { useBacktestRun } from "./hooks/useBacktestRun";
 import { useStrategyEditor, type EditorView } from "./store/editorStore";
@@ -12,6 +18,11 @@ import { GuidedView } from "./views/GuidedView";
 import { OverviewView } from "./views/OverviewView";
 import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type StrategyDetail } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
+import {
+  marketDataApi,
+  MarketDataApiError,
+  type MarketDataPreflight,
+} from "./marketDataApi";
 
 export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, onOpenRun, sourceFocus, onBackToResearch, backToResearchLabel }: { example: StrategyExample; persisted?: StrategyDetail; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; onOpenRun?: (runId: string) => void; sourceFocus?: { componentId: string; fieldPath?: string | null } | null; onBackToResearch?: () => void; backToResearchLabel?: string }) {
   const { state, dispatch } = useStrategyEditor();
@@ -26,7 +37,12 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
   const [runsStatus, setRunsStatus] = useState<"loading" | "loaded" | "error">(persisted ? "loading" : "loaded");
   const [persistentRunning, setPersistentRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [dataReadiness, setDataReadiness] = useState<DataReadiness>({ status: "not_checked" });
   const dirty = base ? !sameCanonicalSnapshot(state.canonical, base.canonical_strategy) : false;
+  const readinessKey = base && !dirty && config.dataset_id === "us-equity-daily-local"
+    ? dataReadinessKey(base.id, config)
+    : null;
+  const readiness = freshDataReadiness(dataReadiness, readinessKey);
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   useEffect(() => { if (sourceFocus) { dispatch({ type: "select_node", componentId: sourceFocus.componentId, fieldPath: sourceFocus.fieldPath }); dispatch({ type: "set_active_view", view: "guided" }); } }, [sourceFocus, dispatch]);
   useEffect(() => {
@@ -47,9 +63,44 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
     return () => { cancelled = true; };
   }, [strategy?.id, base?.id]);
 
+  async function checkDataReadiness(targetConfig = config): Promise<MarketDataPreflight | null> {
+    if (!base || dirty || targetConfig.dataset_id !== "us-equity-daily-local") return null;
+    const key = dataReadinessKey(base.id, targetConfig);
+    setDataReadiness({ status: "checking", key });
+    try {
+      const result = await marketDataApi.preflight(base.id, targetConfig);
+      setDataReadiness(readinessFromResult(key, result));
+      return result;
+    } catch (reason) {
+      const message = reason instanceof MarketDataApiError
+        ? reason.detail.message
+        : reason instanceof Error ? reason.message : "Preflight request failed.";
+      setDataReadiness({ status: "error", key, message });
+      return null;
+    }
+  }
+
+  function openTestSetup() {
+    setShowSetup(true);
+    if (base && !dirty && config.dataset_id === "us-equity-daily-local") {
+      void checkDataReadiness();
+    }
+  }
+
   async function runCurrent() {
-    setShowSetup(false); setRunError(null);
-    if (!strategy || !base || dirty) { await backtest.run(state.canonical, config); return; }
+    setRunError(null);
+    if (!strategy || !base || dirty) {
+      setShowSetup(false);
+      await backtest.run(state.canonical, config);
+      return;
+    }
+    if (config.dataset_id === "us-equity-daily-local") {
+      const checked = readiness.status === "available"
+        ? readiness.result
+        : await checkDataReadiness();
+      if (!checked || checked.overall !== "available") return;
+    }
+    setShowSetup(false);
     setPersistentRunning(true);
     try { const run = await backtestRunApi.create(base.id, config); setRuns((current) => [run, ...current]); onOpenRun?.(run.id); }
     catch (reason) { setRunError(reason instanceof BacktestRunApiError ? reason.detail.message : reason instanceof Error ? reason.message : "We couldn't create this backtest."); }
@@ -104,7 +155,7 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
   }
 
   return <section className="strategy-workspace page">
-    <header className="workspace-heading"><div><span className="eyebrow">Investment strategy</span><h1>{strategy?.name ?? state.canonical.metadata.name}</h1><p>{state.canonical.metadata.description}</p>{strategy && <div className="persisted-status"><span className={dirty ? "dirty-dot" : "saved-dot"} />{dirty ? "Unsaved changes" : "Saved"}<button className="text-button" onClick={rename}>Rename</button></div>}</div><div className="workspace-actions">{strategy && <button className="secondary-button" onClick={() => void save()} disabled={!dirty || saveStatus === "saving"}>{saveStatus === "saving" ? "Saving…" : "Save"}</button>}<button className="secondary-button" onClick={validate} disabled={state.validation.status === "checking"}>{state.validation.status === "checking" ? "Checking…" : "Check strategy"}</button><button className="primary-button" onClick={() => setShowSetup(true)}>{dirty ? "Test current changes" : "Test"}</button></div></header>
+    <header className="workspace-heading"><div><span className="eyebrow">Investment strategy</span><h1>{strategy?.name ?? state.canonical.metadata.name}</h1><p>{state.canonical.metadata.description}</p>{strategy && <div className="persisted-status"><span className={dirty ? "dirty-dot" : "saved-dot"} />{dirty ? "Unsaved changes" : "Saved"}<button className="text-button" onClick={rename}>Rename</button></div>}</div><div className="workspace-actions">{strategy && <button className="secondary-button" onClick={() => void save()} disabled={!dirty || saveStatus === "saving"}>{saveStatus === "saving" ? "Saving…" : "Save"}</button>}<button className="secondary-button" onClick={validate} disabled={state.validation.status === "checking"}>{state.validation.status === "checking" ? "Checking…" : "Check strategy"}</button><button className="primary-button" onClick={openTestSetup}>{dirty ? "Test current changes" : "Test"}</button></div></header>
     {saveMessage && <div className={`save-banner ${saveStatus}`} role={saveStatus === "error" || saveStatus === "stale" ? "alert" : "status"}><span>{saveMessage}</span>{saveStatus === "stale" && <button className="secondary-button" onClick={() => void reloadLatest()}>Reload latest</button>}</div>}
     {state.editor.selectedNodeId && <div className="source-focus-banner" role="status"><span><strong>Rule from the result</strong> The related strategy setting is highlighted below.</span><div>{onBackToResearch && <button className="text-button" onClick={onBackToResearch}>← {backToResearchLabel ?? "Back to decision"}</button>}<button className="text-button" onClick={() => dispatch({ type: "select_node", componentId: null })}>Dismiss</button></div></div>}
     <div className="status-row"><div className="view-tabs">{tab("overview", "Overview")}{tab("guided", "Guided")}{tab("flow", "Flow")}</div><span className={`validation-pill ${state.validation.status}`}>{state.validation.status === "valid" ? "Strategy ready" : state.validation.status === "dirty" ? "Edited · check before sharing" : state.validation.status}</span></div>
@@ -112,7 +163,7 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
     <div className="editing-boundary"><div><span>Strategy</span><b>What the rules do</b></div><p>Run settings such as dates and starting investment are chosen separately.</p></div>
     <section className="editor-area">{state.editor.activeView === "overview" ? <OverviewView onTest={() => setShowSetup(true)} /> : state.editor.activeView === "guided" ? <GuidedView /> : <FlowView />}</section>
     {strategy && <section className="run-history"><header><div><span className="eyebrow">Backtests</span><h2>Saved results</h2></div><span>Each run stays with the revision it tested.</span></header>{runsStatus === "loading" && <p role="status">Loading backtests…</p>}{runsStatus === "error" && <p>Backtest history is temporarily unavailable.</p>}{runsStatus === "loaded" && runs.length === 0 && <p>No saved backtests yet.</p>}{runs.map((run) => <button key={run.id} className="run-history-item" onClick={() => onOpenRun?.(run.id)}><span><strong>{new Date(run.created_at).toLocaleDateString()}</strong><small>{run.run_config.start_date} – {run.run_config.end_date}{run.revision_id !== base?.id ? " · Earlier revision" : ""}</small></span><span className={`run-status ${run.status}`}>{run.status === "succeeded" && run.result ? new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 1 }).format(Number(run.result.total_return)) : run.status}</span></button>)}</section>}
-    {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} persistence={strategy && base && !dirty ? "historical" : "temporary"} />}
+    {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} onCheckData={() => void checkDataReadiness()} readiness={readiness} persistence={strategy && base && !dirty ? "historical" : "temporary"} />}
     {(backtest.state.status === "running" || persistentRunning) && <div className="run-overlay" role="status"><span className="loading-spinner" /><h2>Testing your strategy…</h2><p>{persistentRunning ? "Creating a saved backtest result." : "Testing unsaved changes temporarily."}</p></div>}
     {backtest.state.status === "error" && <BacktestErrorPanel error={backtest.state.error} />}
     {runError && <div className="backtest-error" role="alert"><strong>We couldn't run this backtest</strong><p>{runError}</p></div>}
