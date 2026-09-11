@@ -1,5 +1,6 @@
 import type { BacktestRunRecord } from "./backtestRunApi";
 import type { CanonicalStrategyV1 } from "./domain/canonical";
+import type { SaveRevisionResponse } from "./strategyApi";
 import { jsonBody, readApiErrorDetail } from "./apiError";
 
 export interface FilterThresholdChange {
@@ -23,7 +24,7 @@ export interface CandidateRecord {
 }
 
 export interface CandidateExecution { candidate: CandidateRecord; run: BacktestRunRecord }
-export interface CandidateErrorDetail { code: string; message: string }
+export interface CandidateErrorDetail { code: string; message: string; current_revision_id?: string }
 export class CandidateApiError extends Error { constructor(public status: number, public detail: CandidateErrorDetail) { super(detail.message); } }
 
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
@@ -36,4 +37,5 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 export const candidateApi = {
   create: (runId: string, change: FilterThresholdChange, originatingDecisionEventId: string | null, fetcher?: typeof fetch) => request<CandidateExecution>(`/v1/backtest-runs/${encodeURIComponent(runId)}/candidates`, jsonBody("POST", { change, originating_decision_event_id: originatingDecisionEventId }), fetcher),
   get: (candidateId: string, fetcher?: typeof fetch) => request<CandidateExecution>(`/v1/candidates/${encodeURIComponent(candidateId)}`, {}, fetcher),
+  adopt: (candidateId: string, expectedCurrentRevisionId: string, fetcher?: typeof fetch) => request<SaveRevisionResponse>(`/v1/candidates/${encodeURIComponent(candidateId)}/adopt`, jsonBody("POST", { expected_current_revision_id: expectedCurrentRevisionId }), fetcher),
 };
