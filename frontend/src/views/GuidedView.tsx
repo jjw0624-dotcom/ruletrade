@@ -1,6 +1,8 @@
 import { projectGuided } from "../domain/guided";
 import { useStrategyEditor } from "../store/editorStore";
-import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";\nimport { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";\nimport { useStructuralAuthoring } from "../hooks/useStructuralAuthoring";
+import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
+import { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
+import { useStructuralAuthoring } from "../hooks/useStructuralAuthoring";
 
 function percent(value: string) {
   return `${Math.round(Number(value) * 100)}%`;
@@ -8,7 +10,9 @@ function percent(value: string) {
 
 export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
-  const guided = projectGuided(state.canonical, state.registry);\n  const structural = useStructuralAuthoring();\n  const structuralBusy = structural.status === "applying";
+  const guided = projectGuided(state.canonical, state.registry);
+  const structural = useStructuralAuthoring();
+  const structuralBusy = structural.status === "applying";
   const focusClass = (componentId?: string, fieldPath?: string) => componentId && state.editor.selectedNodeId === componentId && (!state.editor.selectedFieldPath || state.editor.selectedFieldPath === fieldPath) ? "guided-rule-focus" : "";
   const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
 
