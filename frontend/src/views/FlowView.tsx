@@ -1,14 +1,18 @@
 import { useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { projectConceptualFlow, type ConceptualChoose, type ConceptualGroup } from "../domain/conceptualFlow";
 import { useStrategyEditor } from "../store/editorStore";
-import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";\nimport { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";\nimport { useStructuralAuthoring, type StructuralStatus } from "../hooks/useStructuralAuthoring";\nimport type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
+import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
+import { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
+import { useStructuralAuthoring, type StructuralStatus } from "../hooks/useStructuralAuthoring";
+import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
 
 type Selection = { kind: "portfolio" } | { kind: "split" } | { kind: "group"; group: ConceptualGroup } | { kind: "choose"; group: ConceptualGroup; choose: ConceptualChoose };
 const defaults: Record<string, { x: number; y: number }> = { "concept:portfolio": {x:310,y:35}, "concept:split":{x:325,y:165}, "concept:group:0":{x:90,y:325}, "concept:group:1":{x:500,y:325}, "concept:assets":{x:90,y:120}, "concept:choose":{x:405,y:120}, "concept:fallback":{x:430,y:350} };
 
 export function FlowView() {
   const { state, dispatch } = useStrategyEditor();
-  const projection = useMemo(() => projectConceptualFlow(state.canonical, state.registry), [state.canonical, state.registry]);\n  const structural = useStructuralAuthoring();
+  const projection = useMemo(() => projectConceptualFlow(state.canonical, state.registry), [state.canonical, state.registry]);
+  const structural = useStructuralAuthoring();
   const group = projection.groups.find((item) => item.id === state.editor.openGroupId);
   const selected = selectionFor(state.editor.selectedConceptId, group, projection.groups);
   const select = (conceptId: string, componentId?: string) => { dispatch({type:"select_concept",conceptId}); if(componentId) dispatch({type:"select_node",componentId}); };
