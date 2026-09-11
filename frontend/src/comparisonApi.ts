@@ -1,4 +1,5 @@
 import type { DecisionEventDetail } from "./decisionEvidenceApi";
+import { readApiErrorDetail } from "./apiError";
 
 export type BehaviorDifferenceKind = "event_presence_changed" | "qualification_changed" | "rank_changed" | "candidate_membership_changed" | "primary_selection_changed" | "fallback_activation_changed" | "cooldown_eligibility_changed" | "final_selection_changed" | "snapshot_targets_changed" | "snapshot_usage_changed" | "sleeve_contribution_changed" | "state_mutation_changed" | "final_target_changed";
 export interface BehaviorDifference { key: string; presence: "both" | "original_only" | "candidate_only"; kinds: BehaviorDifferenceKind[]; original_event: DecisionEventDetail | null; candidate_event: DecisionEventDetail | null }
@@ -22,10 +23,7 @@ export class ComparisonApiError extends Error { constructor(public status: numbe
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api${path}`, init);
   if (response.ok) return response.json() as Promise<T>;
-  let payload: { detail?: { code?: string; message?: string } | string } = {};
-  try { payload = await response.json() as typeof payload; } catch { /* safe fallback */ }
-  const raw = payload.detail;
-  const detail = raw && typeof raw === "object" ? { code: raw.code ?? "request_failed", message: raw.message ?? "Comparison request failed." } : { code: "request_failed", message: typeof raw === "string" ? raw : `Comparison request failed (${response.status})` };
+  const detail = await readApiErrorDetail(response, `Comparison request failed (${response.status})`);
   throw new ComparisonApiError(response.status, detail);
 }
 export const comparisonApi = {

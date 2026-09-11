@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { candidateApi } from "../candidateApi";
 import { comparisonApi, type ComparisonRecord, type DecisionContextDiff } from "../comparisonApi";
 import { Inspector } from "../components/DecisionAnalysis";
-import { selectInitialDifference } from "../components/ComparisonWorkspace";
+import { researchContextForSelection, selectInitialDifference } from "../components/ComparisonWorkspace";
 import type { DecisionEventDetail } from "../decisionEvidenceApi";
 import { pathForRoute, routeFromPath } from "./navigation";
 
@@ -43,6 +43,7 @@ describe("Candidate and Comparison research loop", () => {
     const contexts: DecisionContextDiff[] = [{ session_id: "2024-06-03", differences: [{ key: "qualification", presence: "both", kinds: ["qualification_changed"], original_event: before, candidate_event: after }] }, { session_id: "2024-07-01", differences: [{ key: "fallback", presence: "original_only", kinds: ["event_presence_changed", "fallback_activation_changed"], original_event: fallbackEvent, candidate_event: null }] }];
     const selected = selectInitialDifference(comparison(contexts), { runId: "run-original", sessionId: "2024-06-03", asset: "VGT" });
     expect(selected?.context.session_id).toBe("2024-06-03"); expect(selected?.difference.key).toBe("qualification");
+    expect(researchContextForSelection(comparison(contexts), selected!)).toEqual({ runId: "run-original", sessionId: "2024-06-03", asset: "VGT" });
     expect(comparison(contexts).changed_decision_contexts.map((item) => item.session_id)).toEqual(["2024-06-03", "2024-07-01"]);
   });
 

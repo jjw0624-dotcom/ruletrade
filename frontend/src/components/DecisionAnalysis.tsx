@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { decisionEvidenceApi, type DecisionEventDetail, type SourceComponentRef } from "../decisionEvidenceApi";
 import { assetOutcomes, assetPath, type DecisionSession, type PathStatus } from "../domain/decisionPresentation";
 import { candidateApi, CandidateApiError } from "../candidateApi";
-import { comparisonApi, type ComparisonRecord } from "../comparisonApi";
+import { comparisonApi, ComparisonApiError, type ComparisonRecord } from "../comparisonApi";
 import type { ResearchContext } from "../domain/researchContext";
 
 const pct = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
@@ -15,6 +15,7 @@ export function DecisionAnalysis({ runId, sessions, listState, selected, selecte
   const [whatIf, setWhatIf] = useState<CandidateIntent | null>(null);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   useEffect(() => {
+    setWhatIf(null);
     if (!selected) { setDetails([]); setDetailState("idle"); return; }
     let cancelled = false; setDetailState("loading"); setDetails([]);
     Promise.all(selected.events.map((event) => decisionEvidenceApi.get(runId, event.id))).then((items) => { if (!cancelled) { setDetails(items.sort((a, b) => a.ordinal - b.ordinal)); setDetailState("loaded"); } }).catch(() => { if (!cancelled) setDetailState("error"); });
@@ -71,7 +72,7 @@ function WhatIfEditor({ runId, intent, context, onCancel, onComparisonReady }: {
       const comparison = await comparisonApi.create(execution.candidate.id);
       onComparisonReady(comparison, context);
     } catch (reason) {
-      const code = reason instanceof CandidateApiError ? reason.detail.code : undefined;
+      const code = reason instanceof CandidateApiError || reason instanceof ComparisonApiError ? reason.detail.code : undefined;
       setError({ code, message: candidateErrorMessage(code, reason instanceof Error ? reason.message : "We couldn't test this change.") }); setState("idle");
     }
   }
@@ -112,11 +113,3 @@ function sleeveName(item: DecisionEventDetail): string { return item.source_comp
 function StatusIcon({ status }: { status: PathStatus }) { return <span className="status-icon" aria-hidden="true">{status === "passed" ? "✓" : status === "failed" ? "✕" : status === "fallback" ? "◆" : "—"}</span>; }
 function statusForOutcome(kind: ReturnType<typeof assetOutcomes>[number]["kind"]): PathStatus { return kind === "selected" ? "passed" : kind === "failed" || kind === "blocked" || kind === "ranked_out" ? "failed" : kind === "fallback" || kind === "replaced" ? "fallback" : "neutral"; }
 function dedupeRefs(refs: SourceComponentRef[]): SourceComponentRef[] { const seen=new Set<string>(); return refs.filter((ref)=>{const key=`${ref.role}:${ref.component_id}:${ref.field_path ?? ""}`;if(seen.has(key))return false;seen.add(key);return true;}); }
-
-/** Compatibility exports retained while Analysis presentation moves to v2. */
-export const Sleeves = Portfolio;
-export function Snapshots({ details }: { details: DecisionEventDetail[] }) {
-  const snapshots=details.find((item)=>item.evidence.kind==="snapshot_usage")?.evidence;
-  if(snapshots?.kind!=="snapshot_usage")return null;
-  return <section><h3>Latest sleeve choices used</h3>{Object.entries(snapshots.snapshots).map(([name,date])=><p key={name}>{name.replaceAll("_"," ")} · {day(date)}</p>)}</section>;
-}

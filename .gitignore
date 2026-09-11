@@ -9,6 +9,7 @@ results/
 build/
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 frontend/src/test/generated-bootstrap.json
 data/*.sqlite3
 data/*.sqlite3-shm

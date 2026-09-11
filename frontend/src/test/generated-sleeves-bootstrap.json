@@ -42,6 +42,73 @@
           "guided",
           "rules"
         ],
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": "1",
+            "name": "duration",
+            "reference": null,
+            "required": true,
+            "value_type": "integer"
+          },
+          {
+            "choices": [
+              "trading_days"
+            ],
+            "default": "trading_days",
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "unit",
+            "reference": null,
+            "required": false,
+            "value_type": "string"
+          }
+        ],
+        "id": "cooldown@1",
+        "inputs": [
+          {
+            "multiple": false,
+            "name": "candidates",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "eligible",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "event",
+        "fields": [],
+        "id": "daily@1",
+        "inputs": [],
+        "outputs": []
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
         "category": "allocator",
         "fields": [
           {
@@ -317,6 +384,32 @@
             "value_type": "portfolio_targets"
           }
         ]
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "category": "event",
+        "fields": [
+          {
+            "choices": [],
+            "default": 1,
+            "exclusive_minimum": false,
+            "maximum": "31",
+            "minimum": "1",
+            "name": "day",
+            "reference": null,
+            "required": false,
+            "value_type": "integer"
+          }
+        ],
+        "id": "quarterly@1",
+        "inputs": [],
+        "outputs": []
       },
       {
         "authoring_views": [

@@ -87,9 +87,7 @@ class ComparisonService:
         if candidate.originating_run_id is None:
             raise IncomparableRunsError("Candidate has no originating Run.")
         original_run = self.runs.get_run(candidate.originating_run_id)
-        base_revision = self.candidates.strategies.get_revision_by_id(
-            candidate.base_revision_id
-        )
+        base_revision = self.candidates.get_base_revision(candidate)
         artifact_load_ms = elapsed_ms(stage_started)
         stage_started = perf_counter_ns()
         self._validate_pair(

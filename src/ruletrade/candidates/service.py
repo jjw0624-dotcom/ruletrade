@@ -26,6 +26,7 @@ from ruletrade.candidates.models import (
 from ruletrade.diagnostics import elapsed_ms, serialized_bytes
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence.sqlite_candidates import SQLiteCandidateRepository
+from ruletrade.strategies.models import RevisionRecord
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
@@ -191,6 +192,11 @@ class CandidateService:
     def list_for_run(self, run_id: str) -> tuple[CandidateExecution, ...]:
         self.runs.get_run(run_id)
         return tuple(self.get(candidate.id) for candidate in self.repository.list_for_run(run_id))
+
+    def get_base_revision(self, candidate: CandidateRecord) -> RevisionRecord:
+        """Resolve Candidate lineage without exposing the Strategy service dependency."""
+
+        return self.strategies.get_revision_by_id(candidate.base_revision_id)
 
     @staticmethod
     def _apply_filter_threshold(

@@ -114,7 +114,7 @@ export function GuidedView() {
         <header><div><span className="eyebrow">Growth sleeve</span><h2>Growth</h2></div><strong>{percent(guided.growth.total)}</strong></header>
         <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
         <div className="field-grid">
-          <div className={`guided-field-pair ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><label htmlFor="guided-random-count">Random Select count</label>
+          <div className={`guided-field-pair ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><label htmlFor="guided-random-count">How many should it choose?</label>
           <input
             id="guided-random-count"
             type="number"
@@ -131,7 +131,7 @@ export function GuidedView() {
               },
             })}
           /></div>
-          <label htmlFor="guided-resample">Resample</label>
+          <label htmlFor="guided-resample">When should it choose again?</label>
           <select
             id="guided-resample"
             value={guided.growth.resample}
@@ -145,11 +145,11 @@ export function GuidedView() {
               },
             })}
           >
-            <option value="per_event">Per event</option>
-            <option value="once">Once</option>
+            <option value="per_event">Each check</option>
+            <option value="once">Keep the first choice</option>
           </select>
         </div>
-        <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.growth.total)}</span></div>
+        <div className="summary-row"><span>Split selected assets</span><span>Equally · {percent(guided.growth.total)}</span></div>
       </section>
 
       <section className="sleeve-card safe">

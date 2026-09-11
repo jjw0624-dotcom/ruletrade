@@ -1,5 +1,6 @@
 import type { BacktestRunRecord } from "./backtestRunApi";
 import type { CanonicalStrategyV1 } from "./domain/canonical";
+import { jsonBody, readApiErrorDetail } from "./apiError";
 
 export interface FilterThresholdChange {
   kind: "filter_threshold";
@@ -28,13 +29,11 @@ export class CandidateApiError extends Error { constructor(public status: number
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api${path}`, init);
   if (response.ok) return response.json() as Promise<T>;
-  let payload: { detail?: CandidateErrorDetail | string } = {};
-  try { payload = await response.json() as typeof payload; } catch { /* safe fallback */ }
-  const detail = payload.detail && typeof payload.detail === "object" ? payload.detail : { code: "request_failed", message: typeof payload.detail === "string" ? payload.detail : `Candidate request failed (${response.status})` };
+  const detail = await readApiErrorDetail(response, `Candidate request failed (${response.status})`) as CandidateErrorDetail;
   throw new CandidateApiError(response.status, detail);
 }
 
 export const candidateApi = {
-  create: (runId: string, change: FilterThresholdChange, originatingDecisionEventId: string | null, fetcher?: typeof fetch) => request<CandidateExecution>(`/v1/backtest-runs/${encodeURIComponent(runId)}/candidates`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ change, originating_decision_event_id: originatingDecisionEventId }) }, fetcher),
+  create: (runId: string, change: FilterThresholdChange, originatingDecisionEventId: string | null, fetcher?: typeof fetch) => request<CandidateExecution>(`/v1/backtest-runs/${encodeURIComponent(runId)}/candidates`, jsonBody("POST", { change, originating_decision_event_id: originatingDecisionEventId }), fetcher),
   get: (candidateId: string, fetcher?: typeof fetch) => request<CandidateExecution>(`/v1/candidates/${encodeURIComponent(candidateId)}`, {}, fetcher),
 };

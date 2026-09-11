@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { decisionEvidenceApi, type DecisionEventDetail, type DecisionEventSummary, type DecisionEvidenceV1, type DecisionEvidenceV2 } from "../decisionEvidenceApi";
-import { AssetExplanation, Inspector, Sleeves, Snapshots } from "../components/DecisionAnalysis";
+import { AssetExplanation, Inspector, Portfolio } from "../components/DecisionAnalysis";
 import { BacktestResultPanel } from "../components/BacktestResultPanel";
 import { ResultWorkspace } from "../components/ResultWorkspace";
 import { assetOutcomes, assetPath, groupDecisionSessions } from "./decisionPresentation";
@@ -95,12 +95,12 @@ describe("Decision Timeline and Research Inspector", () => {
   });
 
   it("reconstructs sleeve contribution math and final aggregation", () => {
-    const markup = renderToStaticMarkup(<Sleeves details={portfolio} />);
+    const markup = renderToStaticMarkup(<Portfolio details={portfolio} />);
     expect(markup).toContain("Where the money went"); expect(markup).toContain("Growth"); expect(markup).toContain("70%"); expect(markup).toContain("Final"); expect(markup).toContain("85%");
   });
 
   it("shows the exact retained snapshot dates used by a portfolio rebalance", () => {
-    const markup = renderToStaticMarkup(<Snapshots details={portfolio} />);
+    const markup = renderToStaticMarkup(<Inspector details={portfolio} />);
     expect(markup).toContain("growth sleeve"); expect(markup).toContain("Jun 3, 2024"); expect(markup).toContain("defensive sleeve"); expect(markup).toContain("Jan 2, 2024");
   });
 
