@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { candidateApi, CandidateApiError } from "../candidateApi";
+import { candidateApi } from "../candidateApi";
 import { AdoptionAction } from "../components/AdoptionAction";
 import {
   adoptionDestination,
@@ -60,6 +60,6 @@ describe("Candidate adoption", () => {
     const fetcher = (async () => new Response(JSON.stringify({ detail: { code: "stale_revision", message: "stale", current_revision_id: "revision-2" } }), { status: 409 })) as typeof fetch;
     await expect(candidateApi.adopt("candidate-1", "revision-1", fetcher)).rejects.toMatchObject({
       detail: { code: "stale_revision", current_revision_id: "revision-2" },
-    } satisfies Partial<CandidateApiError>);
+    });
   });
 });
