@@ -43,6 +43,7 @@ export default function App() {
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
     if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return;
     if (!preserveFocus) setSourceFocus(null);
+    if (next.page !== "strategy") setAdoptionNotice(null);
     window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "strategy") setDirty(false);
   }, [dirty, route.page]);
 
