@@ -24,7 +24,7 @@ export interface CandidateRecord {
 }
 
 export interface CandidateExecution { candidate: CandidateRecord; run: BacktestRunRecord }
-export interface CandidateErrorDetail { code: string; message: string }
+export interface CandidateErrorDetail { code: string; message: string; current_revision_id?: string }
 export class CandidateApiError extends Error { constructor(public status: number, public detail: CandidateErrorDetail) { super(detail.message); } }
 
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
