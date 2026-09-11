@@ -110,7 +110,7 @@ describe("Market Data preflight UX", () => {
   it("allows the existing persisted Run request only after available preflight", async () => {
     const key = dataReadinessKey("revision-1", config);
     const readiness = readinessFromResult(key, preflight("available"));
-    const create = vi.fn(async () => ({ id: "run-1" }) as BacktestRunRecord);
+    const create = vi.fn(async (_revisionId: string, _config: BacktestConfig) => ({ id: "run-1" }) as BacktestRunRecord);
 
     if (canLaunchPersistedRealDataRun(readiness, key)) {
       await create("revision-1", config);
