@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { backtestRunApi, type BacktestRunRecord } from "../backtestRunApi";
 import { comparisonApi, type BehaviorDifference, type ComparisonRecord, type DecisionContextDiff } from "../comparisonApi";
+import { candidateApi, type CandidateExecution } from "../candidateApi";
+import type { SaveRevisionResponse } from "../strategyApi";
+import { AdoptionAction } from "./AdoptionAction";
 import type { DecisionEvidence, DecisionEventDetail } from "../decisionEvidenceApi";
 import type { ResearchContext } from "../domain/researchContext";
 
@@ -10,31 +13,34 @@ type Props = {
   onContextChange?: (context: ResearchContext) => void;
   onOpenRun: (runId: string, context?: ResearchContext) => void;
   onViewRule?: (revisionId: string, componentId: string, fieldPath: string, context: ResearchContext) => void;
+  onAdopted?: (response: SaveRevisionResponse) => void;
+  onOpenLatest?: (revisionId: string) => void;
 };
 const percent = (value: string | number) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2, signDisplay: Number(value) === 0 ? "never" : "auto" }).format(Number(value));
 const money = (value: string | number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value));
 const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export function ComparisonWorkspace({ comparisonId, initialContext, onContextChange, onOpenRun, onViewRule }: Props) {
+export function ComparisonWorkspace({ comparisonId, initialContext, onContextChange, onOpenRun, onViewRule, onAdopted, onOpenLatest }: Props) {
   const [comparison, setComparison] = useState<ComparisonRecord | null>(null);
   const [runs, setRuns] = useState<{ original: BacktestRunRecord; candidate: BacktestRunRecord } | null>(null);
+  const [candidate, setCandidate] = useState<CandidateExecution | null>(null);
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<{ context: DecisionContextDiff; difference: BehaviorDifference } | null>(null);
   const initialContextRef = useRef(initialContext);
   initialContextRef.current = initialContext;
   useEffect(() => {
-    let cancelled = false; setState("loading"); setError(""); setComparison(null); setRuns(null); setSelected(null);
+    let cancelled = false; setState("loading"); setError(""); setComparison(null); setRuns(null); setCandidate(null); setSelected(null);
     comparisonApi.get(comparisonId).then(async (record) => {
-      const [original, candidate] = await Promise.all([backtestRunApi.get(record.original_run_id), backtestRunApi.get(record.candidate_run_id)]);
+      const [original, candidateRun, candidateExecution] = await Promise.all([backtestRunApi.get(record.original_run_id), backtestRunApi.get(record.candidate_run_id), candidateApi.get(record.candidate_id)]);
       if (cancelled) return;
-      setComparison(record); setRuns({ original, candidate });
+      setComparison(record); setRuns({ original, candidate: candidateRun }); setCandidate(candidateExecution);
       setSelected(selectInitialDifference(record, initialContextRef.current)); setState("loaded");
     }).catch((reason: unknown) => { if (!cancelled) { setError(reason instanceof Error ? reason.message : "We couldn't open this comparison."); setState("error"); } });
     return () => { cancelled = true; };
   }, [comparisonId]);
   if (state === "loading") return <main className="page comparison-page"><div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening comparison…</h1><p>Loading the saved research artifacts. No backtest is being rerun.</p></div></main>;
-  if (state === "error" || !comparison || !runs) return <main className="page comparison-page"><div className="page-state error-state" role="alert"><h1>We couldn't open this comparison</h1><p>{error}</p></div></main>;
+  if (state === "error" || !comparison || !runs || !candidate) return <main className="page comparison-page"><div className="page-state error-state" role="alert"><h1>We couldn't open this comparison</h1><p>{error}</p></div></main>;
   const context = selected?.context;
   const researchContext = context ? { runId: comparison.original_run_id, sessionId: context.session_id, asset: selected ? differenceAsset(selected.difference) : null } : undefined;
   const choose = (next: { context: DecisionContextDiff; difference: BehaviorDifference }) => {
@@ -48,7 +54,8 @@ export function ComparisonWorkspace({ comparisonId, initialContext, onContextCha
     </section>
     <PortfolioDifference comparison={comparison} />
     <ResultDifference comparison={comparison} runs={runs} />
-    <details className="run-details"><summary>Comparison details</summary><dl><div><dt>Created</dt><dd>{new Date(comparison.created_at).toLocaleString()}</dd></div><div><dt>Evidence records aligned</dt><dd>{comparison.aligned_evidence_records}</dd></div><div><dt>Comparison time</dt><dd>{comparison.compute_ms} ms</dd></div></dl></details>
+    {onAdopted && <AdoptionAction candidateId={comparison.candidate_id} expectedCurrentRevisionId={candidate.candidate.base_revision_id} onReturn={() => onOpenRun(comparison.original_run_id, researchContext)} onAdopted={onAdopted} onOpenLatest={onOpenLatest} />}
+    <details className="run-details"><summary>Developer details</summary><dl><div><dt>Created</dt><dd>{new Date(comparison.created_at).toLocaleString()}</dd></div><div><dt>Evidence records aligned</dt><dd>{comparison.aligned_evidence_records}</dd></div><div><dt>Comparison time</dt><dd>{comparison.compute_ms} ms</dd></div></dl></details>
   </main>;
 }
 
