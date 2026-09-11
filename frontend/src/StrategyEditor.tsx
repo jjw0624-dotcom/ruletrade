@@ -5,6 +5,7 @@ import { BacktestSetup } from "./components/BacktestSetup";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { BacktestConfig } from "./domain/backtest";
 import {
+  canLaunchPersistedRealDataRun,
   dataReadinessKey,
   freshDataReadiness,
   readinessFromResult,
@@ -95,7 +96,8 @@ export function StrategyEditor({ example, persisted, onDirtyChange, onArchived, 
       return;
     }
     if (config.dataset_id === "us-equity-daily-local") {
-      const checked = readiness.status === "available"
+      const checked = readinessKey && canLaunchPersistedRealDataRun(readiness, readinessKey)
+        && readiness.status === "available"
         ? readiness.result
         : await checkDataReadiness();
       if (!checked || checked.overall !== "available") return;
