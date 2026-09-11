@@ -12,6 +12,7 @@ interface BacktestSetupProps {
   onCheckData?: () => void;
   persistence?: "historical" | "temporary";
   readiness?: DataReadiness;
+  exampleDatasetId?: BacktestConfig["dataset_id"];
 }
 
 function formatPeriod(start: string, end: string): string {
@@ -64,6 +65,9 @@ export function BacktestSetup({
   onCheckData,
   persistence = "temporary",
   readiness = { status: "not_checked" },
+  exampleDatasetId = config.dataset_id === "us-equity-daily-local"
+    ? "cooldown-synthetic"
+    : config.dataset_id,
 }: BacktestSetupProps) {
   const valid = config.start_date <= config.end_date && Number(config.initial_cash) > 0;
   const realData = config.dataset_id === "us-equity-daily-local";
@@ -81,7 +85,7 @@ export function BacktestSetup({
       <label>Start date<input type="date" value={config.start_date} onChange={(event) => onChange({ ...config, start_date: event.target.value })} /></label>
       <label>End date<input type="date" value={config.end_date} onChange={(event) => onChange({ ...config, end_date: event.target.value })} /></label>
       <label className="cash-field">Initial investment<span className="money-input"><i>$</i><input type="number" min="1" step="1000" value={config.initial_cash} onChange={(event) => onChange({ ...config, initial_cash: event.target.value })} /></span></label>
-      <label>Market data<select value={config.dataset_id} onChange={(event) => onChange({ ...config, dataset_id: event.target.value as BacktestConfig["dataset_id"] })}><option value={config.dataset_id === "us-equity-daily-local" ? "cooldown-synthetic" : config.dataset_id}>Example data</option><option value="us-equity-daily-local">US historical data</option></select></label>
+      <label>Market data<select value={realData ? "historical" : "example"} onChange={(event) => onChange({ ...config, dataset_id: event.target.value === "historical" ? "us-equity-daily-local" : exampleDatasetId })}><option value="example">Example data</option><option value="historical">US historical data</option></select></label>
     </div>
     {realData && persistence === "historical" && <DataReadinessPanel readiness={readiness} onCheck={valid ? onCheckData : undefined} />}
     {realData && persistence === "temporary" && <section className="data-readiness boundary"><header><strong>Historical data</strong><span>Checked during test</span></header><p>Data readiness will be checked when this temporary test starts. It won't use the saved Revision to represent your unsaved changes.</p></section>}
