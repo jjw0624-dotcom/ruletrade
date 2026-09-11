@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { runLeanBacktest } from "../api";
 import { BacktestSetup } from "../components/BacktestSetup";
 import { ExploreView } from "../views/ExploreView";
-import { StrategiesView } from "../views/StrategiesView";
 import { STRATEGY_EXAMPLES } from "./examples";
 import { pathForRoute, routeFromPath } from "./navigation";
 import { createEditorState, editorReducer } from "../store/editorStore";
@@ -16,17 +15,11 @@ import { OverviewView } from "../views/OverviewView";
 
 describe("Production MVP frontend foundation", () => {
   it("exposes only real backend-supported examples and opens a Strategy route", () => {
-    const markup = renderToStaticMarkup(<ExploreView onOpen={() => undefined} onUse={() => undefined} />);
-    expect(STRATEGY_EXAMPLES.map((item) => item.id)).toEqual(["sleeves", "fallback", "cooldown"]);
-    expect(markup).toContain("Growth + Defensive");
+    const markup = renderToStaticMarkup(<ExploreView onOpen={() => undefined} onCreate={() => undefined} />);
+    expect(STRATEGY_EXAMPLES.map((item) => item.id)).toEqual(["fallback", "sleeves", "cooldown"]);
+    expect(markup).toContain("only bought rising ETFs");
     expect(routeFromPath("/strategy/sleeves")).toEqual({ page: "example", exampleId: "sleeves" });
     expect(pathForRoute({ page: "example", exampleId: "cooldown" })).toBe("/strategy/cooldown");
-  });
-
-  it("provides an empty persisted Strategies boundary", () => {
-    const markup = renderToStaticMarkup(<StrategiesView status="loaded" strategies={[]} error={null} onExplore={() => undefined} onOpen={() => undefined} onRetry={() => undefined} />);
-    expect(markup).toContain("No saved strategies yet");
-    expect(markup).toContain("Explore ideas");
   });
 
   it("keeps a Guided edit in the one Canonical model projected by Flow", () => {
@@ -53,15 +46,16 @@ describe("Production MVP frontend foundation", () => {
     expect(setup).toContain("Start date"); expect(setup).toContain("Initial investment"); expect(setup).not.toContain("filter-synthetic");
   });
 
-  it("maps unknown paths back to Explore", () => {
-    expect(routeFromPath("/compare/fake")).toEqual({ page: "explore" });
+  it("maps root and unknown paths to the public entry", () => {
+    expect(routeFromPath("/")).toEqual({ page: "public" });
+    expect(routeFromPath("/compare/fake")).toEqual({ page: "public" });
   });
 
   it("keeps navigation state separate from the authoritative editor state", () => {
     const editor = createEditorState(sleevesBootstrap);
     const canonical = editor.canonical;
     expect(pathForRoute({ page: "explore" })).toBe("/explore");
-    expect(pathForRoute({ page: "strategies" })).toBe("/strategies");
+    expect(pathForRoute({ page: "home" })).toBe("/home");
     expect(pathForRoute({ page: "strategy", strategyId: "strategy 1" })).toBe("/strategies/strategy%201");
     expect(editor.canonical).toBe(canonical);
   });

@@ -1,0 +1,67 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { CreationPicker } from "../components/CreationPicker";
+import { StrategyEditorProvider, createEditorState } from "../store/editorStore";
+import { ExamplePreview } from "../views/ExamplePreview";
+import { HomeView } from "../views/HomeView";
+import { PublicView } from "../views/PublicView";
+import { GuidedView } from "../views/GuidedView";
+import { findExample, STRATEGY_STRUCTURES } from "./examples";
+import { pathForRoute, routeFromPath } from "./navigation";
+import { sleevesBootstrap } from "../test/fixture";
+
+const record = { id: "strategy-1", name: "Growth + Defensive", created_at: "2026-09-09T10:00:00Z", updated_at: "2026-09-10T11:00:00Z", current_revision_id: "revision-123456", archived_at: null };
+
+describe("Product entry and starting experience", () => {
+  it("keeps the root public page short and question-led", () => {
+    const markup = renderToStaticMarkup(<PublicView onExample={() => undefined} onHome={() => undefined} onCreate={() => undefined} />);
+    expect(markup).toContain("Test your investment ideas");
+    expect(markup).toContain("What if I bought the strongest ETFs each month?");
+    expect(markup).toContain("My strategies");
+    expect(markup).not.toMatch(/pricing|testimonials|login/i);
+  });
+
+  it("maps every public question to a backend bootstrap id", () => {
+    expect(findExample("fallback")?.question).toContain("strongest ETFs");
+    expect(pathForRoute({ page: "example", exampleId: "fallback" })).toBe("/strategy/fallback");
+    expect(routeFromPath("/strategy/fallback")).toEqual({ page: "example", exampleId: "fallback" });
+  });
+
+  it("previews facts projected from the real Canonical strategy", () => {
+    const markup = renderToStaticMarkup(<ExamplePreview point={findExample("sleeves")!} bootstrap={sleevesBootstrap} onBack={() => undefined} onTest={() => undefined} onStart={() => undefined} />);
+    expect(markup).toContain("QQQ · VGT · SOXX · SCHG");
+    expect(markup).toContain("Choose the strongest 2");
+    expect(markup).toContain("Otherwise use TLT");
+    expect(markup).toContain("Test this strategy");
+  });
+
+  it("renders loaded, empty, and error Home states from persisted facts", () => {
+    const loaded = renderToStaticMarkup(<HomeView status="loaded" strategies={[record]} error={null} onOpen={() => undefined} onRetry={() => undefined} onCreate={() => undefined} onExample={() => undefined} />);
+    const empty = renderToStaticMarkup(<HomeView status="loaded" strategies={[]} error={null} onOpen={() => undefined} onRetry={() => undefined} onCreate={() => undefined} onExample={() => undefined} />);
+    const error = renderToStaticMarkup(<HomeView status="error" strategies={[]} error="offline" onOpen={() => undefined} onRetry={() => undefined} onCreate={() => undefined} onExample={() => undefined} />);
+    expect(loaded).toContain("Growth + Defensive"); expect(loaded).toContain("revision");
+    expect(empty).toContain("What would you like to try?"); expect(empty).toContain("Build your own strategy");
+    expect(error).toContain("offline"); expect(error).not.toContain("Growth + Defensive");
+  });
+
+  it("offers examples, real structures, and an unmistakably unavailable Import", () => {
+    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onClose={() => undefined} />);
+    expect(STRATEGY_STRUCTURES.map((item) => item.id)).toEqual(["one_investment", "filter", "golden"]);
+    expect(markup).toContain("One investment"); expect(markup).toContain("Choose assets"); expect(markup).toContain("Split a portfolio");
+    expect(markup).toContain("Import strategy"); expect(markup).toContain("Coming later"); expect(markup).toContain("disabled");
+  });
+
+  it("starts structural strategies in Guide without changing Canonical", () => {
+    const state = createEditorState(sleevesBootstrap, "guided");
+    expect(state.editor.activeView).toBe("guided");
+    expect(state.canonical).toBe(sleevesBootstrap.strategy);
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView="guided"><GuidedView /></StrategyEditorProvider>);
+    expect(markup).toContain("Guided strategy editor");
+  });
+
+  it("preserves existing Strategy, Run, and Comparison deep links", () => {
+    expect(routeFromPath("/strategies/a%20b")).toEqual({ page: "strategy", strategyId: "a b" });
+    expect(routeFromPath("/backtest-runs/run%201")).toEqual({ page: "run", runId: "run 1" });
+    expect(routeFromPath("/comparisons/c%201")).toEqual({ page: "comparison", comparisonId: "c 1" });
+  });
+});

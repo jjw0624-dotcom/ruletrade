@@ -107,6 +107,7 @@ from ruletrade.strategy.v1.fixtures import (
     golden_portfolio_strategy,
     independent_schedules_strategy,
     momentum_top_n_strategy,
+    one_investment_strategy,
     portfolio_sleeves_strategy,
 )
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
@@ -485,12 +486,13 @@ def _editor_registry_payload() -> dict[str, object]:
 @app.get("/v1/editor/bootstrap")
 def editor_bootstrap(
     example: Literal[
-        "golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules", "cooldown"
+        "golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules", "cooldown", "one_investment"
     ] = "golden",
 ) -> dict[str, object]:
     examples = {
         "golden": golden_portfolio_strategy,
         "momentum": momentum_top_n_strategy,
+        "one_investment": one_investment_strategy,
         "filter": filter_screening_strategy,
         "fallback": fallback_momentum_strategy,
         "sleeves": portfolio_sleeves_strategy,

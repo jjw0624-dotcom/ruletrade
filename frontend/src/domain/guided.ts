@@ -20,6 +20,18 @@ export interface GoldenGuidedProjection {
   };
 }
 
+export interface SingleInvestmentGuidedProjection {
+  kind: "single";
+  investment: {
+    assets: string[];
+    assetSetId: string;
+    assetComponentId: string;
+    total: string;
+    schedule: string;
+    scheduleComponentId?: string;
+  };
+}
+
 export interface MomentumGuidedProjection {
   kind: "momentum";
   momentum: {
@@ -69,7 +81,7 @@ export interface PortfolioGuidedProjection {
   rebalanceSchedule?: string;
 }
 
-export type GuidedProjection = GoldenGuidedProjection | MomentumGuidedProjection | PortfolioGuidedProjection;
+export type GuidedProjection = SingleInvestmentGuidedProjection | GoldenGuidedProjection | MomentumGuidedProjection | PortfolioGuidedProjection;
 
 function requireComponent(strategy: CanonicalStrategyV1, id: string): CanonicalComponent {
   const component = strategy.graph.components.find((item) => item.id === id);
@@ -112,6 +124,22 @@ export function projectGuided(
   strategy: CanonicalStrategyV1,
   registry: RegistryPayload,
 ): GuidedProjection {
+  const assetComponents = strategy.graph.components.filter((item) => item.primitive === "asset_set@1");
+  const singleWeight = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
+  if (assetComponents.length === 1 && singleWeight && !strategy.graph.components.some((item) => item.primitive === "top_n@1")) {
+    const schedule = scheduleForTarget(strategy, "rebalance");
+    return {
+      kind: "single",
+      investment: {
+        assets: assetsFor(strategy, assetComponents[0].id),
+        assetSetId: assetSetFor(strategy, assetComponents[0].id),
+        assetComponentId: assetComponents[0].id,
+        total: String(resolvedConfigValue(strategy, registry, singleWeight.id, "total")),
+        schedule: schedule?.label ?? "Monthly",
+        scheduleComponentId: schedule?.componentId,
+      },
+    };
+  }
   const topN = strategy.graph.components.find((item) => item.primitive === "top_n@1");
   if (topN) {
     const trailingReturn = strategy.graph.components.find((item) => item.primitive === "trailing_return@1");
