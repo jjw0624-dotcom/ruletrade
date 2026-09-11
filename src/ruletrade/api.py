@@ -100,6 +100,14 @@ from ruletrade.strategies.models import (
 )
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.models import ResolveStrategyRequest, StrategyDocument
+from ruletrade.strategy.v1.authoring import (
+    ApplyStructuralAuthoringRequest,
+    ApplyStructuralAuthoringResponse,
+    StructuralAuthoringCapabilities,
+    StructuralAuthoringError,
+    apply_structural_operation,
+    structural_authoring_capabilities,
+)
 from ruletrade.strategy.v1.fixtures import (
     cooldown_strategy,
     fallback_momentum_strategy,
@@ -512,6 +520,33 @@ def editor_bootstrap(
         },
         "registry": _editor_registry_payload(),
     }
+
+
+@app.post(
+    "/v1/canonical/strategies/authoring/capabilities",
+    response_model=StructuralAuthoringCapabilities,
+)
+def canonical_structural_authoring_capabilities(
+    spec: CanonicalStrategyV1,
+) -> StructuralAuthoringCapabilities:
+    return structural_authoring_capabilities(spec)
+
+
+@app.post(
+    "/v1/canonical/strategies/authoring/apply",
+    response_model=ApplyStructuralAuthoringResponse,
+)
+def apply_canonical_structural_authoring(
+    request: ApplyStructuralAuthoringRequest,
+) -> ApplyStructuralAuthoringResponse:
+    try:
+        strategy = apply_structural_operation(request.strategy, request.operation)
+    except StructuralAuthoringError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "path": exc.path, "message": str(exc)},
+        ) from exc
+    return ApplyStructuralAuthoringResponse(strategy=strategy)
 
 
 @app.post("/v1/canonical/strategies/validate")
