@@ -216,7 +216,7 @@ describe("Evidence Harvest semantic boundary", () => {
         onOpen={() => undefined}
       />,
     );
-    expect(markup).toContain("Where this rule mattered");
+    expect(markup).toContain("Qualification evaluated");
     expect(markup.indexOf("Open VGT")).toBeLessThan(markup.indexOf("Open QQQ"));
     expect(markup).toContain("Jun 3, 2024");
   });
