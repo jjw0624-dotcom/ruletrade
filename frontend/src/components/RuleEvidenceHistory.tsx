@@ -9,7 +9,7 @@ import {
 } from "../domain/evidenceHarvest";
 import type { ResearchContext } from "../domain/researchContext";
 
-type HistoryState =
+export type RuleEvidenceHistoryState =
   | { status: "idle" | "loading" }
   | { status: "loaded"; matches: RuleEvidenceMatch[] }
   | { status: "error"; message: string };
@@ -28,7 +28,7 @@ export function RuleEvidenceHistory({
   onOpen: (context: ResearchContext) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [state, setState] = useState<HistoryState>({ status: "idle" });
+  const [state, setState] = useState<RuleEvidenceHistoryState>({ status: "idle" });
 
   useEffect(() => {
     setExpanded(false);
@@ -60,20 +60,33 @@ export function RuleEvidenceHistory({
       <div><span className="eyebrow">Historical decisions</span><h3>Where this rule mattered</h3></div>
       <button className="text-button" onClick={() => setExpanded(false)}>Close</button>
     </header>
-    {state.status === "loading" && <p role="status">Finding saved decisions…</p>}
-    {state.status === "error" && <p role="alert">{state.message}</p>}
-    {state.status === "loaded" && state.matches.length === 0
-      && <div className="rule-evidence-empty"><strong>No saved decisions use this rule yet.</strong><p>Run and save a test to build historical research evidence.</p></div>}
-    {state.status === "loaded" && state.matches.length > 0
-      && <div className="rule-evidence-list">{state.matches.map((match) =>
-        <EvidenceMatch
-          key={`${match.runId}:${match.sessionId}`}
-          match={match}
-          preferredAsset={preferredAsset}
-          onOpen={onOpen}
-        />,
-      )}</div>}
+    <RuleEvidenceResults state={state} preferredAsset={preferredAsset} onOpen={onOpen} />
   </section>;
+}
+
+export function RuleEvidenceResults({
+  state,
+  preferredAsset,
+  onOpen,
+}: {
+  state: RuleEvidenceHistoryState;
+  preferredAsset?: string | null;
+  onOpen: (context: ResearchContext) => void;
+}) {
+  if (state.status === "loading") return <p role="status">Finding saved decisions…</p>;
+  if (state.status === "error") return <p role="alert">{state.message}</p>;
+  if (state.status === "loaded" && state.matches.length === 0) {
+    return <div className="rule-evidence-empty"><strong>No saved decisions use this rule yet.</strong><p>Run and save a test to build historical research evidence.</p></div>;
+  }
+  if (state.status !== "loaded") return null;
+  return <div className="rule-evidence-list">{state.matches.map((match) =>
+    <EvidenceMatch
+      key={`${match.runId}:${match.sessionId}`}
+      match={match}
+      preferredAsset={preferredAsset}
+      onOpen={onOpen}
+    />,
+  )}</div>;
 }
 
 function EvidenceMatch({
