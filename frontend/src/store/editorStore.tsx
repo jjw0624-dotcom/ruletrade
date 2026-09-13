@@ -33,6 +33,7 @@ export interface StrategyEditorState {
 export type StrategyEditorAction =
   | { type: "apply_semantic_patch"; operation: SemanticPatch }
   | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }
+  | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selectedNodeId?: string | null; selectedConceptId?: string | null }
   | { type: "set_active_view"; view: EditorView }
   | { type: "move_node"; componentId: string; position: XYPosition }
   | { type: "set_viewport"; viewport: Viewport }
@@ -69,6 +70,27 @@ export function editorReducer(
   switch (action.type) {
     case "replace_canonical":
       return { ...state, canonical: action.canonical, validation: { status: "valid", issues: [] } };
+    case "replace_canonical_dirty": {
+      const survivingIds = new Set(action.canonical.graph.components.map((item) => item.id));
+      const selectedNodeId = action.selectedNodeId !== undefined
+        ? action.selectedNodeId
+        : state.editor.selectedNodeId && survivingIds.has(state.editor.selectedNodeId)
+          ? state.editor.selectedNodeId
+          : null;
+      return {
+        ...state,
+        canonical: action.canonical,
+        editor: {
+          ...state.editor,
+          selectedNodeId,
+          selectedFieldPath: null,
+          selectedConceptId: action.selectedConceptId !== undefined
+            ? action.selectedConceptId
+            : state.editor.selectedConceptId,
+        },
+        validation: { status: "dirty", issues: [] },
+      };
+    }
     case "apply_semantic_patch": {
       const result = applySemanticPatch(state.canonical, state.registry, action.operation);
       if (!result.ok) {

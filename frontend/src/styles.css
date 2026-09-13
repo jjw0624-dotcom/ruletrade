@@ -592,3 +592,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   .public-close { align-items: flex-start; flex-direction: column; }
   .public-close p { margin-left: 0; }
 }
+
+
+/* Structural Authoring v0: contextual Guide / Flow controls only. */
+.structural-title { display: flex; align-items: baseline; gap: 10px; }
+.structural-title h2 { margin-right: auto; }
+.structural-edit { min-width: 240px; display: grid; gap: 8px; }
+.structural-edit label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.structural-edit input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.structural-edit > div { display: flex; justify-content: flex-end; gap: 8px; }
+.qualification-authoring { display: grid; gap: 8px; margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft); }
+.qualification-authoring header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0; padding: 0; border: 0; }
+.qualification-authoring header > div { display: grid; gap: 4px; }
+.qualification-authoring p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.structural-error { padding: 9px 11px; border: 1px solid #dba9a1; border-radius: 8px; color: var(--danger); background: #fff2ef; font-size: 12px; }
+.structural-error details { margin-top: 6px; color: var(--muted); }

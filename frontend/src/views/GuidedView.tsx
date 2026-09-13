@@ -1,6 +1,8 @@
 import { projectGuided } from "../domain/guided";
 import { useStrategyEditor } from "../store/editorStore";
 import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
+import { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
+import { useStructuralAuthoring } from "../hooks/useStructuralAuthoring";
 
 function percent(value: string) {
   return `${Math.round(Number(value) * 100)}%`;
@@ -9,6 +11,8 @@ function percent(value: string) {
 export function GuidedView() {
   const { state, dispatch } = useStrategyEditor();
   const guided = projectGuided(state.canonical, state.registry);
+  const structural = useStructuralAuthoring();
+  const structuralBusy = structural.status === "applying";
   const focusClass = (componentId?: string, fieldPath?: string) => componentId && state.editor.selectedNodeId === componentId && (!state.editor.selectedFieldPath || state.editor.selectedFieldPath === fieldPath) ? "guided-rule-focus" : "";
   const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
 
@@ -29,8 +33,9 @@ export function GuidedView() {
           <label>How should the money be split?</label><SleeveAllocationEditor groups={[{id:"growth",label:guided.growth.sleeveName,componentId:guided.growth.sleeveComponentId,allocation:guided.growth.allocation},{id:"defensive",label:guided.defensive.sleeveName,componentId:guided.defensive.sleeveComponentId,allocation:guided.defensive.allocation}]}/>
         </section>
         <section className="sleeve-card">
-          <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.growth.sleeveName}</h2></div><strong>{percent(guided.growth.allocation)}</strong></header>
+          <header><div><span className="eyebrow">Portfolio sleeve</span><GroupRenameControl componentId={guided.growth.sleeveComponentId} name={guided.growth.sleeveName} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onRename={(name) => structural.apply({ kind: "rename_group", group_component_id: guided.growth.sleeveComponentId, name }, { componentId: guided.growth.sleeveComponentId })} /></div><strong>{percent(guided.growth.allocation)}</strong></header>
           <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
+          <QualificationAuthoringControl rankComponentId={guided.growth.rankComponentId} filterComponentId={guided.growth.filterComponentId} lookbackBars={guided.growth.lookbackBars} threshold={guided.growth.threshold} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onAdd={() => structural.apply({ kind: "add_qualification_condition", rank_component_id: guided.growth.rankComponentId }, { componentId: `${guided.growth.rankComponentId}_qualification` })} onRemove={() => structural.apply({ kind: "remove_qualification_condition", condition_component_id: guided.growth.filterComponentId! }, { componentId: guided.growth.rankComponentId })} />
           <div className={focusClass(guided.growth.lookbackComponentId, "config.lookback_bars")} data-component-id={guided.growth.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.growth.lookbackComponentId ? -1 : undefined}><LookbackControl id="guided-growth-lookback" componentId={guided.growth.lookbackComponentId} value={guided.growth.lookbackBars}/></div>
           {guided.growth.filterComponentId && <div className={`guided-question ${focusClass(guided.growth.filterComponentId, "config.threshold")}`} data-component-id={guided.growth.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><header><span>Which assets qualify?</span><button className="text-button" onClick={() => viewInFlow(guided.growth.filterComponentId!)}>View in Flow</button></header><label htmlFor="guided-growth-threshold">{guided.growth.lookbackBars}-day return above <span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? 0) * 100} onChange={(event) => { if (event.target.value !== "") dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></label></div>}
           <div className={`summary-row ${focusClass(guided.growth.rankComponentId, "config.direction")}`} data-component-id={guided.growth.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.growth.rankComponentId ? -1 : undefined}><span>How should it choose among them?</span><strong>Strongest return first</strong></div>
@@ -40,7 +45,7 @@ export function GuidedView() {
           {guided.growth.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.growth.refreshScheduleComponentId} value={guided.growth.refreshSchedule!}/> : null}
         </section>
         <section className="sleeve-card safe">
-          <header><div><span className="eyebrow">Portfolio sleeve</span><h2>{guided.defensive.sleeveName}</h2></div><strong>{percent(guided.defensive.allocation)}</strong></header>
+          <header><div><span className="eyebrow">Portfolio sleeve</span><GroupRenameControl componentId={guided.defensive.sleeveComponentId} name={guided.defensive.sleeveName} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onRename={(name) => structural.apply({ kind: "rename_group", group_component_id: guided.defensive.sleeveComponentId, name }, { componentId: guided.defensive.sleeveComponentId })} /></div><strong>{percent(guided.defensive.allocation)}</strong></header>
           <AssetMembershipEditor question="What does it hold?" assetSetId={guided.defensive.assetSetId} assets={guided.defensive.assets}/>
           <div className="summary-row"><span>How is it divided?</span><span>Split equally</span></div>
           {guided.defensive.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.defensive.refreshScheduleComponentId} value={guided.defensive.refreshSchedule!}/> : null}

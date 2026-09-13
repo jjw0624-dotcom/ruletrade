@@ -30,3 +30,26 @@ Every operation returns a new model and runs authoritative validation. Surviving
 | Flow graph | None | Primitive CRUD and edge reconnection |
 
 One investment retains current edits. Choose assets can add/remove one condition. Split portfolio can rename groups. The largest blocker is variable portfolio cardinality plus explicit component ownership; without it Group CRUD would invent allocation intent or risk deleting shared structure.
+
+
+## Builder shape-transformation audit
+
+This audit is intentionally non-implementing. A transformation remains backend-owned if it is ever added; Guide and Flow must not synthesize graph topology.
+
+| Candidate transformation | Existing valid shapes | Existing operation composition | Ownership / allocation intent | Stable surviving IDs | Validation / new semantics | Cost / MVP value | Classification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| One investment → Choose assets | Both starters exist | No; requires trailing return, rank and Top N insertion | Asset set and schedule can survive; selection defaults still require explicit product intent | Asset set, schedule, weighting and rebalance could survive | Needs a targeted Choose-template semantic operation | Medium / useful, but Creation Picker already supplies Choose assets | DEFER |
+| Choose assets → filtered selection | Both shapes exist | Yes; `add_qualification_condition` is the exact supported transformation | Unambiguous for a listed rank target | All existing IDs survive; one deterministic condition ID is added | Already validated by Structural Authoring v0 | Already delivered / high | REUSE EXISTING |
+| Selection → fallback selection | Both shapes exist | No; qualification, fallback asset-set intent and fallback wiring must be coordinated | Fallback destination must be chosen explicitly | Existing selection pipeline could survive | Needs a targeted fallback semantic operation and validation contract | Medium / moderate; fallback starter already exists | DEFER |
+| Simple selection → Growth + Defensive | Both shapes exist | No; requires sleeves, second owned pipeline, portfolio and allocation vector | Allocation and ownership are ambiguous without explicit caller intent | Existing selection pipeline could survive, new sleeve/portfolio IDs required | Requires a new atomic portfolio-shape semantic operation | High / useful breadth, not required to complete the narrow MVP loop | DEFER |
+
+No additional shape transformation is required for the current MVP: backend-owned starting structures already enter each supported shape, while Authoring Harvest exposes the one cheap, unambiguous transformation. Evidence Harvest should precede broader construction semantics.
+
+## Commodity infrastructure watch
+
+| Area | Repository evidence | Policy | Classification |
+| --- | --- | --- | --- |
+| Flow mechanics | The conceptual Flow still owns pointer-drag listeners and fixed canvas coordinates; `@xyflow/react` is already installed and used elsewhere | If zoom/pan, edge rendering, selection rectangles, multi-select or keyboard canvas mechanics grow, move rendering/interaction mechanics to xyflow while Canonical and the RuleTrade projection remain authoritative | ADOPT EXTERNAL |
+| Result chart | The current compact SVG equity chart owns scaling, markers and keyboard activation and is adequate for MVP | If generic chart pan/zoom, axes, crosshair or rendering grows, evaluate TradingView Lightweight Charts; RuleTrade retains Decision/Evidence linkage | ADOPT EXTERNAL |
+| Analytical visualizations | No sensitivity/robustness matrix exists in this increment | Evaluate ECharts only when those post-MVP surfaces exist | DEFER |
+| Accessible primitives | This increment adds inline contextual controls, not a new dialog/popover/menu system | Adopt focused accessible primitives when an accessibility-heavy interaction is actually introduced; do not migrate wholesale | ADOPT EXTERNAL |
