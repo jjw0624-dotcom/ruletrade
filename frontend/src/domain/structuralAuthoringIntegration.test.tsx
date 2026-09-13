@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
+import type { EditorBootstrap } from "./canonical";
 import { structuralAuthoringApi, type StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
 import { createEditorState, editorReducer, StrategyEditorProvider, type EditorView } from "../store/editorStore";
 import { filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
@@ -24,7 +25,7 @@ const capabilities: StructuralAuthoringCapabilities = {
 };
 
 function stateFor(
-  bootstrap: typeof momentumBootstrap,
+  bootstrap: EditorBootstrap,
   view: EditorView,
 ) {
   return createEditorState(bootstrap, view);
