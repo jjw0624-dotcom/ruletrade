@@ -1,13 +1,16 @@
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from ruletrade.api import app
+from ruletrade.api import app, get_strategy_service
 from ruletrade.compiler.frontend import lower_strategy_model_to_ir
 from ruletrade.compiler.lean.codegen import generate_csharp
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.ir.strategy import FilterOp
+from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
+from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.authoring import (
     AddQualificationConditionOperation,
     RemoveQualificationConditionOperation,
@@ -178,3 +181,101 @@ def test_authoring_endpoints_apply_and_expose_narrow_capabilities() -> None:
     assert capabilities.status_code == 200
     assert capabilities.json()["add_group"] is False
     assert capabilities.json()["rename_group"] is True
+
+
+def test_structural_results_save_and_reopen_through_revision_api(
+    tmp_path: Path,
+) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "ruletrade.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as persisted_client:
+            original = momentum_top_n_strategy()
+            created = persisted_client.post(
+                "/v1/strategies",
+                json={
+                    "name": "Authoring round trip",
+                    "canonical_strategy": original.model_dump(mode="json"),
+                },
+            )
+            assert created.status_code == 201
+            strategy_id = created.json()["strategy"]["id"]
+            first_revision_id = created.json()["current_revision"]["id"]
+
+            capabilities = persisted_client.post(
+                "/v1/canonical/strategies/authoring/capabilities",
+                json=original.model_dump(mode="json"),
+            )
+            assert capabilities.status_code == 200
+            assert capabilities.json()["qualification_add_targets"] == [
+                "momentum_rank"
+            ]
+
+            added = persisted_client.post(
+                "/v1/canonical/strategies/authoring/apply",
+                json={
+                    "strategy": original.model_dump(mode="json"),
+                    "operation": {
+                        "kind": "add_qualification_condition",
+                        "rank_component_id": "momentum_rank",
+                    },
+                },
+            )
+            assert added.status_code == 200
+            added_strategy = added.json()["strategy"]
+            saved_add = persisted_client.post(
+                f"/v1/strategies/{strategy_id}/revisions",
+                json={
+                    "expected_parent_revision_id": first_revision_id,
+                    "canonical_strategy": added_strategy,
+                },
+            )
+            assert saved_add.status_code == 201
+            second_revision_id = saved_add.json()["revision"]["id"]
+            reopened_add = persisted_client.get(f"/v1/strategies/{strategy_id}")
+            assert reopened_add.status_code == 200
+            assert (
+                reopened_add.json()["current_revision"]["canonical_strategy"]
+                == added_strategy
+            )
+
+            remove_capabilities = persisted_client.post(
+                "/v1/canonical/strategies/authoring/capabilities",
+                json=added_strategy,
+            )
+            assert remove_capabilities.status_code == 200
+            assert remove_capabilities.json()["qualification_remove_targets"] == [
+                "momentum_rank_qualification"
+            ]
+            removed = persisted_client.post(
+                "/v1/canonical/strategies/authoring/apply",
+                json={
+                    "strategy": added_strategy,
+                    "operation": {
+                        "kind": "remove_qualification_condition",
+                        "condition_component_id": "momentum_rank_qualification",
+                    },
+                },
+            )
+            assert removed.status_code == 200
+            removed_strategy = removed.json()["strategy"]
+            saved_remove = persisted_client.post(
+                f"/v1/strategies/{strategy_id}/revisions",
+                json={
+                    "expected_parent_revision_id": second_revision_id,
+                    "canonical_strategy": removed_strategy,
+                },
+            )
+            assert saved_remove.status_code == 201
+            reopened_remove = persisted_client.get(f"/v1/strategies/{strategy_id}")
+            assert reopened_remove.status_code == 200
+            assert (
+                reopened_remove.json()["current_revision"]["canonical_strategy"]
+                == removed_strategy
+            )
+            assert all(
+                item["id"] != "momentum_rank_qualification"
+                for item in removed_strategy["graph"]["components"]
+            )
+    finally:
+        app.dependency_overrides.clear()
