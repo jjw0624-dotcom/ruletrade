@@ -10,13 +10,21 @@ export interface StructuralAuthoringCapabilities {
   add_qualification_condition: boolean;
   remove_qualification_condition: boolean;
   multiple_qualification_conditions: false;
-  create_choose_pipeline: false;
+  choose_pipeline_targets: string[];
+  fallback_add_targets: string[];
+  growth_defensive_targets: string[];
+  create_choose_pipeline: boolean;
+  add_fallback_selection: boolean;
+  transform_to_growth_defensive: boolean;
 }
 
 export type StructuralAuthoringOperation =
   | { kind: "rename_group"; group_component_id: string; name: string }
   | { kind: "add_qualification_condition"; rank_component_id: string; threshold?: string }
-  | { kind: "remove_qualification_condition"; condition_component_id: string };
+  | { kind: "remove_qualification_condition"; condition_component_id: string }
+  | { kind: "transform_to_choose_assets"; weight_component_id: string; lookback_observations: number; count: number }
+  | { kind: "add_fallback_selection"; weight_component_id: string; fallback_asset: string }
+  | { kind: "transform_to_growth_defensive"; target_component_id: string; growth_allocation: string; defensive_assets: string[] };
 
 export interface StructuralAuthoringErrorDetail {
   code: string;
