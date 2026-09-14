@@ -369,6 +369,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .intuitive-node.choose { border-top: 4px solid var(--accent); }
 .intuitive-node.split { border-top: 4px solid #8264c7; }
 .intuitive-node.fallback { border-top: 4px solid #ba762b; }
+.xyflow-builder .intuitive-canvas { overflow: hidden; background: var(--surface-soft); }
+.xyflow-builder .react-flow { min-height: 590px; }
+.strategy-flow-node { width: 230px; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 8px 20px rgba(18,32,44,.08); }
+.strategy-flow-node.selected { outline: 3px solid color-mix(in srgb,var(--accent) 42%,transparent); border-color: var(--accent); }
+.strategy-flow-node.portfolio { border-top: 4px solid var(--text); }
+.strategy-flow-node.split { border-top: 4px solid #8264c7; }
+.strategy-flow-node.choose { border-top: 4px solid var(--accent); }
+.strategy-flow-node.fallback { border-top: 4px solid #ba762b; }
+.flow-node-label { display: grid; gap: .35rem; padding: .85rem 1rem; text-align: left; }
+.flow-node-label strong { font-size: .93rem; }
+.flow-node-label span { color: var(--muted); font-size: .78rem; }
+.strategy-flow-edge .react-flow__edge-path { stroke: color-mix(in srgb,var(--accent) 55%,var(--border)); stroke-width: 2; }
+.react-flow__edge-text { fill: var(--muted); font-size: 11px; }
+.react-flow__edge-textbg { fill: var(--surface); }
+.react-flow__controls { border: 1px solid var(--border); box-shadow: none; }
+.react-flow__controls-button { background: var(--surface); border-color: var(--border); }
+.shape-transformation { display: grid; gap: .65rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.shape-transformation h4,.shape-transformation p { margin: 0; }
+.shape-transformation .dialog-actions { justify-content: flex-start; }
 .flow-inspector label { display: grid; gap: .3rem; font-size: .8rem; font-weight: 700; }
 .flow-inspector input,.flow-inspector select { width: 100%; }
 .flow-inspector label > span { font-weight: 400; color: var(--muted); }

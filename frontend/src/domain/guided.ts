@@ -120,6 +120,20 @@ function scheduleForTarget(strategy: CanonicalStrategyV1, targetId: string) {
   };
 }
 
+function upstreamComponentIds(strategy: CanonicalStrategyV1, componentId: string): Set<string> {
+  const discovered = new Set<string>();
+  const pending = [componentId];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    for (const connection of strategy.graph.connections) {
+      if (connection.target.component_id !== current || discovered.has(connection.source.component_id)) continue;
+      discovered.add(connection.source.component_id);
+      pending.push(connection.source.component_id);
+    }
+  }
+  return discovered;
+}
+
 export function projectGuided(
   strategy: CanonicalStrategyV1,
   registry: RegistryPayload,
@@ -196,9 +210,13 @@ export function projectGuided(
     );
     const portfolio = strategy.graph.components.find((item) => item.primitive === "portfolio@1");
     if (portfolio && sleeveComponents.length === 2) {
-      const growthSleeve = sleeveComponents.find((item) => item.id === "growth_sleeve") ?? sleeveComponents[0];
-      const defensiveSleeve = sleeveComponents.find((item) => item.id === "defensive_sleeve") ?? sleeveComponents[1];
-      const defensiveAssets = strategy.graph.components.find((item) => item.id === "defensive_assets");
+      const growthSleeve = sleeveComponents.find((item) => upstreamComponentIds(strategy, item.id).has(topN.id));
+      const defensiveSleeve = sleeveComponents.find((item) => item.id !== growthSleeve?.id);
+      if (!growthSleeve || !defensiveSleeve) {
+        throw new Error("Guided View cannot identify the portfolio sleeve pipelines");
+      }
+      const defensiveUpstream = upstreamComponentIds(strategy, defensiveSleeve.id);
+      const defensiveAssets = assetComponents.find((item) => defensiveUpstream.has(item.id));
       const growthSchedule = scheduleForTarget(strategy, growthSleeve.id);
       const defensiveSchedule = scheduleForTarget(strategy, defensiveSleeve.id);
       const rebalanceSchedule = scheduleForTarget(strategy, "rebalance");

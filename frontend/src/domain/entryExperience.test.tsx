@@ -106,7 +106,10 @@ describe("Product entry and starting experience", () => {
       groups: [], qualification_add_targets: [], qualification_remove_targets: [],
       add_group: false, remove_group: false, rename_group: false,
       add_qualification_condition: false, remove_qualification_condition: false,
-      multiple_qualification_conditions: false, create_choose_pipeline: false,
+      multiple_qualification_conditions: false,
+      choose_pipeline_targets: [], fallback_add_targets: [], growth_defensive_targets: [],
+      create_choose_pipeline: false, add_fallback_selection: false,
+      transform_to_growth_defensive: false,
     };
     const requests: string[] = [];
     const fetcher = async (_input: RequestInfo | URL, init?: RequestInit) => {

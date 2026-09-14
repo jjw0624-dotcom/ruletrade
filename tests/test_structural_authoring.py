@@ -12,10 +12,13 @@ from ruletrade.ir.strategy import FilterOp
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.authoring import (
+    AddFallbackSelectionOperation,
     AddQualificationConditionOperation,
     RemoveQualificationConditionOperation,
     RenameGroupOperation,
     StructuralAuthoringError,
+    TransformToChooseAssetsOperation,
+    TransformToGrowthDefensiveOperation,
     apply_structural_operation,
     structural_authoring_capabilities,
 )
@@ -147,8 +150,11 @@ def test_capabilities_match_starting_skeletons() -> None:
     one = structural_authoring_capabilities(one_investment_strategy())
     choose = structural_authoring_capabilities(momentum_top_n_strategy())
     split = structural_authoring_capabilities(portfolio_sleeves_strategy())
-    assert not one.add_group and not one.create_choose_pipeline
+    assert not one.add_group and one.create_choose_pipeline
+    assert one.choose_pipeline_targets == ("weights",)
+    assert one.growth_defensive_targets == ("weights",)
     assert choose.qualification_add_targets == ("momentum_rank",)
+    assert not choose.create_choose_pipeline
     assert not choose.multiple_qualification_conditions
     assert split.rename_group
     assert {item.component_id for item in split.groups} == {
@@ -156,6 +162,140 @@ def test_capabilities_match_starting_skeletons() -> None:
         "defensive_sleeve",
     }
     assert not split.add_group and not split.remove_group
+    assert not split.transform_to_growth_defensive
+
+
+def test_one_investment_evolves_through_supported_shapes_and_compiles() -> None:
+    original = one_investment_strategy()
+    original_payload = original.model_dump(mode="json")
+    original_ids = set(_ids(original))
+
+    choose = apply_structural_operation(
+        original,
+        TransformToChooseAssetsOperation(
+            weight_component_id="weights",
+            lookback_observations=63,
+            count=1,
+        ),
+    )
+    assert original.model_dump(mode="json") == original_payload
+    assert original_ids < set(_ids(choose))
+    assert {"weights_trailing_return", "weights_rank", "weights_top_n"} <= set(
+        _ids(choose)
+    )
+    assert structural_authoring_capabilities(choose).qualification_add_targets == (
+        "weights_rank",
+    )
+
+    filtered = apply_structural_operation(
+        choose,
+        AddQualificationConditionOperation(
+            rank_component_id="weights_rank", threshold=Decimal("0.02")
+        ),
+    )
+    with_fallback = apply_structural_operation(
+        filtered,
+        AddFallbackSelectionOperation(
+            weight_component_id="weights", fallback_asset="tlt"
+        ),
+    )
+    split = apply_structural_operation(
+        with_fallback,
+        TransformToGrowthDefensiveOperation(
+            target_component_id="weights_fallback",
+            growth_allocation=Decimal("0.65"),
+            defensive_assets=("ief", "shy"),
+        ),
+    )
+
+    assert original_ids < set(_ids(split))
+    assert next(
+        item
+        for item in split.definitions.asset_sets
+        if item.id == "weights_fallback_assets"
+    ).assets == ["TLT"]
+    assert next(
+        item
+        for item in split.definitions.asset_sets
+        if item.id == "weights_fallback_defensive_assets"
+    ).assets == ["IEF", "SHY"]
+    assert next(
+        item
+        for item in split.graph.components
+        if item.id == "weights_fallback_growth_sleeve"
+    ).config["allocation"] == Decimal("0.65")
+    assert next(
+        item
+        for item in split.graph.components
+        if item.id == "weights_fallback_defensive_sleeve"
+    ).config["allocation"] == Decimal("0.35")
+    assert split.entrypoints == original.entrypoints
+    plan = compile_strategy_to_lean_plan(split)
+    source = generate_csharp(plan)
+    assert plan.momentum_selections[0].filter_component_id == (
+        "weights_rank_qualification"
+    )
+    assert '"filter_component", "weights_rank_qualification"' in source
+    assert "weights_fallback_growth_sleeve" in source
+
+
+def test_shape_transformations_are_deterministic_and_atomic() -> None:
+    original = one_investment_strategy()
+    operation = TransformToChooseAssetsOperation(
+        weight_component_id="weights", lookback_observations=126, count=1
+    )
+    assert apply_structural_operation(original, operation) == apply_structural_operation(
+        original, operation
+    )
+    before = original.model_dump(mode="json")
+    with pytest.raises(StructuralAuthoringError) as raised:
+        apply_structural_operation(
+            original,
+            TransformToChooseAssetsOperation(
+                weight_component_id="weights", lookback_observations=126, count=2
+            ),
+        )
+    assert raised.value.code == "selection_count_exceeds_assets"
+    assert original.model_dump(mode="json") == before
+
+
+def test_fallback_and_split_only_target_unambiguous_owned_shapes() -> None:
+    original = momentum_top_n_strategy()
+    with pytest.raises(StructuralAuthoringError) as raised:
+        apply_structural_operation(
+            original,
+            AddFallbackSelectionOperation(
+                weight_component_id="weights", fallback_asset="TLT"
+            ),
+        )
+    assert raised.value.code == "unsupported_shape_transformation"
+
+    split = apply_structural_operation(
+        original,
+        TransformToGrowthDefensiveOperation(
+            target_component_id="weights",
+            growth_allocation=Decimal("0.7"),
+            defensive_assets=("TLT",),
+        ),
+    )
+    assert structural_authoring_capabilities(split).growth_defensive_targets == ()
+    assert _ids(split)[: len(_ids(original))] == _ids(original)
+    compile_strategy_to_lean_plan(split)
+
+
+def test_growth_defensive_rejects_duplicate_defensive_assets_atomically() -> None:
+    original = one_investment_strategy()
+    with pytest.raises(StructuralAuthoringError) as error:
+        apply_structural_operation(
+            original,
+            TransformToGrowthDefensiveOperation(
+                target_component_id="weights",
+                growth_allocation=Decimal("0.6"),
+                defensive_assets=("BIL", "bil"),
+            ),
+        )
+    assert error.value.code == "duplicate_asset"
+    assert original == one_investment_strategy()
 
 
 def test_authoring_endpoints_apply_and_expose_narrow_capabilities() -> None:
@@ -181,6 +321,52 @@ def test_authoring_endpoints_apply_and_expose_narrow_capabilities() -> None:
     assert capabilities.status_code == 200
     assert capabilities.json()["add_group"] is False
     assert capabilities.json()["rename_group"] is True
+
+
+def test_authoring_endpoint_exposes_and_applies_shape_grammar() -> None:
+    strategy = one_investment_strategy().model_dump(mode="json")
+    capabilities = client.post(
+        "/v1/canonical/strategies/authoring/capabilities", json=strategy
+    )
+    assert capabilities.status_code == 200
+    assert capabilities.json()["choose_pipeline_targets"] == ["weights"]
+    assert capabilities.json()["growth_defensive_targets"] == ["weights"]
+
+    operations = [
+        {
+            "kind": "transform_to_choose_assets",
+            "weight_component_id": "weights",
+            "lookback_observations": 63,
+            "count": 1,
+        },
+        {
+            "kind": "add_qualification_condition",
+            "rank_component_id": "weights_rank",
+            "threshold": "0.01",
+        },
+        {
+            "kind": "add_fallback_selection",
+            "weight_component_id": "weights",
+            "fallback_asset": "TLT",
+        },
+        {
+            "kind": "transform_to_growth_defensive",
+            "target_component_id": "weights_fallback",
+            "growth_allocation": "0.6",
+            "defensive_assets": ["IEF"],
+        },
+    ]
+    for operation in operations:
+        response = client.post(
+            "/v1/canonical/strategies/authoring/apply",
+            json={"strategy": strategy, "operation": operation},
+        )
+        assert response.status_code == 200, response.text
+        strategy = response.json()["strategy"]
+    assert {item["config"].get("name") for item in strategy["graph"]["components"]} >= {
+        "Growth",
+        "Defensive",
+    }
 
 
 def test_structural_results_save_and_reopen_through_revision_api(
