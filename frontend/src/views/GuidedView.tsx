@@ -1,177 +1,21 @@
-import { projectGuided } from "../domain/guided";
+import type { ReactNode } from "react";
+import { projectConceptualFlow } from "../domain/conceptualFlow";
+import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import { useStrategyEditor } from "../store/editorStore";
-import { AssetMembershipEditor, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
-import { GroupRenameControl, QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
-import { useStructuralAuthoring } from "../hooks/useStructuralAuthoring";
 
-function percent(value: string) {
-  return `${Math.round(Number(value) * 100)}%`;
+function GuideObject({selection,question,answer,children}:{selection:SemanticSelection;question:string;answer:string;children?:ReactNode}) {
+  const {state,dispatch}=useStrategyEditor(); const selected=sameSemanticSelection(selection,state.editor.selection);
+  return <button className={`guide-object${selected?" selected":""}`} aria-pressed={selected} data-component-id={selection.componentId??undefined} data-field-path={selection.fieldPath??undefined} onClick={()=>dispatch({type:"select_semantic",selection})}><span>{question}</span><strong>{answer}</strong>{children}</button>;
 }
-
-export function GuidedView() {
-  const { state, dispatch } = useStrategyEditor();
-  const guided = projectGuided(state.canonical, state.registry);
-  const structural = useStructuralAuthoring();
-  const structuralBusy = structural.status === "applying";
-  const focusClass = (componentId?: string, fieldPath?: string) => componentId && state.editor.selectedNodeId === componentId && (!state.editor.selectedFieldPath || state.editor.selectedFieldPath === fieldPath) ? "guided-rule-focus" : "";
-  const viewInFlow = (componentId: string) => { dispatch({ type: "select_node", componentId }); dispatch({ type: "set_active_view", view: "flow" }); };
-
-  if (guided.kind === "single") {
-    return <div className="guided-view" aria-label="Guided strategy editor"><section className="sleeve-card">
-      <header><div><span className="eyebrow">One investment</span><h2>{guided.investment.assets[0]}</h2></div><strong>{percent(guided.investment.total)}</strong></header>
-      <AssetMembershipEditor question="What should it hold?" assetSetId={guided.investment.assetSetId} assets={guided.investment.assets} />
-      <div className="summary-row"><span>How should the money be invested?</span><span>All in this investment</span></div>
-      {guided.investment.scheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.investment.scheduleComponentId} value={guided.investment.schedule} /> : null}
-    </section></div>;
-  }
-
-  if (guided.kind === "portfolio") {
-    return (
-      <div className="guided-view" aria-label="Guided strategy editor">
-        <section className="sleeve-card portfolio-card">
-          <header><div><span className="eyebrow">Portfolio</span><h2>{guided.portfolio.name}</h2></div></header>
-          <label>How should the money be split?</label><SleeveAllocationEditor groups={[{id:"growth",label:guided.growth.sleeveName,componentId:guided.growth.sleeveComponentId,allocation:guided.growth.allocation},{id:"defensive",label:guided.defensive.sleeveName,componentId:guided.defensive.sleeveComponentId,allocation:guided.defensive.allocation}]}/>
-        </section>
-        <section className="sleeve-card">
-          <header><div><span className="eyebrow">Portfolio sleeve</span><GroupRenameControl componentId={guided.growth.sleeveComponentId} name={guided.growth.sleeveName} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onRename={(name) => structural.apply({ kind: "rename_group", group_component_id: guided.growth.sleeveComponentId, name }, { componentId: guided.growth.sleeveComponentId })} /></div><strong>{percent(guided.growth.allocation)}</strong></header>
-          <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
-          <QualificationAuthoringControl rankComponentId={guided.growth.rankComponentId} filterComponentId={guided.growth.filterComponentId} lookbackBars={guided.growth.lookbackBars} threshold={guided.growth.threshold} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onAdd={() => structural.apply({ kind: "add_qualification_condition", rank_component_id: guided.growth.rankComponentId }, { componentId: `${guided.growth.rankComponentId}_qualification` })} onRemove={() => structural.apply({ kind: "remove_qualification_condition", condition_component_id: guided.growth.filterComponentId! }, { componentId: guided.growth.rankComponentId })} />
-          <div className={focusClass(guided.growth.lookbackComponentId, "config.lookback_bars")} data-component-id={guided.growth.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.growth.lookbackComponentId ? -1 : undefined}><LookbackControl id="guided-growth-lookback" componentId={guided.growth.lookbackComponentId} value={guided.growth.lookbackBars}/></div>
-          {guided.growth.filterComponentId && <div className={`guided-question ${focusClass(guided.growth.filterComponentId, "config.threshold")}`} data-component-id={guided.growth.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.growth.filterComponentId ? -1 : undefined}><header><span>Which assets qualify?</span><button className="text-button" onClick={() => viewInFlow(guided.growth.filterComponentId!)}>View in Flow</button></header><label htmlFor="guided-growth-threshold">{guided.growth.lookbackBars}-day return above <span className="inline-percent"><input id="guided-growth-threshold" type="number" step="0.1" value={Number(guided.growth.threshold ?? 0) * 100} onChange={(event) => { if (event.target.value !== "") dispatch({ type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: guided.growth.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) } }); }} />%</span></label></div>}
-          <div className={`summary-row ${focusClass(guided.growth.rankComponentId, "config.direction")}`} data-component-id={guided.growth.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.growth.rankComponentId ? -1 : undefined}><span>How should it choose among them?</span><strong>Strongest return first</strong></div>
-          <label className={focusClass(guided.growth.selectionComponentId,"config.count")} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count">How many should it choose?<input type="number" min={1} value={guided.growth.topN} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.selectionComponentId,field:"count",value:Number(event.target.value)}})}/></label>
-          {guided.growth.fallbackComponentId&&<label className={focusClass(guided.growth.fallbackComponentId,"config.fallback_asset_set_ref")} data-component-id={guided.growth.fallbackComponentId} data-field-path="config.fallback_asset_set_ref">What if there aren't enough?<select value={guided.growth.fallbackAssetSetRef} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.fallbackComponentId!,field:"fallback_asset_set_ref",value:event.target.value}})}>{guided.growth.fallbackOptions.map(option=><option key={option.id} value={option.id}>Use {option.asset}</option>)}</select></label>}
-          {guided.growth.cooldownComponentId&&<label className={focusClass(guided.growth.cooldownComponentId,"config.duration")} data-component-id={guided.growth.cooldownComponentId} data-field-path="config.duration">After selling, wait<input type="number" min={1} value={guided.growth.cooldownDuration} onChange={event=>dispatch({type:"apply_semantic_patch",operation:{kind:"update_component_config",componentId:guided.growth.cooldownComponentId!,field:"duration",value:Number(event.target.value)}})}/> completed trading days before buying again.</label>}
-          {guided.growth.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.growth.refreshScheduleComponentId} value={guided.growth.refreshSchedule!}/> : null}
-        </section>
-        <section className="sleeve-card safe">
-          <header><div><span className="eyebrow">Portfolio sleeve</span><GroupRenameControl componentId={guided.defensive.sleeveComponentId} name={guided.defensive.sleeveName} capabilities={structural.capabilities} busy={structuralBusy} error={structural.error} onRename={(name) => structural.apply({ kind: "rename_group", group_component_id: guided.defensive.sleeveComponentId, name }, { componentId: guided.defensive.sleeveComponentId })} /></div><strong>{percent(guided.defensive.allocation)}</strong></header>
-          <AssetMembershipEditor question="What does it hold?" assetSetId={guided.defensive.assetSetId} assets={guided.defensive.assets}/>
-          <div className="summary-row"><span>How is it divided?</span><span>Split equally</span></div>
-          {guided.defensive.refreshScheduleComponentId ? <ScheduleControl label="When should it check again?" componentId={guided.defensive.refreshScheduleComponentId} value={guided.defensive.refreshSchedule!}/> : null}
-        </section>
-        {guided.rebalanceScheduleComponentId ? <section className="sleeve-card portfolio-card">
-          <ScheduleControl label="When should the whole portfolio rebalance?" componentId={guided.rebalanceScheduleComponentId} value={guided.rebalanceSchedule!}/>
-        </section> : null}
-      </div>
-    );
-  }
-
-  if (guided.kind === "momentum") {
-    return (
-      <div className="guided-view" aria-label="Guided strategy editor">
-        <section className="sleeve-card">
-          <header><div><span className="eyebrow">Momentum strategy</span><h2>Highest trailing return</h2></div><strong>{percent(guided.momentum.total)}</strong></header>
-          <AssetMembershipEditor assetSetId={guided.momentum.assetSetId} assets={guided.momentum.assets}/>
-          <div className="field-grid">
-            <div className={`guided-field-pair ${focusClass(guided.momentum.lookbackComponentId, "config.lookback_bars")}`} data-component-id={guided.momentum.lookbackComponentId} data-field-path="config.lookback_bars" tabIndex={state.editor.selectedNodeId === guided.momentum.lookbackComponentId ? -1 : undefined}><LookbackControl id="guided-lookback" componentId={guided.momentum.lookbackComponentId} value={guided.momentum.lookbackBars}/></div>
-            {guided.momentum.filterComponentId && guided.momentum.threshold !== undefined ? <div className={`guided-field-pair ${focusClass(guided.momentum.filterComponentId, "config.threshold")}`} data-component-id={guided.momentum.filterComponentId} data-field-path="config.threshold" tabIndex={state.editor.selectedNodeId === guided.momentum.filterComponentId ? -1 : undefined}>
-              <label htmlFor="guided-threshold">Which assets qualify? Return above (%)</label>
-              <input id="guided-threshold" type="number" step="0.1" value={Number(guided.momentum.threshold) * 100} onChange={(event) => {
-                if (event.target.value === "") return;
-                dispatch({
-                  type: "apply_semantic_patch",
-                  operation: { kind: "update_component_config", componentId: guided.momentum.filterComponentId!, field: "threshold", value: String(Number(event.target.value) / 100) },
-                });
-              }} /><button className="text-button field-link" onClick={() => viewInFlow(guided.momentum.filterComponentId!)}>View in Flow</button>
-            </div> : null}
-            <div className={`guided-field-pair ${focusClass(guided.momentum.selectionComponentId, "config.count")}`} data-component-id={guided.momentum.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.momentum.selectionComponentId ? -1 : undefined}><label htmlFor="guided-top-n">How many should it choose?</label>
-            <input id="guided-top-n" type="number" min={1} value={guided.momentum.topN} onChange={(event) => dispatch({
-              type: "apply_semantic_patch",
-              operation: { kind: "update_component_config", componentId: guided.momentum.selectionComponentId, field: "count", value: Number(event.target.value) },
-            })} /></div>
-          </div>
-          <div className={`summary-row ${focusClass(guided.momentum.rankComponentId, "config.direction")}`} data-component-id={guided.momentum.rankComponentId} data-field-path="config.direction" tabIndex={state.editor.selectedNodeId === guided.momentum.rankComponentId ? -1 : undefined}><span>How should it choose among them?</span><span>Strongest return first</span></div>
-          <div className="summary-row"><span>How should the money be split?</span><span>Equally · {percent(guided.momentum.total)}</span></div>
-          {guided.momentum.cooldownComponentId ? (
-            <label className={focusClass(guided.momentum.cooldownComponentId, "config.duration")} data-component-id={guided.momentum.cooldownComponentId} data-field-path="config.duration" tabIndex={state.editor.selectedNodeId === guided.momentum.cooldownComponentId ? -1 : undefined} htmlFor="guided-cooldown">After selling, wait
-              <input id="guided-cooldown" type="number" min={1} value={guided.momentum.cooldownDuration} onChange={(event) => dispatch({
-                type: "apply_semantic_patch",
-                operation: {
-                  kind: "update_component_config",
-                  componentId: guided.momentum.cooldownComponentId!,
-                  field: "duration",
-                  value: Number(event.target.value),
-                },
-              })} /> completed trading days before buying again.
-            </label>
-          ) : null}
-          {guided.momentum.fallbackComponentId ? (
-            <div className="summary-row">
-              <label htmlFor="guided-fallback">What if fewer than {guided.momentum.topN} assets qualify?</label>
-              <select id="guided-fallback" value={guided.momentum.fallbackAssetSetRef} onChange={(event) => dispatch({
-                type: "apply_semantic_patch",
-                operation: {
-                  kind: "update_component_config",
-                  componentId: guided.momentum.fallbackComponentId!,
-                  field: "fallback_asset_set_ref",
-                  value: event.target.value,
-                },
-              })}>
-                {guided.momentum.fallbackOptions.map((option) => (
-                  <option key={option.id} value={option.id}>Use {option.asset}</option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="summary-row"><span>If fewer than {guided.momentum.topN} assets qualify</span><span>Skip this rebalance</span></div>
-          )}
-          {guided.momentum.scheduleComponentId?<ScheduleControl label="When should it check again?" componentId={guided.momentum.scheduleComponentId} value={guided.momentum.schedule}/>:<div className="summary-row"><span>When should it check again?</span><span>{guided.momentum.schedule}</span></div>}
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="guided-view" aria-label="Guided strategy editor">
-      <section className="sleeve-card">
-        <header><div><span className="eyebrow">Growth sleeve</span><h2>Growth</h2></div><strong>{percent(guided.growth.total)}</strong></header>
-        <AssetMembershipEditor assetSetId={guided.growth.assetSetId} assets={guided.growth.assets}/>
-        <div className="field-grid">
-          <div className={`guided-field-pair ${focusClass(guided.growth.selectionComponentId, "config.count")}`} data-component-id={guided.growth.selectionComponentId} data-field-path="config.count" tabIndex={state.editor.selectedNodeId === guided.growth.selectionComponentId ? -1 : undefined}><label htmlFor="guided-random-count">How many should it choose?</label>
-          <input
-            id="guided-random-count"
-            type="number"
-            min={1}
-            max={guided.growth.assets.length}
-            value={guided.growth.randomCount}
-            onChange={(event) => dispatch({
-              type: "apply_semantic_patch",
-              operation: {
-                kind: "update_component_config",
-                componentId: guided.growth.selectionComponentId,
-                field: "count",
-                value: Number(event.target.value),
-              },
-            })}
-          /></div>
-          <label htmlFor="guided-resample">When should it choose again?</label>
-          <select
-            id="guided-resample"
-            value={guided.growth.resample}
-            onChange={(event) => dispatch({
-              type: "apply_semantic_patch",
-              operation: {
-                kind: "update_component_config",
-                componentId: guided.growth.selectionComponentId,
-                field: "resample",
-                value: event.target.value,
-              },
-            })}
-          >
-            <option value="per_event">Each check</option>
-            <option value="once">Keep the first choice</option>
-          </select>
-        </div>
-        <div className="summary-row"><span>Split selected assets</span><span>Equally · {percent(guided.growth.total)}</span></div>
-      </section>
-
-      <section className="sleeve-card safe">
-        <header><div><span className="eyebrow">Safety sleeve</span><h2>Safe</h2></div><strong>{percent(guided.safe.total)}</strong></header>
-        <AssetMembershipEditor question="What does it hold?" assetSetId={guided.safe.assetSetId} assets={guided.safe.assets}/>
-        <div className="summary-row"><span>Selection</span><span>All assets</span></div>
-        <div className="summary-row"><span>Allocation</span><span>Equal Weight · {percent(guided.safe.total)}</span></div>
-      </section>
-    </div>
-  );
+export function GuidedView(){
+  const {state}=useStrategyEditor();const projection=projectConceptualFlow(state.canonical,state.registry);
+  return <div className="guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Select any part to inspect or change it without leaving the Strategy workspace.</p></header><div className="guide-sequence">
+    {projection.groups.map(group=><section className="guide-group" key={group.id}>
+      <GuideObject selection={semanticSelection("group",group.sleeveComponentId??group.universeComponentId??null,{groupId:group.id})} question="Where should money go?" answer={`${group.label}${group.allocation?` · ${group.allocation}`:""}`}/>
+      <GuideObject selection={semanticSelection("universe",group.universeComponentId??null,{groupId:group.id})} question="What can it invest in?" answer={group.assets.join(", ")}/>
+      {group.choose&&<>{group.choose.filterComponentId?<GuideObject selection={semanticSelection("qualification",group.choose.filterComponentId,{fieldPath:"config.threshold",groupId:group.id})} question="Which assets qualify?" answer={group.choose.condition??"Supported qualification"}/>:<GuideObject selection={semanticSelection("selection",group.choose.selectionComponentId,{groupId:group.id})} question="Which assets qualify?" answer="No qualification condition"/>}
+      {group.choose.lookbackComponentId&&<GuideObject selection={semanticSelection("rule",group.choose.lookbackComponentId,{fieldPath:"config.lookback_bars",groupId:group.id})} question="How much history should it measure?" answer={`${group.choose.lookbackBars} trading observations`}/>}<GuideObject selection={semanticSelection("selection",group.choose.selectionComponentId,{fieldPath:"config.count",groupId:group.id})} question="Which should it choose?" answer={`${group.choose.label} · ${group.choose.ranking??"Selection"}`}/>
+      <GuideObject selection={group.choose.fallbackComponentId?semanticSelection("fallback",group.choose.fallbackComponentId,{groupId:group.id}):semanticSelection("selection",group.choose.selectionComponentId,{groupId:group.id})} question="What happens otherwise?" answer={group.choose.otherwise??"No fallback"}/></>}
+      {group.scheduleComponentId&&<GuideObject selection={semanticSelection("schedule",group.scheduleComponentId,{groupId:group.id})} question="When should it check again?" answer={group.timing??"Scheduled"}/>} </section>)}
+    {projection.rebalanceScheduleComponentId&&<GuideObject selection={semanticSelection("schedule",projection.rebalanceScheduleComponentId)} question="When should the portfolio rebalance?" answer={projection.rebalance??"Scheduled"}/>} </div></div>;
 }
