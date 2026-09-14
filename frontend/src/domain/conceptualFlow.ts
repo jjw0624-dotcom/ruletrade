@@ -37,6 +37,8 @@ export interface ConceptualGroup {
   choose?: ConceptualChoose;
   sourceComponentIds: string[];
   assetSetId?: string;
+  universeComponentId?: string;
+  allocationComponentId?: string;
   sleeveComponentId?: string;
   allocationValue?: string;
   scheduleComponentId?: string;
@@ -49,6 +51,7 @@ export interface ConceptualFlowProjection {
   sourceComponentIds: string[];
   split?: { groups: Array<{ id: string; label: string; componentId: string; allocation: string }> };
   rebalanceScheduleComponentId?: string;
+  portfolioComponentId?: string;
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
@@ -60,32 +63,33 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
       sourceComponentIds: [guided.portfolio.componentId, guided.growth.sleeveComponentId, guided.defensive.sleeveComponentId],
       split: { groups: [{ id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, componentId: guided.growth.sleeveComponentId, allocation: guided.growth.allocation }, { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, componentId: guided.defensive.sleeveComponentId, allocation: guided.defensive.allocation }] },
       rebalanceScheduleComponentId: guided.rebalanceScheduleComponentId,
+      portfolioComponentId: guided.portfolio.componentId,
       groups: [
         {
           id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, allocation: percentage(guided.growth.allocation), assets: guided.growth.assets,
           timing: guided.growth.refreshSchedule ?? guided.growth.schedule,
           sourceComponentIds: [guided.growth.sleeveComponentId, guided.growth.lookbackComponentId, guided.growth.selectionComponentId, ...(guided.growth.filterComponentId ? [guided.growth.filterComponentId] : []), ...(guided.growth.fallbackComponentId ? [guided.growth.fallbackComponentId] : []), ...(guided.growth.cooldownComponentId ? [guided.growth.cooldownComponentId] : [])],
-          assetSetId: guided.growth.assetSetId, sleeveComponentId: guided.growth.sleeveComponentId, allocationValue: guided.growth.allocation, scheduleComponentId: guided.growth.refreshScheduleComponentId,
+          assetSetId: guided.growth.assetSetId, universeComponentId: guided.growth.assetComponentId, allocationComponentId: guided.growth.allocationComponentId, sleeveComponentId: guided.growth.sleeveComponentId, allocationValue: guided.growth.allocation, scheduleComponentId: guided.growth.refreshScheduleComponentId,
           choose: chooseFrom(guided.growth),
         },
-        { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, allocation: percentage(guided.defensive.allocation), assets: guided.defensive.assets, timing: guided.defensive.refreshSchedule, sourceComponentIds: [guided.defensive.sleeveComponentId], assetSetId: guided.defensive.assetSetId, sleeveComponentId: guided.defensive.sleeveComponentId, allocationValue: guided.defensive.allocation, scheduleComponentId: guided.defensive.refreshScheduleComponentId },
+        { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, allocation: percentage(guided.defensive.allocation), assets: guided.defensive.assets, timing: guided.defensive.refreshSchedule, sourceComponentIds: [guided.defensive.sleeveComponentId, guided.defensive.assetComponentId], assetSetId: guided.defensive.assetSetId, universeComponentId: guided.defensive.assetComponentId, allocationComponentId: guided.defensive.allocationComponentId, sleeveComponentId: guided.defensive.sleeveComponentId, allocationValue: guided.defensive.allocation, scheduleComponentId: guided.defensive.refreshScheduleComponentId },
       ],
     };
   }
-  if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], rebalanceScheduleComponentId: guided.momentum.scheduleComponentId, groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], assetSetId: guided.momentum.assetSetId, choose: chooseFrom(guided.momentum) }] };
+  if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], rebalanceScheduleComponentId: guided.momentum.scheduleComponentId, groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.assetComponentId, guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], assetSetId: guided.momentum.assetSetId, universeComponentId: guided.momentum.assetComponentId, allocationComponentId: guided.momentum.allocationComponentId, choose: chooseFrom(guided.momentum) }] };
   if (guided.kind === "single") return {
     kind: "single",
     title: strategy.metadata.name,
     rebalance: guided.investment.schedule,
     sourceComponentIds: [guided.investment.assetComponentId],
     rebalanceScheduleComponentId: guided.investment.scheduleComponentId,
-    groups: [{ id: "investment", label: "Investment", allocation: percentage(guided.investment.total), assets: guided.investment.assets, timing: guided.investment.schedule, sourceComponentIds: [guided.investment.assetComponentId], assetSetId: guided.investment.assetSetId }],
+    groups: [{ id: "investment", label: "Investment", allocation: percentage(guided.investment.total), assets: guided.investment.assets, timing: guided.investment.schedule, sourceComponentIds: [guided.investment.assetComponentId, guided.investment.allocationComponentId], assetSetId: guided.investment.assetSetId, universeComponentId: guided.investment.assetComponentId, allocationComponentId: guided.investment.allocationComponentId }],
   };
   return {
     kind: "portfolio", title: strategy.metadata.name, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId, guided.safe.allocationComponentId],
     groups: [
-      { id: "growth", label: "Growth", allocation:percentage(guided.growth.total), allocationValue:guided.growth.total, assets: guided.growth.assets, assetSetId: guided.growth.assetSetId, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Choose randomly", selectionMode:"random", resample:guided.growth.resample, sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
-      { id: "safe", label: "Safe", allocation:percentage(guided.safe.total), allocationValue:guided.safe.total, assets: guided.safe.assets, assetSetId: guided.safe.assetSetId, sourceComponentIds: [guided.safe.allocationComponentId] },
+      { id: "growth", label: "Growth", allocation:percentage(guided.growth.total), allocationValue:guided.growth.total, assets: guided.growth.assets, assetSetId: guided.growth.assetSetId, universeComponentId: guided.growth.assetComponentId, allocationComponentId: guided.growth.allocationComponentId, sourceComponentIds: [guided.growth.assetComponentId, guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Choose randomly", selectionMode:"random", resample:guided.growth.resample, sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
+      { id: "safe", label: "Safe", allocation:percentage(guided.safe.total), allocationValue:guided.safe.total, assets: guided.safe.assets, assetSetId: guided.safe.assetSetId, universeComponentId: guided.safe.assetComponentId, allocationComponentId: guided.safe.allocationComponentId, sourceComponentIds: [guided.safe.assetComponentId, guided.safe.allocationComponentId] },
     ],
   };
 }
