@@ -6,6 +6,7 @@ export interface GoldenGuidedProjection {
   growth: {
     assets: string[];
     assetSetId: string;
+    assetComponentId: string;
     selectionComponentId: string;
     randomCount: number;
     resample: string;
@@ -15,6 +16,7 @@ export interface GoldenGuidedProjection {
   safe: {
     assets: string[];
     assetSetId: string;
+    assetComponentId: string;
     allocationComponentId: string;
     total: string;
   };
@@ -27,6 +29,7 @@ export interface SingleInvestmentGuidedProjection {
     assetSetId: string;
     assetComponentId: string;
     total: string;
+    allocationComponentId: string;
     schedule: string;
     scheduleComponentId?: string;
   };
@@ -37,6 +40,8 @@ export interface MomentumGuidedProjection {
   momentum: {
     assets: string[];
     assetSetId: string;
+    assetComponentId: string;
+    allocationComponentId: string;
     lookbackComponentId: string;
     lookbackBars: number;
     filterComponentId?: string;
@@ -74,6 +79,8 @@ export interface PortfolioGuidedProjection {
     allocation: string;
     assets: string[];
     assetSetId: string;
+    assetComponentId: string;
+    allocationComponentId: string;
     refreshScheduleComponentId?: string;
     refreshSchedule?: string;
   };
@@ -148,6 +155,7 @@ export function projectGuided(
         assets: assetsFor(strategy, assetComponents[0].id),
         assetSetId: assetSetFor(strategy, assetComponents[0].id),
         assetComponentId: assetComponents[0].id,
+        allocationComponentId: singleWeight.id,
         total: String(resolvedConfigValue(strategy, registry, singleWeight.id, "total")),
         schedule: schedule?.label ?? "Monthly",
         scheduleComponentId: schedule?.componentId,
@@ -176,6 +184,7 @@ export function projectGuided(
     const momentum = {
         assets: assetsFor(strategy, assets.id),
         assetSetId: assetSetFor(strategy, assets.id),
+        assetComponentId: assets.id,
         lookbackComponentId: trailingReturn.id,
         lookbackBars,
         filterComponentId: filter?.id,
@@ -202,6 +211,7 @@ export function projectGuided(
           ? String(resolvedConfigValue(strategy, registry, cooldown.id, "unit"))
           : undefined,
         total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
+        allocationComponentId: weighting.id,
         schedule: schedule?.label ?? "Monthly",
         scheduleComponentId: schedule?.componentId,
     };
@@ -238,6 +248,10 @@ export function projectGuided(
           allocation: String(defensiveSleeve.config.allocation),
           assets: assetsFor(strategy, defensiveAssets.id),
           assetSetId: assetSetFor(strategy, defensiveAssets.id),
+          assetComponentId: defensiveAssets.id,
+          allocationComponentId: strategy.graph.connections.find(
+            (item) => item.source.component_id === defensiveAssets.id,
+          )?.target.component_id ?? defensiveAssets.id,
           refreshScheduleComponentId: defensiveSchedule?.componentId,
           refreshSchedule: defensiveSchedule?.label,
         },
@@ -263,6 +277,7 @@ export function projectGuided(
     growth: {
       assets: assetsFor(strategy, "growth_assets"),
       assetSetId: assetSetFor(strategy, "growth_assets"),
+      assetComponentId: "growth_assets",
       selectionComponentId: "growth_random",
       randomCount,
       resample,
@@ -272,6 +287,7 @@ export function projectGuided(
     safe: {
       assets: assetsFor(strategy, "safe_assets"),
       assetSetId: assetSetFor(strategy, "safe_assets"),
+      assetComponentId: "safe_assets",
       allocationComponentId: "safe_weights",
       total: String(safeTotal),
     },
