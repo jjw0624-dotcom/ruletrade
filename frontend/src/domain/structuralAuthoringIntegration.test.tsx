@@ -8,6 +8,7 @@ import { createEditorState, editorReducer, StrategyEditorProvider, type EditorVi
 import { filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
+import { FlowView, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 
@@ -21,7 +22,12 @@ const capabilities: StructuralAuthoringCapabilities = {
   add_qualification_condition: true,
   remove_qualification_condition: false,
   multiple_qualification_conditions: false,
+  choose_pipeline_targets: [],
+  fallback_add_targets: [],
+  growth_defensive_targets: [],
   create_choose_pipeline: false,
+  add_fallback_selection: false,
+  transform_to_growth_defensive: false,
 };
 
 function stateFor(
@@ -60,6 +66,80 @@ describe("Structural Authoring Guide and Flow integration", () => {
       },
     });
     expect(returned).toEqual(filterBootstrap.strategy);
+  });
+
+  it("sends exact backend-owned valid-shape transformation requests", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ strategy: momentumBootstrap.strategy }), { status: 200 }),
+    );
+    await structuralAuthoringApi.apply(sleevesBootstrap.strategy, {
+      kind: "transform_to_choose_assets",
+      weight_component_id: "weights",
+      lookback_observations: 63,
+      count: 1,
+    }, fetcher);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
+      strategy: sleevesBootstrap.strategy,
+      operation: {
+        kind: "transform_to_choose_assets",
+        weight_component_id: "weights",
+        lookback_observations: 63,
+        count: 1,
+      },
+    });
+  });
+
+  it("exposes transformations only from backend capability targets", () => {
+    expect(shapeTransformationTargets(capabilities)).toEqual({
+      choose: undefined,
+      fallback: undefined,
+      growthDefensive: undefined,
+    });
+    expect(shapeTransformationTargets({
+      ...capabilities,
+      choose_pipeline_targets: ["weights"],
+      fallback_add_targets: ["weights"],
+      growth_defensive_targets: ["fallback"],
+    })).toEqual({ choose: "weights", fallback: "weights", growthDefensive: "fallback" });
+  });
+
+  it("renders Flow through xyflow while Canonical remains the projection source", () => {
+    const markup = renderToStaticMarkup(
+      <StrategyEditorProvider bootstrap={sleevesBootstrap} initialView="flow">
+        <FlowView />
+      </StrategyEditorProvider>,
+    );
+    expect(markup).toContain("react-flow");
+    expect(markup).toContain("Growth");
+    expect(markup).toContain("Defensive");
+  });
+
+  it("projects generated portfolio identities from connections rather than starter IDs", () => {
+    const bootstrap = structuredClone(sleevesBootstrap);
+    const renames = new Map([
+      ["growth_sleeve", "generated_growth"],
+      ["defensive_sleeve", "generated_defensive"],
+      ["defensive_assets", "generated_defensive_assets"],
+    ]);
+    for (const component of bootstrap.strategy.graph.components) {
+      component.id = renames.get(component.id) ?? component.id;
+    }
+    for (const connection of bootstrap.strategy.graph.connections) {
+      connection.source.component_id = renames.get(connection.source.component_id) ?? connection.source.component_id;
+      connection.target.component_id = renames.get(connection.target.component_id) ?? connection.target.component_id;
+    }
+    for (const entrypoint of bootstrap.strategy.entrypoints) {
+      entrypoint.target_component_id = renames.get(entrypoint.target_component_id) ?? entrypoint.target_component_id;
+    }
+
+    const guided = projectGuided(bootstrap.strategy, bootstrap.registry);
+    expect(guided.kind).toBe("portfolio");
+    if (guided.kind !== "portfolio") return;
+    expect(guided.growth.sleeveComponentId).toBe("generated_growth");
+    expect(guided.defensive.sleeveComponentId).toBe("generated_defensive");
+    expect(guided.defensive.assets).toEqual(["TLT", "IEF"]);
+    const flow = projectConceptualFlow(bootstrap.strategy, bootstrap.registry);
+    expect(flow.groups.map((group) => group.id)).toEqual(["generated_growth", "generated_defensive"]);
   });
 
   it("follows target capabilities instead of independently recognizing a Choose shape", () => {
