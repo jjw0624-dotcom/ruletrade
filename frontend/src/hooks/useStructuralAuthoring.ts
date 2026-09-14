@@ -7,6 +7,7 @@ import {
   type StructuralAuthoringOperation,
 } from "../structuralAuthoringApi";
 import { useStrategyEditor } from "../store/editorStore";
+import type { SemanticSelection } from "../domain/semanticSelection";
 
 export type StructuralStatus = "checking" | "ready" | "applying" | "error";
 
@@ -68,7 +69,7 @@ export function useStructuralAuthoring() {
 
   const apply = useCallback(async (
     operation: StructuralAuthoringOperation,
-    focus?: { componentId?: string | null; conceptId?: string | null },
+    selection?: SemanticSelection | null,
   ) => {
     const source = latest.current;
     setStatus("applying");
@@ -83,8 +84,7 @@ export function useStructuralAuthoring() {
       dispatch({
         type: "replace_canonical_dirty",
         canonical,
-        selectedNodeId: focus?.componentId,
-        selectedConceptId: focus?.conceptId,
+        selection,
       });
       return true;
     } catch (reason) {
@@ -96,3 +96,5 @@ export function useStructuralAuthoring() {
 
   return { capabilities, status, error, apply };
 }
+
+export type StructuralAuthoringController = ReturnType<typeof useStructuralAuthoring>;
