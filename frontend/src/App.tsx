@@ -18,6 +18,19 @@ import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
+type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail };
+
+export function workspaceFromCreatedStrategy(
+  detail: StrategyDetail,
+  bootstrap: EditorBootstrap,
+  example: StrategyExample,
+): StrategyWorkspace {
+  return {
+    bootstrap: { ...bootstrap, strategy: detail.current_revision.canonical_strategy },
+    example,
+    detail,
+  };
+}
 
 function defaultsFor(bootstrap: EditorBootstrap): StrategyExample {
   const cooldown = bootstrap.strategy.graph.components.some((item) => item.primitive.toLowerCase().includes("cooldown"));
@@ -26,7 +39,7 @@ function defaultsFor(bootstrap: EditorBootstrap): StrategyExample {
 
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
-  const [workspace, setWorkspace] = useState<{ bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail } | null>(null);
+  const [workspace, setWorkspace] = useState<StrategyWorkspace | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("idle");
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<StrategyRecord[]>([]);
@@ -38,7 +51,7 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [previewTesting, setPreviewTesting] = useState(false);
-  const [createdDestination, setCreatedDestination] = useState<{ strategyId: string; view: "overview" | "guided" } | null>(null);
+  const [createdDestination, setCreatedDestination] = useState<{ strategyId: string; view: "overview" | "guided"; workspace: StrategyWorkspace } | null>(null);
   const [historicalRun, setHistoricalRun] = useState<BacktestRunRecord | null>(null);
   const [runStatus, setRunStatus] = useState<LoadState>("idle");
   const [runError, setRunError] = useState<string | null>(null);
@@ -63,7 +76,7 @@ export default function App() {
     try { const result = await strategyApi.list(); setStrategies(result.items); setListStatus("loaded"); }
     catch (reason) { setListError(reason instanceof Error ? reason.message : "The backend is unavailable."); setListStatus("error"); }
   }, []);
-  useEffect(() => { if (["home", "explore", "example"].includes(route.page)) void loadList(); }, [route.page, loadList]);
+  useEffect(() => { if (["home", "strategies", "explore", "example"].includes(route.page)) void loadList(); }, [route.page, loadList]);
 
   useEffect(() => {
     if (route.page !== "run") return;
@@ -74,6 +87,14 @@ export default function App() {
 
   useEffect(() => {
     if (route.page !== "example" && route.page !== "strategy") return;
+    if (route.page === "strategy" && createdDestination?.strategyId === route.strategyId) {
+      setWorkspace(createdDestination.workspace);
+      setWorkspaceStatus("loaded");
+      setWorkspaceError(null);
+      setDirty(false);
+      setCreatedDestination(null);
+      return;
+    }
     let cancelled = false; setWorkspaceStatus("loading"); setWorkspaceError(null); setWorkspace(null); setDirty(false);
     const task = route.page === "example"
       ? (() => { const exampleId = route.exampleId; return loadEditorBootstrap(exampleId).then((bootstrap) => ({ bootstrap, example: findExample(exampleId)! })); })()
@@ -95,7 +116,17 @@ export default function App() {
   async function confirmCreate() {
     if (!createDraft?.name.trim()) return;
     setCreating(createDraft.id);
-    try { const detail = await strategyApi.create(createDraft.name.trim(), createDraft.bootstrap.strategy); setCreatedDestination({ strategyId: detail.strategy.id, view: createDraft.initialView }); setCreateDraft(null); setPreviewTesting(false); navigate({ page: "strategy", strategyId: detail.strategy.id }); }
+    try {
+      const draft = createDraft;
+      const detail = await strategyApi.create(draft.name.trim(), draft.bootstrap.strategy);
+      const destination = workspaceFromCreatedStrategy(detail, draft.bootstrap, findExample(draft.id)!);
+      setWorkspace(destination);
+      setWorkspaceStatus("loaded");
+      setCreatedDestination({ strategyId: detail.strategy.id, view: draft.initialView, workspace: destination });
+      setCreateDraft(null);
+      setPreviewTesting(false);
+      navigate({ page: "strategy", strategyId: detail.strategy.id });
+    }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy."); }
     finally { setCreating(null); }
   }
@@ -124,7 +155,7 @@ export default function App() {
   const chooseStartingPoint = (id: ExampleId) => { const point = findExample(id)!; if (point.kind === "example") { setPickerOpen(false); navigate({ page: "example", exampleId: id }); } else void beginCreate(id); };
   return <AppShell route={route} strategyName={strategyName} recent={recent} navigate={navigate} onCreate={openPicker}>
     {route.page === "public" && <PublicView onExample={(exampleId) => navigate({ page: "example", exampleId })} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
-    {route.page === "home" && <HomeView status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => navigate({ page: "example", exampleId })} />}
+    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => navigate({ page: "example", exampleId })} />}
     {route.page === "explore" && <ExploreView onOpen={(exampleId) => navigate({ page: "example", exampleId })} onCreate={openPicker} />}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this strategy</h1><p>{workspaceError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
