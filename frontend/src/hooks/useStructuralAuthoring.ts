@@ -19,8 +19,12 @@ function productMessage(reason: unknown): { message: string; detail?: string } {
   }
   const code = reason.detail.code;
   if (code === "component_not_found" || code === "unsupported_group"
-    || code === "unsupported_qualification_target") {
+    || code === "unsupported_qualification_target"
+    || code === "unsupported_shape_transformation") {
     return { message: "That strategy object is no longer available.", detail: code };
+  }
+  if (code === "selection_count_exceeds_assets") {
+    return { message: "Choose cannot be greater than the number of available assets.", detail: code };
   }
   if (code === "result_invalid") {
     return {
