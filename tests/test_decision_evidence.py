@@ -477,9 +477,11 @@ def test_decision_event_api_lists_lightweight_summaries_and_reads_detail(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "ruletrade.sqlite3"
-    strategies, service = _services(database)
+    runner = EvidenceRunner()
+    strategies, service = _services(database, runner)
     revision = strategies.create_strategy("API", golden_portfolio_strategy()).current_revision
     run = service.create_and_execute(revision.id, BacktestConfig())
+    assert runner.calls == 1
     app.dependency_overrides[get_lean_backtest_service] = lambda: service
     try:
         with TestClient(app) as client:
@@ -492,6 +494,7 @@ def test_decision_event_api_lists_lightweight_summaries_and_reads_detail(
             )
             assert detail.status_code == 200
             assert detail.json()["evidence"]["kind"] == "random_selection"
+            assert runner.calls == 1
             assert client.get(
                 f"/v1/backtest-runs/{run.id}/decision-events/missing"
             ).json()["detail"]["code"] == "decision_event_not_found"
