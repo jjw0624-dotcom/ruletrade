@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadEditorBootstrap } from "./api";
 import { AppShell } from "./components/AppShell";
 import type { EditorBootstrap } from "./domain/canonical";
@@ -10,7 +10,6 @@ import { strategyApi, type StrategyDetail, type StrategyRecord } from "./strateg
 import { ExploreView } from "./views/ExploreView";
 import { HomeView } from "./views/HomeView";
 import { PublicView } from "./views/PublicView";
-import { ExamplePreview } from "./views/ExamplePreview";
 import { CreationPicker } from "./components/CreationPicker";
 import { backtestRunApi, type BacktestRunRecord } from "./backtestRunApi";
 import { ResultWorkspace } from "./components/ResultWorkspace";
@@ -52,8 +51,7 @@ export default function App() {
   const [creating, setCreating] = useState<ExampleId | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [previewTesting, setPreviewTesting] = useState(false);
-  const [createdDestination, setCreatedDestination] = useState<{ strategyId: string; view: "overview" | "guided"; workspace: StrategyWorkspace } | null>(null);
+  const [createdDestination, setCreatedDestination] = useState<{ strategyId: string; workspace: StrategyWorkspace } | null>(null);
   const [historicalRun, setHistoricalRun] = useState<BacktestRunRecord | null>(null);
   const [runStatus, setRunStatus] = useState<LoadState>("idle");
   const [runError, setRunError] = useState<string | null>(null);
@@ -61,11 +59,11 @@ export default function App() {
   const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
   const [comparisonContext, setComparisonContext] = useState<{ comparisonId: string; context: ResearchContext } | null>(null);
   const [adoptionNotice, setAdoptionNotice] = useState<string | null>(null);
+  const creationInFlight = useRef(false);
 
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
     if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return;
     if (!preserveFocus) setSourceFocus(null);
-    setPreviewTesting(false);
     if (next.page !== "strategy") setAdoptionNotice(null);
     window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "strategy") setDirty(false);
   }, [dirty, route.page]);
@@ -109,14 +107,17 @@ export default function App() {
   }, [route]);
 
   async function beginCreate(id: ExampleId) {
+    if (creationInFlight.current) return;
+    creationInFlight.current = true;
     setCreating(id); setCreateError(null);
-    try { const point = findExample(id)!; const bootstrap = await loadEditorBootstrap(id); setCreateDraft({ id, bootstrap, name: point.title, initialView: point.initialView }); setPickerOpen(false); }
+    try { const point = findExample(id)!; const bootstrap = await loadEditorBootstrap(id); setCreateDraft({ id, bootstrap, name: point.title, initialView: point.kind === "example" ? "overview" : point.initialView }); setPickerOpen(false); }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't load this starting point."); setPickerOpen(true); }
-    finally { setCreating(null); }
+    finally { creationInFlight.current = false; setCreating(null); }
   }
 
   async function confirmCreate() {
-    if (!createDraft?.name.trim()) return;
+    if (!createDraft?.name.trim() || creationInFlight.current) return;
+    creationInFlight.current = true;
     setCreating(createDraft.id);
     try {
       const draft = createDraft;
@@ -124,13 +125,12 @@ export default function App() {
       const destination = workspaceFromCreatedStrategy(detail, draft.bootstrap, findExample(draft.id)!, draft.initialView);
       setWorkspace(destination);
       setWorkspaceStatus("loaded");
-      setCreatedDestination({ strategyId: detail.strategy.id, view: draft.initialView, workspace: destination });
+      setCreatedDestination({ strategyId: detail.strategy.id, workspace: destination });
       setCreateDraft(null);
-      setPreviewTesting(false);
       navigate({ page: "strategy", strategyId: detail.strategy.id });
     }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy."); }
-    finally { setCreating(null); }
+    finally { creationInFlight.current = false; setCreating(null); }
   }
 
   async function openStrategyOwningRevision(revisionId: string) {
@@ -154,15 +154,15 @@ export default function App() {
   const strategyName = workspace?.detail?.strategy.name ?? (route.page === "example" ? findExample(route.exampleId)?.title : undefined);
   const recent = [...strategies].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const openPicker = () => { setCreateError(null); setPickerOpen(true); };
-  const chooseStartingPoint = (id: ExampleId) => { const point = findExample(id)!; if (point.kind === "example") { setPickerOpen(false); navigate({ page: "example", exampleId: id }); } else void beginCreate(id); };
+  const chooseStartingPoint = (id: ExampleId) => { setPickerOpen(false); void beginCreate(id); };
   return <AppShell route={route} strategyName={strategyName} recent={recent} navigate={navigate} onCreate={openPicker}>
-    {route.page === "public" && <PublicView onExample={(exampleId) => navigate({ page: "example", exampleId })} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
-    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => navigate({ page: "example", exampleId })} />}
-    {route.page === "explore" && <ExploreView onOpen={(exampleId) => navigate({ page: "example", exampleId })} onCreate={openPicker} />}
+    {route.page === "public" && <PublicView onExample={(exampleId) => void beginCreate(exampleId)} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
+    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
+    {route.page === "explore" && <ExploreView onOpen={(exampleId) => void beginCreate(exampleId)} onCreate={openPicker} />}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this strategy</h1><p>{workspaceError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
-    {route.page === "example" && workspace && workspaceStatus === "loaded" && !previewTesting && <ExamplePreview point={workspace.example} bootstrap={workspace.bootstrap} onBack={() => navigate({ page: "explore" })} onTest={() => setPreviewTesting(true)} onStart={() => void beginCreate(workspace.example.id)} creating={creating === workspace.example.id} />}
-    {(route.page === "strategy" || (route.page === "example" && previewTesting)) && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? `${workspace.example.id}-test`} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} initialTestOpen={route.page === "example" && previewTesting} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} onOpenRun={(runId) => navigate({ page: "run", runId })} onOpenEvidence={(context) => { setResearchContext(context); navigate({ page: "run", runId: context.runId }); }} sourceFocus={sourceFocus} onBackToResearch={sourceFocus?.returnRoute ? () => navigate(sourceFocus.returnRoute!) : undefined} backToResearchLabel={sourceFocus?.researchContext ? `Back to ${new Date(`${sourceFocus.researchContext.sessionId}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${sourceFocus.researchContext.asset ? ` · ${sourceFocus.researchContext.asset}` : ""}` : undefined} /></StrategyEditorProvider>}
+    {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
+    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? workspace.example.id} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus} /></StrategyEditorProvider>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
