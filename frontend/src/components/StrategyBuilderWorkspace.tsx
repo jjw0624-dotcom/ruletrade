@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-import type { BacktestRunRecord } from "../backtestRunApi";
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor, type EditorView } from "../store/editorStore";
@@ -8,7 +8,7 @@ import { FlowView } from "../views/FlowView";
 import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
-import { WorkspaceDashboard } from "./WorkspaceDashboard";
+import { WorkspaceResearchRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 
 const representationLabel: Record<EditorView, string> = {
@@ -22,39 +22,40 @@ export function StrategyBuilderWorkspace({
   dirty,
   saving,
   persisted,
-  revisionId,
   projection,
   structural,
-  runs,
-  runsStatus,
   inspectorEvidence,
   notices,
   validation,
-  researchLayer,
+  research,
   onHome,
   onRename,
   onSave,
   onTest,
-  onOpenRun,
 }: {
   name: string;
   dirty: boolean;
   saving: boolean;
   persisted: boolean;
-  revisionId: string | null;
   projection: ConceptualFlowProjection;
   structural: StructuralAuthoringController;
-  runs: BacktestRunRecord[];
-  runsStatus: "loading" | "loaded" | "error";
   inspectorEvidence?: ReactNode;
   notices?: ReactNode;
   validation?: ReactNode;
-  researchLayer?: ReactNode;
+  research?: {
+    open: boolean;
+    size: number;
+    title: string;
+    hasActivity: boolean;
+    content: ReactNode;
+    onToggle: () => void;
+    onHistory: () => void;
+    onResize: (size: number) => void;
+  };
   onHome: () => void;
   onRename: () => void;
   onSave: () => void;
   onTest: () => void;
-  onOpenRun?: (runId: string) => void;
 }) {
   const { state, dispatch } = useStrategyEditor();
   const switchView = (view: EditorView) => dispatch({ type: "set_active_view", view });
@@ -72,16 +73,25 @@ export function StrategyBuilderWorkspace({
     </header>
     {notices}
     {validation}
-    <div className={`builder-workbench${state.editor.leftPanelOpen ? " left-open" : ""}${state.editor.selection ? " inspector-open" : ""}${state.editor.dashboardOpen ? " dashboard-open" : ""}`}>
-      <WorkspaceLeftPanel projection={projection} structural={structural} />
-      <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
-        <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
-        <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
-        <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
-      </main>
-      <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />
-      {persisted && <WorkspaceDashboard revisionId={revisionId} runs={runs} status={runsStatus} onOpenRun={onOpenRun} />}
-      {researchLayer && <aside className="workspace-research-layer">{researchLayer}</aside>}
-    </div>
+    <PanelGroup className="builder-workbench" direction="horizontal" onLayout={(sizes) => { if (research?.open && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
+      <Panel id="builder" order={1} defaultSize={research?.open ? 100 - research.size : 100} minSize={30}>
+        <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${state.editor.selection ? " inspector-open" : ""}`}>
+          <WorkspaceLeftPanel projection={projection} structural={structural} />
+          <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
+            <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
+            <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
+            <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
+          </main>
+          <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />
+          {persisted && research && !research.open && <WorkspaceResearchRail open={false} hasActivity={research.hasActivity} onToggle={research.onToggle} />}
+        </div>
+      </Panel>
+      {research?.open && <>
+        <PanelResizeHandle className="research-resize-handle"><span /></PanelResizeHandle>
+        <Panel id="research" order={2} defaultSize={research.size} minSize={28} maxSize={70}>
+          <WorkspaceResearchSurface title={research.title} onClose={research.onToggle} onHistory={research.onHistory}>{research.content}</WorkspaceResearchSurface>
+        </Panel>
+      </>}
+    </PanelGroup>
   </section>;
 }
