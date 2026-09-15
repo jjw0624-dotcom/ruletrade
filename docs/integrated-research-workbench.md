@@ -4,13 +4,19 @@ The Strategy Builder remains mounted while saved research opens in the resizable
 Summary, Guide, and Flow remain representations of one working Canonical Strategy; Test, Result,
 Decision analysis, Candidate, Comparison, and adoption are research states attached to that Strategy.
 
+The right edge has two separate responsibilities. **Activity** is a compact overlay for discovering
+persisted revisions and Runs. **Research** is the large, resizable destination for the active Result,
+Decision, Candidate, or Comparison. Opening Activity never replaces the active Research destination;
+choosing a Run in Activity switches Research to that Run. Closing Research preserves its destination
+so the dedicated rail action can reopen it.
+
 ## State ownership
 
 | State | Owner | Does it dirty Canonical? |
 | --- | --- | --- |
 | Working Canonical, Registry, Strategy/Revision identity | existing Strategy editor | Semantic edits only |
 | Representation, semantic selection, left panel, xyflow viewport/positions | Builder UI | No |
-| Open/closed research surface and width | workbench research reducer | No |
+| Activity open/closed, Research open/closed and Research width | workbench research reducer | No |
 | Active Run, session, asset, Candidate/Comparison destination | workbench research reducer and existing research components | No |
 | Candidate Canonical | existing immutable Candidate backend record | No |
 | Adopted Candidate | existing adoption endpoint and new immutable Revision | Yes, only after Keep succeeds |
@@ -20,7 +26,7 @@ Evidence, Candidate, Comparison, or Strategy model.
 
 ## Integrated progression
 
-1. **Activity** lists Runs already persisted for the Strategy's Revisions.
+1. **Activity** lists Runs already persisted for the Strategy's Revisions without becoming a Research state.
 2. **Test** uses the existing setup, market-data preflight, and BacktestRun endpoint. The returned Run
    opens in the right workspace without changing the Strategy route.
 3. **Result and Decision analysis** reuse the existing normalized Result and persisted Decision Evidence.
@@ -31,6 +37,10 @@ Evidence, Candidate, Comparison, or Strategy model.
 6. **Try change**, Candidate execution, Comparison, and Keep/Return reuse their existing immutable APIs.
    Successful Keep replaces the working Canonical with the adopted Revision response and leaves Test
    immediately available.
+
+Research defaults to 60% of the workbench and can resize between 45% and 85%. While it is open, it
+supersedes the Inspector column without clearing semantic selection; closing Research restores the
+Inspector for the still-selected component.
 
 ## Explore entry
 

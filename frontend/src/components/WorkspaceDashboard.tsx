@@ -34,42 +34,54 @@ export function WorkspaceActivity({
     </section>;
 }
 
-export function WorkspaceResearchRail({
-  open,
+export function WorkspaceEdgeRail({
+  activityOpen,
+  researchOpen,
+  canOpenResearch,
   hasActivity,
-  onToggle,
+  onToggleActivity,
+  onToggleResearch,
 }: {
-  open: boolean;
+  activityOpen: boolean;
+  researchOpen: boolean;
+  canOpenResearch: boolean;
   hasActivity: boolean;
-  onToggle: () => void;
+  onToggleActivity: () => void;
+  onToggleResearch: () => void;
 }) {
-  return <Tooltip.Provider delayDuration={350}>
-    <Tooltip.Root>
+  const tool = (label: string, expanded: boolean, disabled: boolean, symbol: string, onClick: () => void, indicator = false) => <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <button className="research-rail" aria-label={open ? "Close research" : "Open strategy activity and research"} aria-expanded={open} onClick={onToggle}>
-          <span aria-hidden="true">{open ? "›" : "‹"}</span>
-          {hasActivity && <i aria-hidden="true" />}
+        <button className="workspace-edge-tool" aria-label={label} aria-expanded={expanded} disabled={disabled} onClick={onClick}>
+          <span aria-hidden="true">{symbol}</span>
+          {indicator && <i aria-hidden="true" />}
         </button>
       </Tooltip.Trigger>
-      <Tooltip.Portal><Tooltip.Content className="workspace-tooltip" side="left" sideOffset={8}>{open ? "Close research" : "Strategy activity"}<Tooltip.Arrow className="workspace-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
-    </Tooltip.Root>
-  </Tooltip.Provider>;
+      <Tooltip.Portal><Tooltip.Content className="workspace-tooltip" side="left" sideOffset={8}>{label}<Tooltip.Arrow className="workspace-tooltip-arrow" /></Tooltip.Content></Tooltip.Portal>
+    </Tooltip.Root>;
+  return <Tooltip.Provider delayDuration={350}><nav className="workspace-edge-rail" aria-label="Strategy activity and research">
+    {tool(activityOpen ? "Close activity" : "Open strategy activity", activityOpen, false, "☰", onToggleActivity, hasActivity)}
+    {tool(researchOpen ? "Close active research" : "Reopen active research", researchOpen, !canOpenResearch, "◫", onToggleResearch, canOpenResearch)}
+  </nav></Tooltip.Provider>;
+}
+
+export function WorkspaceActivityDrawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  return <aside className="workspace-activity-drawer" aria-label="Strategy activity">
+    <button className="close-button" aria-label="Close activity" onClick={onClose}>×</button>
+    {children}
+  </aside>;
 }
 
 export function WorkspaceResearchSurface({
   title,
   onClose,
-  onHistory,
   children,
 }: {
   title: string;
   onClose: () => void;
-  onHistory: () => void;
   children: ReactNode;
 }) {
   return <aside className="workspace-research-surface" aria-label="Strategy research">
     <header className="research-surface-chrome">
-      <button className="text-button" onClick={onHistory}>Activity</button>
       <strong>{title}</strong>
       <button className="close-button" aria-label="Close research" onClick={onClose}>×</button>
     </header>

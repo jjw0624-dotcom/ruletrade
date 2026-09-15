@@ -8,7 +8,7 @@ import { FlowView } from "../views/FlowView";
 import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
-import { WorkspaceResearchRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
+import { WorkspaceActivityDrawer, WorkspaceEdgeRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 
 const representationLabel: Record<EditorView, string> = {
@@ -16,6 +16,10 @@ const representationLabel: Record<EditorView, string> = {
   guided: "Guide",
   flow: "Flow",
 };
+
+export function shouldShowSemanticInspector(hasSelection: boolean, researchOpen: boolean): boolean {
+  return hasSelection && !researchOpen;
+}
 
 export function StrategyBuilderWorkspace({
   name,
@@ -43,13 +47,16 @@ export function StrategyBuilderWorkspace({
   notices?: ReactNode;
   validation?: ReactNode;
   research?: {
-    open: boolean;
+    activityOpen: boolean;
+    researchOpen: boolean;
+    canOpenResearch: boolean;
     size: number;
     title: string;
     hasActivity: boolean;
     content: ReactNode;
-    onToggle: () => void;
-    onHistory: () => void;
+    activity: ReactNode;
+    onToggleActivity: () => void;
+    onToggleResearch: () => void;
     onResize: (size: number) => void;
   };
   onHome: () => void;
@@ -58,6 +65,7 @@ export function StrategyBuilderWorkspace({
   onTest: () => void;
 }) {
   const { state, dispatch } = useStrategyEditor();
+  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => dispatch({ type: "set_active_view", view });
   return <section className="strategy-builder-workspace">
     <header className="builder-chrome">
@@ -73,23 +81,24 @@ export function StrategyBuilderWorkspace({
     </header>
     {notices}
     {validation}
-    <PanelGroup className="builder-workbench" direction="horizontal" onLayout={(sizes) => { if (research?.open && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
-      <Panel id="builder" order={1} defaultSize={research?.open ? 100 - research.size : 100} minSize={30}>
-        <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${state.editor.selection ? " inspector-open" : ""}`}>
+    <PanelGroup className="builder-workbench" direction="horizontal" onLayout={(sizes) => { if (research?.researchOpen && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
+      <Panel id="builder" order={1} defaultSize={research?.researchOpen ? 100 - research.size : 100} minSize={15}>
+        <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
           <WorkspaceLeftPanel projection={projection} structural={structural} />
           <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
             <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
             <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
             <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
           </main>
-          <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />
-          {persisted && research && !research.open && <WorkspaceResearchRail open={false} hasActivity={research.hasActivity} onToggle={research.onToggle} />}
+          {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
+          {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
+          {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
         </div>
       </Panel>
-      {research?.open && <>
+      {research?.researchOpen && <>
         <PanelResizeHandle className="research-resize-handle"><span /></PanelResizeHandle>
-        <Panel id="research" order={2} defaultSize={research.size} minSize={28} maxSize={70}>
-          <WorkspaceResearchSurface title={research.title} onClose={research.onToggle} onHistory={research.onHistory}>{research.content}</WorkspaceResearchSurface>
+        <Panel id="research" order={2} defaultSize={research.size} minSize={45} maxSize={85}>
+          <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
         </Panel>
       </>}
     </PanelGroup>
