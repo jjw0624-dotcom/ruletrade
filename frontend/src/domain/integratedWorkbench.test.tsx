@@ -1,0 +1,147 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import { WorkspaceActivity, WorkspaceEdgeRail } from "../components/WorkspaceDashboard";
+import { shouldShowSemanticInspector, StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
+import { StrategyEditorProvider, createEditorState, editorReducer } from "../store/editorStore";
+import { sleevesBootstrap } from "../test/fixture";
+import { flowNodeIdForSelection, projectFlowCanvas } from "../views/FlowView";
+import { projectConceptualFlow } from "./conceptualFlow";
+import { semanticSelection } from "./semanticSelection";
+import {
+  INITIAL_WORKBENCH_RESEARCH,
+  workbenchResearchReducer,
+} from "./workbenchResearch";
+
+const run = {
+  id: "run-1",
+  revision_id: "revision-1",
+  candidate_id: null,
+  status: "succeeded" as const,
+  run_config: {
+    backend_id: "lean" as const,
+    dataset_id: "us-equity-daily-local" as const,
+    start_date: "2025-01-01",
+    end_date: "2025-12-31",
+    initial_cash: "100000",
+  },
+  result: {
+    initial_value: "100000",
+    final_value: "110000",
+    total_return: "0.1",
+    total_orders: 2,
+    total_fees: "0",
+    equity_curve: [],
+  },
+  error: null,
+  provenance: {
+    source_hash: "hash",
+    strategy_schema_version: "1",
+    application_version: "test",
+    build_commit: null,
+    backend_id: "lean" as const,
+    engine_image: null,
+    dataset_id: "us-equity-daily-local",
+    dataset_version: null,
+  },
+  timings: { total_ms: 1, source_load_ms: 0, validation_ms: 0, compiler_ms: 1, codegen_ms: 0, csharp_compile_ms: 0, lean_execution_ms: 0, result_load_ms: 0, normalization_ms: 0 },
+  created_at: "2025-12-31T00:00:00Z",
+  started_at: "2025-12-31T00:00:00Z",
+  completed_at: "2025-12-31T00:00:01Z",
+};
+
+describe("integrated Strategy research workbench", () => {
+  it("mounts Research beside the same Builder representation tree", () => {
+    const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}>
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: true, content: <p>Persisted result</p>, activity: <p>Saved activity</p>, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+    </StrategyEditorProvider>);
+    expect(markup).toContain("Summary representation");
+    expect(markup).toContain("Strategy research");
+    expect(markup).toContain("Persisted result");
+  });
+
+  it("opens exact persisted Run context without touching Strategy semantic state", () => {
+    const editor = createEditorState(sleevesBootstrap, "guided");
+    const canonical = editor.canonical;
+    const context = { runId: "run-1", sessionId: "2025-06-02", asset: "VGT" };
+    const research = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, {
+      type: "open_run",
+      runId: "run-1",
+      context,
+    });
+    expect(research).toMatchObject({ researchOpen: true, activityOpen: false, destination: { kind: "run", runId: "run-1" }, context });
+    expect(editor.canonical).toBe(canonical);
+  });
+
+  it("keeps representation, selection, dirty status, close, and resize out of Canonical", () => {
+    const initial = createEditorState(sleevesBootstrap, "flow");
+    const selected = editorReducer(initial, { type: "select_semantic", selection: semanticSelection("qualification", "positive_return", { fieldPath: "config.threshold" }) });
+    const summary = editorReducer(selected, { type: "set_active_view", view: "overview" });
+    const opened = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1" });
+    const resized = workbenchResearchReducer(opened, { type: "set_size", size: 80 });
+    const closed = workbenchResearchReducer(resized, { type: "close_research" });
+    const reopened = workbenchResearchReducer(closed, { type: "reopen_research" });
+    expect(summary.canonical).toBe(initial.canonical);
+    expect(summary.editor.selection).toEqual(selected.editor.selection);
+    expect(summary.validation.status).toBe("valid");
+    expect(closed).toMatchObject({ researchOpen: false, size: 80, destination: { kind: "run", runId: "run-1" } });
+    expect(reopened).toMatchObject({ researchOpen: true, size: 80, destination: { kind: "run", runId: "run-1" } });
+  });
+
+  it("maps exact semantic identity to the xyflow node used by View in Flow", () => {
+    const nodes = projectFlowCanvas(projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry)).nodes;
+    expect(flowNodeIdForSelection(nodes, semanticSelection("rule", "positive_return", { fieldPath: "config.threshold" }))).toBe("qualification:growth_sleeve");
+    expect(flowNodeIdForSelection(nodes, semanticSelection("rule", "same-looking-but-unrelated", { fieldPath: "config.threshold" }))).toBeNull();
+  });
+
+  it("presents one compact rail and persisted activity without execution controls", () => {
+    const rail = renderToStaticMarkup(<WorkspaceEdgeRail activityOpen={false} researchOpen={false} canOpenResearch hasActivity onToggleActivity={() => undefined} onToggleResearch={() => undefined} />);
+    const activity = renderToStaticMarkup(<WorkspaceActivity revisionId="revision-1" revisionCount={2} runs={[run]} status="loaded" onOpenRun={() => undefined} />);
+    expect(rail).toContain("Open strategy activity");
+    expect(rail).toContain("Reopen active research");
+    expect(rail).not.toContain(">Dashboard<");
+    expect(activity).toContain("Saved research");
+    expect(activity).toContain("1 earlier");
+    expect(activity).toContain("Open an existing result without running the strategy again");
+    expect(activity).not.toContain("Test strategy");
+  });
+
+  it("opens Activity without replacing or clearing active Research", () => {
+    const context = { runId: "run-1", sessionId: "2025-06-02", asset: "VGT" };
+    const result = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1", context });
+    const activity = workbenchResearchReducer(result, { type: "toggle_activity" });
+    expect(activity).toMatchObject({ activityOpen: true, researchOpen: true, destination: result.destination, context });
+  });
+
+  it("keeps the serious Research workspace within its documented resize range", () => {
+    expect(INITIAL_WORKBENCH_RESEARCH.size).toBe(60);
+    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 20 }).size).toBe(45);
+    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 95 }).size).toBe(85);
+  });
+
+  it("selecting a saved Run from Activity switches Research and closes Activity", () => {
+    const first = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1" });
+    const activity = workbenchResearchReducer(first, { type: "toggle_activity" });
+    const selected = workbenchResearchReducer(activity, { type: "open_run", runId: "run-2", context: { runId: "run-2", sessionId: "2025-07-01", asset: "QQQ" } });
+    expect(selected).toMatchObject({ activityOpen: false, researchOpen: true, destination: { kind: "run", runId: "run-2" } });
+  });
+
+  it("keeps semantic selection while Research suppresses the permanent Inspector", () => {
+    const selected = createEditorState(sleevesBootstrap, "flow");
+    const withSelection = editorReducer(selected, { type: "select_semantic", selection: semanticSelection("qualification", "positive_return", { fieldPath: "config.threshold" }) });
+    expect(withSelection.editor.selection?.componentId).toBe("positive_return");
+    expect(shouldShowSemanticInspector(Boolean(withSelection.editor.selection), true)).toBe(false);
+    expect(shouldShowSemanticInspector(Boolean(withSelection.editor.selection), false)).toBe(true);
+  });
+
+  it("preserves exact context while moving from Result to Comparison and back", () => {
+    const context = { runId: "run-1", sessionId: "2025-06-02", asset: "VGT" };
+    const result = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1", context });
+    const comparison = workbenchResearchReducer(result, { type: "open_comparison", comparisonId: "comparison-1", context });
+    const returned = workbenchResearchReducer(comparison, { type: "open_run", runId: "run-1", context });
+    expect(returned.context).toEqual(context);
+    expect(returned.destination).toEqual({ kind: "run", runId: "run-1" });
+  });
+});

@@ -48,12 +48,11 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(semanticDeleteOperation(semanticSelection("group", "growth_sleeve"), none)).toBeNull();
   });
 
-  it("keeps visual movement and workspace panels out of Canonical dirty state", () => {
+  it("keeps visual movement out of Canonical dirty state", () => {
     const initial = createEditorState(sleevesBootstrap, "flow");
     const moved = editorReducer(initial, { type: "move_node", componentId: "visual", position: { x: 90, y: 50 } });
-    const dashboard = editorReducer(moved, { type: "set_dashboard_open", open: true });
-    expect(dashboard.canonical).toBe(initial.canonical);
-    expect(dashboard.validation.status).toBe("valid");
+    expect(moved.canonical).toBe(initial.canonical);
+    expect(moved.validation.status).toBe("valid");
   });
 
   it("preserves a surviving semantic selection after a backend-returned Canonical", () => {
