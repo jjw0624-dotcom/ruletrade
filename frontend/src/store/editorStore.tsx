@@ -21,7 +21,6 @@ export interface StrategyEditorState {
     selection: SemanticSelection | null;
     leftPanelOpen: boolean;
     leftPanelTab: "structure" | "blocks";
-    dashboardOpen: boolean;
     /** Compatibility-only visual state for the retired primitive canvas projection. */
     nodePositions: NodePositions;
     selectedNodeId: string | null;
@@ -43,7 +42,6 @@ export type StrategyEditorAction =
   | { type: "select_semantic"; selection: SemanticSelection | null }
   | { type: "set_left_panel_open"; open: boolean }
   | { type: "set_left_panel_tab"; tab: "structure" | "blocks" }
-  | { type: "set_dashboard_open"; open: boolean }
   | { type: "move_node"; componentId: string; position: { x: number; y: number } }
   | { type: "select_node"; componentId: string | null; fieldPath?: string | null }
   | { type: "select_concept"; conceptId: string | null }
@@ -60,7 +58,6 @@ export function createEditorState(bootstrap: EditorBootstrap, initialView: Edito
       selection: null,
       leftPanelOpen: true,
       leftPanelTab: "structure",
-      dashboardOpen: false,
       nodePositions: { ...DEFAULT_NODE_POSITIONS },
       selectedNodeId: null,
       selectedFieldPath: null,
@@ -117,8 +114,6 @@ export function editorReducer(
       return { ...state, editor: { ...state.editor, leftPanelOpen: action.open } };
     case "set_left_panel_tab":
       return { ...state, editor: { ...state.editor, leftPanelTab: action.tab } };
-    case "set_dashboard_open":
-      return { ...state, editor: { ...state.editor, dashboardOpen: action.open } };
     case "move_node":
       return { ...state, editor: { ...state.editor, nodePositions: { ...state.editor.nodePositions, [action.componentId]: action.position } } };
     case "select_node":
