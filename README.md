@@ -57,7 +57,9 @@ and real Candidate Run, and
 [Comparison v0](docs/comparisons.md) for deterministic Strategy, Behavior, and Result diffs over
 immutable Original and Candidate Runs, and the
 [backend observability audit](docs/backend-observability-audit.md) for measured pipeline boundaries,
-market-data constraints, and the real-LEAN measurement command.
+market-data constraints, and the real-LEAN measurement command, and
+[Integrated Strategy research workbench](docs/integrated-research-workbench.md) for the shared
+Builder/Research state boundary and browser acceptance path.
 
 ## Strategy Editor
 
