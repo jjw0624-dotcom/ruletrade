@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo } from "react";
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
 import { semanticDeleteOperation } from "../domain/builderProjection";
@@ -33,17 +33,28 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
   return {nodes,edges};
 }
 
+export function flowNodeIdForSelection(nodes: SemanticNode[], selection: SemanticSelection | null): string | null {
+  return nodes.find((item) => item.data.selection.componentId === selection?.componentId
+    && (!selection?.fieldPath || item.data.selection.fieldPath === selection.fieldPath))?.id ?? null;
+}
+
 const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false };
 export function FlowView({structural=inertStructural}:{structural?:StructuralAuthoringController}) {
   const {state,dispatch}=useStrategyEditor();
   const projection=useMemo(()=>projectConceptualFlow(state.canonical,state.registry),[state.canonical,state.registry]);
   const graph=useMemo(()=>projectFlowCanvas(projection),[projection]);
   const [nodes,setNodes,onNodesChange]=useNodesState<SemanticNode>(graph.nodes);
+  const instance = useRef<ReactFlowInstance<SemanticNode, Edge> | null>(null);
   useEffect(()=>setNodes(current=>graph.nodes.map(projected=>({...projected,position:current.find(item=>item.id===projected.id)?.position??projected.position}))),[graph.nodes,setNodes]);
-  const displayed=nodes.map(item=>({...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection)}));
+  useEffect(()=>{
+    if(state.editor.activeView!=="flow"||!state.editor.selection||!instance.current)return;
+    const id=flowNodeIdForSelection(graph.nodes,state.editor.selection);
+    if(id)void instance.current.fitView({nodes:[{id}],padding:.9,duration:240,maxZoom:1.15});
+  },[graph.nodes,state.editor.activeView,state.editor.selection]);
+  const displayed:SemanticNode[]=nodes.map(item=>({...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection)}));
   const removeSelected=useCallback(()=>{const operation=semanticDeleteOperation(state.editor.selection,structural.capabilities);if(operation)void structural.apply(operation,null);},[state.editor.selection,structural]);
   return <div className="flow-representation" tabIndex={0} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
-    <ReactFlow nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
+    <ReactFlow<SemanticNode, Edge> nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
   </div>;
 }
