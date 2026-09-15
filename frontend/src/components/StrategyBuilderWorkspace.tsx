@@ -91,8 +91,6 @@ export function StrategyBuilderWorkspace({
             <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
           </main>
           {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
-          {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
-          {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
         </div>
       </Panel>
       {research?.researchOpen && <>
@@ -102,5 +100,7 @@ export function StrategyBuilderWorkspace({
         </Panel>
       </>}
     </PanelGroup>
+    {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
+    {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
   </section>;
 }

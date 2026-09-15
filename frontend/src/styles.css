@@ -198,7 +198,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 
 /* Shared Strategy Builder workspace */
 .builder-shell { height: 100vh; overflow: hidden; }
-.strategy-builder-workspace { height: 100vh; display: grid; grid-template-rows: 54px auto minmax(0, 1fr); color: var(--text); background: #f7f8f6; }
+.strategy-builder-workspace { position: relative; height: 100vh; display: grid; grid-template-rows: 54px auto minmax(0, 1fr); color: var(--text); background: #f7f8f6; }
 .builder-chrome { z-index: 20; display: grid; grid-template-columns: 38px auto minmax(160px, 1fr) auto; align-items: center; gap: 12px; padding: 7px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.96); }
 .builder-brand { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; }
 .representation-switcher { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #edf1ed; }
@@ -244,13 +244,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .semantic-inspector-content h2, .semantic-inspector-content p { margin: 0; }
 .semantic-inspector-content label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .semantic-inspector-content input, .semantic-inspector-content select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
-.workspace-edge-rail { position: absolute; z-index: 14; top: 12px; right: 8px; display: grid; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 14px rgba(20,40,30,.09); }
+.workspace-edge-rail { position: absolute; z-index: 90; top: 66px; right: 8px; display: grid; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 14px rgba(20,40,30,.09); }
 .workspace-edge-tool { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
 .workspace-edge-tool:hover, .workspace-edge-tool[aria-expanded="true"] { color: var(--text); background: #e8f2ec; }
 .workspace-edge-tool:disabled { opacity: .35; }
 .workspace-edge-tool span { font-size: 15px; line-height: 1; }
 .workspace-edge-tool i { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-.workspace-activity-drawer { position: absolute; z-index: 13; top: 8px; right: 48px; bottom: 8px; width: min(340px,calc(100% - 64px)); overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 12px 34px rgba(20,40,30,.17); }
+.workspace-activity-drawer { position: absolute; z-index: 89; top: 62px; right: 48px; bottom: 8px; width: min(340px,calc(100% - 64px)); overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 12px 34px rgba(20,40,30,.17); }
 .workspace-activity-drawer > .close-button { position: sticky; z-index: 2; top: 8px; float: right; margin: 8px 8px -42px 0; }
 .workspace-tooltip { z-index: 200; padding: 7px 9px; border-radius: 6px; color: #fff; background: #20372b; font-size: 12px; box-shadow: 0 5px 18px rgba(0,0,0,.16); }
 .workspace-tooltip-arrow { fill: #20372b; }
