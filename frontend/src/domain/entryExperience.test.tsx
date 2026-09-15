@@ -2,8 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CreationPicker } from "../components/CreationPicker";
 import { StrategyEditorProvider, createEditorState } from "../store/editorStore";
-import { ExamplePreview } from "../views/ExamplePreview";
 import { HomeView } from "../views/HomeView";
+import { ExploreView } from "../views/ExploreView";
 import { PublicView } from "../views/PublicView";
 import { GuidedView } from "../views/GuidedView";
 import { findExample, STRATEGY_STRUCTURES } from "./examples";
@@ -30,12 +30,10 @@ describe("Product entry and starting experience", () => {
     expect(routeFromPath("/strategy/fallback")).toEqual({ page: "example", exampleId: "fallback" });
   });
 
-  it("previews facts projected from the real Canonical strategy", () => {
-    const markup = renderToStaticMarkup(<ExamplePreview point={findExample("sleeves")!} bootstrap={sleevesBootstrap} onBack={() => undefined} onTest={() => undefined} onStart={() => undefined} />);
-    expect(markup).toContain("QQQ · VGT · SOXX · SCHG");
-    expect(markup).toContain("Choose the strongest 2");
-    expect(markup).toContain("Otherwise use TLT");
-    expect(markup).toContain("Test this strategy");
+  it("uses the shared Builder Summary instead of a duplicate example Preview", () => {
+    const markup = renderToStaticMarkup(<ExploreView onOpen={() => undefined} onCreate={() => undefined} />);
+    expect(markup).toContain("ordinary saved Strategy");
+    expect(markup).not.toContain("Preview an example");
   });
 
   it("renders loaded, empty, and error Home states from persisted facts", () => {
