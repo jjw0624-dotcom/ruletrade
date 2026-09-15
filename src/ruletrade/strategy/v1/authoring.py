@@ -54,6 +54,11 @@ class AddFallbackSelectionOperation(FrozenModel):
     fallback_asset: Symbol
 
 
+class RemoveFallbackSelectionOperation(FrozenModel):
+    kind: Literal["remove_fallback_selection"] = "remove_fallback_selection"
+    fallback_component_id: Identifier
+
+
 class TransformToGrowthDefensiveOperation(FrozenModel):
     kind: Literal["transform_to_growth_defensive"] = "transform_to_growth_defensive"
     target_component_id: Identifier
@@ -67,6 +72,7 @@ StructuralAuthoringOperation = Annotated[
     | RemoveQualificationConditionOperation
     | TransformToChooseAssetsOperation
     | AddFallbackSelectionOperation
+    | RemoveFallbackSelectionOperation
     | TransformToGrowthDefensiveOperation,
     Field(discriminator="kind"),
 ]
@@ -98,9 +104,11 @@ class StructuralAuthoringCapabilities(FrozenModel):
     multiple_qualification_conditions: Literal[False] = False
     choose_pipeline_targets: tuple[Identifier, ...] = ()
     fallback_add_targets: tuple[Identifier, ...] = ()
+    fallback_remove_targets: tuple[Identifier, ...] = ()
     growth_defensive_targets: tuple[Identifier, ...] = ()
     create_choose_pipeline: bool
     add_fallback_selection: bool
+    remove_fallback_selection: bool
     transform_to_growth_defensive: bool
 
 
@@ -506,6 +514,86 @@ def _add_fallback(
     return strategy.model_copy(update={"definitions": definitions, "graph": graph})
 
 
+def _remove_fallback(
+    strategy: CanonicalStrategyV1, operation: RemoveFallbackSelectionOperation
+) -> CanonicalStrategyV1:
+    fallback = _component(strategy, operation.fallback_component_id)
+    inbound = _connections_to(strategy, fallback.id, "primary")
+    outbound = _connections_from(strategy, fallback.id, "targets")
+    referenced = tuple(
+        item
+        for item in strategy.graph.connections
+        if item.source.component_id == fallback.id
+        or item.target.component_id == fallback.id
+    )
+    if (
+        fallback.primitive != "fallback@1"
+        or len(inbound) != 1
+        or len(outbound) != 1
+        or len(referenced) != 2
+    ):
+        raise StructuralAuthoringError(
+            "unsupported_fallback_structure",
+            f"graph.components[{fallback.id}]",
+            "This fallback is shared or is not in a supported selection pipeline.",
+        )
+    primary = _component(strategy, inbound[0].source.component_id)
+    destination = _component(strategy, outbound[0].target.component_id)
+    if (
+        primary.primitive != "equal_weight@1"
+        or inbound[0].source.port != "targets"
+        or (
+            destination.primitive == "rebalance@1"
+            and outbound[0].target.port != "targets"
+        )
+        or (
+            destination.primitive == "portfolio_sleeve@1"
+            and outbound[0].target.port != "local_targets"
+        )
+        or destination.primitive not in {"rebalance@1", "portfolio_sleeve@1"}
+    ):
+        raise StructuralAuthoringError(
+            "unsupported_fallback_structure",
+            f"graph.components[{fallback.id}]",
+            "Fallback removal requires one owned selection allocation destination.",
+        )
+    definition_id = str(fallback.config.get("fallback_asset_set_ref", ""))
+    if not definition_id or any(
+        item.id != fallback.id and definition_id in item.config.values()
+        for item in strategy.graph.components
+    ):
+        raise StructuralAuthoringError(
+            "shared_fallback_assets",
+            f"definitions.asset_sets[{definition_id}]",
+            "This fallback asset set is shared and cannot be removed safely.",
+        )
+    direct = Connection(source=inbound[0].source, target=outbound[0].target)
+    connections: list[Connection] = []
+    for item in strategy.graph.connections:
+        if item == inbound[0]:
+            connections.append(direct)
+        elif item != outbound[0]:
+            connections.append(item)
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(
+                item for item in strategy.graph.components if item.id != fallback.id
+            ),
+            "connections": tuple(connections),
+        }
+    )
+    definitions = strategy.definitions.model_copy(
+        update={
+            "asset_sets": tuple(
+                item
+                for item in strategy.definitions.asset_sets
+                if item.id != definition_id
+            )
+        }
+    )
+    return strategy.model_copy(update={"definitions": definitions, "graph": graph})
+
+
 def _simple_portfolio_output(
     strategy: CanonicalStrategyV1, target_component_id: str
 ) -> Connection:
@@ -648,6 +736,8 @@ def apply_structural_operation(
         candidate = _transform_to_choose(strategy, operation)
     elif isinstance(operation, AddFallbackSelectionOperation):
         candidate = _add_fallback(strategy, operation)
+    elif isinstance(operation, RemoveFallbackSelectionOperation):
+        candidate = _remove_fallback(strategy, operation)
     else:
         candidate = _transform_to_growth_defensive(strategy, operation)
     try:
@@ -677,6 +767,7 @@ def structural_authoring_capabilities(
     remove_targets: list[str] = []
     choose_targets: list[str] = []
     fallback_targets: list[str] = []
+    fallback_remove_targets: list[str] = []
     growth_defensive_targets: list[str] = []
     for item in strategy.graph.components:
         if item.primitive == "rank@1":
@@ -718,6 +809,16 @@ def structural_authoring_capabilities(
                 pass
             else:
                 growth_defensive_targets.append(item.id)
+        if item.primitive == "fallback@1":
+            try:
+                _remove_fallback(
+                    strategy,
+                    RemoveFallbackSelectionOperation(fallback_component_id=item.id),
+                )
+            except StructuralAuthoringError:
+                pass
+            else:
+                fallback_remove_targets.append(item.id)
     return StructuralAuthoringCapabilities(
         groups=groups,
         qualification_add_targets=tuple(add_targets),
@@ -727,8 +828,10 @@ def structural_authoring_capabilities(
         remove_qualification_condition=bool(remove_targets),
         choose_pipeline_targets=tuple(choose_targets),
         fallback_add_targets=tuple(fallback_targets),
+        fallback_remove_targets=tuple(fallback_remove_targets),
         growth_defensive_targets=tuple(growth_defensive_targets),
         create_choose_pipeline=bool(choose_targets),
         add_fallback_selection=bool(fallback_targets),
+        remove_fallback_selection=bool(fallback_remove_targets),
         transform_to_growth_defensive=bool(growth_defensive_targets),
     )

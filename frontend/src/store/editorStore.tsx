@@ -1,5 +1,4 @@
 import { createContext, useContext, useMemo, useReducer, type Dispatch, type ReactNode } from "react";
-import type { Viewport, XYPosition } from "@xyflow/react";
 
 import type {
   CanonicalStrategyV1,
@@ -7,8 +6,10 @@ import type {
   RegistryPayload,
   ValidationIssue,
 } from "../domain/canonical";
-import { DEFAULT_NODE_POSITIONS, type NodePositions } from "../domain/flow";
 import { applySemanticPatch, type SemanticPatch } from "../domain/patch";
+import type { SemanticSelection } from "../domain/semanticSelection";
+import { semanticSelection } from "../domain/semanticSelection";
+import { DEFAULT_NODE_POSITIONS, type NodePositions } from "../domain/flow";
 
 export type EditorView = "overview" | "guided" | "flow";
 
@@ -17,8 +18,12 @@ export interface StrategyEditorState {
   registry: RegistryPayload;
   editor: {
     activeView: EditorView;
+    selection: SemanticSelection | null;
+    leftPanelOpen: boolean;
+    leftPanelTab: "structure" | "blocks";
+    dashboardOpen: boolean;
+    /** Compatibility-only visual state for the retired primitive canvas projection. */
     nodePositions: NodePositions;
-    viewport: Viewport;
     selectedNodeId: string | null;
     selectedFieldPath: string | null;
     selectedConceptId: string | null;
@@ -33,10 +38,13 @@ export interface StrategyEditorState {
 export type StrategyEditorAction =
   | { type: "apply_semantic_patch"; operation: SemanticPatch }
   | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }
-  | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selectedNodeId?: string | null; selectedConceptId?: string | null }
+  | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selection?: SemanticSelection | null; selectedNodeId?: string | null; selectedConceptId?: string | null }
   | { type: "set_active_view"; view: EditorView }
-  | { type: "move_node"; componentId: string; position: XYPosition }
-  | { type: "set_viewport"; viewport: Viewport }
+  | { type: "select_semantic"; selection: SemanticSelection | null }
+  | { type: "set_left_panel_open"; open: boolean }
+  | { type: "set_left_panel_tab"; tab: "structure" | "blocks" }
+  | { type: "set_dashboard_open"; open: boolean }
+  | { type: "move_node"; componentId: string; position: { x: number; y: number } }
   | { type: "select_node"; componentId: string | null; fieldPath?: string | null }
   | { type: "select_concept"; conceptId: string | null }
   | { type: "open_group"; groupId: string | null }
@@ -49,8 +57,11 @@ export function createEditorState(bootstrap: EditorBootstrap, initialView: Edito
     registry: bootstrap.registry,
     editor: {
       activeView: initialView,
+      selection: null,
+      leftPanelOpen: true,
+      leftPanelTab: "structure",
+      dashboardOpen: false,
       nodePositions: { ...DEFAULT_NODE_POSITIONS },
-      viewport: { x: 0, y: 0, zoom: 0.85 },
       selectedNodeId: null,
       selectedFieldPath: null,
       selectedConceptId: null,
@@ -72,21 +83,21 @@ export function editorReducer(
       return { ...state, canonical: action.canonical, validation: { status: "valid", issues: [] } };
     case "replace_canonical_dirty": {
       const survivingIds = new Set(action.canonical.graph.components.map((item) => item.id));
-      const selectedNodeId = action.selectedNodeId !== undefined
-        ? action.selectedNodeId
-        : state.editor.selectedNodeId && survivingIds.has(state.editor.selectedNodeId)
-          ? state.editor.selectedNodeId
-          : null;
+      const currentSurvives = state.editor.selection?.componentId == null
+        || survivingIds.has(state.editor.selection.componentId);
+      const selection = action.selection !== undefined
+        ? action.selection
+        : action.selectedNodeId ? semanticSelection("rule", action.selectedNodeId) 
+        : currentSurvives ? state.editor.selection : null;
       return {
         ...state,
         canonical: action.canonical,
         editor: {
           ...state.editor,
-          selectedNodeId,
-          selectedFieldPath: null,
-          selectedConceptId: action.selectedConceptId !== undefined
-            ? action.selectedConceptId
-            : state.editor.selectedConceptId,
+          selection,
+          selectedNodeId: selection?.componentId ?? null,
+          selectedFieldPath: selection?.fieldPath ?? null,
+          selectedConceptId: action.selectedConceptId ?? state.editor.selectedConceptId,
         },
         validation: { status: "dirty", issues: [] },
       };
@@ -100,18 +111,18 @@ export function editorReducer(
     }
     case "set_active_view":
       return { ...state, editor: { ...state.editor, activeView: action.view } };
+    case "select_semantic":
+      return { ...state, editor: { ...state.editor, selection: action.selection, selectedNodeId: action.selection?.componentId ?? null, selectedFieldPath: action.selection?.fieldPath ?? null } };
+    case "set_left_panel_open":
+      return { ...state, editor: { ...state.editor, leftPanelOpen: action.open } };
+    case "set_left_panel_tab":
+      return { ...state, editor: { ...state.editor, leftPanelTab: action.tab } };
+    case "set_dashboard_open":
+      return { ...state, editor: { ...state.editor, dashboardOpen: action.open } };
     case "move_node":
-      return {
-        ...state,
-        editor: {
-          ...state.editor,
-          nodePositions: { ...state.editor.nodePositions, [action.componentId]: action.position },
-        },
-      };
-    case "set_viewport":
-      return { ...state, editor: { ...state.editor, viewport: action.viewport } };
+      return { ...state, editor: { ...state.editor, nodePositions: { ...state.editor.nodePositions, [action.componentId]: action.position } } };
     case "select_node":
-      return { ...state, editor: { ...state.editor, selectedNodeId: action.componentId, selectedFieldPath: action.fieldPath ?? null } };
+      return { ...state, editor: { ...state.editor, selectedNodeId: action.componentId, selectedFieldPath: action.fieldPath ?? null, selection: action.componentId ? semanticSelection("rule", action.componentId, { fieldPath: action.fieldPath }) : null } };
     case "select_concept":
       return { ...state, editor: { ...state.editor, selectedConceptId: action.conceptId } };
     case "open_group":

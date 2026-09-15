@@ -4,6 +4,7 @@ import type { StrategyRecord } from "../strategyApi";
 
 export function AppShell({ route, strategyName, recent, navigate, onCreate, children }: { route: AppRoute; strategyName?: string; recent: StrategyRecord[]; navigate: (route: AppRoute) => void; onCreate: () => void; children: ReactNode }) {
   if (route.page === "public") return <main className="app-shell">{children}</main>;
+  if (route.page === "strategy") return <main className="app-shell builder-shell">{children}</main>;
   const libraryPage = route.page === "home" || route.page === "strategies" || route.page === "explore" || route.page === "example";
   return <main className={`app-shell${libraryPage ? " library-shell" : ""}`}><header className="app-header">
     <button className="brand" onClick={() => navigate({ page: "home" })}><span className="brand-mark">R</span><span>RuleTrade</span></button>

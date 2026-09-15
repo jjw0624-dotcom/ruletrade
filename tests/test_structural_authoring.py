@@ -14,6 +14,7 @@ from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.authoring import (
     AddFallbackSelectionOperation,
     AddQualificationConditionOperation,
+    RemoveFallbackSelectionOperation,
     RemoveQualificationConditionOperation,
     RenameGroupOperation,
     StructuralAuthoringError,
@@ -144,6 +145,28 @@ def test_remove_filter_required_by_fallback_is_atomic() -> None:
         )
     assert raised.value.code == "result_invalid"
     assert original.model_dump(mode="json") == before
+
+
+def test_remove_fallback_reconnects_selection_and_removes_owned_definition() -> None:
+    original = fallback_momentum_strategy()
+    before = original.model_dump(mode="json")
+    edited = apply_structural_operation(
+        original,
+        RemoveFallbackSelectionOperation(fallback_component_id="fallback"),
+    )
+    assert original.model_dump(mode="json") == before
+    assert "fallback" not in _ids(edited)
+    assert all(item.id != "fallback_tlt" for item in edited.definitions.asset_sets)
+    assert any(
+        item.source.component_id == "weights"
+        and item.target.component_id == "rebalance"
+        for item in edited.graph.connections
+    )
+    assert structural_authoring_capabilities(original).fallback_remove_targets == (
+        "fallback",
+    )
+    assert structural_authoring_capabilities(edited).fallback_remove_targets == ()
+    compile_strategy_to_lean_plan(edited)
 
 
 def test_capabilities_match_starting_skeletons() -> None:

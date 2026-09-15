@@ -18,17 +18,19 @@ import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
-type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail };
+type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
 
 export function workspaceFromCreatedStrategy(
   detail: StrategyDetail,
   bootstrap: EditorBootstrap,
   example: StrategyExample,
+  initialView: "overview" | "guided" = "overview",
 ): StrategyWorkspace {
   return {
     bootstrap: { ...bootstrap, strategy: detail.current_revision.canonical_strategy },
     example,
     detail,
+    initialView,
   };
 }
 
@@ -119,7 +121,7 @@ export default function App() {
     try {
       const draft = createDraft;
       const detail = await strategyApi.create(draft.name.trim(), draft.bootstrap.strategy);
-      const destination = workspaceFromCreatedStrategy(detail, draft.bootstrap, findExample(draft.id)!);
+      const destination = workspaceFromCreatedStrategy(detail, draft.bootstrap, findExample(draft.id)!, draft.initialView);
       setWorkspace(destination);
       setWorkspaceStatus("loaded");
       setCreatedDestination({ strategyId: detail.strategy.id, view: draft.initialView, workspace: destination });
@@ -160,7 +162,7 @@ export default function App() {
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this strategy</h1><p>{workspaceError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && !previewTesting && <ExamplePreview point={workspace.example} bootstrap={workspace.bootstrap} onBack={() => navigate({ page: "explore" })} onTest={() => setPreviewTesting(true)} onStart={() => void beginCreate(workspace.example.id)} creating={creating === workspace.example.id} />}
-    {(route.page === "strategy" || (route.page === "example" && previewTesting)) && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? `${workspace.example.id}-test`} bootstrap={workspace.bootstrap} initialView={workspace.detail && createdDestination?.strategyId === workspace.detail.strategy.id ? createdDestination.view : "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} initialTestOpen={route.page === "example" && previewTesting} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onOpenRun={(runId) => navigate({ page: "run", runId })} onOpenEvidence={(context) => { setResearchContext(context); navigate({ page: "run", runId: context.runId }); }} sourceFocus={sourceFocus} onBackToResearch={sourceFocus?.returnRoute ? () => navigate(sourceFocus.returnRoute!) : undefined} backToResearchLabel={sourceFocus?.researchContext ? `Back to ${new Date(`${sourceFocus.researchContext.sessionId}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${sourceFocus.researchContext.asset ? ` · ${sourceFocus.researchContext.asset}` : ""}` : undefined} /></StrategyEditorProvider>}
+    {(route.page === "strategy" || (route.page === "example" && previewTesting)) && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? `${workspace.example.id}-test`} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} initialTestOpen={route.page === "example" && previewTesting} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} onOpenRun={(runId) => navigate({ page: "run", runId })} onOpenEvidence={(context) => { setResearchContext(context); navigate({ page: "run", runId: context.runId }); }} sourceFocus={sourceFocus} onBackToResearch={sourceFocus?.returnRoute ? () => navigate(sourceFocus.returnRoute!) : undefined} backToResearchLabel={sourceFocus?.researchContext ? `Back to ${new Date(`${sourceFocus.researchContext.sessionId}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${sourceFocus.researchContext.asset ? ` · ${sourceFocus.researchContext.asset}` : ""}` : undefined} /></StrategyEditorProvider>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
