@@ -1,10 +1,25 @@
-.PHONY: install test validate backtest api smoke
+.PHONY: bootstrap install test check-fast check check-lean check-lean-generate validate backtest api frontend smoke
 
-install:
-	python -m pip install -e ".[bt,dev]"
+bootstrap:
+	uv sync --extra bt --extra dev --locked
+	cd frontend && npm ci --no-audit --no-fund
+
+install: bootstrap
 
 test:
-	python -m pytest
+	uv run pytest
+
+check-fast:
+	./scripts/check.sh fast
+
+check:
+	./scripts/check.sh full
+
+check-lean:
+	./scripts/check_lean.sh
+
+check-lean-generate:
+	./scripts/check_lean.sh --generate-only
 
 validate:
 	python -m ruletrade.cli validate examples/monthly_dca.yaml
@@ -13,7 +28,10 @@ backtest:
 	python -m ruletrade.cli backtest examples/monthly_dca.yaml --dataset synthetic_prices --data-dir data
 
 api:
-	uvicorn ruletrade.api:app --reload
+	uv run uvicorn ruletrade.api:app --reload
+
+frontend:
+	cd frontend && npm run dev
 
 smoke:
 	./scripts/smoke_test.sh

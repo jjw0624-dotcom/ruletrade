@@ -61,14 +61,57 @@ market-data constraints, and the real-LEAN measurement command, and
 [Integrated Strategy research workbench](docs/integrated-research-workbench.md) for the shared
 Builder/Research state boundary and browser acceptance path.
 
-## Strategy Editor
+## Developer setup and validation
+
+RuleTrade's development baseline is Python 3.12, Node 24, `uv`, and npm. From a clean checkout:
+
+```bash
+uv python install 3.12
+make bootstrap
+```
 
 Run the API and frontend in separate terminals:
 
 ```bash
-uv run uvicorn ruletrade.api:app --reload
-cd frontend && npm install && npm run dev
+make api
+make frontend
 ```
+
+Open `http://127.0.0.1:5173`; API documentation is at
+`http://127.0.0.1:8000/docs`.
+
+The repository-owned validation entry points are:
+
+```bash
+make check-fast          # backend/frontend tests and TypeScript
+make check               # full repository validation used by CI
+make check-lean-generate # generate every maintained C# compiler slice
+make check-lean          # generate and compile every slice against Docker LEAN
+```
+
+`make check` adds the production frontend build, maintained Ruff scope,
+`compileall`, shell syntax, whitespace, and generated-fixture drift checks. GitHub Actions invokes
+these same targets rather than carrying a separate validation implementation.
+
+### Codespaces
+
+Open the repository in GitHub Codespaces and allow the dev container to finish `make bootstrap`.
+The container pins Python 3.12, Node 24, and uv; ports 8000 and 5173 are forwarded. Start the two
+processes with `make api` and `make frontend`, and validate with `make check-fast` or `make check`.
+
+The minimal Codespace intentionally does not enable Docker-in-Docker. Generated C# is covered by
+CI, while full Docker LEAN runtime and real browser acceptance remain WSL/local Docker steps:
+
+```bash
+make check-lean
+RULETRADE_LEAN_DATA_DIR="$HOME/dev/ruletrade/experiments/lean-spike/data" \
+  ./scripts/run_real_market_data_smoke.sh --symbol QQQ
+```
+
+See [Repository engineering](docs/repository-engineering.md) for the artifact policy and complete
+validation contract.
+
+## Strategy Editor
 
 Open `http://127.0.0.1:5173`. The frontend loads the backend-owned Daily Top-1 strategy with an
 explicit 20-completed-trading-session cooldown
@@ -122,15 +165,7 @@ docker compose run --rm api ./scripts/smoke_test.sh
 
 ## Run without Docker
 
-Python 3.11-3.13 is supported.
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[bt,dev]"
-./scripts/smoke_test.sh
-```
+Use the Developer setup above, then run `./scripts/smoke_test.sh`.
 
 ### Real US equity/ETF daily data
 
