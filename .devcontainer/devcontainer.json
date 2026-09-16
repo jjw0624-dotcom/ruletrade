@@ -1,0 +1,27 @@
+{
+  "name": "RuleTrade",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+  "postCreateCommand": "make bootstrap",
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": { "label": "RuleTrade API" },
+    "5173": { "label": "RuleTrade frontend" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

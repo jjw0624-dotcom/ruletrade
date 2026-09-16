@@ -2,237 +2,89 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    name: Repository validation
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
+          version: "0.12.11"
           enable-cache: true
-
-      - name: Install Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
+          cache-dependency-glob: uv.lock
+      - name: Verify uv and install Python
+        run: |
+          uv --version
+          uv python install 3.12
+          uv run python --version
+      - name: Install Python dependencies
         run: uv sync --extra bt --extra dev --locked
-
-      - name: Run tests
-        run: uv run pytest
-
-      - name: Lint Python
-        run: >-
-          uv run ruff check
-          src/ruletrade/api.py
-          src/ruletrade/backtest_runs
-          src/ruletrade/backtests
-          src/ruletrade/candidates
-          src/ruletrade/comparisons
-          src/ruletrade/compiler/__init__.py
-          src/ruletrade/compiler/analysis
-          src/ruletrade/compiler/frontend
-          src/ruletrade/compiler/lean/__init__.py
-          src/ruletrade/compiler/lean/cooldown_e2e.py
-          src/ruletrade/compiler/lean/e2e.py
-          src/ruletrade/compiler/lean/evidence_e2e.py
-          src/ruletrade/compiler/lean/fallback_e2e.py
-          src/ruletrade/compiler/lean/filter_e2e.py
-          src/ruletrade/compiler/lean/independent_schedules_e2e.py
-          src/ruletrade/compiler/lean/lowering.py
-          src/ruletrade/compiler/lean/momentum_e2e.py
-          src/ruletrade/compiler/lean/sleeves_e2e.py
-          src/ruletrade/compiler/pipeline.py
-          src/ruletrade/decision_evidence
-          src/ruletrade/diagnostics.py
-          src/ruletrade/ir
-          src/ruletrade/market_data
-          src/ruletrade/persistence
-          src/ruletrade/strategies
-          scripts/generate_golden_lean_fixture.py
-          scripts/generate_candidate_lean.py
-          scripts/generate_cooldown_lean.py
-          scripts/generate_fallback_lean.py
-          scripts/generate_filter_lean.py
-          scripts/generate_independent_schedules_lean.py
-          scripts/generate_momentum_lean.py
-          scripts/generate_sleeves_lean.py
-          scripts/generate_one_investment_lean.py
-          scripts/run_editor_lean_e2e.py
-          scripts/measure_research_pipeline.py
-          scripts/inspect_market_data.py
-          scripts/run_candidate_comparison_lean_e2e.py
-          scripts/run_lean_backtest.py
-          scripts/run_real_market_data_smoke.py
-          scripts/verify_momentum_lean_e2e.py
-          scripts/verify_cooldown_lean_e2e.py
-          scripts/verify_fallback_lean_e2e.py
-          scripts/verify_filter_lean_e2e.py
-          scripts/verify_independent_schedules_lean_e2e.py
-          scripts/verify_sleeves_lean_e2e.py
-          tests/test_api.py
-          tests/test_backtest_runs.py
-          tests/test_candidates.py
-          tests/test_comparisons.py
-          tests/test_cooldown.py
-          tests/test_decision_evidence.py
-          tests/test_fallback.py
-          tests/test_filter_screening.py
-          tests/test_independent_schedules.py
-          tests/test_lean_backtest_service.py
-          tests/test_lean_e2e_validation.py
-          tests/test_lean_result_normalization.py
-          tests/test_lean_runner.py
-          tests/test_market_data.py
-          tests/test_momentum_top_n.py
-          tests/test_portfolio_sleeves.py
-          tests/test_pipeline_observability.py
-          tests/test_strategy_ir.py
-          tests/test_strategy_ir_analysis.py
-          tests/test_strategy_ir_differential.py
-          tests/test_strategy_persistence.py
-
-      - name: Compile Python
-        run: uv run python -m compileall -q src scripts tests
-
-      - name: Check shell syntax
-        run: >-
-          bash -n
-          scripts/run_golden_lean_e2e.sh
-          scripts/run_momentum_lean_e2e.sh
-          scripts/run_filter_lean_e2e.sh
-          scripts/run_fallback_lean_e2e.sh
-          scripts/run_sleeves_lean_e2e.sh
-          scripts/run_independent_schedules_lean_e2e.sh
-          scripts/run_cooldown_lean_e2e.sh
-          scripts/run_candidate_comparison_lean_e2e.sh
-          scripts/inspect_market_data.sh
-          scripts/run_real_market_data_e2e.sh
-          scripts/run_real_market_data_smoke.sh
-          scripts/check_momentum_lean_compile.sh
-          scripts/build_golden_lean_docker.sh
-
-      - name: Check patch whitespace
-        run: git diff --check
-
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install --no-audit --no-fund
-
-      - name: Test frontend
-        working-directory: frontend
-        run: npm test
-
-      - name: Typecheck frontend
-        working-directory: frontend
-        run: npm run typecheck
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Verify Node and install frontend dependencies
+        run: |
+          node --version
+          npm --version
+          npm --prefix frontend ci --no-audit --no-fund
+      - name: Run full repository validation
+        run: make check
 
   lean-compile:
+    name: Generated C# / LEAN compile
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install Python
-        run: uv python install 3.12
-
+        uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Verify uv and install Python
+        run: |
+          uv --version
+          uv python install 3.12
+          uv run python --version
       - name: Install compiler dependencies
         run: uv sync --extra dev --locked
-
       - name: Generate compiler-slice C# algorithms
-        run: |
-          PYTHONPATH=src uv run python scripts/generate_golden_lean.py \
-            --output build/lean/golden-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_momentum_lean.py \
-            --output build/lean/momentum-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_filter_lean.py \
-            --output build/lean/filter-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_fallback_lean.py \
-            --output build/lean/fallback-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_sleeves_lean.py \
-            --output build/lean/sleeves-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_independent_schedules_lean.py \
-            --output build/lean/independent-schedules-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_cooldown_lean.py \
-            --output build/lean/cooldown-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_candidate_lean.py \
-            --output build/lean/candidate-ci/Main.cs
-          PYTHONPATH=src uv run python scripts/generate_one_investment_lean.py \
-            --output build/lean/one-investment-ci/Main.cs
-
+        run: make check-lean-generate
       - name: Free space for the LEAN Docker image
         run: |
           sudo rm -rf \
             /usr/local/lib/android \
             /usr/local/share/boost \
             /usr/share/dotnet \
-            /opt/ghc \
-            /opt/hostedtoolcache
+            /opt/ghc
           rm -rf .venv
           docker system prune --all --force
           df -h /
-
       - name: Compile generated C# against LEAN
-        run: |
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/golden-ci/Main.cs \
-            build/lean/golden-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/momentum-ci/Main.cs \
-            build/lean/momentum-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/filter-ci/Main.cs \
-            build/lean/filter-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/fallback-ci/Main.cs \
-            build/lean/fallback-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/sleeves-ci/Main.cs \
-            build/lean/sleeves-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/independent-schedules-ci/Main.cs \
-            build/lean/independent-schedules-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/cooldown-ci/Main.cs \
-            build/lean/cooldown-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/candidate-ci/Main.cs \
-            build/lean/candidate-ci/bin
-          ./scripts/build_golden_lean_docker.sh \
-            build/lean/one-investment-ci/Main.cs \
-            build/lean/one-investment-ci/bin
-
-      - name: Verify generated assemblies
-        run: |
-          test -f build/lean/golden-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/momentum-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/filter-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/fallback-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/sleeves-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/independent-schedules-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/cooldown-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/candidate-ci/bin/RuleTradeGenerated.dll
-          test -f build/lean/one-investment-ci/bin/RuleTradeGenerated.dll
+        run: ./scripts/check_lean.sh --compile-only
+      - name: Upload LEAN compile diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lean-compile-diagnostics-${{ github.run_id }}
+          path: build/lean/*-ci/
+          if-no-files-found: ignore
+          retention-days: 7
