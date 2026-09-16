@@ -13,6 +13,11 @@ export interface WorkbenchResearchState {
   context: ResearchContext | null;
 }
 
+export const RESEARCH_DEFAULT_SIZE = 60;
+export const RESEARCH_COMPARISON_SIZE = 72;
+export const RESEARCH_MIN_SIZE = 45;
+export const RESEARCH_MAX_SIZE = 85;
+
 export type WorkbenchResearchAction =
   | { type: "toggle_activity" }
   | { type: "close_activity" }
@@ -28,7 +33,7 @@ export type WorkbenchResearchAction =
 export const INITIAL_WORKBENCH_RESEARCH: WorkbenchResearchState = {
   activityOpen: false,
   researchOpen: false,
-  size: 60,
+  size: RESEARCH_DEFAULT_SIZE,
   destination: null,
   context: null,
 };
@@ -57,13 +62,14 @@ export function workbenchResearchReducer(
         ...state,
         activityOpen: false,
         researchOpen: true,
+        size: Math.max(state.size, RESEARCH_COMPARISON_SIZE),
         destination: { kind: "comparison", comparisonId: action.comparisonId },
         context: action.context ?? null,
       };
     case "set_context":
       return { ...state, context: action.context };
     case "set_size":
-      return { ...state, size: Math.max(45, Math.min(85, action.size)) };
+      return { ...state, size: Math.max(RESEARCH_MIN_SIZE, Math.min(RESEARCH_MAX_SIZE, action.size)) };
     case "reopen_research":
       return state.destination ? { ...state, researchOpen: true } : state;
     case "close_research":

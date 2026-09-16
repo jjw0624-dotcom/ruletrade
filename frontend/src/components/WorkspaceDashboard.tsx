@@ -80,7 +80,7 @@ export function WorkspaceResearchSurface({
   onClose: () => void;
   children: ReactNode;
 }) {
-  return <aside className="workspace-research-surface" aria-label="Strategy research">
+  return <aside className="workspace-research-surface" aria-label="Strategy research" data-workspace="research">
     <header className="research-surface-chrome">
       <strong>{title}</strong>
       <button className="close-button" aria-label="Close research" onClick={onClose}>×</button>

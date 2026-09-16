@@ -38,9 +38,15 @@ Evidence, Candidate, Comparison, or Strategy model.
    Successful Keep replaces the working Canonical with the adopted Revision response and leaves Test
    immediately available.
 
-Research defaults to 60% of the workbench and can resize between 45% and 85%. While it is open, it
+Research defaults to 60% of the workbench and can resize between 45% and 85%. Comparison opens at
+least 72% because its behavior and result diffs need more horizontal room; a wider user-selected
+size is preserved. While Research is open, it
 supersedes the Inspector column without clearing semantic selection; closing Research restores the
 Inspector for the still-selected component.
+
+Result, Decision, Candidate, and Comparison layouts respond to the Research panel's own width rather
+than only the browser viewport. Narrower user-selected widths stack dense two-column investigation
+surfaces instead of forcing or clipping a desktop layout.
 
 ## Explore entry
 

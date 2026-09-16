@@ -10,6 +10,10 @@ import { projectConceptualFlow } from "./conceptualFlow";
 import { semanticSelection } from "./semanticSelection";
 import {
   INITIAL_WORKBENCH_RESEARCH,
+  RESEARCH_COMPARISON_SIZE,
+  RESEARCH_DEFAULT_SIZE,
+  RESEARCH_MAX_SIZE,
+  RESEARCH_MIN_SIZE,
   workbenchResearchReducer,
 } from "./workbenchResearch";
 
@@ -60,6 +64,8 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain("Summary representation");
     expect(markup).toContain("Strategy research");
     expect(markup).toContain("Persisted result");
+    expect(markup).toContain('data-research-open="true"');
+    expect(markup).toContain('data-workspace="research"');
   });
 
   it("opens exact persisted Run context without touching Strategy semantic state", () => {
@@ -113,12 +119,27 @@ describe("integrated Strategy research workbench", () => {
     const result = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1", context });
     const activity = workbenchResearchReducer(result, { type: "toggle_activity" });
     expect(activity).toMatchObject({ activityOpen: true, researchOpen: true, destination: result.destination, context });
+    const closed = workbenchResearchReducer(activity, { type: "close_activity" });
+    expect(closed).toMatchObject({ activityOpen: false, researchOpen: true, destination: result.destination, context });
   });
 
   it("keeps the serious Research workspace within its documented resize range", () => {
-    expect(INITIAL_WORKBENCH_RESEARCH.size).toBe(60);
-    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 20 }).size).toBe(45);
-    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 95 }).size).toBe(85);
+    expect(INITIAL_WORKBENCH_RESEARCH.size).toBe(RESEARCH_DEFAULT_SIZE);
+    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 20 }).size).toBe(RESEARCH_MIN_SIZE);
+    expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 95 }).size).toBe(RESEARCH_MAX_SIZE);
+  });
+
+  it("opens Test results directly in Research and gives Comparison additional room", () => {
+    const tested = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1" });
+    expect(tested).toMatchObject({ activityOpen: false, researchOpen: true, size: RESEARCH_DEFAULT_SIZE, destination: { kind: "run", runId: "run-1" } });
+    const comparison = workbenchResearchReducer(tested, { type: "open_comparison", comparisonId: "comparison-1" });
+    expect(comparison).toMatchObject({ activityOpen: false, researchOpen: true, size: RESEARCH_COMPARISON_SIZE, destination: { kind: "comparison", comparisonId: "comparison-1" } });
+  });
+
+  it("keeps a user-expanded width when opening Comparison", () => {
+    const expanded = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 80 });
+    const comparison = workbenchResearchReducer(expanded, { type: "open_comparison", comparisonId: "comparison-1" });
+    expect(comparison.size).toBe(80);
   });
 
   it("selecting a saved Run from Activity switches Research and closes Activity", () => {
