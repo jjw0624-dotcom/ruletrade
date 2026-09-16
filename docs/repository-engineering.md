@@ -26,17 +26,19 @@ not ordinary build output. They are intentional, deterministic test inputs.
 | `make check-lean` | generation plus compilation of every slice against the pinned LEAN Docker image |
 
 CI has two responsibilities: `Repository validation` runs `make check`; `Generated C# / LEAN
-compile` runs the LEAN contract. The latter removes large preinstalled SDKs but deliberately keeps
-`/opt/hostedtoolcache`: official setup Actions install their executables there and require them in
-post-job cache cleanup.
+compile` runs the LEAN contract. Repository validation caches uv dependencies and retains the
+action-managed executable through successful post-job cache cleanup. The disk-heavy LEAN job
+explicitly disables that cache, completes every uv operation first, and only then reclaims the
+runner tool cache before pulling the large LEAN image.
 
 ## Toolchain and caches
 
 - Python 3.12 is installed and managed by uv; CI verifies both `uv --version` and the uv-selected
   Python before dependency sync.
 - Node 24 is declared by `.node-version` and `frontend/package.json`; CI verifies it before `npm ci`.
-- GitHub Actions uses uv's dependency cache and setup-node's npm download cache. Neither cache
-  includes SQLite databases, runtime state, or build results.
+- Repository validation uses uv's dependency cache and setup-node's npm download cache. The LEAN
+  job disables uv caching so it can safely reclaim the runner tool cache for the large Docker
+  image. No cache includes SQLite databases, runtime state, or build results.
 - LEAN compile output is uploaded for seven days only when that job fails.
 
 ## Local real-data acceptance

@@ -57,8 +57,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.1.0
         with:
           version: "0.12.11"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+          enable-cache: false
       - name: Verify uv and install Python
         run: |
           uv --version
@@ -74,7 +73,8 @@ jobs:
             /usr/local/lib/android \
             /usr/local/share/boost \
             /usr/share/dotnet \
-            /opt/ghc
+            /opt/ghc \
+            /opt/hostedtoolcache
           rm -rf .venv
           docker system prune --all --force
           df -h /
@@ -82,7 +82,7 @@ jobs:
         run: ./scripts/check_lean.sh --compile-only
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: lean-compile-diagnostics-${{ github.run_id }}
           path: build/lean/*-ci/
