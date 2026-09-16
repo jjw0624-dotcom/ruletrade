@@ -1,5 +1,7 @@
 # Market Data v0: local LEAN US equity daily research
 
+> **Status: CURRENT subsystem and operator contract.**
+
 ## Scope and architecture
 
 Market Data v0 supports US-listed equities and ETFs, daily trade bars, and historical

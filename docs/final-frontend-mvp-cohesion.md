@@ -1,5 +1,8 @@
 # Final frontend MVP cohesion
 
+> **Status: HISTORICAL.** This records the pre-workbench cohesion pass. Current
+> Builder and Research ownership is in [the living architecture](architecture.md).
+
 This pass closes the existing research loop without adding investment semantics.
 
 ## Adoption contract

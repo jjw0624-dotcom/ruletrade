@@ -3,6 +3,16 @@
 RuleTrade owns investment meaning through:
 Intent → Canonical → deterministic semantics → LEAN → Evidence.
 
+Current documentation authority:
+
+- `README.md`: product identity and quick start
+- `docs/architecture.md`: living implemented architecture
+- `docs/development.md`: setup, validation, CI, Docker/LEAN
+- `docs/README.md`: current versus historical document index
+
+Historical or superseded documents preserve rationale but do not override the
+implementation or the living architecture.
+
 ## Architecture invariants
 
 - Canonical is the authoritative Strategy representation.

@@ -1,5 +1,7 @@
 # Market-data preflight UX
 
+> **Status: CURRENT frontend contract.**
+
 The Test setup checks historical-data readiness only for a clean, saved Revision using
 `us-equity-daily-local`. It calls the merged Market Data v0 contract:
 

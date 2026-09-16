@@ -1,5 +1,8 @@
 # Structured Decision Evidence v1
 
+> **Status: SUPERSEDED.** This records the original Evidence v1 slice. The
+> current contract is [Decision Evidence v2](decision-evidence-v1-1.md).
+
 Decision Evidence is immutable execution truth owned by one persisted `BacktestRun`. It is not an
 explanation, an event-sourcing system, or another strategy representation. `CanonicalStrategyV1`
 remains authoritative; evidence is a regenerable run artifact whose historical copy is retained so a

@@ -1,5 +1,8 @@
 # LEAN compiler v0
 
+> **Status: CURRENT subsystem contract.** LEAN is the execution backend in the
+> one-way pipeline documented in [the living architecture](architecture.md).
+
 The compiler supports the Growth 70 / Safe 30 Golden strategy and the narrow
 trailing-return, Filter, Fallback, Portfolio Sleeves, Independent Schedules, and Cooldown slices. Its backend path is:
 

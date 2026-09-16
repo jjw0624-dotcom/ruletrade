@@ -1,5 +1,9 @@
 # Analysis UX v2 and Conceptual Flow v2
 
+> **Status: SUPERSEDED.** This records an earlier Analysis/Flow slice. See
+> [the living architecture](architecture.md) for the production xyflow Builder
+> and integrated Research model.
+
 ## Contract audit
 
 - Analysis uses only persisted Decision Evidence v1/v2. Schema v2 adds required selection count, explicit signal state, stopping stages, decision universe, and optional Canonical-relative field paths.

@@ -1,5 +1,8 @@
 # Persistent BacktestRun frontend vertical slice
 
+> **Status: SUPERSEDED.** This standalone frontend slice predates integrated
+> Activity, Research, and Evidence. See [the living architecture](architecture.md).
+
 The frontend consumes the resource contract from PR #24. A saved, clean Revision creates a durable
 BacktestRun. An unsaved Canonical working copy continues to use the transient compatibility endpoint
 and is explicitly labelled temporary. Backtest never silently saves a Revision.

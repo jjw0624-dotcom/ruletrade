@@ -1,5 +1,9 @@
 # Authoring breadth audit
 
+> **Status: HISTORICAL.** This audit predates later structural transformations
+> and the current Builder. Retain it as rationale; use
+> [the living architecture](architecture.md) for current authoring behavior.
+
 This document records the user-meaningful editing surface available from the current
 `CanonicalStrategyV1`, builtin Primitive Registry, validation boundary, compiler, and LEAN runner.
 It is an implementation audit, not a proposal for new strategy semantics.

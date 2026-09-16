@@ -1,5 +1,8 @@
 # Strategy Builder workspace
 
+> **Status: SUPERSEDED.** This established the Builder before Activity and
+> Research integration. See [the living architecture](architecture.md).
+
 The Strategy editor is one viewport-height workbench over one working
 `CanonicalStrategyV1`. Summary, Guide, Flow, Structure, and the Inspector are
 projections and controls around that same document; none of them persists a

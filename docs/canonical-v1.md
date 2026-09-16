@@ -1,5 +1,8 @@
 # Canonical Strategy v1 Foundation
 
+> **Status: CURRENT subsystem contract.** See
+> [the living architecture](architecture.md) for its implemented product role.
+
 Canonical v1 is RuleTrade's single execution-semantic source of truth. Editor layout, research
 annotations, and presentation metadata do not belong in this document.
 
@@ -63,9 +66,9 @@ parameter bindings, and—only for `per_event`—the event identity. The Canonic
 of the semantic hash. This gives Python reference semantics and future generated C# the same portable
 seed contract while preserving `once` behavior across events.
 
-## Deliberately deferred
+## Implemented layers above the foundation
 
-This foundation does not execute v1 documents. Composite expansion, typed `LeanPlan`, C# code
-generation, Roslyn compilation, UI projections, persistence, and revision history belong to later
-vertical slices. Strategy Core v0 remains available as a reference semantics oracle during that
-migration.
+Later vertical slices implemented composite expansion, Strategy IR, typed
+`LeanPlan`, C# generation and compilation, UI projections, immutable Revision
+persistence, Runs, and Evidence without changing Canonical's authority.
+Strategy Core v0 remains available as a reference semantics oracle.

@@ -1,5 +1,8 @@
 # Decision Evidence v1.1 product-critical gap fill
 
+> **Status: CURRENT subsystem contract.** “v1.1” is the product-slice name; the
+> wire and persisted schema is Evidence v2.
+
 This slice is an additive evolution of Structured Decision Evidence. Evidence remains objective
 execution truth owned by one immutable BacktestRun; explanation wording remains a frontend concern.
 No strategy, target, order, or fill semantic changes.

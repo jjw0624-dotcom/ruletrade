@@ -1,5 +1,8 @@
 # MVP frontend capability and API gap report
 
+> **Status: HISTORICAL.** This preserves an earlier gap analysis; many listed
+> gaps have since been implemented. It is not a current roadmap.
+
 > Historical note: this was the pre-persistence gap report. Strategy/Revision, persistent Run, Decision Evidence, Candidate, Comparison, and Candidate adoption contracts are now implemented. See [current-mvp-architecture.md](current-mvp-architecture.md) for the audited current state and remaining gaps.
 
 This report records frontend-driven product requirements discovered while building the production MVP application foundation. It does not propose backend architecture or introduce contracts.

@@ -1,7 +1,12 @@
 # Persistent BacktestRun, provenance, and timing contract
 
-This slice adds a durable execution identity above immutable Strategy Revisions. It does not add a
-queue, caching, Decision Evidence, Candidates, or Comparisons.
+> **Status: CURRENT subsystem contract.** Later integrations do not change the
+> immutable Run lifecycle described here. See [the living architecture](architecture.md).
+
+This contract introduced durable execution identity above immutable Strategy
+Revisions. Decision Evidence, Candidates, and Comparisons now build on that Run
+identity without changing the lifecycle below. Queueing and caching remain
+outside the current MVP.
 
 ## Domain and lifecycle
 
@@ -98,9 +103,10 @@ from persisted evidence.
 | `GET /v1/backtest-runs/{run_id}` | reopen one complete historical Run |
 | `POST /v1/backtests/lean` | transient unsaved-source compatibility execution |
 
-The next frontend slice can require Save, POST the current Revision, render the returned terminal
-Run, later list it, and reopen it by Run ID. The current editor remains compatible by using the
-transient endpoint; it creates no persistent Run and makes that distinction explicit in code.
+The integrated frontend requires a saved, clean Revision for a persistent Run,
+renders the returned terminal Run in Research, and can reopen it by Run ID.
+Unsaved working copies remain compatible through the transient endpoint, which
+creates no persistent Run.
 
 ## Architecture review
 
@@ -113,13 +119,13 @@ transient endpoint; it creates no persistent Run and makes that distinction expl
 7. Unknown build, engine digest, and dataset version values remain null.
 8. Compiler/application, backend/engine image, and dataset identities are separate fields.
 9. Timing values are diagnostic metadata only.
-10. Future Decision Events can use the stable Run ID as their parent foreign key.
-11. Original and Candidate executions can remain ordinary Runs and be related by a future layer.
-12. No Experiment or cache semantics were added.
+10. Decision Events use the stable Run ID as their parent foreign key.
+11. Original and Candidate executions remain ordinary Runs related by Candidate and Comparison.
+12. No generic Experiment or cache semantics are implied.
 13. Archive preserves the Revision and all historical Runs.
 14. The largest real latency source is intentionally not asserted until a real instrumented Run.
 
-There are no known must-fix findings. Synchronous HTTP execution and interrupted-Run recovery are
-good enough/deferred respectively for this vertical slice. Queueing, engine digest capture, dataset
-versioning, Decision Evidence, Candidate relationships, Comparison, and the Runs UI are intentionally
-deferred.
+Synchronous HTTP execution remains the MVP behavior; interrupted-Run recovery,
+queueing, engine digest capture, and immutable dataset versioning remain
+deferred. Evidence, Candidate relationships, Comparison, and the Runs UI are
+implemented in later layers.

@@ -1,5 +1,8 @@
 # Evidence Harvest — Rule to Result
 
+> **Status: CURRENT subsystem contract.** This is the implemented reverse
+> provenance path inside the integrated Research workbench.
+
 ## Infrastructure audit
 
 | Need | Existing RuleTrade contract | Decision |

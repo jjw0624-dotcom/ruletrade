@@ -1,5 +1,9 @@
 # Backend observability and pipeline audit
 
+> **Status: HISTORICAL.** This preserves the pipeline measurement audit after
+> Comparison v0. Current ownership is in
+> [the living architecture](architecture.md).
+
 This document records the implementation after Comparison v0. Diagnostics added
 by this slice are operational metadata. They do not enter Canonical source,
 source hashes, compiler inputs, Decision Evidence meaning, normalized results, or
