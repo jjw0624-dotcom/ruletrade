@@ -81,7 +81,7 @@ export function StrategyBuilderWorkspace({
     </header>
     {notices}
     {validation}
-    <PanelGroup className="builder-workbench" direction="horizontal" onLayout={(sizes) => { if (research?.researchOpen && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
+    <PanelGroup className="builder-workbench" data-research-open={research?.researchOpen || undefined} direction="horizontal" onLayout={(sizes) => { if (research?.researchOpen && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
       <Panel id="builder" order={1} defaultSize={research?.researchOpen ? 100 - research.size : 100} minSize={15}>
         <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
           <WorkspaceLeftPanel projection={projection} structural={structural} />
