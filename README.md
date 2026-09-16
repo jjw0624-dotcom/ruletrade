@@ -91,7 +91,8 @@ make check-lean          # generate and compile every slice against Docker LEAN
 
 `make check` adds the production frontend build, maintained Ruff scope,
 `compileall`, shell syntax, whitespace, and generated-fixture drift checks. GitHub Actions invokes
-these same targets rather than carrying a separate validation implementation.
+these same repository-owned validation commands (Make targets and scripts) rather than carrying a
+separate validation implementation.
 
 ### Codespaces
 

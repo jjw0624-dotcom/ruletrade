@@ -24,10 +24,11 @@ uv run python -m compileall -q src scripts tests
 
 while IFS= read -r -d '' script; do
   bash -n "$script"
-done < <(find scripts -maxdepth 1 -type f -name '*.sh' -print0)
+done < <(find scripts -type f -name '*.sh' -print0)
 
 git diff --check
 git diff --exit-code -- \
+  frontend/src/test/generated-bootstrap.json \
   frontend/src/test/generated-momentum-bootstrap.json \
   frontend/src/test/generated-sleeves-bootstrap.json \
   frontend/src/test/generated-cooldown-bootstrap.json
