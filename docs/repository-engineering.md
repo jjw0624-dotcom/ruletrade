@@ -5,7 +5,7 @@
 | Classification | Repository examples | Policy |
 | --- | --- | --- |
 | `KEEP` | source, docs, lockfiles, scripts, workflow definitions | Track and review normally. |
-| `GENERATED_BUT_INTENTIONALLY_TRACKED` | LEAN synthetic fixtures; momentum, sleeves, and cooldown frontend bootstrap fixtures | Track because tests and CI consume them; `make check` verifies frontend fixture drift. |
+| `GENERATED_BUT_INTENTIONALLY_TRACKED` | LEAN synthetic fixtures; frontend generated bootstrap fixtures (`generated-bootstrap`, momentum, sleeves, cooldown) | Track because tests and CI consume them; `make check` verifies frontend fixture drift. |
 | `GENERATED_LOCAL — should be ignored` | `build/`, `frontend/dist/`, `.vite/`, TypeScript build info, caches, coverage | Generate as needed and ignore. |
 | `LOCAL_RUNTIME_ARTIFACT — should be ignored` | `.acceptance/`, SQLite databases and sidecars, diagnostics | Never commit local state. |
 | `DUPLICATE — consolidation candidate` | validation commands formerly embedded in workflow YAML | Consolidate into `Makefile` and `scripts/check*.sh`. |
