@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -81,8 +81,8 @@ export function StrategyBuilderWorkspace({
     </header>
     {notices}
     {validation}
-    <PanelGroup className="builder-workbench" data-research-open={research?.researchOpen || undefined} direction="horizontal" onLayout={(sizes) => { if (research?.researchOpen && sizes[1] !== undefined) research.onResize(sizes[1]); }}>
-      <Panel id="builder" order={1} defaultSize={research?.researchOpen ? 100 - research.size : 100} minSize={15}>
+    <Group className="builder-workbench" data-research-open={research?.researchOpen || undefined} orientation="horizontal" onLayoutChanged={(layout) => { if (research?.researchOpen && layout.research !== undefined) research.onResize(layout.research); }}>
+      <Panel id="builder" defaultSize={`${research?.researchOpen ? 100 - research.size : 100}%`} minSize="15%">
         <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
           <WorkspaceLeftPanel projection={projection} structural={structural} />
           <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
@@ -94,12 +94,12 @@ export function StrategyBuilderWorkspace({
         </div>
       </Panel>
       {research?.researchOpen && <>
-        <PanelResizeHandle className="research-resize-handle"><span /></PanelResizeHandle>
-        <Panel id="research" order={2} defaultSize={research.size} minSize={45} maxSize={85}>
+        <Separator className="research-resize-handle"><span /></Separator>
+        <Panel id="research" defaultSize={`${research.size}%`} minSize="45%" maxSize="85%">
           <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
         </Panel>
       </>}
-    </PanelGroup>
+    </Group>
     {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
     {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
   </section>;
