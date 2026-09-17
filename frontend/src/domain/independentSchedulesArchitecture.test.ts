@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { independentSchedulesBootstrap } from "../test/fixture";
@@ -24,9 +24,8 @@ describe("Independent schedules share Canonical temporal semantics", () => {
     });
     expect(edited.canonical.graph.components.find((item) => item.id === "growth_monthly")?.primitive)
       .toBe("quarterly@1");
-    const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
-    expect(flow.nodes.find((item) => item.id === "growth_monthly")?.data.scheduleCadence)
-      .toBe("quarterly");
+    const flow = projectConceptualFlow(edited.canonical, edited.registry);
+    expect(flow.groups.find((item) => item.label === "Growth")?.timing).toBe("Quarterly");
   });
 
   it("Flow schedule edit updates Guided projection", () => {

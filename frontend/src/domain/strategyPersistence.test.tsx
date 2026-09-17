@@ -33,9 +33,9 @@ describe("Strategy and immutable Revision frontend", () => {
 
   it("detects only Canonical working-copy changes as dirty", () => {
     const original = sleevesBootstrap.strategy;
-    const moved = editorReducer(createEditorState(sleevesBootstrap), { type: "move_node", componentId: "top_n", position: { x: 10, y: 20 } });
-    expect(sameCanonicalSnapshot(original, moved.canonical)).toBe(true);
-    const edited = editorReducer(moved, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
+    const selected = editorReducer(createEditorState(sleevesBootstrap), { type: "select_semantic", selection: { role: "selection", componentId: "top_n", fieldPath: null, groupId: null } });
+    expect(sameCanonicalSnapshot(original, selected.canonical)).toBe(true);
+    const edited = editorReducer(selected, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
     expect(sameCanonicalSnapshot(original, edited.canonical)).toBe(false);
   });
 

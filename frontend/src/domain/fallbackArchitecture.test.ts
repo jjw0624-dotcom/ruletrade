@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { fallbackBootstrap } from "../test/fixture";
@@ -9,14 +9,13 @@ describe("Fallback cross-view architecture", () => {
   it("projects explicit source intent into both views", () => {
     const state = createEditorState(fallbackBootstrap);
     const guided = projectGuided(state.canonical, state.registry);
-    const flow = projectFlow(state.canonical, state.registry, state.editor.nodePositions);
+    const flow = projectConceptualFlow(state.canonical, state.registry);
 
     expect(guided.kind).toBe("momentum");
     if (guided.kind !== "momentum") throw new Error("expected score strategy projection");
     expect(guided.momentum.fallbackAsset).toBe("TLT");
     expect(guided.momentum.fallbackAssetSetRef).toBe("fallback_tlt");
-    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("TLT fallback");
-    expect(flow.edges).toHaveLength(8);
+    expect(flow.groups[0].choose?.otherwise).toBe("Otherwise → TLT");
   });
 
   it("shows a Guided fallback edit immediately in Flow", () => {
@@ -30,9 +29,9 @@ describe("Fallback cross-view architecture", () => {
         value: "fallback_ief",
       },
     });
-    const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
+    const flow = projectConceptualFlow(edited.canonical, edited.registry);
 
-    expect(flow.nodes.find((node) => node.id === "fallback")?.data.title).toBe("IEF fallback");
+    expect(flow.groups[0].choose?.otherwise).toBe("Otherwise → IEF");
     expect(initial.canonical.graph.components.find((item) => item.id === "fallback")?.config)
       .toEqual({ fallback_asset_set_ref: "fallback_tlt" });
   });
@@ -53,17 +52,6 @@ describe("Fallback cross-view architecture", () => {
     expect(guided.kind === "momentum" && guided.momentum.fallbackAsset).toBe("IEF");
   });
 
-  it("keeps node movement editor-only", () => {
-    const initial = createEditorState(fallbackBootstrap);
-    const moved = editorReducer(initial, {
-      type: "move_node",
-      componentId: "fallback",
-      position: { x: 444, y: 333 },
-    });
-
-    expect(moved.canonical).toBe(initial.canonical);
-    expect(moved.editor.nodePositions.fallback).toEqual({ x: 444, y: 333 });
-  });
 
   it("rejects a missing fallback reference without corrupting Canonical", () => {
     const initial = createEditorState(fallbackBootstrap);

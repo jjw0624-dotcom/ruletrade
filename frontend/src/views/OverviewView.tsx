@@ -1,10 +1,18 @@
 import { projectGuided } from "../domain/guided";
+import { tryProjectSemanticStrategy } from "../domain/semanticProjection";
 import { useStrategyEditor } from "../store/editorStore";
 
 const percent = (value: string) => `${Math.round(Number(value) * 100)}%`;
 
 export function OverviewView({ onTest }: { onTest: () => void }) {
   const { state, dispatch } = useStrategyEditor();
+  const semantic = tryProjectSemanticStrategy(state.canonical, state.registry);
+  if (!semantic.supported) return <div className="overview-view"><section className="overview-story"><span className="eyebrow">Strategy overview</span><h2>This valid strategy shape is not available in the current Builder.</h2><p>{semantic.reason}</p></section></div>;
+  const semanticPortfolio = semantic.projection.kind === "portfolio" && semantic.projection.portfolioComponentId
+    ? semantic.projection : null;
+  if (semanticPortfolio && !semanticPortfolio.groups.some((group) => group.pipeline.selectionMode === "ranked" && group.pipeline.selectionComponentId)) {
+    return <div className="overview-view"><section className="overview-story"><span className="eyebrow">This strategy</span><h2>Split the portfolio across two investment groups</h2><ol>{semanticPortfolio.groups.map((group) => <li key={group.id}>Keeps {percent(group.allocation)} in {group.name}: {group.pipeline.assets.join(", ")}.</li>)}</ol></section><section className="quick-settings"><header><span className="eyebrow">At a glance</span><h2>Current allocations</h2></header>{semanticPortfolio.groups.map((group) => <div key={group.id}><span>{group.name}</span><strong>{percent(group.allocation)}</strong></div>)}<footer><button className="secondary-button" onClick={() => dispatch({ type: "set_active_view", view: "guided" })}>Customize</button><button className="primary-button" onClick={onTest}>Test</button></footer></section></div>;
+  }
   const guided = projectGuided(state.canonical, state.registry);
   const customize = () => dispatch({ type: "set_active_view", view: "guided" });
 

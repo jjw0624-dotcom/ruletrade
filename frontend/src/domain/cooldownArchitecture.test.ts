@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { cooldownBootstrap } from "../test/fixture";
@@ -28,8 +28,8 @@ describe("Cooldown views share the Canonical Strategy Model", () => {
         value: 30,
       },
     });
-    const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
-    expect(flow.nodes.find((item) => item.id === "cooldown")?.data.cooldownDuration).toBe(30);
+    const flow = projectConceptualFlow(edited.canonical, edited.registry);
+    expect(flow.groups[0].choose?.cooldownDuration).toBe(30);
   });
 
   it("Flow 30 to 10 is immediately visible in Guided", () => {

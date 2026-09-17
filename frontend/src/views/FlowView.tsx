@@ -18,6 +18,7 @@ const edge = (source:string,target:string,label?:string):Edge => ({id:`${source}
 
 export function projectFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
   const nodes:SemanticNode[]=[]; const edges:Edge[]=[]; const rootId="portfolio";
+  if(projection.unsupportedReason){nodes.push(node(rootId,360,20,"Unsupported strategy shape",projection.unsupportedReason,semanticSelection("portfolio",null)));return {nodes,edges};}
   nodes.push(node(rootId,360,20,projection.title,projection.kind==="portfolio"?"Portfolio":"Strategy",semanticSelection("portfolio",projection.portfolioComponentId??null)));
   let parentId=rootId;
   if(projection.split){nodes.push(node("split",360,140,"Split portfolio",projection.groups.map(group=>group.allocation).join(" / "),semanticSelection("split",projection.portfolioComponentId??null),"split"));edges.push(edge(rootId,"split"));parentId="split";}

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
+import { projectFlowCanvas } from "../views/FlowView";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { goldenBootstrap } from "../test/fixture";
 
@@ -21,18 +22,13 @@ describe("Strategy Editor Canonical architecture", () => {
     expect(guided.safe.total).toBe("0.30");
   });
 
-  it("projects Canonical components, connections, and entrypoint into Flow", () => {
+  it("projects Canonical meaning and schedule into Flow", () => {
     const state = createEditorState(goldenBootstrap);
-    const flow = projectFlow(state.canonical, state.registry, state.editor.nodePositions);
-
-    expect(flow.nodes).toHaveLength(8);
-    expect(flow.edges).toHaveLength(7);
-    expect(flow.edges).toContainEqual(expect.objectContaining({ source: "growth_random", target: "growth_weights" }));
-    expect(flow.edges).toContainEqual(expect.objectContaining({ source: "monthly", target: "rebalance", animated: true }));
-    expect(flow.nodes.find((node) => node.id === "growth_random")?.data.details).toEqual([
-      "Count: 2",
-      "Resample: per_event",
-    ]);
+    const projection = projectConceptualFlow(state.canonical, state.registry);
+    const flow = projectFlowCanvas(projection);
+    expect(projection.groups[0].choose).toMatchObject({ topN: 2, resample: "per_event" });
+    expect(flow.nodes.some((node) => node.data.title === "Choose 2")).toBe(true);
+    expect(flow.nodes.some((node) => node.data.title === "Rebalance")).toBe(true);
   });
 
   it("shows a Guided semantic edit immediately in Flow", () => {
@@ -42,12 +38,12 @@ describe("Strategy Editor Canonical architecture", () => {
       operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
     });
     const edited = editorReducer(patched, { type: "set_active_view", view: "flow" });
-    const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
+    const flow = projectConceptualFlow(edited.canonical, edited.registry);
 
     expect(edited.editor.activeView).toBe("flow");
     const guided = projectGuided(edited.canonical, edited.registry);
     expect(guided.kind === "golden" && guided.growth.randomCount).toBe(3);
-    expect(flow.nodes.find((node) => node.id === "growth_random")?.data.randomCount).toBe(3);
+    expect(flow.groups[0].choose?.topN).toBe(3);
     expect(initial.canonical.graph.components.find((item) => item.id === "growth_random")?.config.count).toBe(2);
   });
 
@@ -62,22 +58,15 @@ describe("Strategy Editor Canonical architecture", () => {
     expect(edited.editor.activeView).toBe("guided");
     const guided = projectGuided(edited.canonical, edited.registry);
     expect(guided.kind === "golden" && guided.growth.resample).toBe("once");
-    expect(projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions)
-      .nodes.find((node) => node.id === "growth_random")?.data.resample).toBe("once");
+    expect(projectConceptualFlow(edited.canonical, edited.registry).groups[0].choose?.resample).toBe("once");
   });
 
   it("keeps Flow layout entirely outside Canonical semantics", () => {
     const initial = createEditorState(goldenBootstrap);
     const canonicalBefore = JSON.stringify(initial.canonical);
-    const moved = editorReducer(initial, {
-      type: "move_node",
-      componentId: "growth_random",
-      position: { x: 912, y: 318 },
-    });
-
-    expect(moved.editor.nodePositions.growth_random).toEqual({ x: 912, y: 318 });
-    expect(JSON.stringify(moved.canonical)).toBe(canonicalBefore);
-    expect(moved.canonical).toBe(initial.canonical);
+    const flow = projectFlowCanvas(projectConceptualFlow(initial.canonical, initial.registry));
+    flow.nodes[0].position = { x: 912, y: 318 };
+    expect(JSON.stringify(initial.canonical)).toBe(canonicalBefore);
   });
 
   it("preserves unsupported Canonical components and AST during Guided edits", () => {

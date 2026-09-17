@@ -9,6 +9,7 @@ function GuideObject({selection,question,answer,children}:{selection:SemanticSel
 }
 export function GuidedView(){
   const {state}=useStrategyEditor();const projection=projectConceptualFlow(state.canonical,state.registry);
+  if(projection.unsupportedReason)return <div className="guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>This strategy shape is not available in the current Builder.</h1><p>{projection.unsupportedReason}</p></header></div>;
   return <div className="guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Select any part to inspect or change it without leaving the Strategy workspace.</p></header><div className="guide-sequence">
     {projection.groups.map(group=><section className="guide-group" key={group.id}>
       <GuideObject selection={semanticSelection("group",group.sleeveComponentId??group.universeComponentId??null,{groupId:group.id})} question="Where should money go?" answer={`${group.label}${group.allocation?` · ${group.allocation}`:""}`}/>

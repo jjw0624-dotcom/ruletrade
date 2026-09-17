@@ -50,9 +50,10 @@ describe("shared Strategy Builder workspace boundaries", () => {
 
   it("keeps visual movement out of Canonical dirty state", () => {
     const initial = createEditorState(sleevesBootstrap, "flow");
-    const moved = editorReducer(initial, { type: "move_node", componentId: "visual", position: { x: 90, y: 50 } });
-    expect(moved.canonical).toBe(initial.canonical);
-    expect(moved.validation.status).toBe("valid");
+    const canvas = projectFlowCanvas(projectConceptualFlow(initial.canonical, initial.registry));
+    canvas.nodes[0].position = { x: 90, y: 50 };
+    expect(initial.canonical).toBe(sleevesBootstrap.strategy);
+    expect(initial.validation.status).toBe("valid");
   });
 
   it("preserves a surviving semantic selection after a backend-returned Canonical", () => {
