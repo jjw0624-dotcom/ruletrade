@@ -1,5 +1,8 @@
 # Compiler foundation
 
+> **Status: CURRENT subsystem contract.** See
+> [the living architecture](architecture.md) for the full product pipeline.
+
 This document records the compiler boundary proven by the Golden, Momentum, Filter, Fallback,
 Portfolio Sleeves, Independent Schedules, and Cooldown vertical slices. It is an inventory of the
 implemented system, not a roadmap for a general strategy language.
@@ -177,10 +180,10 @@ immutable Strategy Revision source payload
   -> structured decision evidence linked to source components
 ```
 
-The current compiler does not persist any of these objects. A future Revision can store the
-Canonical payload and compiler/version identity; a Run can reference exactly one Revision and one
-run configuration; structured evidence can reference the stable component IDs preserved through
-the compiler.
+The compiler does not persist these objects. The implemented product layer
+stores Canonical in an immutable Revision; a Run references exactly one Revision
+and one run configuration; structured Evidence references stable component IDs
+preserved through the compiler.
 
 ## MVP-readiness review
 
@@ -198,6 +201,7 @@ the compiler.
 | Are traces unambiguous enough as interim evidence? | Yes for the proven slices, provided their exact candidate/selected/local/final meanings are preserved. They are not a persistence schema. |
 | Concrete blocker to Strategy/Revision/Run/Trace? | None found in the compiler foundation. Product storage needs compiler/version and run-config identities, but those belong to the next layer. |
 
-Intentional limits remain: one Canonical version, one LEAN backend, no generic pass framework,
-generic state machine, arbitrary schedule language, optimizer, persistence, Revision/Run model, or
-Decision Trace product schema.
+Compiler limits remain: one Canonical version, one LEAN backend, no generic pass
+framework, generic state machine, arbitrary schedule language, optimizer, or
+compiler-owned persistence. Revisions, Runs, and Decision Evidence are product
+layers above this compiler boundary.

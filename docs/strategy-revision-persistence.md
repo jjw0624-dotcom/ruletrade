@@ -1,7 +1,11 @@
 # Strategy and immutable Revision persistence
 
-This slice adds the first durable product identity above the compiler. It does not persist runs,
-compiler artifacts, editor layout, or decision evidence.
+> **Status: CURRENT subsystem contract.** Later Runs, Evidence, Candidates, and
+> adoption build on this immutable Revision boundary.
+
+This contract introduced the durable product identity above the compiler.
+Revisions intentionally exclude compiler artifacts, editor layout, Run state,
+and Decision Evidence; those later resources reference the immutable Revision.
 
 ## Domain contract
 
@@ -115,11 +119,12 @@ Examples remain backend-owned templates and are never inserted automatically.
 8. Strategy plus initial Revision creation is one transaction.
 9. Revision insert plus current pointer advancement is one transaction.
 10. SQLite details stop at the repository boundary.
-11. Archive plus immutable Revision IDs supports future Run references.
-12. Candidate acceptance can call the same save operation with its expected parent.
+11. Archive plus immutable Revision IDs preserves Run references.
+12. Candidate adoption uses the same Revision concurrency boundary.
 13. Scaling the database replaces the repository/transaction implementation, not domain semantics.
-14. No Run or Decision Evidence fields or behavior were added.
+14. Run and Decision Evidence fields remain outside Strategy and Revision rows.
 
-There are no known must-fix findings. SQLite's single-writer profile is good enough for the local
-Strategy/Revision MVP. Authentication, ownership, migrations beyond schema 1, run persistence,
-Decision Evidence, Candidates, and Comparison are intentionally deferred.
+SQLite's single-writer profile remains appropriate for the local MVP.
+Authentication, ownership, and a higher-scale database implementation remain
+deferred. Runs, Decision Evidence, Candidates, and Comparison are implemented
+as separate resources above this boundary.

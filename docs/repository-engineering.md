@@ -1,5 +1,8 @@
 # Repository engineering contract
 
+> **Status: CURRENT repository contract.** Contributor setup and commands are
+> summarized in [Development and validation](development.md).
+
 ## Artifact policy
 
 | Classification | Repository examples | Policy |

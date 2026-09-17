@@ -1,5 +1,8 @@
 # My Strategies frontend vertical slice
 
+> **Status: SUPERSEDED.** This predates persisted Runs and the integrated
+> research workbench. See [the living architecture](architecture.md).
+
 This frontend consumes the Strategy and immutable Revision API introduced by PR #22. It does not
 add persistence semantics of its own.
 

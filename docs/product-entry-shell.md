@@ -1,5 +1,9 @@
 # Product entry and starting experience
 
+> **Status: SUPERSEDED.** This records an earlier entry shell and Preview
+> grammar. Current entry opens an ordinary persisted Strategy in the shared
+> Builder; see [the living architecture](architecture.md).
+
 RuleTrade now has three user-facing spaces around the existing research loop:
 
 - `/` is a short public, question-led entry using supported backend examples.

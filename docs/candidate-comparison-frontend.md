@@ -1,5 +1,8 @@
 # Candidate + Comparison frontend
 
+> **Status: SUPERSEDED.** This predates the integrated Research workspace and
+> Keep/adoption UI. See [the living architecture](architecture.md).
+
 ## Contracts used
 
 The frontend consumes the merged product contracts without reconstructing their semantics:

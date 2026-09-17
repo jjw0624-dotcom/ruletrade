@@ -1,5 +1,8 @@
 # Candidate Change v0
 
+> **Status: CURRENT subsystem contract.** Candidate is now integrated with
+> Comparison and Keep as described in [the living architecture](architecture.md).
+
 Candidate v0 proves one refinement loop without accepting research into saved Strategy history:
 
 `Decision Evidence → typed change → immutable Candidate → ordinary BacktestRun pipeline`
@@ -58,12 +61,17 @@ executes and persists the Candidate Run and Evidence v2, then creates a Comparis
 - `GET /v1/backtest-runs/{run_id}/candidates` — list Candidates originating from that Run.
 - `GET /v1/candidates/{candidate_id}` — reopen Candidate plus its Run.
 
-The future frontend sends the Evidence v2 `component_id` and `field_path`, the displayed current value as `expected_before`, and the user's proposed value. It does not construct authoritative Candidate Canonical JSON.
+The frontend sends the Evidence v2 `component_id` and `field_path`, the
+displayed current value as `expected_before`, and the proposed value. It does
+not construct authoritative Candidate Canonical JSON.
 
-## Future boundaries
+## Integrated boundaries
 
-A future Keep operation can pass the Candidate Canonical source to the existing Revision service with `expected_parent_revision_id = candidate.base_revision_id`. If the Strategy advanced, existing optimistic concurrency rejects the save. No Keep behavior exists here.
+Comparison uses the originating Run, Candidate Run, explicit semantic change,
+both normalized Results, and both Decision Evidence streams. Keep/adoption
+passes the immutable Candidate source through the Strategy service with an
+expected current Revision; stale or mismatched lineage is rejected. Candidate
+creation and execution still never mutate the saved Strategy.
 
-Future Comparison already has stable identities for the originating Run, Candidate Run, explicit semantic change, both normalized results, and both Decision Evidence streams. No diff or Experiment semantics are introduced.
-
-Order/fill comparison, multiple changes, Top-N count, schedule/state/sleeve edits, Candidate branching, Keep/Discard, and Comparison are intentionally deferred.
+Order/fill comparison, multiple changes, Top-N count, schedule/state/sleeve
+Candidate edits, Candidate branching, and generic Experiments remain deferred.

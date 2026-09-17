@@ -1,5 +1,8 @@
 # Integrated Strategy research workbench
 
+> **Status: CURRENT frontend contract.** System-wide ownership is summarized in
+> [the living architecture](architecture.md).
+
 The Strategy Builder remains mounted while saved research opens in the resizable right workspace.
 Summary, Guide, and Flow remain representations of one working Canonical Strategy; Test, Result,
 Decision analysis, Candidate, Comparison, and adoption are research states attached to that Strategy.
@@ -68,20 +71,20 @@ creation flow.
 
 ## WSL browser acceptance
 
-Start the existing services with a configured LEAN-format data directory:
+After `make bootstrap`, start the existing services with a configured
+LEAN-format data directory:
 
 ```bash
 cd ~/dev/ruletrade
 export RULETRADE_LEAN_DATA_DIR="$HOME/dev/ruletrade/experiments/lean-spike/data"
-uv run uvicorn ruletrade.api:app --reload
+make api
 ```
 
 In a second WSL shell:
 
 ```bash
-cd ~/dev/ruletrade/frontend
-npm install
-npm run dev
+cd ~/dev/ruletrade
+make frontend
 ```
 
 Then exercise the final journey in the browser using a Strategy and period supported by the local data.

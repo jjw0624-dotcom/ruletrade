@@ -1,5 +1,8 @@
 # Current MVP research-loop architecture
 
+> **Status: SUPERSEDED.** Despite its historical title, this is not the current
+> architecture. Use [the living architecture](architecture.md).
+
 This document describes the merged product as of the Candidate adoption backend. It is an audit of the implemented system, not a future architecture proposal. Market Data v0 and the `Keep change` frontend are intentionally outside this change.
 
 ## Product resources

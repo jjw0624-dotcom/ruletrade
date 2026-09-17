@@ -1,5 +1,7 @@
 # Strategy IR architecture
 
+> **Status: CURRENT subsystem contract.**
+
 RuleTrade uses a one-way compiler pipeline:
 
 ```text
@@ -242,8 +244,9 @@ do not leak into Strategy IR.
 
 ## Reproducibility and persistence boundary
 
-A future strategy revision stores the authoritative Strategy Model. Strategy IR, LeanPlan,
-generated C#, and assemblies may be cached but must be reproducible from the source plus compiler
-and environment provenance. Relevant future provenance includes source hash, schema and Registry
-versions, compiler/backend versions, LEAN image digest, dataset identity/version, BacktestConfig,
-and random-semantics version. This document does not introduce persistence.
+An immutable Revision stores the authoritative Canonical Strategy Model.
+Strategy IR, LeanPlan, generated C#, and assemblies remain reproducible from the
+source plus compiler and environment provenance. Run provenance records the
+known source hash, schema/compiler/backend identities, dataset identity,
+`BacktestConfig`, and related build/runtime facts; unavailable identities remain
+explicitly unknown rather than inferred.

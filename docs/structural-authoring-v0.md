@@ -1,5 +1,9 @@
 # Structural Authoring v0
 
+> **Status: SUPERSEDED.** This predates later valid-shape transformations and
+> the production xyflow Builder. Current authoring behavior and known debt are
+> in [the living architecture](architecture.md).
+
 Structural authoring is stateless: `CanonicalStrategyV1 -> semantic operation -> new CanonicalStrategyV1 -> validation`. The API neither saves a Revision nor runs LEAN. Callers ask `POST /v1/canonical/strategies/authoring/capabilities`, then use `POST /v1/canonical/strategies/authoring/apply`. Guide and Flow never create primitives or connections.
 
 ## Capability audit

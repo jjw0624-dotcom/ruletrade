@@ -1,5 +1,8 @@
 # Frontend Product Specification consolidation
 
+> **Status: SUPERSEDED.** This intermediate specification lists capabilities
+> subsequently delivered. Use [the living architecture](architecture.md).
+
 ## Gap audit
 
 ### Already implemented and preserved

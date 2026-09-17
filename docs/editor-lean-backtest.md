@@ -1,5 +1,9 @@
 # Editor-to-LEAN backtest
 
+> **Status: SUPERSEDED.** The transient endpoint remains for unsaved working
+> copies, but saved Tests use BacktestRuns and integrated Research. See
+> [the living architecture](architecture.md).
+
 The Strategy Editor submits its current in-memory `CanonicalStrategyV1` directly
 to `POST /v1/backtests/lean`. Guided and Flow do not construct an execution
 document. Run settings are a separate `BacktestConfig` and are not included in

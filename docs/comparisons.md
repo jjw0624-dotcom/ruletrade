@@ -1,5 +1,8 @@
 # Original versus Candidate Comparison v0
 
+> **Status: CURRENT subsystem contract.** Comparison is now integrated into the
+> workbench and Keep/Discard loop described in [the living architecture](architecture.md).
+
 A Comparison is an immutable derived research artifact. It relates one
 Revision-backed Original Run to the real Candidate Run produced for one
 Candidate. It is not a Strategy Revision, Candidate, Backtest Run, Experiment,
@@ -55,11 +58,12 @@ that payload and does not rerun LEAN or realign mutable frontend state.
 - `POST /v1/candidates/{candidate_id}/comparison`
 - `GET /v1/comparisons/{comparison_id}`
 
-The POST is idempotent for an already-compared Candidate. The response gives a
-future frontend the explicit change, changed decision contexts for “Only
+The POST is idempotent for an already-compared Candidate. The response gives the
+frontend the explicit change, changed decision contexts for “Only
 Differences”, structural facts and source provenance for “Why different?”, exact
 result deltas, and both Run identities for overlaid equity curves.
 
-This contract deliberately defers Comparison UI, prose explanation, Keep/
-Discard, arbitrary Run pairing, generic Experiments, order/fill diffs, and claims
-that a strategy parameter scientifically caused market returns.
+The integrated workbench now presents Comparison, Why Different, and
+Keep/Discard over this contract. Arbitrary Run pairing, generic Experiments,
+order/fill diffs, and claims that a strategy parameter scientifically caused
+market returns remain deferred.
