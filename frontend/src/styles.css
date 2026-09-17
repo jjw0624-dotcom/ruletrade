@@ -407,7 +407,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   .run-history header { align-items: flex-start; flex-direction: column; }
   .run-details dl { grid-template-columns: 1fr 1fr; }
 }
-+
 /* Analysis UX v2 */
 .decision-summary { padding: 1.4rem; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
 .decision-summary time { color: var(--muted); font-weight: 700; }
