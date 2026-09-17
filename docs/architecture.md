@@ -111,10 +111,14 @@ StrategyWorkspace
 └── Research workspace
 ```
 
-Summary, Guide, and Flow reproject the same working Canonical. Switching views
-does not create a Revision or reinitialize the Strategy. Selection uses stable
-`component_id`, optional `field_path`, and semantic context rather than
-display text. The shared Inspector edits the selected semantic object.
+Structure, Summary, Guide, and Flow consume one derived semantic Strategy
+projection of the working Canonical. That projection follows typed Canonical
+connections and preserves each authored `component_id` and optional
+`field_path`; it is a read model, not another Strategy document. Supported
+product shapes degrade explicitly when their relationships are ambiguous
+instead of choosing the first matching primitive. Switching views does not
+create a Revision or reinitialize the Strategy. The shared Inspector edits the
+selected semantic object through the existing Canonical editing paths.
 
 xyflow owns canvas rendering, edges, dragging, selection mechanics, viewport,
 zoom, pan, and fit. RuleTrade owns the Canonical-to-conceptual projection,

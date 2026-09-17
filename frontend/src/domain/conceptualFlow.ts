@@ -1,5 +1,5 @@
 import type { CanonicalStrategyV1, RegistryPayload } from "./canonical";
-import { projectGuided } from "./guided";
+import { tryProjectSemanticStrategy, type SemanticGroup } from "./semanticProjection";
 
 export interface ConceptualChoose {
   kind: "choose";
@@ -52,49 +52,52 @@ export interface ConceptualFlowProjection {
   split?: { groups: Array<{ id: string; label: string; componentId: string; allocation: string }> };
   rebalanceScheduleComponentId?: string;
   portfolioComponentId?: string;
+  unsupportedReason?: string;
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
 export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: RegistryPayload): ConceptualFlowProjection {
-  const guided = projectGuided(strategy, registry);
-  if (guided.kind === "portfolio") {
-    return {
-      kind: "portfolio", title: guided.portfolio.name, rebalance: guided.rebalanceSchedule,
-      sourceComponentIds: [guided.portfolio.componentId, guided.growth.sleeveComponentId, guided.defensive.sleeveComponentId],
-      split: { groups: [{ id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, componentId: guided.growth.sleeveComponentId, allocation: guided.growth.allocation }, { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, componentId: guided.defensive.sleeveComponentId, allocation: guided.defensive.allocation }] },
-      rebalanceScheduleComponentId: guided.rebalanceScheduleComponentId,
-      portfolioComponentId: guided.portfolio.componentId,
-      groups: [
-        {
-          id: guided.growth.sleeveComponentId, label: guided.growth.sleeveName, allocation: percentage(guided.growth.allocation), assets: guided.growth.assets,
-          timing: guided.growth.refreshSchedule ?? guided.growth.schedule,
-          sourceComponentIds: [guided.growth.sleeveComponentId, guided.growth.lookbackComponentId, guided.growth.selectionComponentId, ...(guided.growth.filterComponentId ? [guided.growth.filterComponentId] : []), ...(guided.growth.fallbackComponentId ? [guided.growth.fallbackComponentId] : []), ...(guided.growth.cooldownComponentId ? [guided.growth.cooldownComponentId] : [])],
-          assetSetId: guided.growth.assetSetId, universeComponentId: guided.growth.assetComponentId, allocationComponentId: guided.growth.allocationComponentId, sleeveComponentId: guided.growth.sleeveComponentId, allocationValue: guided.growth.allocation, scheduleComponentId: guided.growth.refreshScheduleComponentId,
-          choose: chooseFrom(guided.growth),
-        },
-        { id: guided.defensive.sleeveComponentId, label: guided.defensive.sleeveName, allocation: percentage(guided.defensive.allocation), assets: guided.defensive.assets, timing: guided.defensive.refreshSchedule, sourceComponentIds: [guided.defensive.sleeveComponentId, guided.defensive.assetComponentId], assetSetId: guided.defensive.assetSetId, universeComponentId: guided.defensive.assetComponentId, allocationComponentId: guided.defensive.allocationComponentId, sleeveComponentId: guided.defensive.sleeveComponentId, allocationValue: guided.defensive.allocation, scheduleComponentId: guided.defensive.refreshScheduleComponentId },
-      ],
-    };
-  }
-  if (guided.kind === "momentum") return { kind: "single", title: strategy.metadata.name, rebalance: guided.momentum.schedule, sourceComponentIds: [guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], rebalanceScheduleComponentId: guided.momentum.scheduleComponentId, groups: [{ id: "strategy", label: "Assets", assets: guided.momentum.assets, timing: guided.momentum.schedule, sourceComponentIds: [guided.momentum.assetComponentId, guided.momentum.lookbackComponentId, guided.momentum.selectionComponentId], assetSetId: guided.momentum.assetSetId, universeComponentId: guided.momentum.assetComponentId, allocationComponentId: guided.momentum.allocationComponentId, choose: chooseFrom(guided.momentum) }] };
-  if (guided.kind === "single") return {
-    kind: "single",
-    title: strategy.metadata.name,
-    rebalance: guided.investment.schedule,
-    sourceComponentIds: [guided.investment.assetComponentId],
-    rebalanceScheduleComponentId: guided.investment.scheduleComponentId,
-    groups: [{ id: "investment", label: "Investment", allocation: percentage(guided.investment.total), assets: guided.investment.assets, timing: guided.investment.schedule, sourceComponentIds: [guided.investment.assetComponentId, guided.investment.allocationComponentId], assetSetId: guided.investment.assetSetId, universeComponentId: guided.investment.assetComponentId, allocationComponentId: guided.investment.allocationComponentId }],
-  };
+  const result = tryProjectSemanticStrategy(strategy, registry);
+  if (!result.supported) return { kind: "single", title: strategy.metadata.name, groups: [], sourceComponentIds: [], unsupportedReason: result.reason };
+  const semantic = result.projection;
+  const groups = semantic.groups.map(conceptualGroup);
   return {
-    kind: "portfolio", title: strategy.metadata.name, sourceComponentIds: [guided.growth.selectionComponentId, guided.growth.allocationComponentId, guided.safe.allocationComponentId],
-    groups: [
-      { id: "growth", label: "Growth", allocation:percentage(guided.growth.total), allocationValue:guided.growth.total, assets: guided.growth.assets, assetSetId: guided.growth.assetSetId, universeComponentId: guided.growth.assetComponentId, allocationComponentId: guided.growth.allocationComponentId, sourceComponentIds: [guided.growth.assetComponentId, guided.growth.selectionComponentId, guided.growth.allocationComponentId], choose: { kind: "choose", label: `Choose ${guided.growth.randomCount}`, from: guided.growth.assets, ranking: "Choose randomly", selectionMode:"random", resample:guided.growth.resample, sourceComponentIds: [guided.growth.selectionComponentId], selectionComponentId: guided.growth.selectionComponentId, fallbackOptions: [], topN: guided.growth.randomCount } },
-      { id: "safe", label: "Safe", allocation:percentage(guided.safe.total), allocationValue:guided.safe.total, assets: guided.safe.assets, assetSetId: guided.safe.assetSetId, universeComponentId: guided.safe.assetComponentId, allocationComponentId: guided.safe.allocationComponentId, sourceComponentIds: [guided.safe.assetComponentId, guided.safe.allocationComponentId] },
-    ],
+    kind: semantic.kind, title: semantic.title, groups,
+    rebalance: semantic.rebalanceSchedule,
+    rebalanceScheduleComponentId: semantic.rebalanceScheduleComponentId,
+    portfolioComponentId: semantic.portfolioComponentId,
+    sourceComponentIds: [semantic.portfolioComponentId, ...semantic.groups.flatMap((group) => [group.sleeveComponentId, ...groupSourceIds(group)])].filter((id): id is string => Boolean(id)),
+    split: semantic.portfolioComponentId ? { groups: semantic.groups.map((group) => ({ id: group.id, label: group.name, componentId: group.sleeveComponentId!, allocation: group.allocation })) } : undefined,
   };
 }
-function chooseFrom(value: { assets: string[]; lookbackBars: number; threshold?: string; rankDirection: string; rankComponentId:string; topN: number; fallbackAsset?: string; fallbackAssetSetRef?: string; fallbackOptions: Array<{id:string;asset:string}>; cooldownDuration?: number; schedule: string; scheduleComponentId?:string; lookbackComponentId: string; filterComponentId?: string; selectionComponentId: string; fallbackComponentId?: string; cooldownComponentId?: string; refreshScheduleComponentId?: string }): ConceptualChoose {
-  const months = Math.max(1, Math.round(value.lookbackBars / 21));
+
+function groupSourceIds(group: SemanticGroup): string[] {
+  const pipeline = group.pipeline;
+  return [pipeline.assetComponentId, pipeline.allocationComponentId, pipeline.lookbackComponentId,
+    pipeline.filterComponentId, pipeline.rankComponentId, pipeline.selectionComponentId,
+    pipeline.fallbackComponentId, pipeline.cooldownComponentId].filter((id): id is string => Boolean(id));
+}
+
+function conceptualGroup(group: SemanticGroup): ConceptualGroup {
+  const pipeline = group.pipeline;
+  return {
+    id: group.id, label: group.name, allocation: percentage(group.allocation), assets: pipeline.assets,
+    timing: group.refreshSchedule ?? pipeline.schedule, sourceComponentIds: groupSourceIds(group),
+    assetSetId: pipeline.assetSetId, universeComponentId: pipeline.assetComponentId,
+    allocationComponentId: pipeline.allocationComponentId, sleeveComponentId: group.sleeveComponentId,
+    allocationValue: group.allocation, scheduleComponentId: group.refreshScheduleComponentId,
+    choose: pipeline.selectionComponentId ? chooseFrom(group) : undefined,
+  };
+}
+
+function chooseFrom(group: SemanticGroup): ConceptualChoose {
+  const value = group.pipeline;
+  if (value.selectionMode === "random") return {
+    kind: "choose", label: `Choose ${value.randomCount}`, from: value.assets, ranking: "Choose randomly",
+    selectionMode: "random", resample: value.resample, sourceComponentIds: [value.selectionComponentId!],
+    selectionComponentId: value.selectionComponentId!, fallbackOptions: [], topN: value.randomCount,
+  };
+  const months = Math.max(1, Math.round(value.lookbackBars! / 21));
   return {
     kind: "choose", label: `Choose ${value.topN}`, from: value.assets,
     selectionMode:"ranked",
@@ -102,9 +105,13 @@ function chooseFrom(value: { assets: string[]; lookbackBars: number; threshold?:
     ranking: value.rankDirection === "descending" || value.rankDirection === "desc" ? "Strongest first" : "Weakest first",
     otherwise: value.fallbackAsset ? `Otherwise → ${value.fallbackAsset}` : undefined,
     cooldown: value.cooldownDuration ? `After selling, wait ${value.cooldownDuration} trading days` : undefined,
-    timing: value.schedule,
-    sourceComponentIds: [value.lookbackComponentId, value.selectionComponentId, ...(value.filterComponentId ? [value.filterComponentId] : []), ...(value.fallbackComponentId ? [value.fallbackComponentId] : []), ...(value.cooldownComponentId ? [value.cooldownComponentId] : [])],
-    lookbackComponentId: value.lookbackComponentId, filterComponentId: value.filterComponentId, selectionComponentId: value.selectionComponentId, fallbackComponentId: value.fallbackComponentId, fallbackAssetSetRef: value.fallbackAssetSetRef, fallbackOptions: value.fallbackOptions, cooldownComponentId: value.cooldownComponentId, scheduleComponentId: value.refreshScheduleComponentId ?? value.scheduleComponentId, lookbackBars: value.lookbackBars, threshold: value.threshold, rankDirection: value.rankDirection, rankComponentId:value.rankComponentId, topN: value.topN, cooldownDuration: value.cooldownDuration,
+    timing: value.schedule, sourceComponentIds: groupSourceIds(group),
+    lookbackComponentId: value.lookbackComponentId, filterComponentId: value.filterComponentId,
+    selectionComponentId: value.selectionComponentId!, fallbackComponentId: value.fallbackComponentId,
+    fallbackAssetSetRef: value.fallbackAssetSetRef, fallbackOptions: value.fallbackOptions,
+    cooldownComponentId: value.cooldownComponentId, scheduleComponentId: group.refreshScheduleComponentId ?? value.scheduleComponentId,
+    lookbackBars: value.lookbackBars, threshold: value.threshold, rankDirection: value.rankDirection,
+    rankComponentId:value.rankComponentId, topN: value.topN, cooldownDuration: value.cooldownDuration,
   };
 }
 export const conceptualOnlyAllocationExample = {

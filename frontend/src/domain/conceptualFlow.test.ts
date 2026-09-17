@@ -75,12 +75,10 @@ describe("Conceptual Flow v2 projection", () => {
     expect(duplicate.validation.status).toBe("invalid");
   });
 
-  it("keeps conceptual selection, hierarchy, and layout editor-only", () => {
+  it("keeps semantic selection editor-only", () => {
     const initial=createEditorState(sleevesBootstrap); const before=JSON.stringify(initial.canonical);
-    const selected=editorReducer(initial,{type:"select_concept",conceptId:"split"});
-    const opened=editorReducer(selected,{type:"open_group",groupId:"growth_sleeve"});
-    const moved=editorReducer(opened,{type:"move_node",componentId:"concept:choose",position:{x:321,y:222}});
-    expect(moved.editor).toMatchObject({selectedConceptId:null,openGroupId:"growth_sleeve",nodePositions:{"concept:choose":{x:321,y:222}}});
-    expect(JSON.stringify(moved.canonical)).toBe(before);
+    const selected=editorReducer(initial,{type:"select_semantic",selection:{role:"split",componentId:"portfolio",fieldPath:null,groupId:null}});
+    expect(selected.editor.selection).toMatchObject({role:"split",componentId:"portfolio"});
+    expect(JSON.stringify(selected.canonical)).toBe(before);
   });
 });

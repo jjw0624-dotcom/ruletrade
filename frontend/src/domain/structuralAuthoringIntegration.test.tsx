@@ -11,6 +11,7 @@ import { OverviewView } from "../views/OverviewView";
 import { FlowView, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
+import { semanticSelection } from "./semanticSelection";
 
 const capabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -174,22 +175,17 @@ describe("Structural Authoring Guide and Flow integration", () => {
 
   it("Guide rename updates Canonical and the Flow projection with stable identity", () => {
     const initial = stateFor(sleevesBootstrap, "guided");
-    initial.editor.selectedNodeId = "growth_sleeve";
-    initial.editor.selectedConceptId = "group:growth_sleeve";
+    initial.editor.selection = semanticSelection("group", "growth_sleeve", { groupId: "growth_sleeve" });
     const changed = editorReducer(initial, {
       type: "replace_canonical_dirty",
       canonical: renamedSleeves(),
-      selectedNodeId: "growth_sleeve",
-      selectedConceptId: "group:growth_sleeve",
+      selection: initial.editor.selection,
     });
     expect(changed.canonical.graph.components.find((item) => item.id === "growth_sleeve")?.config.name)
       .toBe("Opportunity");
     expect(projectConceptualFlow(changed.canonical, changed.registry).groups[0].label)
       .toBe("Opportunity");
-    expect(changed.editor).toMatchObject({
-      selectedNodeId: "growth_sleeve",
-      selectedConceptId: "group:growth_sleeve",
-    });
+    expect(changed.editor.selection).toMatchObject({ componentId: "growth_sleeve", groupId: "growth_sleeve" });
     expect(changed.validation.status).toBe("dirty");
   });
 
@@ -198,8 +194,7 @@ describe("Structural Authoring Guide and Flow integration", () => {
     const changed = editorReducer(initial, {
       type: "replace_canonical_dirty",
       canonical: renamedSleeves(),
-      selectedNodeId: "growth_sleeve",
-      selectedConceptId: "group:growth_sleeve",
+      selection: semanticSelection("group", "growth_sleeve", { groupId: "growth_sleeve" }),
     });
     const guide = projectGuided(changed.canonical, changed.registry);
     expect(guide.kind === "portfolio" && guide.growth.sleeveName).toBe("Opportunity");
@@ -215,38 +210,27 @@ describe("Structural Authoring Guide and Flow integration", () => {
     const added = editorReducer(initial, {
       type: "replace_canonical_dirty",
       canonical: filterBootstrap.strategy,
-      selectedNodeId: "positive_return",
-      selectedConceptId: "choose",
+      selection: semanticSelection("qualification", "positive_return", { fieldPath: "config.threshold", groupId: "weights" }),
     });
     const guide = projectGuided(added.canonical, added.registry);
     const flow = projectConceptualFlow(added.canonical, added.registry);
     expect(guide.kind === "momentum" && guide.momentum.threshold).toBe("0");
     expect(flow.groups[0].choose?.condition).toBe("6M return > 0%");
-    expect(added.editor).toMatchObject({
-      selectedNodeId: "positive_return",
-      selectedConceptId: "choose",
-    });
+    expect(added.editor.selection).toMatchObject({ componentId: "positive_return", fieldPath: "config.threshold" });
   });
 
   it("removing qualification uses the backend result and preserves the Choose context", () => {
     const initial = stateFor(filterBootstrap, "flow");
-    initial.editor.selectedNodeId = "positive_return";
-    initial.editor.selectedFieldPath = "config.threshold";
-    initial.editor.selectedConceptId = "choose";
+    initial.editor.selection = semanticSelection("qualification", "positive_return", { fieldPath: "config.threshold", groupId: "weights" });
     const removed = editorReducer(initial, {
       type: "replace_canonical_dirty",
       canonical: momentumBootstrap.strategy,
-      selectedNodeId: "momentum_rank",
-      selectedConceptId: "choose",
+      selection: semanticSelection("selection", "momentum_rank", { groupId: "weights" }),
     });
     expect(projectGuided(removed.canonical, removed.registry).kind).toBe("momentum");
     expect(projectConceptualFlow(removed.canonical, removed.registry).groups[0].choose?.condition)
       .toBeUndefined();
-    expect(removed.editor).toMatchObject({
-      selectedNodeId: "momentum_rank",
-      selectedConceptId: "choose",
-      selectedFieldPath: null,
-    });
+    expect(removed.editor.selection).toMatchObject({ componentId: "momentum_rank", fieldPath: null });
   });
 
   it("a rejected operation leaves the authoritative Canonical unchanged", () => {

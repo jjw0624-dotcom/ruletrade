@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { filterBootstrap } from "../test/fixture";
@@ -9,16 +9,13 @@ describe("Filter screening cross-view architecture", () => {
   it("projects the compositional Canonical filter into Guided and Flow", () => {
     const state = createEditorState(filterBootstrap);
     const guided = projectGuided(state.canonical, state.registry);
-    const flow = projectFlow(state.canonical, state.registry, state.editor.nodePositions);
+    const flow = projectConceptualFlow(state.canonical, state.registry);
 
     expect(guided.kind).toBe("momentum");
     if (guided.kind !== "momentum") throw new Error("expected score strategy projection");
     expect(guided.momentum.threshold).toBe("0");
     expect(guided.momentum.topN).toBe(2);
-    expect(flow.nodes.map((node) => node.data.title)).toEqual(expect.arrayContaining([
-      "126-day return", "Return > 0%", "Rank weakest", "Top 2", "Equal Weight 100%", "Rebalance",
-    ]));
-    expect(flow.edges).toHaveLength(7);
+    expect(flow.groups[0].choose).toMatchObject({ condition: "6M return > 0%", topN: 2 });
   });
 
   it("shows a Guided threshold edit immediately in Flow", () => {
@@ -32,10 +29,9 @@ describe("Filter screening cross-view architecture", () => {
         value: "0.05",
       },
     });
-    const flow = projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions);
+    const flow = projectConceptualFlow(edited.canonical, edited.registry);
 
-    expect(flow.nodes.find((node) => node.id === "positive_return")?.data.threshold).toBe("0.05");
-    expect(flow.nodes.find((node) => node.id === "positive_return")?.data.title).toBe("Return > 5%");
+    expect(flow.groups[0].choose).toMatchObject({ threshold: "0.05", condition: "6M return > 5%" });
     expect(initial.canonical.graph.components.find((item) => item.id === "positive_return")?.config.threshold).toBe("0");
   });
 
@@ -79,15 +75,4 @@ describe("Filter screening cross-view architecture", () => {
     expect(empty.validation.status).toBe("invalid");
   });
 
-  it("keeps Flow layout outside Canonical semantics", () => {
-    const initial = createEditorState(filterBootstrap);
-    const moved = editorReducer(initial, {
-      type: "move_node",
-      componentId: "positive_return",
-      position: { x: 444, y: 222 },
-    });
-
-    expect(moved.canonical).toBe(initial.canonical);
-    expect(moved.editor.nodePositions.positive_return).toEqual({ x: 444, y: 222 });
-  });
 });

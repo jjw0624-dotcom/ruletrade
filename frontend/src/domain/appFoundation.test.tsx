@@ -7,7 +7,7 @@ import { ExploreView } from "../views/ExploreView";
 import { STRATEGY_EXAMPLES } from "./examples";
 import { pathForRoute, routeFromPath } from "./navigation";
 import { createEditorState, editorReducer } from "../store/editorStore";
-import { projectFlow } from "./flow";
+import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { sleevesBootstrap } from "../test/fixture";
 import { StrategyEditorProvider } from "../store/editorStore";
@@ -26,7 +26,7 @@ describe("Production MVP frontend foundation", () => {
     const initial = createEditorState(sleevesBootstrap);
     const edited = editorReducer(initial, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
     expect(projectGuided(edited.canonical, edited.registry).kind).toBe("portfolio");
-    expect(projectFlow(edited.canonical, edited.registry, edited.editor.nodePositions).nodes.find((node) => node.id === "top_n")?.data.topN).toBe(3);
+    expect(projectConceptualFlow(edited.canonical, edited.registry).groups[0].choose?.topN).toBe(3);
   });
 
   it("starts shallow and projects Overview from the same Canonical strategy", () => {

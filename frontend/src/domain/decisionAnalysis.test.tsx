@@ -106,10 +106,10 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("keeps source focus in editor-only state", () => {
     const initial = createEditorState(sleevesBootstrap);
-    const selected = editorReducer(editorReducer(initial, { type: "select_node", componentId: "positive_filter", fieldPath: "config.threshold" }), { type: "set_active_view", view: "flow" });
-    expect(selected.editor.selectedNodeId).toBe("positive_filter"); expect(selected.editor.selectedFieldPath).toBe("config.threshold"); expect(selected.editor.activeView).toBe("flow"); expect(selected.canonical).toBe(initial.canonical);
-    const componentOnly = editorReducer(selected, { type: "select_node", componentId: "positive_filter" });
-    expect(componentOnly.editor.selectedNodeId).toBe("positive_filter"); expect(componentOnly.editor.selectedFieldPath).toBeNull(); expect(componentOnly.canonical).toBe(initial.canonical);
+    const selected = editorReducer(editorReducer(initial, { type: "select_semantic", selection: { role: "rule", componentId: "positive_filter", fieldPath: "config.threshold", groupId: null } }), { type: "set_active_view", view: "flow" });
+    expect(selected.editor.selection).toMatchObject({componentId:"positive_filter",fieldPath:"config.threshold"}); expect(selected.editor.activeView).toBe("flow"); expect(selected.canonical).toBe(initial.canonical);
+    const componentOnly = editorReducer(selected, { type: "select_semantic", selection: { role: "rule", componentId: "positive_filter", fieldPath: null, groupId: null } });
+    expect(componentOnly.editor.selection).toMatchObject({componentId:"positive_filter",fieldPath:null}); expect(componentOnly.canonical).toBe(initial.canonical);
   });
 
   it("provides Canonical field destinations while retaining component-level focus", () => {

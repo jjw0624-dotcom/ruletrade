@@ -63,6 +63,19 @@ function groupItems(group: ConceptualGroup): StructureItem[] {
 }
 
 export function projectBuilderStructure(projection: ConceptualFlowProjection): StructureItem {
+  if (projection.unsupportedReason) return {
+    id: "portfolio",
+    label: "Strategy",
+    detail: "Unsupported Builder shape",
+    selection: semanticSelection("portfolio", null),
+    children: [{
+      id: "unsupported",
+      label: "Cannot project this structure",
+      detail: projection.unsupportedReason,
+      selection: semanticSelection("portfolio", null),
+      children: [],
+    }],
+  };
   const groups = projection.groups.map((group) => ({
     id: `group:${group.id}`,
     label: group.label,

@@ -1,295 +1,80 @@
-import type { CanonicalComponent, CanonicalStrategyV1, RegistryPayload } from "./canonical";
-import { resolvedConfigValue } from "./patch";
+import type { CanonicalStrategyV1, RegistryPayload } from "./canonical";
+import { projectSemanticStrategy, type SemanticGroup } from "./semanticProjection";
 
 export interface GoldenGuidedProjection {
   kind: "golden";
-  growth: {
-    assets: string[];
-    assetSetId: string;
-    assetComponentId: string;
-    selectionComponentId: string;
-    randomCount: number;
-    resample: string;
-    allocationComponentId: string;
-    total: string;
-  };
-  safe: {
-    assets: string[];
-    assetSetId: string;
-    assetComponentId: string;
-    allocationComponentId: string;
-    total: string;
-  };
+  growth: { assets: string[]; assetSetId: string; assetComponentId: string; selectionComponentId: string; randomCount: number; resample: string; allocationComponentId: string; total: string };
+  safe: { assets: string[]; assetSetId: string; assetComponentId: string; allocationComponentId: string; total: string };
 }
-
 export interface SingleInvestmentGuidedProjection {
   kind: "single";
-  investment: {
-    assets: string[];
-    assetSetId: string;
-    assetComponentId: string;
-    total: string;
-    allocationComponentId: string;
-    schedule: string;
-    scheduleComponentId?: string;
-  };
+  investment: { assets: string[]; assetSetId: string; assetComponentId: string; total: string; allocationComponentId: string; schedule: string; scheduleComponentId?: string };
 }
-
-export interface MomentumGuidedProjection {
-  kind: "momentum";
-  momentum: {
-    assets: string[];
-    assetSetId: string;
-    assetComponentId: string;
-    allocationComponentId: string;
-    lookbackComponentId: string;
-    lookbackBars: number;
-    filterComponentId?: string;
-    threshold?: string;
-    rankDirection: string;
-    rankComponentId: string;
-    selectionComponentId: string;
-    topN: number;
-    fallbackComponentId?: string;
-    fallbackAssetSetRef?: string;
-    fallbackAsset?: string;
-    fallbackOptions: Array<{ id: string; asset: string }>;
-    cooldownComponentId?: string;
-    cooldownDuration?: number;
-    cooldownUnit?: string;
-    total: string;
-    schedule: string;
-    scheduleComponentId?: string;
-  };
+interface RankedGuidedSelection {
+  assets: string[]; assetSetId: string; assetComponentId: string; allocationComponentId: string;
+  lookbackComponentId: string; lookbackBars: number; filterComponentId?: string; threshold?: string;
+  rankDirection: string; rankComponentId: string; selectionComponentId: string; topN: number;
+  fallbackComponentId?: string; fallbackAssetSetRef?: string; fallbackAsset?: string;
+  fallbackOptions: Array<{ id: string; asset: string }>;
+  cooldownComponentId?: string; cooldownDuration?: number; cooldownUnit?: string;
+  total: string; schedule: string; scheduleComponentId?: string;
 }
-
+export interface MomentumGuidedProjection { kind: "momentum"; momentum: RankedGuidedSelection }
 export interface PortfolioGuidedProjection {
   kind: "portfolio";
   portfolio: { componentId: string; name: string };
-  growth: MomentumGuidedProjection["momentum"] & {
-    sleeveComponentId: string;
-    sleeveName: string;
-    allocation: string;
-    refreshScheduleComponentId?: string;
-    refreshSchedule?: string;
-  };
-  defensive: {
-    sleeveComponentId: string;
-    sleeveName: string;
-    allocation: string;
-    assets: string[];
-    assetSetId: string;
-    assetComponentId: string;
-    allocationComponentId: string;
-    refreshScheduleComponentId?: string;
-    refreshSchedule?: string;
-  };
+  growth: RankedGuidedSelection & { sleeveComponentId: string; sleeveName: string; allocation: string; refreshScheduleComponentId?: string; refreshSchedule?: string };
+  defensive: { sleeveComponentId: string; sleeveName: string; allocation: string; assets: string[]; assetSetId: string; assetComponentId: string; allocationComponentId: string; refreshScheduleComponentId?: string; refreshSchedule?: string };
   rebalanceScheduleComponentId?: string;
   rebalanceSchedule?: string;
 }
-
 export type GuidedProjection = SingleInvestmentGuidedProjection | GoldenGuidedProjection | MomentumGuidedProjection | PortfolioGuidedProjection;
 
-function requireComponent(strategy: CanonicalStrategyV1, id: string): CanonicalComponent {
-  const component = strategy.graph.components.find((item) => item.id === id);
-  if (!component) throw new Error(`Guided View requires component ${id}`);
-  return component;
-}
-
-function assetsFor(strategy: CanonicalStrategyV1, componentId: string): string[] {
-  const component = requireComponent(strategy, componentId);
-  const reference = component.primitive === "fallback@1"
-    ? component.config.fallback_asset_set_ref
-    : component.config.asset_set_ref;
-  const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
-  if (!definition) throw new Error(`Guided View cannot resolve asset set ${String(reference)}`);
-  return definition.assets;
-}
-
-function assetSetFor(strategy: CanonicalStrategyV1, componentId: string): string {
-  const component = requireComponent(strategy, componentId);
-  const reference = component.config.asset_set_ref;
-  if (typeof reference !== "string") throw new Error(`Guided View cannot resolve asset set for ${componentId}`);
-  return reference;
-}
-
-function scheduleForTarget(strategy: CanonicalStrategyV1, targetId: string) {
-  const entrypoint = strategy.entrypoints.find((item) => item.target_component_id === targetId);
-  const component = strategy.graph.components.find(
-    (item) => item.id === entrypoint?.event_component_id,
-  );
-  if (!component) return undefined;
+function ranked(group: SemanticGroup): RankedGuidedSelection {
+  const pipeline = group.pipeline;
+  if (pipeline.selectionMode !== "ranked" || !pipeline.selectionComponentId
+    || !pipeline.lookbackComponentId || pipeline.lookbackBars === undefined
+    || !pipeline.rankComponentId || !pipeline.rankDirection || pipeline.topN === undefined) {
+    throw new Error(`Guide cannot project ranked selection for ${group.id}`);
+  }
   return {
-    componentId: component.id,
-    label: component.primitive === "daily@1"
-      ? "Daily"
-      : component.primitive === "quarterly@1" ? "Quarterly" : "Monthly",
+    assets: pipeline.assets, assetSetId: pipeline.assetSetId, assetComponentId: pipeline.assetComponentId,
+    allocationComponentId: pipeline.allocationComponentId, lookbackComponentId: pipeline.lookbackComponentId,
+    lookbackBars: pipeline.lookbackBars, filterComponentId: pipeline.filterComponentId,
+    threshold: pipeline.threshold, rankDirection: pipeline.rankDirection, rankComponentId: pipeline.rankComponentId,
+    selectionComponentId: pipeline.selectionComponentId, topN: pipeline.topN,
+    fallbackComponentId: pipeline.fallbackComponentId, fallbackAssetSetRef: pipeline.fallbackAssetSetRef,
+    fallbackAsset: pipeline.fallbackAsset, fallbackOptions: pipeline.fallbackOptions,
+    cooldownComponentId: pipeline.cooldownComponentId, cooldownDuration: pipeline.cooldownDuration,
+    cooldownUnit: pipeline.cooldownUnit, total: pipeline.total, schedule: pipeline.schedule,
+    scheduleComponentId: pipeline.scheduleComponentId,
   };
 }
 
-function upstreamComponentIds(strategy: CanonicalStrategyV1, componentId: string): Set<string> {
-  const discovered = new Set<string>();
-  const pending = [componentId];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    for (const connection of strategy.graph.connections) {
-      if (connection.target.component_id !== current || discovered.has(connection.source.component_id)) continue;
-      discovered.add(connection.source.component_id);
-      pending.push(connection.source.component_id);
-    }
-  }
-  return discovered;
-}
-
-export function projectGuided(
-  strategy: CanonicalStrategyV1,
-  registry: RegistryPayload,
-): GuidedProjection {
-  const assetComponents = strategy.graph.components.filter((item) => item.primitive === "asset_set@1");
-  const singleWeight = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
-  if (assetComponents.length === 1 && singleWeight && !strategy.graph.components.some((item) => item.primitive === "top_n@1")) {
-    const schedule = scheduleForTarget(strategy, "rebalance");
+export function projectGuided(strategy: CanonicalStrategyV1, registry: RegistryPayload): GuidedProjection {
+  const semantic = projectSemanticStrategy(strategy, registry);
+  if (semantic.kind === "portfolio" && semantic.portfolioComponentId) {
+    const growth = semantic.groups.find((group) => group.pipeline.selectionMode === "ranked");
+    const defensive = semantic.groups.find((group) => group !== growth);
+    if (!growth?.sleeveComponentId || !defensive?.sleeveComponentId) throw new Error("Guide requires one ranked and one defensive sleeve");
     return {
-      kind: "single",
-      investment: {
-        assets: assetsFor(strategy, assetComponents[0].id),
-        assetSetId: assetSetFor(strategy, assetComponents[0].id),
-        assetComponentId: assetComponents[0].id,
-        allocationComponentId: singleWeight.id,
-        total: String(resolvedConfigValue(strategy, registry, singleWeight.id, "total")),
-        schedule: schedule?.label ?? "Monthly",
-        scheduleComponentId: schedule?.componentId,
-      },
+      kind: "portfolio", portfolio: { componentId: semantic.portfolioComponentId, name: semantic.title },
+      growth: { ...ranked(growth), sleeveComponentId: growth.sleeveComponentId, sleeveName: growth.name, allocation: growth.allocation, refreshScheduleComponentId: growth.refreshScheduleComponentId, refreshSchedule: growth.refreshSchedule },
+      defensive: { sleeveComponentId: defensive.sleeveComponentId, sleeveName: defensive.name, allocation: defensive.allocation, assets: defensive.pipeline.assets, assetSetId: defensive.pipeline.assetSetId, assetComponentId: defensive.pipeline.assetComponentId, allocationComponentId: defensive.pipeline.allocationComponentId, refreshScheduleComponentId: defensive.refreshScheduleComponentId, refreshSchedule: defensive.refreshSchedule },
+      rebalanceScheduleComponentId: semantic.rebalanceScheduleComponentId, rebalanceSchedule: semantic.rebalanceSchedule,
     };
   }
-  const topN = strategy.graph.components.find((item) => item.primitive === "top_n@1");
-  if (topN) {
-    const trailingReturn = strategy.graph.components.find((item) => item.primitive === "trailing_return@1");
-    const rank = strategy.graph.components.find((item) => item.primitive === "rank@1");
-    const filter = strategy.graph.components.find((item) => item.primitive === "filter@1");
-    const assets = strategy.graph.components.find((item) => item.primitive === "asset_set@1");
-    const weighting = strategy.graph.components.find((item) => item.primitive === "equal_weight@1");
-    const fallback = strategy.graph.components.find((item) => item.primitive === "fallback@1");
-    const cooldown = strategy.graph.components.find((item) => item.primitive === "cooldown@1");
-    const schedule = scheduleForTarget(strategy, "rebalance");
-    if (!trailingReturn || !rank || !assets || !weighting) {
-      throw new Error("Guided View cannot project the Momentum strategy");
-    }
-    const lookbackBars = resolvedConfigValue(strategy, registry, trailingReturn.id, "lookback_bars");
-    const count = resolvedConfigValue(strategy, registry, topN.id, "count");
-    const direction = resolvedConfigValue(strategy, registry, rank.id, "direction");
-    if (typeof lookbackBars !== "number" || typeof count !== "number" || typeof direction !== "string") {
-      throw new Error("Guided View cannot project Momentum settings");
-    }
-    const momentum = {
-        assets: assetsFor(strategy, assets.id),
-        assetSetId: assetSetFor(strategy, assets.id),
-        assetComponentId: assets.id,
-        lookbackComponentId: trailingReturn.id,
-        lookbackBars,
-        filterComponentId: filter?.id,
-        threshold: filter
-          ? String(resolvedConfigValue(strategy, registry, filter.id, "threshold"))
-          : undefined,
-        rankDirection: direction,
-        rankComponentId: rank.id,
-        selectionComponentId: topN.id,
-        topN: count,
-        fallbackComponentId: fallback?.id,
-        fallbackAssetSetRef: fallback
-          ? String(resolvedConfigValue(strategy, registry, fallback.id, "fallback_asset_set_ref"))
-          : undefined,
-        fallbackAsset: fallback ? assetsFor(strategy, fallback.id).at(0) : undefined,
-        fallbackOptions: strategy.definitions.asset_sets
-          .filter((definition) => definition.assets.length === 1)
-          .map((definition) => ({ id: definition.id, asset: definition.assets[0] })),
-        cooldownComponentId: cooldown?.id,
-        cooldownDuration: cooldown
-          ? Number(resolvedConfigValue(strategy, registry, cooldown.id, "duration"))
-          : undefined,
-        cooldownUnit: cooldown
-          ? String(resolvedConfigValue(strategy, registry, cooldown.id, "unit"))
-          : undefined,
-        total: String(resolvedConfigValue(strategy, registry, weighting.id, "total")),
-        allocationComponentId: weighting.id,
-        schedule: schedule?.label ?? "Monthly",
-        scheduleComponentId: schedule?.componentId,
-    };
-    const sleeveComponents = strategy.graph.components.filter(
-      (item) => item.primitive === "portfolio_sleeve@1",
-    );
-    const portfolio = strategy.graph.components.find((item) => item.primitive === "portfolio@1");
-    if (portfolio && sleeveComponents.length === 2) {
-      const growthSleeve = sleeveComponents.find((item) => upstreamComponentIds(strategy, item.id).has(topN.id));
-      const defensiveSleeve = sleeveComponents.find((item) => item.id !== growthSleeve?.id);
-      if (!growthSleeve || !defensiveSleeve) {
-        throw new Error("Guided View cannot identify the portfolio sleeve pipelines");
-      }
-      const defensiveUpstream = upstreamComponentIds(strategy, defensiveSleeve.id);
-      const defensiveAssets = assetComponents.find((item) => defensiveUpstream.has(item.id));
-      const growthSchedule = scheduleForTarget(strategy, growthSleeve.id);
-      const defensiveSchedule = scheduleForTarget(strategy, defensiveSleeve.id);
-      const rebalanceSchedule = scheduleForTarget(strategy, "rebalance");
-      if (!defensiveAssets) throw new Error("Guided View cannot project Defensive sleeve assets");
-      return {
-        kind: "portfolio",
-        portfolio: { componentId: portfolio.id, name: String(portfolio.config.name) },
-        growth: {
-          ...momentum,
-          sleeveComponentId: growthSleeve.id,
-          sleeveName: String(growthSleeve.config.name),
-          allocation: String(growthSleeve.config.allocation),
-          refreshScheduleComponentId: growthSchedule?.componentId,
-          refreshSchedule: growthSchedule?.label,
-        },
-        defensive: {
-          sleeveComponentId: defensiveSleeve.id,
-          sleeveName: String(defensiveSleeve.config.name),
-          allocation: String(defensiveSleeve.config.allocation),
-          assets: assetsFor(strategy, defensiveAssets.id),
-          assetSetId: assetSetFor(strategy, defensiveAssets.id),
-          assetComponentId: defensiveAssets.id,
-          allocationComponentId: strategy.graph.connections.find(
-            (item) => item.source.component_id === defensiveAssets.id,
-          )?.target.component_id ?? defensiveAssets.id,
-          refreshScheduleComponentId: defensiveSchedule?.componentId,
-          refreshSchedule: defensiveSchedule?.label,
-        },
-        rebalanceScheduleComponentId: rebalanceSchedule?.componentId,
-        rebalanceSchedule: rebalanceSchedule?.label,
-      };
-    }
+  if (semantic.kind === "portfolio") {
+    const growth = semantic.groups.find((group) => group.pipeline.selectionComponentId);
+    const safe = semantic.groups.find((group) => group !== growth);
+    if (!growth?.pipeline.selectionComponentId || growth.pipeline.randomCount === undefined || !growth.pipeline.resample || !safe) throw new Error("Guide cannot project merged portfolio");
     return {
-      kind: "momentum",
-      momentum,
+      kind: "golden",
+      growth: { assets: growth.pipeline.assets, assetSetId: growth.pipeline.assetSetId, assetComponentId: growth.pipeline.assetComponentId, selectionComponentId: growth.pipeline.selectionComponentId, randomCount: growth.pipeline.randomCount, resample: growth.pipeline.resample, allocationComponentId: growth.pipeline.allocationComponentId, total: growth.pipeline.total },
+      safe: { assets: safe.pipeline.assets, assetSetId: safe.pipeline.assetSetId, assetComponentId: safe.pipeline.assetComponentId, allocationComponentId: safe.pipeline.allocationComponentId, total: safe.pipeline.total },
     };
   }
-  const randomCount = resolvedConfigValue(strategy, registry, "growth_random", "count");
-  const resample = resolvedConfigValue(strategy, registry, "growth_random", "resample");
-  const growthTotal = resolvedConfigValue(strategy, registry, "growth_weights", "total");
-  const safeTotal = resolvedConfigValue(strategy, registry, "safe_weights", "total");
-  if (typeof randomCount !== "number" || typeof resample !== "string") {
-    throw new Error("Guided View cannot project the Growth selection");
-  }
-
-  return {
-    kind: "golden",
-    growth: {
-      assets: assetsFor(strategy, "growth_assets"),
-      assetSetId: assetSetFor(strategy, "growth_assets"),
-      assetComponentId: "growth_assets",
-      selectionComponentId: "growth_random",
-      randomCount,
-      resample,
-      allocationComponentId: "growth_weights",
-      total: String(growthTotal),
-    },
-    safe: {
-      assets: assetsFor(strategy, "safe_assets"),
-      assetSetId: assetSetFor(strategy, "safe_assets"),
-      assetComponentId: "safe_assets",
-      allocationComponentId: "safe_weights",
-      total: String(safeTotal),
-    },
-  };
+  const group = semantic.groups[0];
+  if (group.pipeline.selectionMode === "ranked" && group.pipeline.selectionComponentId) return { kind: "momentum", momentum: ranked(group) };
+  return { kind: "single", investment: { assets: group.pipeline.assets, assetSetId: group.pipeline.assetSetId, assetComponentId: group.pipeline.assetComponentId, total: group.pipeline.total, allocationComponentId: group.pipeline.allocationComponentId, schedule: group.pipeline.schedule, scheduleComponentId: group.pipeline.scheduleComponentId } };
 }
