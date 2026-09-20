@@ -6,7 +6,6 @@ import type {
   RegistryPayload,
   ValidationIssue,
 } from "../domain/canonical";
-import { applySemanticPatch, type SemanticPatch } from "../domain/patch";
 import type { SemanticSelection } from "../domain/semanticSelection";
 
 export type EditorView = "overview" | "guided" | "flow";
@@ -27,7 +26,6 @@ export interface StrategyEditorState {
 }
 
 export type StrategyEditorAction =
-  | { type: "apply_semantic_patch"; operation: SemanticPatch }
   | { type: "replace_canonical"; canonical: CanonicalStrategyV1 }
   | { type: "replace_canonical_dirty"; canonical: CanonicalStrategyV1; selection?: SemanticSelection | null }
   | { type: "set_active_view"; view: EditorView }
@@ -77,13 +75,6 @@ export function editorReducer(
         },
         validation: { status: "dirty", issues: [] },
       };
-    }
-    case "apply_semantic_patch": {
-      const result = applySemanticPatch(state.canonical, state.registry, action.operation);
-      if (!result.ok) {
-        return { ...state, validation: { status: "invalid", issues: [result.issue] } };
-      }
-      return { ...state, canonical: result.strategy, validation: { status: "dirty", issues: [] } };
     }
     case "set_active_view":
       return { ...state, editor: { ...state.editor, activeView: action.view } };
