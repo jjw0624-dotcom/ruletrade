@@ -32,7 +32,7 @@ never reconstruct or become the authored Strategy.
 | Strategy semantics | `CanonicalStrategyV1` | In immutable Revision | Summary, Guide, Flow, IR, C#, xyflow nodes |
 | Primitive vocabulary | Primitive Registry | Code-defined and serialized through schema/bootstrap | Inspector controls and labels |
 | Source validity | Canonical validator using Registry and semantic checks | No | Frontend advisory validation |
-| Structural edits | Backend authoring capabilities/apply service | Only after Save | Buttons and contextual actions |
+| Supported Strategy edits | Backend authoring capabilities/apply service | Only after Save | Buttons, forms, and contextual actions |
 | Compiler-normalized meaning | Strategy IR | Reproducible, not primary storage | LeanPlan and C# |
 | LEAN execution plan | LeanPlan | Reproducible, not authored | Generated C# |
 | Execution mechanics | QuantConnect LEAN | Result captured by Run | Docker process and assemblies |
@@ -117,8 +117,9 @@ connections and preserves each authored `component_id` and optional
 `field_path`; it is a read model, not another Strategy document. Supported
 product shapes degrade explicitly when their relationships are ambiguous
 instead of choosing the first matching primitive. Switching views does not
-create a Revision or reinitialize the Strategy. The shared Inspector edits the
-selected semantic object through the existing Canonical editing paths.
+create a Revision or reinitialize the Strategy. The shared Inspector sends
+typed intent through the backend authoring contract; a successful validated
+Canonical response replaces the working copy and all representations reproject.
 
 xyflow owns canvas rendering, edges, dragging, selection mechanics, viewport,
 zoom, pan, and fit. RuleTrade owns the Canonical-to-conceptual projection,
@@ -132,24 +133,27 @@ is not a Strategy representation and does not own another Strategy model.
 
 ## Authoring today
 
-Structural authoring is backend-owned. The frontend sends current Canonical to
+Supported authoring is backend-owned. The frontend sends current Canonical to
 `POST /v1/canonical/strategies/authoring/capabilities` and exposes only the
 returned operations. Applying an operation through
 `POST /v1/canonical/strategies/authoring/apply` returns a fully validated
-Canonical that replaces the working copy.
+Canonical that replaces the working copy. Rejection leaves the previous working
+Canonical and dirty state unchanged.
 
 Implemented structural operations include group rename, add/remove one
 supported qualification, transformation to Choose assets, add/remove fallback,
 and an explicit Growth/Defensive split transformation. The caller supplies
 required allocation and defensive-asset intent; the backend does not guess it.
-Arbitrary primitive CRUD, free edge wiring, generic Group CRUD, and unrestricted
-multiple conditions are not supported.
+Typed operations also own asset-universe membership, return lookback,
+qualification threshold, selection count and resampling, two-sleeve allocation,
+schedule cadence, fallback choice, and the duration of an existing Cooldown.
+Capabilities carry exact eligible targets, current values, choices, and useful
+constraints. Registry and domain validation remain authoritative; the frontend
+owns wording and temporary form state, not semantic eligibility.
 
-Existing field, asset-set, schedule, and allocation edits still use typed local
-frontend semantic patches. The Registry informs those controls and backend
-Canonical validation remains authoritative before persistence and execution.
-This local/backend duplication is known architectural debt. A future headless
-authoring contract may consolidate it, but it is not implemented today.
+Arbitrary primitive CRUD, free edge wiring, generic Group CRUD, unrestricted
+multiple conditions, and Cooldown creation are not supported. See the
+[current authoring contract](authoring.md).
 
 ## Evidence and experiments
 
