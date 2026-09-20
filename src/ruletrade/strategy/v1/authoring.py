@@ -15,6 +15,7 @@ from ruletrade.strategy.v1.models import (
     PortReference,
     Symbol,
 )
+from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveCategory
 from ruletrade.strategy.v1.validation import StrategySemanticError, validate_strategy_v1
 
 
@@ -66,6 +67,65 @@ class TransformToGrowthDefensiveOperation(FrozenModel):
     defensive_assets: Annotated[tuple[Symbol, ...], Field(min_length=1)]
 
 
+class UpdateAssetSetOperation(FrozenModel):
+    kind: Literal["update_asset_set"] = "update_asset_set"
+    asset_set_id: Identifier
+    assets: Annotated[tuple[Symbol, ...], Field(min_length=1)]
+
+
+class UpdateLookbackOperation(FrozenModel):
+    kind: Literal["update_lookback"] = "update_lookback"
+    component_id: Identifier
+    lookback_bars: Annotated[int, Field(ge=1)]
+
+
+class UpdateQualificationThresholdOperation(FrozenModel):
+    kind: Literal["update_qualification_threshold"] = "update_qualification_threshold"
+    component_id: Identifier
+    threshold: Decimal
+
+
+class UpdateSelectionCountOperation(FrozenModel):
+    kind: Literal["update_selection_count"] = "update_selection_count"
+    component_id: Identifier
+    count: Annotated[int, Field(ge=1)]
+
+
+class UpdateSelectionResampleOperation(FrozenModel):
+    kind: Literal["update_selection_resample"] = "update_selection_resample"
+    component_id: Identifier
+    resample: Literal["once", "per_event"]
+
+
+class SleeveAllocationInput(FrozenModel):
+    component_id: Identifier
+    allocation: Annotated[Decimal, Field(gt=0, le=1)]
+
+
+class UpdateSleeveAllocationsOperation(FrozenModel):
+    kind: Literal["update_sleeve_allocations"] = "update_sleeve_allocations"
+    allocations: Annotated[tuple[SleeveAllocationInput, ...], Field(min_length=2, max_length=2)]
+
+
+class UpdateScheduleOperation(FrozenModel):
+    kind: Literal["update_schedule"] = "update_schedule"
+    component_id: Identifier
+    cadence: Literal["daily", "monthly", "quarterly"]
+    day: Literal[1] | None = None
+
+
+class UpdateCooldownDurationOperation(FrozenModel):
+    kind: Literal["update_cooldown_duration"] = "update_cooldown_duration"
+    component_id: Identifier
+    duration: Annotated[int, Field(ge=1)]
+
+
+class UpdateFallbackAssetSetOperation(FrozenModel):
+    kind: Literal["update_fallback_asset_set"] = "update_fallback_asset_set"
+    component_id: Identifier
+    asset_set_id: Identifier
+
+
 StructuralAuthoringOperation = Annotated[
     RenameGroupOperation
     | AddQualificationConditionOperation
@@ -73,7 +133,16 @@ StructuralAuthoringOperation = Annotated[
     | TransformToChooseAssetsOperation
     | AddFallbackSelectionOperation
     | RemoveFallbackSelectionOperation
-    | TransformToGrowthDefensiveOperation,
+    | TransformToGrowthDefensiveOperation
+    | UpdateAssetSetOperation
+    | UpdateLookbackOperation
+    | UpdateQualificationThresholdOperation
+    | UpdateSelectionCountOperation
+    | UpdateSelectionResampleOperation
+    | UpdateSleeveAllocationsOperation
+    | UpdateScheduleOperation
+    | UpdateCooldownDurationOperation
+    | UpdateFallbackAssetSetOperation,
     Field(discriminator="kind"),
 ]
 
@@ -90,6 +159,59 @@ class ApplyStructuralAuthoringResponse(FrozenModel):
 class NamedCapability(FrozenModel):
     component_id: Identifier
     name: str
+
+
+class AssetSetCapability(FrozenModel):
+    asset_set_id: Identifier
+    assets: tuple[Symbol, ...]
+
+
+class IntegerCapability(FrozenModel):
+    component_id: Identifier
+    value: int
+    minimum: int
+    maximum: int | None = None
+
+
+class DecimalCapability(FrozenModel):
+    component_id: Identifier
+    value: Decimal
+
+
+class ChoiceCapability(FrozenModel):
+    component_id: Identifier
+    value: str
+    choices: tuple[str, ...]
+
+
+class AllocationCapability(FrozenModel):
+    component_id: Identifier
+    name: str
+    allocation: Decimal
+
+
+class SleeveAllocationCapability(FrozenModel):
+    portfolio_component_id: Identifier
+    sleeves: tuple[AllocationCapability, ...]
+
+
+class ScheduleChoice(FrozenModel):
+    cadence: Literal["daily", "monthly", "quarterly"]
+    requires_day: bool
+    default_day: int | None = None
+
+
+class ScheduleCapability(FrozenModel):
+    component_id: Identifier
+    cadence: Literal["daily", "monthly", "quarterly"]
+    day: int | None = None
+    choices: tuple[ScheduleChoice, ...]
+
+
+class FallbackAssetSetCapability(FrozenModel):
+    component_id: Identifier
+    asset_set_id: Identifier
+    choices: tuple[Identifier, ...]
 
 
 class StructuralAuthoringCapabilities(FrozenModel):
@@ -110,6 +232,15 @@ class StructuralAuthoringCapabilities(FrozenModel):
     add_fallback_selection: bool
     remove_fallback_selection: bool
     transform_to_growth_defensive: bool
+    asset_set_targets: tuple[AssetSetCapability, ...] = ()
+    lookback_targets: tuple[IntegerCapability, ...] = ()
+    qualification_threshold_targets: tuple[DecimalCapability, ...] = ()
+    selection_count_targets: tuple[IntegerCapability, ...] = ()
+    selection_resample_targets: tuple[ChoiceCapability, ...] = ()
+    sleeve_allocation_targets: tuple[SleeveAllocationCapability, ...] = ()
+    schedule_targets: tuple[ScheduleCapability, ...] = ()
+    cooldown_duration_targets: tuple[IntegerCapability, ...] = ()
+    fallback_asset_set_targets: tuple[FallbackAssetSetCapability, ...] = ()
 
 
 def _component(strategy: CanonicalStrategyV1, component_id: str) -> Component:
@@ -121,6 +252,200 @@ def _component(strategy: CanonicalStrategyV1, component_id: str) -> Component:
             "The referenced strategy object was not found.",
         )
     return found
+
+
+def _replace_component(strategy: CanonicalStrategyV1, component: Component) -> CanonicalStrategyV1:
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(
+                component if item.id == component.id else item for item in strategy.graph.components
+            )
+        }
+    )
+    return strategy.model_copy(update={"graph": graph})
+
+
+def _require_primitive(
+    strategy: CanonicalStrategyV1,
+    component_id: str,
+    primitives: set[str],
+    operation: str,
+) -> Component:
+    component = _component(strategy, component_id)
+    if component.primitive not in primitives:
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            f"graph.components[{component.id}]",
+            f"{operation} is not available for this strategy object.",
+        )
+    return component
+
+
+def _update_config(
+    strategy: CanonicalStrategyV1,
+    component: Component,
+    field: str,
+    value: object,
+) -> CanonicalStrategyV1:
+    return _replace_component(
+        strategy,
+        component.model_copy(update={"config": {**component.config, field: value}}),
+    )
+
+
+def _incoming_component_ids(strategy: CanonicalStrategyV1, component_id: str) -> tuple[str, ...]:
+    return tuple(
+        connection.source.component_id
+        for connection in strategy.graph.connections
+        if connection.target.component_id == component_id
+    )
+
+
+def _upstream_asset_set_size(strategy: CanonicalStrategyV1, component_id: str) -> int | None:
+    components = {item.id: item for item in strategy.graph.components}
+    definitions = {item.id: item for item in strategy.definitions.asset_sets}
+    pending = list(_incoming_component_ids(strategy, component_id))
+    seen: set[str] = set()
+    sizes: set[int] = set()
+    while pending:
+        current_id = pending.pop()
+        if current_id in seen:
+            continue
+        seen.add(current_id)
+        current = components.get(current_id)
+        if current is None:
+            continue
+        if current.primitive == "asset_set@1":
+            reference = current.config.get("asset_set_ref")
+            definition = definitions.get(str(reference))
+            if definition is not None:
+                sizes.add(len(definition.assets))
+            continue
+        pending.extend(_incoming_component_ids(strategy, current_id))
+    return next(iter(sizes)) if len(sizes) == 1 else None
+
+
+def _update_asset_set(
+    strategy: CanonicalStrategyV1, operation: UpdateAssetSetOperation
+) -> CanonicalStrategyV1:
+    definition = next(
+        (item for item in strategy.definitions.asset_sets if item.id == operation.asset_set_id),
+        None,
+    )
+    referenced = any(
+        item.primitive == "asset_set@1" and item.config.get("asset_set_ref") == operation.asset_set_id
+        for item in strategy.graph.components
+    )
+    if definition is None or not referenced:
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            f"definitions.asset_sets[{operation.asset_set_id}]",
+            "That asset universe is not editable here.",
+        )
+    normalized = tuple(symbol.upper() for symbol in operation.assets)
+    if len(set(normalized)) != len(normalized):
+        raise StructuralAuthoringError(
+            "invalid_input",
+            f"definitions.asset_sets[{definition.id}].assets",
+            "Ticker symbols must be unique.",
+        )
+    replacement = definition.model_copy(update={"assets": list(normalized)})
+    definitions = strategy.definitions.model_copy(
+        update={
+            "asset_sets": tuple(
+                replacement if item.id == definition.id else item for item in strategy.definitions.asset_sets
+            )
+        }
+    )
+    return strategy.model_copy(update={"definitions": definitions})
+
+
+def _update_selection_count(
+    strategy: CanonicalStrategyV1, operation: UpdateSelectionCountOperation
+) -> CanonicalStrategyV1:
+    component = _require_primitive(
+        strategy,
+        operation.component_id,
+        {"top_n@1", "random_select@1"},
+        "Selection count editing",
+    )
+    maximum = _upstream_asset_set_size(strategy, component.id)
+    if maximum is not None and operation.count > maximum:
+        raise StructuralAuthoringError(
+            "selection_count_exceeds_assets",
+            f"graph.components[{component.id}].config.count",
+            "Choose cannot be greater than the number of available assets.",
+        )
+    return _update_config(strategy, component, "count", operation.count)
+
+
+def _update_allocations(
+    strategy: CanonicalStrategyV1, operation: UpdateSleeveAllocationsOperation
+) -> CanonicalStrategyV1:
+    ids = tuple(item.component_id for item in operation.allocations)
+    if len(set(ids)) != 2:
+        raise StructuralAuthoringError(
+            "invalid_input", "portfolio.allocations", "Exactly two portfolio groups are required."
+        )
+    portfolio_sleeves = {
+        connection.source.component_id
+        for connection in strategy.graph.connections
+        if connection.target.port == "sleeves"
+        and _component(strategy, connection.target.component_id).primitive == "portfolio@1"
+    }
+    if set(ids) != portfolio_sleeves or len(portfolio_sleeves) != 2:
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            "portfolio.allocations",
+            "Those portfolio groups cannot be allocated together.",
+        )
+    if sum((item.allocation for item in operation.allocations), Decimal(0)) != Decimal(1):
+        raise StructuralAuthoringError(
+            "invalid_input", "portfolio.allocations", "Portfolio allocations must total 100%."
+        )
+    updates = {item.component_id: item.allocation for item in operation.allocations}
+    components = tuple(
+        item.model_copy(update={"config": {**item.config, "allocation": updates[item.id]}})
+        if item.id in updates
+        else item
+        for item in strategy.graph.components
+    )
+    return strategy.model_copy(update={"graph": strategy.graph.model_copy(update={"components": components})})
+
+
+def _update_schedule(
+    strategy: CanonicalStrategyV1, operation: UpdateScheduleOperation
+) -> CanonicalStrategyV1:
+    component = _component(strategy, operation.component_id)
+    try:
+        current = BUILTIN_REGISTRY.get(component.primitive)
+    except KeyError as exc:
+        raise StructuralAuthoringError(
+            "unsupported_target", f"graph.components[{component.id}]", "That schedule is unavailable."
+        ) from exc
+    if current.category != PrimitiveCategory.EVENT:
+        raise StructuralAuthoringError(
+            "unsupported_target", f"graph.components[{component.id}]", "That object is not a schedule."
+        )
+    primitive = f"{operation.cadence}@1"
+    config: dict[str, object] = {}
+    if operation.cadence in {"monthly", "quarterly"}:
+        config["day"] = operation.day if operation.day is not None else 1
+    replacement = component.model_copy(update={"primitive": primitive, "config": config})
+    return _replace_component(strategy, replacement)
+
+
+def _validate_authoring_invariants(strategy: CanonicalStrategyV1) -> None:
+    for component in strategy.graph.components:
+        if component.primitive not in {"top_n@1", "random_select@1"}:
+            continue
+        maximum = _upstream_asset_set_size(strategy, component.id)
+        if maximum is not None and int(component.config["count"]) > maximum:
+            raise StructuralAuthoringError(
+                "selection_count_exceeds_assets",
+                f"graph.components[{component.id}].config.count",
+                "Choose cannot be greater than the number of available assets.",
+            )
 
 
 def _to(strategy: CanonicalStrategyV1, component_id: str) -> tuple[Connection, ...]:
@@ -139,9 +464,7 @@ def _from(strategy: CanonicalStrategyV1, component_id: str) -> tuple[Connection,
     )
 
 
-def _rename(
-    strategy: CanonicalStrategyV1, operation: RenameGroupOperation
-) -> CanonicalStrategyV1:
+def _rename(strategy: CanonicalStrategyV1, operation: RenameGroupOperation) -> CanonicalStrategyV1:
     group = _component(strategy, operation.group_component_id)
     if group.primitive != "portfolio_sleeve@1":
         raise StructuralAuthoringError(
@@ -171,17 +494,14 @@ def _rename(
     graph = strategy.graph.model_copy(
         update={
             "components": tuple(
-                replacement if item.id == group.id else item
-                for item in strategy.graph.components
+                replacement if item.id == group.id else item for item in strategy.graph.components
             )
         }
     )
     return strategy.model_copy(update={"graph": graph})
 
 
-def _qualification_source(
-    strategy: CanonicalStrategyV1, rank_id: str
-) -> Connection:
+def _qualification_source(strategy: CanonicalStrategyV1, rank_id: str) -> Connection:
     rank = _component(strategy, rank_id)
     inbound = _to(strategy, rank.id)
     if rank.primitive != "rank@1" or len(inbound) != 1:
@@ -258,15 +578,9 @@ def _remove(
     referenced = tuple(
         item
         for item in strategy.graph.connections
-        if item.source.component_id == condition.id
-        or item.target.component_id == condition.id
+        if item.source.component_id == condition.id or item.target.component_id == condition.id
     )
-    if (
-        condition.primitive != "filter@1"
-        or len(inbound) != 1
-        or len(outbound) != 1
-        or len(referenced) != 2
-    ):
+    if condition.primitive != "filter@1" or len(inbound) != 1 or len(outbound) != 1 or len(referenced) != 2:
         raise StructuralAuthoringError(
             "unsupported_qualification_structure",
             f"graph.components[{condition.id}]",
@@ -294,20 +608,14 @@ def _remove(
             connections.append(item)
     graph = strategy.graph.model_copy(
         update={
-            "components": tuple(
-                item
-                for item in strategy.graph.components
-                if item.id != condition.id
-            ),
+            "components": tuple(item for item in strategy.graph.components if item.id != condition.id),
             "connections": tuple(connections),
         }
     )
     return strategy.model_copy(update={"graph": graph})
 
 
-def _connections_to(
-    strategy: CanonicalStrategyV1, component_id: str, port: str
-) -> tuple[Connection, ...]:
+def _connections_to(strategy: CanonicalStrategyV1, component_id: str, port: str) -> tuple[Connection, ...]:
     return tuple(
         item
         for item in strategy.graph.connections
@@ -315,9 +623,7 @@ def _connections_to(
     )
 
 
-def _connections_from(
-    strategy: CanonicalStrategyV1, component_id: str, port: str
-) -> tuple[Connection, ...]:
+def _connections_from(strategy: CanonicalStrategyV1, component_id: str, port: str) -> tuple[Connection, ...]:
     return tuple(
         item
         for item in strategy.graph.connections
@@ -374,9 +680,7 @@ def _transform_to_choose(
 ) -> CanonicalStrategyV1:
     assets, direct, _ = _simple_weight_source(strategy, operation.weight_component_id)
     asset_set_ref = str(assets.config["asset_set_ref"])
-    asset_set = next(
-        item for item in strategy.definitions.asset_sets if item.id == asset_set_ref
-    )
+    asset_set = next(item for item in strategy.definitions.asset_sets if item.id == asset_set_ref)
     if operation.count > len(asset_set.assets):
         raise StructuralAuthoringError(
             "selection_count_exceeds_assets",
@@ -425,15 +729,11 @@ def _transform_to_choose(
     connections: list[Connection] = []
     for item in strategy.graph.connections:
         connections.extend(replacement if item == direct else (item,))
-    graph = strategy.graph.model_copy(
-        update={"components": components, "connections": tuple(connections)}
-    )
+    graph = strategy.graph.model_copy(update={"components": components, "connections": tuple(connections)})
     return strategy.model_copy(update={"graph": graph})
 
 
-def _filtered_selection_source(
-    strategy: CanonicalStrategyV1, weight_component_id: str
-) -> Connection:
+def _filtered_selection_source(strategy: CanonicalStrategyV1, weight_component_id: str) -> Connection:
     weight = _component(strategy, weight_component_id)
     inbound = _connections_to(strategy, weight.id, "assets")
     outbound = _connections_from(strategy, weight.id, "targets")
@@ -455,7 +755,9 @@ def _filtered_selection_source(
     filter_inputs = _connections_to(strategy, rank.id, "scores")
     if rank.primitive != "rank@1" or len(filter_inputs) != 1:
         raise StructuralAuthoringError(
-            "unsupported_shape_transformation", f"graph.components[{rank.id}]", "Fallback requires a ranked selection."
+            "unsupported_shape_transformation",
+            f"graph.components[{rank.id}]",
+            "Fallback requires a ranked selection.",
         )
     condition = _component(strategy, filter_inputs[0].source.component_id)
     destination = _component(strategy, outbound[0].target.component_id)
@@ -523,15 +825,9 @@ def _remove_fallback(
     referenced = tuple(
         item
         for item in strategy.graph.connections
-        if item.source.component_id == fallback.id
-        or item.target.component_id == fallback.id
+        if item.source.component_id == fallback.id or item.target.component_id == fallback.id
     )
-    if (
-        fallback.primitive != "fallback@1"
-        or len(inbound) != 1
-        or len(outbound) != 1
-        or len(referenced) != 2
-    ):
+    if fallback.primitive != "fallback@1" or len(inbound) != 1 or len(outbound) != 1 or len(referenced) != 2:
         raise StructuralAuthoringError(
             "unsupported_fallback_structure",
             f"graph.components[{fallback.id}]",
@@ -542,14 +838,8 @@ def _remove_fallback(
     if (
         primary.primitive != "equal_weight@1"
         or inbound[0].source.port != "targets"
-        or (
-            destination.primitive == "rebalance@1"
-            and outbound[0].target.port != "targets"
-        )
-        or (
-            destination.primitive == "portfolio_sleeve@1"
-            and outbound[0].target.port != "local_targets"
-        )
+        or (destination.primitive == "rebalance@1" and outbound[0].target.port != "targets")
+        or (destination.primitive == "portfolio_sleeve@1" and outbound[0].target.port != "local_targets")
         or destination.primitive not in {"rebalance@1", "portfolio_sleeve@1"}
     ):
         raise StructuralAuthoringError(
@@ -559,8 +849,7 @@ def _remove_fallback(
         )
     definition_id = str(fallback.config.get("fallback_asset_set_ref", ""))
     if not definition_id or any(
-        item.id != fallback.id and definition_id in item.config.values()
-        for item in strategy.graph.components
+        item.id != fallback.id and definition_id in item.config.values() for item in strategy.graph.components
     ):
         raise StructuralAuthoringError(
             "shared_fallback_assets",
@@ -576,27 +865,19 @@ def _remove_fallback(
             connections.append(item)
     graph = strategy.graph.model_copy(
         update={
-            "components": tuple(
-                item for item in strategy.graph.components if item.id != fallback.id
-            ),
+            "components": tuple(item for item in strategy.graph.components if item.id != fallback.id),
             "connections": tuple(connections),
         }
     )
     definitions = strategy.definitions.model_copy(
         update={
-            "asset_sets": tuple(
-                item
-                for item in strategy.definitions.asset_sets
-                if item.id != definition_id
-            )
+            "asset_sets": tuple(item for item in strategy.definitions.asset_sets if item.id != definition_id)
         }
     )
     return strategy.model_copy(update={"definitions": definitions, "graph": graph})
 
 
-def _simple_portfolio_output(
-    strategy: CanonicalStrategyV1, target_component_id: str
-) -> Connection:
+def _simple_portfolio_output(strategy: CanonicalStrategyV1, target_component_id: str) -> Connection:
     target = _component(strategy, target_component_id)
     outbound = _connections_from(strategy, target.id, "targets")
     if (
@@ -604,10 +885,7 @@ def _simple_portfolio_output(
         or len(outbound) != 1
         or _component(strategy, outbound[0].target.component_id).primitive != "rebalance@1"
         or outbound[0].target.port != "targets"
-        or any(
-            item.primitive in {"portfolio@1", "portfolio_sleeve@1"}
-            for item in strategy.graph.components
-        )
+        or any(item.primitive in {"portfolio@1", "portfolio_sleeve@1"} for item in strategy.graph.components)
     ):
         raise StructuralAuthoringError(
             "unsupported_shape_transformation",
@@ -622,9 +900,7 @@ def _transform_to_growth_defensive(
     operation: TransformToGrowthDefensiveOperation,
 ) -> CanonicalStrategyV1:
     direct = _simple_portfolio_output(strategy, operation.target_component_id)
-    normalized_defensive_assets = tuple(
-        symbol.strip().upper() for symbol in operation.defensive_assets
-    )
+    normalized_defensive_assets = tuple(symbol.strip().upper() for symbol in operation.defensive_assets)
     if len(set(normalized_defensive_assets)) != len(normalized_defensive_assets):
         raise StructuralAuthoringError(
             "duplicate_asset",
@@ -716,9 +992,7 @@ def _transform_to_growth_defensive(
     connections: list[Connection] = []
     for item in strategy.graph.connections:
         connections.extend(replacement if item == direct else (item,))
-    graph = strategy.graph.model_copy(
-        update={"components": components, "connections": tuple(connections)}
-    )
+    graph = strategy.graph.model_copy(update={"components": components, "connections": tuple(connections)})
     return strategy.model_copy(update={"definitions": definitions, "graph": graph})
 
 
@@ -738,8 +1012,55 @@ def apply_structural_operation(
         candidate = _add_fallback(strategy, operation)
     elif isinstance(operation, RemoveFallbackSelectionOperation):
         candidate = _remove_fallback(strategy, operation)
-    else:
+    elif isinstance(operation, TransformToGrowthDefensiveOperation):
         candidate = _transform_to_growth_defensive(strategy, operation)
+    elif isinstance(operation, UpdateAssetSetOperation):
+        candidate = _update_asset_set(strategy, operation)
+    elif isinstance(operation, UpdateLookbackOperation):
+        component = _require_primitive(
+            strategy, operation.component_id, {"trailing_return@1"}, "Lookback editing"
+        )
+        candidate = _update_config(strategy, component, "lookback_bars", operation.lookback_bars)
+    elif isinstance(operation, UpdateQualificationThresholdOperation):
+        component = _require_primitive(strategy, operation.component_id, {"filter@1"}, "Threshold editing")
+        candidate = _update_config(strategy, component, "threshold", operation.threshold)
+    elif isinstance(operation, UpdateSelectionCountOperation):
+        candidate = _update_selection_count(strategy, operation)
+    elif isinstance(operation, UpdateSelectionResampleOperation):
+        component = _require_primitive(
+            strategy, operation.component_id, {"random_select@1"}, "Resample editing"
+        )
+        candidate = _update_config(strategy, component, "resample", operation.resample)
+    elif isinstance(operation, UpdateSleeveAllocationsOperation):
+        candidate = _update_allocations(strategy, operation)
+    elif isinstance(operation, UpdateScheduleOperation):
+        candidate = _update_schedule(strategy, operation)
+    elif isinstance(operation, UpdateCooldownDurationOperation):
+        component = _require_primitive(strategy, operation.component_id, {"cooldown@1"}, "Cooldown editing")
+        candidate = _update_config(strategy, component, "duration", operation.duration)
+    else:
+        component = _require_primitive(
+            strategy,
+            operation.component_id,
+            {"fallback@1"},
+            "Fallback editing",
+        )
+        definition = next(
+            (
+                item
+                for item in strategy.definitions.asset_sets
+                if item.id == operation.asset_set_id and len(item.assets) == 1
+            ),
+            None,
+        )
+        if definition is None:
+            raise StructuralAuthoringError(
+                "invalid_input",
+                f"definitions.asset_sets[{operation.asset_set_id}]",
+                "Fallback must reference an existing single-asset set.",
+            )
+        candidate = _update_config(strategy, component, "fallback_asset_set_ref", definition.id)
+    _validate_authoring_invariants(candidate)
     try:
         validate_strategy_v1(candidate)
     except StrategySemanticError as exc:
@@ -769,7 +1090,84 @@ def structural_authoring_capabilities(
     fallback_targets: list[str] = []
     fallback_remove_targets: list[str] = []
     growth_defensive_targets: list[str] = []
+    asset_set_ids = {
+        str(item.config.get("asset_set_ref"))
+        for item in strategy.graph.components
+        if item.primitive == "asset_set@1"
+    }
+    asset_set_targets = tuple(
+        AssetSetCapability(asset_set_id=item.id, assets=tuple(item.assets))
+        for item in strategy.definitions.asset_sets
+        if item.id in asset_set_ids
+    )
+    lookback_targets: list[IntegerCapability] = []
+    threshold_targets: list[DecimalCapability] = []
+    selection_count_targets: list[IntegerCapability] = []
+    resample_targets: list[ChoiceCapability] = []
+    schedule_targets: list[ScheduleCapability] = []
+    cooldown_targets: list[IntegerCapability] = []
+    fallback_edit_targets: list[FallbackAssetSetCapability] = []
+    singleton_asset_sets = tuple(item.id for item in strategy.definitions.asset_sets if len(item.assets) == 1)
     for item in strategy.graph.components:
+        resolved = BUILTIN_REGISTRY.resolve_config(item.primitive, item.config)
+        if item.primitive == "trailing_return@1":
+            lookback_targets.append(
+                IntegerCapability(
+                    component_id=item.id,
+                    value=int(resolved["lookback_bars"]),
+                    minimum=1,
+                )
+            )
+        elif item.primitive == "filter@1":
+            threshold_targets.append(
+                DecimalCapability(component_id=item.id, value=Decimal(str(resolved["threshold"])))
+            )
+        elif item.primitive in {"top_n@1", "random_select@1"}:
+            selection_count_targets.append(
+                IntegerCapability(
+                    component_id=item.id,
+                    value=int(resolved["count"]),
+                    minimum=1,
+                    maximum=_upstream_asset_set_size(strategy, item.id),
+                )
+            )
+            if item.primitive == "random_select@1":
+                resample_targets.append(
+                    ChoiceCapability(
+                        component_id=item.id,
+                        value=str(resolved["resample"]),
+                        choices=("once", "per_event"),
+                    )
+                )
+        elif item.primitive in {"daily@1", "monthly@1", "quarterly@1"}:
+            schedule_targets.append(
+                ScheduleCapability(
+                    component_id=item.id,
+                    cadence=item.primitive.removesuffix("@1"),
+                    day=int(resolved["day"]) if "day" in resolved else None,
+                    choices=(
+                        ScheduleChoice(cadence="daily", requires_day=False),
+                        ScheduleChoice(cadence="monthly", requires_day=True, default_day=1),
+                        ScheduleChoice(cadence="quarterly", requires_day=True, default_day=1),
+                    ),
+                )
+            )
+        elif item.primitive == "cooldown@1":
+            cooldown_targets.append(
+                IntegerCapability(
+                    component_id=item.id,
+                    value=int(resolved["duration"]),
+                    minimum=1,
+                )
+            )
+        elif item.primitive == "fallback@1":
+            fallback_edit_targets.append(
+                FallbackAssetSetCapability(
+                    component_id=item.id,
+                    asset_set_id=str(resolved["fallback_asset_set_ref"]),
+                    choices=singleton_asset_sets,
+                )
+            )
         if item.primitive == "rank@1":
             try:
                 _qualification_source(strategy, item.id)
@@ -781,9 +1179,7 @@ def structural_authoring_capabilities(
             try:
                 apply_structural_operation(
                     strategy,
-                    RemoveQualificationConditionOperation(
-                        condition_component_id=item.id
-                    ),
+                    RemoveQualificationConditionOperation(condition_component_id=item.id),
                 )
             except StructuralAuthoringError:
                 pass
@@ -819,6 +1215,35 @@ def structural_authoring_capabilities(
                 pass
             else:
                 fallback_remove_targets.append(item.id)
+    allocation_targets: list[SleeveAllocationCapability] = []
+    components = {item.id: item for item in strategy.graph.components}
+    for portfolio in strategy.graph.components:
+        if portfolio.primitive != "portfolio@1":
+            continue
+        sleeve_ids = tuple(
+            connection.source.component_id
+            for connection in strategy.graph.connections
+            if connection.target.component_id == portfolio.id and connection.target.port == "sleeves"
+        )
+        sleeves = tuple(
+            components[item]
+            for item in sleeve_ids
+            if item in components and components[item].primitive == "portfolio_sleeve@1"
+        )
+        if len(sleeves) == len(sleeve_ids) == 2:
+            allocation_targets.append(
+                SleeveAllocationCapability(
+                    portfolio_component_id=portfolio.id,
+                    sleeves=tuple(
+                        AllocationCapability(
+                            component_id=item.id,
+                            name=str(item.config["name"]),
+                            allocation=Decimal(str(item.config["allocation"])),
+                        )
+                        for item in sleeves
+                    ),
+                )
+            )
     return StructuralAuthoringCapabilities(
         groups=groups,
         qualification_add_targets=tuple(add_targets),
@@ -834,4 +1259,13 @@ def structural_authoring_capabilities(
         add_fallback_selection=bool(fallback_targets),
         remove_fallback_selection=bool(fallback_remove_targets),
         transform_to_growth_defensive=bool(growth_defensive_targets),
+        asset_set_targets=asset_set_targets,
+        lookback_targets=tuple(lookback_targets),
+        qualification_threshold_targets=tuple(threshold_targets),
+        selection_count_targets=tuple(selection_count_targets),
+        selection_resample_targets=tuple(resample_targets),
+        sleeve_allocation_targets=tuple(allocation_targets),
+        schedule_targets=tuple(schedule_targets),
+        cooldown_duration_targets=tuple(cooldown_targets),
+        fallback_asset_set_targets=tuple(fallback_edit_targets),
     )
