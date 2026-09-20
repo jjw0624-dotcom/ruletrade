@@ -31,6 +31,10 @@ const capabilities: StructuralAuthoringCapabilities = {
   create_choose_pipeline: false,
   add_fallback_selection: false,
   transform_to_growth_defensive: false,
+  asset_set_targets: [], lookback_targets: [], qualification_threshold_targets: [],
+  selection_count_targets: [], selection_resample_targets: [],
+  sleeve_allocation_targets: [], schedule_targets: [], cooldown_duration_targets: [],
+  fallback_asset_set_targets: [],
 };
 
 function stateFor(
@@ -90,6 +94,28 @@ describe("Structural Authoring Guide and Flow integration", () => {
         count: 1,
       },
     });
+  });
+
+  it("sends typed edits through the same backend authoring boundary", async () => {
+    const returned = structuredClone(filterBootstrap.strategy);
+    returned.graph.components.find((item) => item.id === "monthly")!.primitive = "daily@1";
+    returned.graph.components.find((item) => item.id === "monthly")!.config = {};
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ strategy: returned }), { status: 200 }),
+    );
+    const result = await structuralAuthoringApi.apply(filterBootstrap.strategy, {
+      kind: "update_schedule",
+      component_id: "monthly",
+      cadence: "daily",
+      day: null,
+    }, fetcher);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
+      strategy: filterBootstrap.strategy,
+      operation: { kind: "update_schedule", component_id: "monthly", cadence: "daily", day: null },
+    });
+    expect(result).toEqual(returned);
+    expect(filterBootstrap.strategy.graph.components.find((item) => item.id === "monthly")?.primitive)
+      .toBe("monthly@1");
   });
 
   it("exposes transformations only from backend capability targets", () => {
