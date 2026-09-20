@@ -17,15 +17,25 @@ from ruletrade.strategy.v1.authoring import (
     RemoveFallbackSelectionOperation,
     RemoveQualificationConditionOperation,
     RenameGroupOperation,
+    SleeveAllocationInput,
     StructuralAuthoringError,
     TransformToChooseAssetsOperation,
     TransformToGrowthDefensiveOperation,
+    UpdateAssetSetOperation,
+    UpdateCooldownDurationOperation,
+    UpdateLookbackOperation,
+    UpdateQualificationThresholdOperation,
+    UpdateScheduleOperation,
+    UpdateSelectionCountOperation,
+    UpdateSleeveAllocationsOperation,
     apply_structural_operation,
     structural_authoring_capabilities,
 )
 from ruletrade.strategy.v1.fixtures import (
+    cooldown_strategy,
     fallback_momentum_strategy,
     filter_screening_strategy,
+    independent_schedules_strategy,
     momentum_top_n_strategy,
     one_investment_strategy,
     portfolio_sleeves_strategy,
@@ -43,15 +53,14 @@ def test_rename_group_preserves_source_and_ids() -> None:
     before = original.model_dump(mode="json")
     edited = apply_structural_operation(
         original,
-        RenameGroupOperation(
-            group_component_id="growth_sleeve", name="  Opportunity  "
-        ),
+        RenameGroupOperation(group_component_id="growth_sleeve", name="  Opportunity  "),
     )
     assert original.model_dump(mode="json") == before
     assert _ids(edited) == _ids(original)
-    assert next(
-        item for item in edited.graph.components if item.id == "growth_sleeve"
-    ).config["name"] == "Opportunity"
+    assert (
+        next(item for item in edited.graph.components if item.id == "growth_sleeve").config["name"]
+        == "Opportunity"
+    )
     compile_strategy_to_lean_plan(edited)
 
 
@@ -61,9 +70,7 @@ def test_rename_rejects_duplicate_atomically() -> None:
     with pytest.raises(StructuralAuthoringError) as raised:
         apply_structural_operation(
             original,
-            RenameGroupOperation(
-                group_component_id="growth_sleeve", name="defensive"
-            ),
+            RenameGroupOperation(group_component_id="growth_sleeve", name="defensive"),
         )
     assert raised.value.code == "duplicate_group_name"
     assert original.model_dump(mode="json") == before
@@ -73,22 +80,16 @@ def test_add_condition_rewires_compiles_and_preserves_provenance() -> None:
     original = momentum_top_n_strategy()
     edited = apply_structural_operation(
         original,
-        AddQualificationConditionOperation(
-            rank_component_id="momentum_rank", threshold=Decimal("0.05")
-        ),
+        AddQualificationConditionOperation(rank_component_id="momentum_rank", threshold=Decimal("0.05")),
     )
     assert _ids(edited)[:-1] == _ids(original)
     assert _ids(edited)[-1] == "momentum_rank_qualification"
     operation = next(
-        item
-        for item in lower_strategy_model_to_ir(edited).operations
-        if isinstance(item, FilterOp)
+        item for item in lower_strategy_model_to_ir(edited).operations if isinstance(item, FilterOp)
     )
     assert operation.provenance.component_id == "momentum_rank_qualification"
     plan = compile_strategy_to_lean_plan(edited)
-    assert plan.momentum_selections[0].filter_component_id == (
-        "momentum_rank_qualification"
-    )
+    assert plan.momentum_selections[0].filter_component_id == ("momentum_rank_qualification")
     source = generate_csharp(plan)
     assert ".Where(item => item.Value > 0.05m)" in source
     assert '"filter_component", "momentum_rank_qualification"' in source
@@ -96,12 +97,8 @@ def test_add_condition_rewires_compiles_and_preserves_provenance() -> None:
 
 def test_condition_add_is_deterministic_and_single_only() -> None:
     original = momentum_top_n_strategy()
-    operation = AddQualificationConditionOperation(
-        rank_component_id="momentum_rank"
-    )
-    assert apply_structural_operation(
-        original, operation
-    ) == apply_structural_operation(original, operation)
+    operation = AddQualificationConditionOperation(rank_component_id="momentum_rank")
+    assert apply_structural_operation(original, operation) == apply_structural_operation(original, operation)
     with pytest.raises(StructuralAuthoringError) as raised:
         apply_structural_operation(filter_screening_strategy(), operation)
     assert raised.value.code == "qualification_condition_exists"
@@ -111,26 +108,18 @@ def test_remove_condition_reconnects_and_preserves_surviving_ids() -> None:
     original = filter_screening_strategy()
     edited = apply_structural_operation(
         original,
-        RemoveQualificationConditionOperation(
-            condition_component_id="positive_return"
-        ),
+        RemoveQualificationConditionOperation(condition_component_id="positive_return"),
     )
-    assert _ids(edited) == tuple(
-        item for item in _ids(original) if item != "positive_return"
-    )
+    assert _ids(edited) == tuple(item for item in _ids(original) if item != "positive_return")
     assert any(
-        item.source.component_id == "momentum"
-        and item.target.component_id == "momentum_rank"
+        item.source.component_id == "momentum" and item.target.component_id == "momentum_rank"
         for item in edited.graph.connections
     )
     assert not any(
-        item.source.component_id == "positive_return"
-        or item.target.component_id == "positive_return"
+        item.source.component_id == "positive_return" or item.target.component_id == "positive_return"
         for item in edited.graph.connections
     )
-    assert compile_strategy_to_lean_plan(
-        edited
-    ).momentum_selections[0].filter_component_id is None
+    assert compile_strategy_to_lean_plan(edited).momentum_selections[0].filter_component_id is None
 
 
 def test_remove_filter_required_by_fallback_is_atomic() -> None:
@@ -139,9 +128,7 @@ def test_remove_filter_required_by_fallback_is_atomic() -> None:
     with pytest.raises(StructuralAuthoringError) as raised:
         apply_structural_operation(
             original,
-            RemoveQualificationConditionOperation(
-                condition_component_id="positive_return"
-            ),
+            RemoveQualificationConditionOperation(condition_component_id="positive_return"),
         )
     assert raised.value.code == "result_invalid"
     assert original.model_dump(mode="json") == before
@@ -158,13 +145,10 @@ def test_remove_fallback_reconnects_selection_and_removes_owned_definition() -> 
     assert "fallback" not in _ids(edited)
     assert all(item.id != "fallback_tlt" for item in edited.definitions.asset_sets)
     assert any(
-        item.source.component_id == "weights"
-        and item.target.component_id == "rebalance"
+        item.source.component_id == "weights" and item.target.component_id == "rebalance"
         for item in edited.graph.connections
     )
-    assert structural_authoring_capabilities(original).fallback_remove_targets == (
-        "fallback",
-    )
+    assert structural_authoring_capabilities(original).fallback_remove_targets == ("fallback",)
     assert structural_authoring_capabilities(edited).fallback_remove_targets == ()
     compile_strategy_to_lean_plan(edited)
 
@@ -203,24 +187,16 @@ def test_one_investment_evolves_through_supported_shapes_and_compiles() -> None:
     )
     assert original.model_dump(mode="json") == original_payload
     assert original_ids < set(_ids(choose))
-    assert {"weights_trailing_return", "weights_rank", "weights_top_n"} <= set(
-        _ids(choose)
-    )
-    assert structural_authoring_capabilities(choose).qualification_add_targets == (
-        "weights_rank",
-    )
+    assert {"weights_trailing_return", "weights_rank", "weights_top_n"} <= set(_ids(choose))
+    assert structural_authoring_capabilities(choose).qualification_add_targets == ("weights_rank",)
 
     filtered = apply_structural_operation(
         choose,
-        AddQualificationConditionOperation(
-            rank_component_id="weights_rank", threshold=Decimal("0.02")
-        ),
+        AddQualificationConditionOperation(rank_component_id="weights_rank", threshold=Decimal("0.02")),
     )
     with_fallback = apply_structural_operation(
         filtered,
-        AddFallbackSelectionOperation(
-            weight_component_id="weights", fallback_asset="tlt"
-        ),
+        AddFallbackSelectionOperation(weight_component_id="weights", fallback_asset="tlt"),
     )
     split = apply_structural_operation(
         with_fallback,
@@ -233,31 +209,21 @@ def test_one_investment_evolves_through_supported_shapes_and_compiles() -> None:
 
     assert original_ids < set(_ids(split))
     assert next(
-        item
-        for item in split.definitions.asset_sets
-        if item.id == "weights_fallback_assets"
+        item for item in split.definitions.asset_sets if item.id == "weights_fallback_assets"
     ).assets == ["TLT"]
     assert next(
-        item
-        for item in split.definitions.asset_sets
-        if item.id == "weights_fallback_defensive_assets"
+        item for item in split.definitions.asset_sets if item.id == "weights_fallback_defensive_assets"
     ).assets == ["IEF", "SHY"]
     assert next(
-        item
-        for item in split.graph.components
-        if item.id == "weights_fallback_growth_sleeve"
+        item for item in split.graph.components if item.id == "weights_fallback_growth_sleeve"
     ).config["allocation"] == Decimal("0.65")
     assert next(
-        item
-        for item in split.graph.components
-        if item.id == "weights_fallback_defensive_sleeve"
+        item for item in split.graph.components if item.id == "weights_fallback_defensive_sleeve"
     ).config["allocation"] == Decimal("0.35")
     assert split.entrypoints == original.entrypoints
     plan = compile_strategy_to_lean_plan(split)
     source = generate_csharp(plan)
-    assert plan.momentum_selections[0].filter_component_id == (
-        "weights_rank_qualification"
-    )
+    assert plan.momentum_selections[0].filter_component_id == ("weights_rank_qualification")
     assert '"filter_component", "weights_rank_qualification"' in source
     assert "weights_fallback_growth_sleeve" in source
 
@@ -267,9 +233,7 @@ def test_shape_transformations_are_deterministic_and_atomic() -> None:
     operation = TransformToChooseAssetsOperation(
         weight_component_id="weights", lookback_observations=126, count=1
     )
-    assert apply_structural_operation(original, operation) == apply_structural_operation(
-        original, operation
-    )
+    assert apply_structural_operation(original, operation) == apply_structural_operation(original, operation)
     before = original.model_dump(mode="json")
     with pytest.raises(StructuralAuthoringError) as raised:
         apply_structural_operation(
@@ -287,9 +251,7 @@ def test_fallback_and_split_only_target_unambiguous_owned_shapes() -> None:
     with pytest.raises(StructuralAuthoringError) as raised:
         apply_structural_operation(
             original,
-            AddFallbackSelectionOperation(
-                weight_component_id="weights", fallback_asset="TLT"
-            ),
+            AddFallbackSelectionOperation(weight_component_id="weights", fallback_asset="TLT"),
         )
     assert raised.value.code == "unsupported_shape_transformation"
 
@@ -334,9 +296,7 @@ def test_authoring_endpoints_apply_and_expose_narrow_capabilities() -> None:
         },
     )
     assert response.status_code == 200
-    assert response.json()["strategy"]["graph"]["components"][-1]["id"] == (
-        "momentum_rank_qualification"
-    )
+    assert response.json()["strategy"]["graph"]["components"][-1]["id"] == ("momentum_rank_qualification")
     capabilities = client.post(
         "/v1/canonical/strategies/authoring/capabilities",
         json=portfolio_sleeves_strategy().model_dump(mode="json"),
@@ -348,9 +308,7 @@ def test_authoring_endpoints_apply_and_expose_narrow_capabilities() -> None:
 
 def test_authoring_endpoint_exposes_and_applies_shape_grammar() -> None:
     strategy = one_investment_strategy().model_dump(mode="json")
-    capabilities = client.post(
-        "/v1/canonical/strategies/authoring/capabilities", json=strategy
-    )
+    capabilities = client.post("/v1/canonical/strategies/authoring/capabilities", json=strategy)
     assert capabilities.status_code == 200
     assert capabilities.json()["choose_pipeline_targets"] == ["weights"]
     assert capabilities.json()["growth_defensive_targets"] == ["weights"]
@@ -392,6 +350,136 @@ def test_authoring_endpoint_exposes_and_applies_shape_grammar() -> None:
     }
 
 
+def test_typed_authoring_capabilities_are_exact_and_registry_backed() -> None:
+    capabilities = structural_authoring_capabilities(filter_screening_strategy())
+    assert capabilities.asset_set_targets[0].asset_set_id == "universe"
+    assert capabilities.lookback_targets[0].minimum == 1
+    assert capabilities.selection_count_targets[0].maximum == 4
+    assert capabilities.qualification_threshold_targets[0].component_id == ("positive_return")
+    assert {choice.cadence for choice in capabilities.schedule_targets[0].choices} == {
+        "daily",
+        "monthly",
+        "quarterly",
+    }
+
+
+def test_typed_edits_are_atomic_preserve_identity_and_compile() -> None:
+    original = filter_screening_strategy()
+    before = original.model_dump(mode="json")
+    edited = apply_structural_operation(
+        original,
+        UpdateAssetSetOperation(asset_set_id="universe", assets=("QQQ", "VGT", "IEF")),
+    )
+    edited = apply_structural_operation(
+        edited, UpdateLookbackOperation(component_id="momentum", lookback_bars=63)
+    )
+    edited = apply_structural_operation(
+        edited,
+        UpdateQualificationThresholdOperation(component_id="positive_return", threshold=Decimal("0.03")),
+    )
+    edited = apply_structural_operation(edited, UpdateSelectionCountOperation(component_id="top_n", count=2))
+    assert original.model_dump(mode="json") == before
+    assert _ids(edited) == _ids(original)
+    assert compile_strategy_to_lean_plan(edited).momentum_selections[0].lookback_bars == 63
+    assert '"score_component", "momentum"' in generate_csharp(compile_strategy_to_lean_plan(edited))
+
+
+def test_selection_count_rejects_more_than_owned_universe_atomically() -> None:
+    original = filter_screening_strategy()
+    before = original.model_dump(mode="json")
+    with pytest.raises(StructuralAuthoringError) as raised:
+        apply_structural_operation(original, UpdateSelectionCountOperation(component_id="top_n", count=5))
+    assert raised.value.code == "selection_count_exceeds_assets"
+    assert original.model_dump(mode="json") == before
+
+
+def test_asset_edit_cannot_leave_selection_count_above_universe() -> None:
+    original = filter_screening_strategy()
+    with pytest.raises(StructuralAuthoringError) as raised:
+        apply_structural_operation(
+            original,
+            UpdateAssetSetOperation(asset_set_id="universe", assets=("QQQ",)),
+        )
+    assert raised.value.code == "selection_count_exceeds_assets"
+    assert len(original.definitions.asset_sets[0].assets) == 4
+
+
+def test_schedule_switching_rebuilds_config_and_recovers_repeatedly() -> None:
+    strategy = independent_schedules_strategy()
+    original_ids = _ids(strategy)
+    transitions = (
+        ("daily", None, {}),
+        ("monthly", 1, {"day": 1}),
+        ("quarterly", 1, {"day": 1}),
+        ("daily", None, {}),
+        ("monthly", None, {"day": 1}),
+    )
+    for cadence, day, expected_config in transitions:
+        strategy = apply_structural_operation(
+            strategy,
+            UpdateScheduleOperation(component_id="growth_monthly", cadence=cadence, day=day),
+        )
+        component = next(item for item in strategy.graph.components if item.id == "growth_monthly")
+        assert component.primitive == f"{cadence}@1"
+        assert component.config == expected_config
+        assert _ids(strategy) == original_ids
+        compile_strategy_to_lean_plan(strategy)
+
+
+def test_cooldown_duration_is_existing_target_only_and_atomic() -> None:
+    original = cooldown_strategy()
+    edited = apply_structural_operation(
+        original,
+        UpdateCooldownDurationOperation(component_id="cooldown", duration=30),
+    )
+    assert next(item for item in edited.graph.components if item.id == "cooldown").config["duration"] == 30
+    assert structural_authoring_capabilities(edited).cooldown_duration_targets[0].value == 30
+    compile_strategy_to_lean_plan(edited)
+    with pytest.raises(StructuralAuthoringError) as raised:
+        apply_structural_operation(
+            original,
+            UpdateCooldownDurationOperation(component_id="top_n", duration=30),
+        )
+    assert raised.value.code == "unsupported_target"
+    assert original == cooldown_strategy()
+
+
+def test_sleeve_allocations_update_as_one_explicit_vector() -> None:
+    original = portfolio_sleeves_strategy()
+    edited = apply_structural_operation(
+        original,
+        UpdateSleeveAllocationsOperation(
+            allocations=(
+                SleeveAllocationInput(component_id="growth_sleeve", allocation=Decimal("0.6")),
+                SleeveAllocationInput(component_id="defensive_sleeve", allocation=Decimal("0.4")),
+            )
+        ),
+    )
+    assert [
+        item.config["allocation"]
+        for item in edited.graph.components
+        if item.primitive == "portfolio_sleeve@1"
+    ] == [Decimal("0.6"), Decimal("0.4")]
+    compile_strategy_to_lean_plan(edited)
+
+
+def test_typed_authoring_api_rejects_invalid_input_without_source_mutation() -> None:
+    source = cooldown_strategy().model_dump(mode="json")
+    response = client.post(
+        "/v1/canonical/strategies/authoring/apply",
+        json={
+            "strategy": source,
+            "operation": {
+                "kind": "update_cooldown_duration",
+                "component_id": "cooldown",
+                "duration": 0,
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert source == cooldown_strategy().model_dump(mode="json")
+
+
 def test_structural_results_save_and_reopen_through_revision_api(
     tmp_path: Path,
 ) -> None:
@@ -416,9 +504,7 @@ def test_structural_results_save_and_reopen_through_revision_api(
                 json=original.model_dump(mode="json"),
             )
             assert capabilities.status_code == 200
-            assert capabilities.json()["qualification_add_targets"] == [
-                "momentum_rank"
-            ]
+            assert capabilities.json()["qualification_add_targets"] == ["momentum_rank"]
 
             added = persisted_client.post(
                 "/v1/canonical/strategies/authoring/apply",
@@ -432,6 +518,22 @@ def test_structural_results_save_and_reopen_through_revision_api(
             )
             assert added.status_code == 200
             added_strategy = added.json()["strategy"]
+            scheduled = persisted_client.post(
+                "/v1/canonical/strategies/authoring/apply",
+                json={
+                    "strategy": added_strategy,
+                    "operation": {
+                        "kind": "update_schedule",
+                        "component_id": "monthly",
+                        "cadence": "daily",
+                    },
+                },
+            )
+            assert scheduled.status_code == 200
+            added_strategy = scheduled.json()["strategy"]
+            assert next(
+                item for item in added_strategy["graph"]["components"] if item["id"] == "monthly"
+            ) == {"id": "monthly", "primitive": "daily@1", "config": {}, "condition": None, "actions": []}
             saved_add = persisted_client.post(
                 f"/v1/strategies/{strategy_id}/revisions",
                 json={
@@ -443,10 +545,7 @@ def test_structural_results_save_and_reopen_through_revision_api(
             second_revision_id = saved_add.json()["revision"]["id"]
             reopened_add = persisted_client.get(f"/v1/strategies/{strategy_id}")
             assert reopened_add.status_code == 200
-            assert (
-                reopened_add.json()["current_revision"]["canonical_strategy"]
-                == added_strategy
-            )
+            assert reopened_add.json()["current_revision"]["canonical_strategy"] == added_strategy
 
             remove_capabilities = persisted_client.post(
                 "/v1/canonical/strategies/authoring/capabilities",
@@ -478,10 +577,7 @@ def test_structural_results_save_and_reopen_through_revision_api(
             assert saved_remove.status_code == 201
             reopened_remove = persisted_client.get(f"/v1/strategies/{strategy_id}")
             assert reopened_remove.status_code == 200
-            assert (
-                reopened_remove.json()["current_revision"]["canonical_strategy"]
-                == removed_strategy
-            )
+            assert reopened_remove.json()["current_revision"]["canonical_strategy"] == removed_strategy
             assert all(
                 item["id"] != "momentum_rank_qualification"
                 for item in removed_strategy["graph"]["components"]

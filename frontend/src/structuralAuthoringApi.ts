@@ -18,6 +18,30 @@ export interface StructuralAuthoringCapabilities {
   add_fallback_selection: boolean;
   remove_fallback_selection: boolean;
   transform_to_growth_defensive: boolean;
+  asset_set_targets: Array<{ asset_set_id: string; assets: string[] }>;
+  lookback_targets: Array<IntegerCapability>;
+  qualification_threshold_targets: Array<{ component_id: string; value: string }>;
+  selection_count_targets: Array<IntegerCapability>;
+  selection_resample_targets: Array<{ component_id: string; value: string; choices: string[] }>;
+  sleeve_allocation_targets: Array<{
+    portfolio_component_id: string;
+    sleeves: Array<{ component_id: string; name: string; allocation: string }>;
+  }>;
+  schedule_targets: Array<{
+    component_id: string;
+    cadence: "daily" | "monthly" | "quarterly";
+    day: number | null;
+    choices: Array<{ cadence: "daily" | "monthly" | "quarterly"; requires_day: boolean; default_day: number | null }>;
+  }>;
+  cooldown_duration_targets: Array<IntegerCapability>;
+  fallback_asset_set_targets: Array<{ component_id: string; asset_set_id: string; choices: string[] }>;
+}
+
+interface IntegerCapability {
+  component_id: string;
+  value: number;
+  minimum: number;
+  maximum: number | null;
 }
 
 export type StructuralAuthoringOperation =
@@ -27,7 +51,16 @@ export type StructuralAuthoringOperation =
   | { kind: "transform_to_choose_assets"; weight_component_id: string; lookback_observations: number; count: number }
   | { kind: "add_fallback_selection"; weight_component_id: string; fallback_asset: string }
   | { kind: "remove_fallback_selection"; fallback_component_id: string }
-  | { kind: "transform_to_growth_defensive"; target_component_id: string; growth_allocation: string; defensive_assets: string[] };
+  | { kind: "transform_to_growth_defensive"; target_component_id: string; growth_allocation: string; defensive_assets: string[] }
+  | { kind: "update_asset_set"; asset_set_id: string; assets: string[] }
+  | { kind: "update_lookback"; component_id: string; lookback_bars: number }
+  | { kind: "update_qualification_threshold"; component_id: string; threshold: string }
+  | { kind: "update_selection_count"; component_id: string; count: number }
+  | { kind: "update_selection_resample"; component_id: string; resample: "once" | "per_event" }
+  | { kind: "update_sleeve_allocations"; allocations: Array<{ component_id: string; allocation: string }> }
+  | { kind: "update_schedule"; component_id: string; cadence: "daily" | "monthly" | "quarterly"; day?: number | null }
+  | { kind: "update_cooldown_duration"; component_id: string; duration: number }
+  | { kind: "update_fallback_asset_set"; component_id: string; asset_set_id: string };
 
 export interface StructuralAuthoringErrorDetail {
   code: string;
@@ -43,7 +76,15 @@ export class StructuralAuthoringApiError extends Error {
 
 async function detail(response: Response): Promise<StructuralAuthoringErrorDetail> {
   try {
-    const payload = await response.json() as { detail?: StructuralAuthoringErrorDetail | string };
+    const payload = await response.json() as { detail?: StructuralAuthoringErrorDetail | string | Array<{ loc?: Array<string | number>; msg?: string }> };
+    if (Array.isArray(payload.detail)) {
+      const issue = payload.detail[0];
+      return {
+        code: "invalid_input",
+        path: issue?.loc?.join("."),
+        message: issue?.msg ?? "That value is not valid for this strategy.",
+      };
+    }
     if (payload.detail && typeof payload.detail === "object") return payload.detail;
     if (typeof payload.detail === "string") {
       return { code: "request_failed", message: payload.detail };
@@ -54,7 +95,7 @@ async function detail(response: Response): Promise<StructuralAuthoringErrorDetai
   return { code: "request_failed", message: `Structural change failed (${response.status})` };
 }
 
-export const structuralAuthoringApi = {
+export const authoringApi = {
   async capabilities(
     strategy: CanonicalStrategyV1,
     fetcher: typeof fetch = fetch,
@@ -82,3 +123,5 @@ export const structuralAuthoringApi = {
     return (await response.json() as { strategy: CanonicalStrategyV1 }).strategy;
   },
 };
+
+export const structuralAuthoringApi = authoringApi;

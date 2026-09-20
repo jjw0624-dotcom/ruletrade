@@ -4,6 +4,7 @@ import { sleevesBootstrap } from "../test/fixture";
 import { sameCanonicalSnapshot, strategyApi } from "../strategyApi";
 import { HomeView } from "../views/HomeView";
 import { createEditorState, editorReducer } from "../store/editorStore";
+import { authoringResponse } from "../test/authoringResponse";
 
 const record = { id: "s1", name: "Growth + Defensive", created_at: "2026-09-09T10:00:00Z", updated_at: "2026-09-09T11:00:00Z", current_revision_id: "r1", archived_at: null };
 
@@ -35,7 +36,7 @@ describe("Strategy and immutable Revision frontend", () => {
     const original = sleevesBootstrap.strategy;
     const selected = editorReducer(createEditorState(sleevesBootstrap), { type: "select_semantic", selection: { role: "selection", componentId: "top_n", fieldPath: null, groupId: null } });
     expect(sameCanonicalSnapshot(original, selected.canonical)).toBe(true);
-    const edited = editorReducer(selected, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
+    const edited = editorReducer(selected, { type: "replace_canonical_dirty", canonical: authoringResponse(selected.canonical, "top_n", { count: 3 }) });
     expect(sameCanonicalSnapshot(original, edited.canonical)).toBe(false);
   });
 

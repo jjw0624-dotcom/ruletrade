@@ -5,6 +5,7 @@ import { projectGuided } from "./guided";
 import { projectFlowCanvas } from "../views/FlowView";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { goldenBootstrap } from "../test/fixture";
+import { authoringResponse } from "../test/authoringResponse";
 
 describe("Strategy Editor Canonical architecture", () => {
   it("loads and projects the Golden Canonical strategy", () => {
@@ -33,10 +34,7 @@ describe("Strategy Editor Canonical architecture", () => {
 
   it("shows a Guided semantic edit immediately in Flow", () => {
     const initial = createEditorState(goldenBootstrap);
-    const patched = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
-    });
+    const patched = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "growth_random", { count: 3 }) });
     const edited = editorReducer(patched, { type: "set_active_view", view: "flow" });
     const flow = projectConceptualFlow(edited.canonical, edited.registry);
 
@@ -49,10 +47,7 @@ describe("Strategy Editor Canonical architecture", () => {
 
   it("shows a Flow semantic edit immediately in Guided", () => {
     const initial = createEditorState(goldenBootstrap);
-    const patched = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "resample", value: "once" },
-    });
+    const patched = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "growth_random", { resample: "once" }) });
     const edited = editorReducer(patched, { type: "set_active_view", view: "guided" });
 
     expect(edited.editor.activeView).toBe("guided");
@@ -90,24 +85,15 @@ describe("Strategy Editor Canonical architecture", () => {
     });
     const initial = createEditorState(bootstrap);
     const unsupportedBefore = initial.canonical.graph.components.at(-1);
-    const edited = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
-    });
+    const edited = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "growth_random", { count: 3 }) });
 
     expect(edited.canonical.graph.components.at(-1)).toBe(unsupportedBefore);
     expect(edited.canonical.graph.components.at(-1)).toEqual(bootstrap.strategy.graph.components.at(-1));
   });
 
-  it("rejects invalid semantic edits atomically", () => {
+  it("preserves Canonical when an authoring request is rejected before replacement", () => {
     const initial = createEditorState(goldenBootstrap);
-    const edited = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 0 },
-    });
-
-    expect(edited.canonical).toBe(initial.canonical);
-    expect(edited.validation.status).toBe("invalid");
-    expect(edited.validation.issues[0].path).toContain("growth_random");
+    expect(initial.canonical).toBe(goldenBootstrap.strategy);
+    expect(initial.validation.status).toBe("valid");
   });
 });

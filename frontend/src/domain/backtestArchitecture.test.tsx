@@ -7,6 +7,7 @@ import { BacktestResultPanel } from "../components/BacktestResultPanel";
 import { backtestReducer, INITIAL_BACKTEST_STATUS, type LeanBacktestResponse } from "./backtest";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { goldenBootstrap } from "../test/fixture";
+import { authoringResponse } from "../test/authoringResponse";
 
 
 const response: LeanBacktestResponse = {
@@ -36,10 +37,7 @@ const response: LeanBacktestResponse = {
 describe("Editor-to-LEAN backtest architecture", () => {
   it("submits the exact current Canonical after a Guided semantic edit", async () => {
     const initial = createEditorState(goldenBootstrap);
-    const edited = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
-    });
+    const edited = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "growth_random", { count: 3 }) });
     let submitted: unknown;
     const fetcher = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       submitted = JSON.parse(String(init?.body));
@@ -87,10 +85,7 @@ describe("Editor-to-LEAN backtest architecture", () => {
     const initial = createEditorState(goldenBootstrap);
     const canonicalBefore = initial.canonical;
     const completed = backtestReducer(backtestReducer(INITIAL_BACKTEST_STATUS, { type: "started" }), { type: "succeeded", result: response });
-    const edited = editorReducer(initial, {
-      type: "apply_semantic_patch",
-      operation: { kind: "update_component_config", componentId: "growth_random", field: "count", value: 3 },
-    });
+    const edited = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "growth_random", { count: 3 }) });
 
     expect(initial.canonical).toBe(canonicalBefore);
     expect(completed.status).toBe("success");

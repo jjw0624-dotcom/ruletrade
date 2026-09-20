@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { conceptualOnlyAllocationExample, projectConceptualFlow } from "./conceptualFlow";
 import { cooldownBootstrap, fallbackBootstrap, filterBootstrap, goldenBootstrap, independentSchedulesBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import { createEditorState, editorReducer } from "../store/editorStore";
+import { authoringResponse } from "../test/authoringResponse";
 
 describe("Conceptual Flow v2 projection", () => {
   it.each([
@@ -59,20 +60,19 @@ describe("Conceptual Flow v2 projection", () => {
     expect(flow.groups[0].choose).toMatchObject({ filterComponentId: "positive_return", selectionComponentId: "top_n", fallbackComponentId: "fallback" });
   });
 
-  it("edits Choose through Canonical and immediately reprojects", () => {
+  it("reprojects a backend-authored Choose response", () => {
     const initial = createEditorState(fallbackBootstrap);
-    const threshold = editorReducer(initial, { type:"apply_semantic_patch", operation:{kind:"update_component_config",componentId:"positive_return",field:"threshold",value:"-0.05"} });
-    const count = editorReducer(threshold, { type:"apply_semantic_patch", operation:{kind:"update_component_config",componentId:"top_n",field:"count",value:3} });
+    const threshold = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "positive_return", { threshold: "-0.05" }) });
+    const count = editorReducer(threshold, { type: "replace_canonical_dirty", canonical: authoringResponse(threshold.canonical, "top_n", { count: 3 }) });
     expect(projectConceptualFlow(count.canonical,count.registry).groups[0].choose).toMatchObject({ threshold:"-0.05", topN:3, label:"Choose 3" });
   });
 
-  it("updates a supported asset group but rejects empty or duplicate groups", () => {
+  it("reprojects a backend-authored asset group", () => {
     const initial = createEditorState(goldenBootstrap);
-    const added = editorReducer(initial,{type:"apply_semantic_patch",operation:{kind:"update_asset_set_assets",assetSetId:"growth",assets:["QQQ","VGT","SOXX","SCHG","VTI"]}});
+    const canonical = structuredClone(initial.canonical);
+    canonical.definitions.asset_sets.find((item) => item.id === "growth")!.assets.push("VTI");
+    const added = editorReducer(initial, { type: "replace_canonical_dirty", canonical });
     expect(projectConceptualFlow(added.canonical,added.registry).groups[0].assets).toContain("VTI");
-    const duplicate = editorReducer(initial,{type:"apply_semantic_patch",operation:{kind:"update_asset_set_assets",assetSetId:"growth",assets:["QQQ","QQQ"]}});
-    expect(duplicate.canonical).toBe(initial.canonical);
-    expect(duplicate.validation.status).toBe("invalid");
   });
 
   it("keeps semantic selection editor-only", () => {

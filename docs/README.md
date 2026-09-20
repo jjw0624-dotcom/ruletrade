@@ -37,6 +37,7 @@ architecture when they conflict with code or the living architecture.
 | `market-data-preflight-ux.md` | CURRENT | Product preflight behavior |
 | `integrated-research-workbench.md` | CURRENT | Shared Builder/Activity/Research behavior |
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |
+| `authoring.md` | CURRENT | Backend-authoritative semantic authoring contract |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |
 | `final-frontend-mvp-cohesion.md` | HISTORICAL | Pre-workbench frontend cohesion record |

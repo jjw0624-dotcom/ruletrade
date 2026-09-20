@@ -12,6 +12,7 @@ import { projectGuided } from "./guided";
 import { sleevesBootstrap } from "../test/fixture";
 import { StrategyEditorProvider } from "../store/editorStore";
 import { OverviewView } from "../views/OverviewView";
+import { authoringResponse } from "../test/authoringResponse";
 
 describe("Production MVP frontend foundation", () => {
   it("exposes only real backend-supported examples and opens a Strategy route", () => {
@@ -24,7 +25,7 @@ describe("Production MVP frontend foundation", () => {
 
   it("keeps a Guided edit in the one Canonical model projected by Flow", () => {
     const initial = createEditorState(sleevesBootstrap);
-    const edited = editorReducer(initial, { type: "apply_semantic_patch", operation: { kind: "update_component_config", componentId: "top_n", field: "count", value: 3 } });
+    const edited = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "top_n", { count: 3 }) });
     expect(projectGuided(edited.canonical, edited.registry).kind).toBe("portfolio");
     expect(projectConceptualFlow(edited.canonical, edited.registry).groups[0].choose?.topN).toBe(3);
   });
