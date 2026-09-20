@@ -23,7 +23,7 @@ import {
   workbenchResearchReducer,
 } from "./domain/workbenchResearch";
 import { useBacktestRun } from "./hooks/useBacktestRun";
-import { useStructuralAuthoring } from "./hooks/useStructuralAuthoring";
+import { useAuthoring } from "./hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "./store/editorStore";
 import { StrategyBuilderWorkspace } from "./components/StrategyBuilderWorkspace";
 import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionSummary, type StrategyDetail } from "./strategyApi";
@@ -37,7 +37,7 @@ import {
 export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, sourceFocus, onHome = () => undefined }: { example: StrategyExample; persisted?: StrategyDetail; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null; onHome?: () => void }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
-  const structural = useStructuralAuthoring();
+  const structural = useAuthoring();
   const [config, setConfig] = useState<BacktestConfig>(example.backtestDefaults);
   const [showSetup, setShowSetup] = useState(initialTestOpen);
   const [base, setBase] = useState(persisted?.current_revision ?? null);
