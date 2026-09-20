@@ -1,5 +1,18 @@
 import type { CanonicalComponent, CanonicalConnection, CanonicalStrategyV1, RegistryPayload } from "./canonical";
-import { resolvedConfigValue } from "./patch";
+
+function resolvedConfigValue(
+  strategy: CanonicalStrategyV1,
+  registry: RegistryPayload,
+  componentId: string,
+  fieldName: string,
+) {
+  const component = strategy.graph.components.find((item) => item.id === componentId);
+  if (!component) return undefined;
+  if (fieldName in component.config) return component.config[fieldName];
+  return registry.primitives
+    .find((item) => item.id === component.primitive)
+    ?.fields.find((item) => item.name === fieldName)?.default;
+}
 
 export interface SemanticSelectionPipeline {
   assets: string[];
