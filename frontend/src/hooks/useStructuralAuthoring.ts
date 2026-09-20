@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  structuralAuthoringApi,
+  authoringApi,
   StructuralAuthoringApiError,
   type StructuralAuthoringCapabilities,
   type StructuralAuthoringOperation,
@@ -21,7 +21,7 @@ function productMessage(reason: unknown): { message: string; detail?: string } {
   const code = reason.detail.code;
   if (code === "component_not_found" || code === "unsupported_group"
     || code === "unsupported_qualification_target"
-    || code === "unsupported_shape_transformation") {
+    || code === "unsupported_shape_transformation" || code === "unsupported_target") {
     return { message: "That strategy object is no longer available.", detail: code };
   }
   if (code === "selection_count_exceeds_assets") {
@@ -29,9 +29,12 @@ function productMessage(reason: unknown): { message: string; detail?: string } {
   }
   if (code === "result_invalid") {
     return {
-      message: "This condition can't be removed because the current strategy still needs it.",
+      message: "That change would make this strategy invalid. Nothing was changed.",
       detail: `${code}: ${reason.detail.message}`,
     };
+  }
+  if (code === "invalid_input") {
+    return { message: reason.detail.message || "That value is not valid for this strategy.", detail: code };
   }
   if (code === "qualification_condition_exists"
     || code === "unsupported_qualification_structure") {
@@ -40,7 +43,7 @@ function productMessage(reason: unknown): { message: string; detail?: string } {
   return { message: reason.detail.message, detail: code };
 }
 
-export function useStructuralAuthoring() {
+export function useAuthoring() {
   const { state, dispatch } = useStrategyEditor();
   const latest = useRef(state.canonical);
   const [capabilities, setCapabilities] = useState<StructuralAuthoringCapabilities | null>(null);
@@ -53,7 +56,7 @@ export function useStructuralAuthoring() {
     setCapabilities(null);
     setStatus("checking");
     setError(null);
-    structuralAuthoringApi.capabilities(state.canonical)
+    authoringApi.capabilities(state.canonical)
       .then((result) => {
         if (!active) return;
         setCapabilities(result);
@@ -75,7 +78,7 @@ export function useStructuralAuthoring() {
     setStatus("applying");
     setError(null);
     try {
-      const canonical = await structuralAuthoringApi.apply(source, operation);
+      const canonical = await authoringApi.apply(source, operation);
       if (latest.current !== source) {
         setStatus("error");
         setError({ message: "The strategy changed while this update was being applied. Please try again." });
@@ -97,4 +100,5 @@ export function useStructuralAuthoring() {
   return { capabilities, status, error, apply };
 }
 
-export type StructuralAuthoringController = ReturnType<typeof useStructuralAuthoring>;
+export const useStructuralAuthoring = useAuthoring;
+export type StructuralAuthoringController = ReturnType<typeof useAuthoring>;
