@@ -15,6 +15,10 @@ const none: StructuralAuthoringCapabilities = {
   remove_qualification_condition: false, multiple_qualification_conditions: false,
   create_choose_pipeline: false, add_fallback_selection: false,
   remove_fallback_selection: false, transform_to_growth_defensive: false,
+  asset_set_targets: [], lookback_targets: [], qualification_threshold_targets: [],
+  selection_count_targets: [], selection_resample_targets: [],
+  sleeve_allocation_targets: [], schedule_targets: [], cooldown_duration_targets: [],
+  fallback_asset_set_targets: [],
 };
 
 describe("shared Strategy Builder workspace boundaries", () => {
