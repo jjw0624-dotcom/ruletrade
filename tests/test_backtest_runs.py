@@ -19,6 +19,7 @@ from ruletrade.backtests.service import BacktestService
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.errors import RevisionNotFoundError
 from ruletrade.strategies.service import StrategyService
+from ruletrade.strategy.v1.authoring import UpdateScheduleOperation, apply_structural_operation
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
 
 
@@ -140,6 +141,38 @@ def test_successful_run_persists_config_result_provenance_timings_and_reopens(
     assert reopened.get_run(run.id) == run
     assert reopened.list_runs(revision.id) == (run,)
     assert reopened_runner.calls == []
+
+
+@pytest.mark.parametrize("cadence", ["daily", "monthly"])
+def test_saved_schedule_run_persists_result_and_evidence(
+    tmp_path: Path, cadence: str
+) -> None:
+    database = tmp_path / f"{cadence}.sqlite3"
+    strategies, service = _services(database)
+    detail = strategies.create_strategy("Scheduled", golden_portfolio_strategy())
+    authored = apply_structural_operation(
+        detail.current_revision.canonical_strategy,
+        UpdateScheduleOperation(
+            component_id="monthly",
+            cadence=cadence,
+            day=None,
+        ),
+    )
+    saved = strategies.save_revision(
+        detail.strategy.id,
+        detail.current_revision.id,
+        authored,
+    )
+
+    run = service.create_and_execute(saved.revision.id, BacktestConfig())
+    reopened = service.get_run(run.id)
+    evidence = service.list_decision_events(run.id)
+
+    assert reopened.status.value == "succeeded"
+    assert reopened.revision_id == saved.revision.id
+    assert reopened.result is not None
+    assert len(reopened.result.equity_curve) == 2
+    assert evidence
 
 
 def test_same_revision_and_config_create_distinct_runs(tmp_path: Path) -> None:
