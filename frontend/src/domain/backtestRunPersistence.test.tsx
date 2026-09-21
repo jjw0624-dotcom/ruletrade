@@ -42,6 +42,21 @@ describe("persistent BacktestRun frontend", () => {
     expect(markup).toContain("Saved in Backtests"); expect(markup).toContain("31.40%"); expect(markup).toContain("RuleTrade version"); expect(markup).toContain("36 ms");
   });
 
+  it.each(["daily", "monthly"])(
+    "treats a successful persisted %s-schedule Run as a saved Result with chart and Analysis",
+    (cadence) => {
+      const persisted = { ...run, id: `run-${cadence}` };
+      const markup = renderToStaticMarkup(
+        <ResultWorkspace run={persisted} strategyName={`${cadence} strategy`} onBack={() => undefined} />,
+      );
+
+      expect(markup).toContain("Saved in Backtests");
+      expect(markup).toContain("Portfolio value equity curve");
+      expect(markup).toContain("Decision analysis");
+      expect(markup).not.toContain("Save this strategy and create a saved test");
+    },
+  );
+
   it("renders a failed artifact without stale success metrics", () => {
     const failed = { ...run, status: "failed" as const, result: null, error: { code: "execution_failed", message: "Backtest execution failed." } };
     const markup = renderToStaticMarkup(<ResultWorkspace run={failed} strategyName="Historical backtest" onBack={() => undefined} />);
