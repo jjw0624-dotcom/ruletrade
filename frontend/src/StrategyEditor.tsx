@@ -162,15 +162,12 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     }
   }
 
-  useEffect(() => {
-    if (backtest.state.status === "success") researchDispatch({ type: "open_temporary_result" });
-  }, [backtest.state.status]);
-
   async function runCurrent() {
     setRunError(null);
     if (!strategy || !base || dirty) {
       setShowSetup(false);
-      await backtest.run(state.canonical, config);
+      const result = await backtest.run(state.canonical, config);
+      if (result) researchDispatch({ type: "open_temporary_result" });
       return;
     }
     if (config.dataset_id === "us-equity-daily-local") {
