@@ -57,6 +57,29 @@ export function FallbackTransformationControl({ busy, error, onApply }: {
   </form>;
 }
 
+export function CooldownConstructionControl({ busy, error, onApply }: {
+  busy: boolean;
+  error: ErrorState;
+  onApply: (duration: number) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [duration, setDuration] = useState(20);
+  if (!open) return <section className="shape-transformation">
+    <h4>Add Cooldown</h4><p>Wait after an asset exits before allowing it back in.</p>
+    <button className="secondary-button" onClick={() => setOpen(true)}>Add Cooldown</button>
+  </section>;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (await onApply(duration)) setOpen(false);
+  };
+  return <form className="shape-transformation" onSubmit={(event) => void submit(event)}>
+    <span className="eyebrow">Cooldown</span>
+    <label>Wait after selling<input type="number" min={1} step={1} value={duration} onChange={(event) => setDuration(Number(event.target.value))} /><small>completed trading days</small></label>
+    <div className="dialog-actions"><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || !Number.isInteger(duration) || duration < 1}>{busy ? "Adding…" : "Add Cooldown"}</button></div>
+    <ErrorMessage error={error} />
+  </form>;
+}
+
 export function GrowthDefensiveTransformationControl({ busy, error, onApply }: {
   busy: boolean;
   error: ErrorState;
