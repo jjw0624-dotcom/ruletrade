@@ -10,6 +10,7 @@ import { projectFlowCanvas } from "../views/FlowView";
 const none: StructuralAuthoringCapabilities = {
   groups: [], qualification_add_targets: [], qualification_remove_targets: [],
   choose_pipeline_targets: [], fallback_add_targets: [], fallback_remove_targets: [],
+  cooldown_add_targets: [], cooldown_remove_targets: [],
   growth_defensive_targets: [], add_group: false, remove_group: false,
   rename_group: false, add_qualification_condition: false,
   remove_qualification_condition: false, multiple_qualification_conditions: false,
@@ -45,11 +46,14 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const selected = semanticSelection("selection", "top_n", { groupId: "strategy" });
     expect(constructionOptions(projection, none, selected)).toEqual([]);
     expect(constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, selected).map((item) => item.kind)).toEqual(["qualification"]);
+    expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["top_n"] }, selected).map((item) => item.kind)).toEqual(["cooldown"]);
+    expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["unrelated"] }, selected)).toEqual([]);
   });
 
   it("maps Delete only to supported semantic inverse operations", () => {
     expect(semanticDeleteOperation(semanticSelection("qualification", "positive_return"), { ...none, qualification_remove_targets: ["positive_return"], remove_qualification_condition: true })).toEqual({ kind: "remove_qualification_condition", condition_component_id: "positive_return" });
     expect(semanticDeleteOperation(semanticSelection("group", "growth_sleeve"), none)).toBeNull();
+    expect(semanticDeleteOperation(semanticSelection("cooldown", "top_n_cooldown"), { ...none, cooldown_remove_targets: ["top_n_cooldown"] })).toEqual({ kind: "remove_cooldown_from_selection", cooldown_component_id: "top_n_cooldown" });
   });
 
   it("keeps visual movement out of Canonical dirty state", () => {
