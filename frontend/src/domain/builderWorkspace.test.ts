@@ -4,7 +4,7 @@ import { projectConceptualFlow } from "./conceptualFlow";
 import { sameSemanticSelection, semanticSelection } from "./semanticSelection";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
-import { filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
+import { cooldownBootstrap, filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import { projectFlowCanvas } from "../views/FlowView";
 
 const none: StructuralAuthoringCapabilities = {
@@ -39,6 +39,16 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const qualification = structure.children[0].children[0].children.find((item) => item.label === "Qualification")!;
     const flowQualification = flow.nodes.find((item) => item.id.startsWith("qualification:"))!;
     expect(sameSemanticSelection(qualification.selection, flowQualification.data.selection)).toBe(true);
+  });
+
+  it("projects an existing Cooldown with exact provenance across Structure and Flow", () => {
+    const projection = projectConceptualFlow(cooldownBootstrap.strategy, cooldownBootstrap.registry);
+    const structure = projectBuilderStructure(projection);
+    const cooldown = structure.children[0].children[0].children.find((item) => item.label === "Cooldown")!;
+    const flow = projectFlowCanvas(projection);
+    const node = flow.nodes.find((item) => item.id.startsWith("cooldown:"))!;
+    expect(cooldown.selection).toEqual(semanticSelection("cooldown", "cooldown", { fieldPath: "config.duration", groupId: projection.groups[0].id }));
+    expect(sameSemanticSelection(cooldown.selection, node.data.selection)).toBe(true);
   });
 
   it("offers insertion only from backend capability targets", () => {
