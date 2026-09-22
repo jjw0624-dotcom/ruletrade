@@ -1,0 +1,22 @@
+{
+  "name": "ruletrade-representation-spike",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "type": "module",
+  "dependencies": {
+    "blockly": "13.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.0"
+  },
+  "private": true
+}
