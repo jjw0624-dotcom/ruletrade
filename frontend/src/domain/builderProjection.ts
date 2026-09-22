@@ -2,7 +2,7 @@ import type { ConceptualFlowProjection, ConceptualGroup } from "./conceptualFlow
 import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import type { StructuralAuthoringCapabilities, StructuralAuthoringOperation } from "../structuralAuthoringApi";
 
-export type BuilderBlockKind = "choose" | "qualification" | "fallback" | "split";
+export type BuilderBlockKind = "choose" | "qualification" | "fallback" | "cooldown" | "split";
 
 export interface StructureItem {
   id: string;
@@ -49,6 +49,14 @@ function groupItems(group: ConceptualGroup): StructureItem[] {
     selection: semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }),
     children: [],
   });
+  if (choose.cooldownComponentId) {
+    pipeline.push({
+      id: `${group.id}:cooldown`, label: "Cooldown", detail: choose.cooldown,
+      selection: semanticSelection("cooldown", choose.cooldownComponentId, {
+        fieldPath: "config.duration", groupId: group.id,
+      }), children: [],
+    });
+  }
   if (choose.fallbackComponentId) {
     pipeline.push({
       id: `${group.id}:fallback`,
@@ -156,6 +164,14 @@ export function constructionOptions(
       targetComponentId: fallbackTarget,
     });
   }
+  const cooldownTarget = group?.choose?.selectionComponentId;
+  if (selectionContext && cooldownTarget && capabilities.cooldown_add_targets.includes(cooldownTarget)) {
+    options.push({
+      kind: "cooldown", label: "Cooldown",
+      description: "After selling, wait before buying the same asset again.",
+      targetComponentId: cooldownTarget,
+    });
+  }
   const splitTarget = capabilities.growth_defensive_targets[0];
   if (rootContext && splitTarget) {
     options.push({
@@ -180,6 +196,10 @@ export function semanticDeleteOperation(
   if (selection.role === "fallback"
     && capabilities.fallback_remove_targets.includes(selection.componentId)) {
     return { kind: "remove_fallback_selection", fallback_component_id: selection.componentId };
+  }
+  if (selection.role === "cooldown"
+    && capabilities.cooldown_remove_targets.includes(selection.componentId)) {
+    return { kind: "remove_cooldown_from_selection", cooldown_component_id: selection.componentId };
   }
   return null;
 }
