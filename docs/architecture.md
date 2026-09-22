@@ -142,7 +142,7 @@ Canonical and dirty state unchanged.
 
 Implemented structural operations include group rename, add/remove one
 supported qualification, transformation to Choose assets, add/remove fallback,
-and an explicit Growth/Defensive split transformation. The caller supplies
+add/remove Cooldown for eligible Top N pipelines, and an explicit Growth/Defensive split transformation. The caller supplies
 required allocation and defensive-asset intent; the backend does not guess it.
 Typed operations also own asset-universe membership, return lookback,
 qualification threshold, selection count and resampling, two-sleeve allocation,
@@ -152,7 +152,7 @@ constraints. Registry and domain validation remain authoritative; the frontend
 owns wording and temporary form state, not semantic eligibility.
 
 Arbitrary primitive CRUD, free edge wiring, generic Group CRUD, unrestricted
-multiple conditions, and Cooldown creation are not supported. See the
+multiple conditions, and arbitrary Cooldown placement are not supported. See the
 [current authoring contract](authoring.md).
 
 ## Evidence and experiments
