@@ -20,7 +20,7 @@ const emptyCapabilities: StructuralAuthoringCapabilities = {
   add_group: false, remove_group: false, rename_group: false,
   add_qualification_condition: false, remove_qualification_condition: false,
   multiple_qualification_conditions: false, choose_pipeline_targets: [],
-  fallback_add_targets: [], fallback_remove_targets: [], growth_defensive_targets: [],
+  fallback_add_targets: [], fallback_remove_targets: [], cooldown_add_targets: [], cooldown_remove_targets: [], growth_defensive_targets: [],
   create_choose_pipeline: false, add_fallback_selection: false,
   remove_fallback_selection: false, transform_to_growth_defensive: false,
   asset_set_targets: [], lookback_targets: [], qualification_threshold_targets: [],
