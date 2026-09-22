@@ -18,6 +18,7 @@ const capabilities: StructuralAuthoringCapabilities = {
   qualification_add_targets: ["momentum_rank"],
   qualification_remove_targets: [],
   fallback_remove_targets: [],
+  cooldown_add_targets: [], cooldown_remove_targets: [],
   add_group: false,
   remove_group: false,
   rename_group: false,
@@ -142,6 +143,7 @@ describe("Structural Authoring Guide and Flow integration", () => {
     expect(markup).toContain("Growth");
     expect(markup).toContain("Defensive");
   });
+
 
   it("projects generated portfolio identities from connections rather than starter IDs", () => {
     const bootstrap = structuredClone(sleevesBootstrap);
