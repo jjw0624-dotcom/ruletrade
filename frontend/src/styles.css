@@ -237,6 +237,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .semantic-flow-node.fallback, .semantic-flow-node.defensive { background: #f2f5f2; }
 .strategy-flow-edge .react-flow__edge-path { stroke: #789184; stroke-width: 1.6; }
 .flow-canvas-hint { position: absolute; right: 14px; bottom: 12px; padding: 6px 9px; border-radius: 6px; color: var(--muted); background: rgba(255,255,255,.88); font-size: 10px; }
+.flow-add-action { position: absolute; left: 16px; top: 16px; z-index: 5; }
 .semantic-inspector { min-width: 0; overflow: auto; border-left: 1px solid var(--border); background: #fff; }
 .semantic-inspector > header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--border); background: #fff; }
 .semantic-inspector > header button { border: 0; background: transparent; font-size: 20px; }
