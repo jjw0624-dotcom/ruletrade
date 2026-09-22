@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
-import { semanticDeleteOperation } from "../domain/builderProjection";
+import { constructionOptions, semanticDeleteOperation } from "../domain/builderProjection";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
@@ -28,6 +28,7 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
     if(!group.choose)return;let pipeline=universeId;
     if(group.choose.filterComponentId){const id=`qualification:${group.id}`;nodes.push(node(id,x,y+260,"Qualification",group.choose.condition??"Supported condition",semanticSelection("qualification",group.choose.filterComponentId,{fieldPath:"config.threshold",groupId:group.id}),"qualification"));edges.push(edge(pipeline,id,"qualifies"));pipeline=id;}
     const selectId=`selection:${group.id}`;nodes.push(node(selectId,x,y+(group.choose.filterComponentId?390:260),group.choose.label,group.choose.ranking??"Selection",semanticSelection("selection",group.choose.selectionComponentId,{groupId:group.id}),"selection"));edges.push(edge(pipeline,selectId));
+    if(group.choose.cooldownComponentId){const id=`cooldown:${group.id}`;nodes.push(node(id,x,y+(group.choose.filterComponentId?520:390),"Cooldown",group.choose.cooldown??"Wait after selling",semanticSelection("cooldown",group.choose.cooldownComponentId,{fieldPath:"config.duration",groupId:group.id}),"selection"));edges.push(edge(selectId,id,"eligible"));}
     if(group.choose.fallbackComponentId){const id=`fallback:${group.id}`;nodes.push(node(id,x+220,y+(group.choose.filterComponentId?390:260),"Fallback",group.choose.otherwise??"Alternative destination",semanticSelection("fallback",group.choose.fallbackComponentId,{groupId:group.id}),"fallback"));edges.push(edge(selectId,id,"if incomplete"));}
   });
   if(projection.rebalanceScheduleComponentId){const id="schedule";nodes.push(node(id,360,Math.max(...nodes.map(item=>item.position.y))+150,"Rebalance",projection.rebalance??"Schedule",semanticSelection("schedule",projection.rebalanceScheduleComponentId),"schedule"));edges.push(edge(rootId,id,"when"));}
@@ -54,8 +55,10 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
   },[graph.nodes,state.editor.activeView,state.editor.selection]);
   const displayed:SemanticNode[]=nodes.map(item=>({...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection)}));
   const removeSelected=useCallback(()=>{const operation=semanticDeleteOperation(state.editor.selection,structural.capabilities);if(operation)void structural.apply(operation,null);},[state.editor.selection,structural]);
+  const canAdd=constructionOptions(projection,structural.capabilities,state.editor.selection).length>0;
   return <div className="flow-representation" tabIndex={0} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
     <ReactFlow<SemanticNode, Edge> nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
+    {canAdd && <button className="secondary-button flow-add-action" onClick={()=>{dispatch({type:"set_left_panel_open",open:true});dispatch({type:"set_left_panel_tab",tab:"blocks"});}}>+ Add to selection</button>}
   </div>;
 }

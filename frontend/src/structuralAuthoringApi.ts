@@ -13,6 +13,8 @@ export interface StructuralAuthoringCapabilities {
   choose_pipeline_targets: string[];
   fallback_add_targets: string[];
   fallback_remove_targets: string[];
+  cooldown_add_targets: string[];
+  cooldown_remove_targets: string[];
   growth_defensive_targets: string[];
   create_choose_pipeline: boolean;
   add_fallback_selection: boolean;
@@ -51,6 +53,8 @@ export type StructuralAuthoringOperation =
   | { kind: "transform_to_choose_assets"; weight_component_id: string; lookback_observations: number; count: number }
   | { kind: "add_fallback_selection"; weight_component_id: string; fallback_asset: string }
   | { kind: "remove_fallback_selection"; fallback_component_id: string }
+  | { kind: "add_cooldown_to_selection"; selection_component_id: string; duration: number }
+  | { kind: "remove_cooldown_from_selection"; cooldown_component_id: string }
   | { kind: "transform_to_growth_defensive"; target_component_id: string; growth_allocation: string; defensive_assets: string[] }
   | { kind: "update_asset_set"; asset_set_id: string; assets: string[] }
   | { kind: "update_lookback"; component_id: string; lookback_bars: number }

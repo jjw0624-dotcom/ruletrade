@@ -32,7 +32,13 @@ the immutable Revision boundary.
 ## Supported operations
 
 Structural operations cover group rename, one qualification add/remove, Choose
-transformation, fallback add/remove, and explicit Growth/Defensive transformation.
+transformation, fallback add/remove, explicit Growth/Defensive transformation,
+and Cooldown insertion/removal on an eligible Top N → equal-weight selection.
+The contextual Add panel lists only targets supplied by backend capabilities;
+Flow's Add action opens that same panel. Cooldown requires an explicit duration
+in completed trading days. Fallback and Cooldown cannot currently be combined
+through this construction path because their supported ownership shapes differ.
+Convenience transformations remain available alongside contextual Add.
 
 Typed operations cover:
 
@@ -53,7 +59,9 @@ produce a valid supported Canonical is rejected without partial mutation.
 The contract is an explicit union of product operations, not JSON Patch, a
 mutation DSL, or a UI-schema system. It does not provide primitive CRUD, free
 wiring, generic Group CRUD, arbitrary nested portfolios, multiple conditions,
-unrestricted boolean expressions, or Cooldown creation.
+unrestricted boolean expressions, or arbitrary Cooldown placement. Summary,
+Guide, and Flow share Canonical and authoring authority, but future
+representations need not share one universal visual layout/projection.
 
 Future Builder representations can call the same operations without reproducing
 domain eligibility or validation, but no Blocky, Rules, Code, or AI consumer is
