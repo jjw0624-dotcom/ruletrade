@@ -118,7 +118,8 @@ export function SemanticInspector({
   } else if (role === "schedule" && selection.componentId) {
     content = <><h2>Rebalance schedule</h2><ScheduleControl authoring={structural} label="When should it check?" componentId={selection.componentId} /></>;
   } else if (role === "cooldown" && selection.componentId && choose?.cooldownDuration) {
-    content = <><h2>Cooldown</h2><CooldownControl authoring={structural} componentId={selection.componentId} value={choose.cooldownDuration} /></>;
+    content = <><h2>Cooldown</h2><CooldownControl authoring={structural} componentId={selection.componentId} value={choose.cooldownDuration} />
+      {structural.capabilities?.cooldown_remove_targets.includes(selection.componentId) && <button className="text-button danger" disabled={busy} onClick={() => void structural.apply({ kind: "remove_cooldown_from_selection", cooldown_component_id: selection.componentId! }, semanticSelection("selection", choose.selectionComponentId, { groupId: group?.id }))}>Remove Cooldown</button>}</>;
   } else {
     content = <><h2>Strategy rule</h2><p>This semantic component remains selected across Strategy representations.</p></>;
   }
