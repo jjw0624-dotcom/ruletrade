@@ -12,8 +12,10 @@ from ruletrade.ir.strategy import FilterOp
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.authoring import (
+    AddCooldownOperation,
     AddFallbackSelectionOperation,
     AddQualificationConditionOperation,
+    RemoveCooldownOperation,
     RemoveFallbackSelectionOperation,
     RemoveQualificationConditionOperation,
     RenameGroupOperation,
@@ -40,12 +42,90 @@ from ruletrade.strategy.v1.fixtures import (
     one_investment_strategy,
     portfolio_sleeves_strategy,
 )
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 
 client = TestClient(app)
 
 
 def _ids(strategy: object) -> tuple[str, ...]:
     return tuple(item.id for item in strategy.graph.components)
+
+
+def test_construct_and_remove_cooldown_on_top_n_pipeline() -> None:
+    original = momentum_top_n_strategy()
+    target = "top_n"
+    assert target in structural_authoring_capabilities(original).cooldown_add_targets
+    before = original.model_dump(mode="json")
+    edited = apply_structural_operation(original, AddCooldownOperation(selection_component_id=target, duration=20))
+    assert original.model_dump(mode="json") == before
+    assert tuple(item for item in _ids(edited) if item != "top_n_cooldown") == _ids(original)
+    assert target not in structural_authoring_capabilities(edited).cooldown_add_targets
+    assert "top_n_cooldown" in structural_authoring_capabilities(edited).cooldown_remove_targets
+    assert compile_strategy_to_lean_plan(edited).cooldown_states[0].required_completed_sessions == 20
+    source = generate_csharp(compile_strategy_to_lean_plan(edited))
+    assert '"cooldown_field", "config.duration"' in source
+    restored = apply_structural_operation(edited, RemoveCooldownOperation(cooldown_component_id="top_n_cooldown"))
+    assert restored == original
+
+    with pytest.raises(StructuralAuthoringError):
+        apply_structural_operation(edited, AddCooldownOperation(selection_component_id=target, duration=1))
+    assert original.model_dump(mode="json") == before
+
+
+def test_cooldown_capability_rejects_unsupported_selection_contexts() -> None:
+    assert not structural_authoring_capabilities(one_investment_strategy()).cooldown_add_targets
+    assert not structural_authoring_capabilities(fallback_momentum_strategy()).cooldown_add_targets
+    with pytest.raises(StructuralAuthoringError) as error:
+        apply_structural_operation(fallback_momentum_strategy(), AddCooldownOperation(selection_component_id="top_n", duration=10))
+    assert error.value.code in {"unsupported_cooldown_structure", "component_not_found"}
+    source = momentum_top_n_strategy().model_dump(mode="json")
+    rejected = client.post("/v1/canonical/strategies/authoring/apply", json={
+        "strategy": source, "operation": {
+            "kind": "add_cooldown_to_selection", "selection_component_id": "top_n", "duration": 0,
+        },
+    })
+    assert rejected.status_code == 422
+    assert source == momentum_top_n_strategy().model_dump(mode="json")
+
+
+def test_one_investment_construction_chain_persists_and_compiles(tmp_path: Path) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "construction.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as persisted_client:
+            source = one_investment_strategy().model_dump(mode="json")
+            created = persisted_client.post("/v1/strategies", json={
+                "name": "Constructed strategy", "canonical_strategy": source,
+            })
+            assert created.status_code == 201
+            strategy_id = created.json()["strategy"]["id"]
+            revision_id = created.json()["current_revision"]["id"]
+            operations = (
+                {"kind": "update_asset_set", "asset_set_id": "investment", "assets": ["QQQ", "IEF"]},
+                {"kind": "transform_to_choose_assets", "weight_component_id": "weights", "lookback_observations": 21, "count": 1},
+                {"kind": "add_qualification_condition", "rank_component_id": "weights_rank"},
+                {"kind": "add_cooldown_to_selection", "selection_component_id": "weights_top_n", "duration": 20},
+            )
+            for operation in operations:
+                capabilities = persisted_client.post("/v1/canonical/strategies/authoring/capabilities", json=source)
+                assert capabilities.status_code == 200
+                if operation["kind"] == "add_cooldown_to_selection":
+                    assert capabilities.json()["cooldown_add_targets"] == ["weights_top_n"]
+                applied = persisted_client.post("/v1/canonical/strategies/authoring/apply", json={
+                    "strategy": source, "operation": operation,
+                })
+                assert applied.status_code == 200, applied.text
+                source = applied.json()["strategy"]
+            assert "weights_top_n_cooldown" in (item["id"] for item in source["graph"]["components"])
+            assert compile_strategy_to_lean_plan(CanonicalStrategyV1.model_validate(source)).cooldown_states[0].required_completed_sessions == 20
+            saved = persisted_client.post(f"/v1/strategies/{strategy_id}/revisions", json={
+                "expected_parent_revision_id": revision_id, "canonical_strategy": source,
+            })
+            assert saved.status_code == 201
+            reopened = persisted_client.get(f"/v1/strategies/{strategy_id}")
+            assert reopened.json()["current_revision"]["canonical_strategy"] == source
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_rename_group_preserves_source_and_ids() -> None:
