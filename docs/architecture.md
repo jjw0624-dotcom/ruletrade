@@ -131,6 +131,26 @@ Research answers “what am I investigating?” and displays Result, Decision,
 Why/Why-not, Candidate, and Comparison. Research is attached to the Builder; it
 is not a Strategy representation and does not own another Strategy model.
 
+### Editable representations v1
+
+Summary describes the whole Strategy; Guide explains it step by step; Flow uses
+xyflow for capital/ownership paths; Blocky uses Blockly for decision order;
+Rules states supported semantics in human language; Code shows precise
+Canonical components and connections; AI exports portable context and accepts
+one reviewed semantic proposal. Code is read-oriented until a restricted parser
+can be justified. AI is a handoff surface, not an embedded model or authority.
+
+Each view projects the same working Canonical through a perspective-specific
+read model. Shared `SemanticSelection` carries Canonical `component_id`, optional
+`field_path`, role and group context. Editor block IDs, graph node IDs, sentence
+positions and text offsets are presentation details. Field edits and supported
+construction go through the existing backend capabilities/apply contract; only
+the validated Canonical response replaces working Strategy state. Rejection
+does not dirty the Strategy. Switching representations preserves working
+Canonical, Revision context and Research; viewport and layout remain UI-local.
+No universal future UI AST or editor serialization is Strategy truth. See
+[the representation boundary and operation matrix](editable-representations-v1.md).
+
 ## Authoring today
 
 Supported authoring is backend-owned. The frontend sends current Canonical to

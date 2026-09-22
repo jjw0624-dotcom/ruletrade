@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
@@ -10,11 +10,20 @@ import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
 import { WorkspaceActivityDrawer, WorkspaceEdgeRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
+import { RulesView } from "../views/RulesView";
+import { CodeView } from "../views/CodeView";
+import { AIHandoffView } from "../views/AIHandoffView";
+
+const BlockyView = lazy(() => import("../views/BlockyView").then((module) => ({ default: module.BlockyView })));
 
 const representationLabel: Record<EditorView, string> = {
   overview: "Summary",
   guided: "Guide",
   flow: "Flow",
+  blocky: "Blocky",
+  rules: "Rules",
+  code: "Code",
+  ai: "AI",
 };
 
 export function shouldShowSemanticInspector(hasSelection: boolean, researchOpen: boolean): boolean {
@@ -36,6 +45,8 @@ export function StrategyBuilderWorkspace({
   onRename,
   onSave,
   onTest,
+  revisionId,
+  researchContext,
 }: {
   name: string;
   dirty: boolean;
@@ -63,10 +74,13 @@ export function StrategyBuilderWorkspace({
   onRename: () => void;
   onSave: () => void;
   onTest: () => void;
+  revisionId?: string | null;
+  researchContext?: { runId: string; sessionId: string; asset: string | null } | null;
 }) {
   const { state, dispatch } = useStrategyEditor();
+  const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
   const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
-  const switchView = (view: EditorView) => dispatch({ type: "set_active_view", view });
+  const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
   return <section className="strategy-builder-workspace">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
@@ -89,6 +103,10 @@ export function StrategyBuilderWorkspace({
             <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
             <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
             <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
+            {blockyVisited && <section hidden={state.editor.activeView !== "blocky"} className="representation-layer blocky-layer"><Suspense fallback={<p role="status">Loading logic editor…</p>}><BlockyView structural={structural} /></Suspense></section>}
+            <section hidden={state.editor.activeView !== "rules"} className="representation-layer"><RulesView structural={structural} /></section>
+            <section hidden={state.editor.activeView !== "code"} className="representation-layer"><CodeView /></section>
+            <section hidden={state.editor.activeView !== "ai"} className="representation-layer"><AIHandoffView structural={structural} revisionId={revisionId ?? null} researchContext={researchContext ?? null} /></section>
           </main>
           {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
         </div>
