@@ -14,6 +14,7 @@ import { useStrategyEditor } from "../store/editorStore";
 import {
   ChooseTransformationControl,
   FallbackTransformationControl,
+  CooldownConstructionControl,
   GrowthDefensiveTransformationControl,
 } from "./ShapeTransformationControls";
 
@@ -56,6 +57,9 @@ function ConstructionControl({ option, structural, groupId }: {
     growth_allocation: allocation,
     defensive_assets: assets,
   }, semanticSelection("split", `${option.targetComponentId}_portfolio`))} />;
+  if (option.kind === "cooldown") return <CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
+    kind: "add_cooldown_to_selection", selection_component_id: option.targetComponentId, duration,
+  }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} />;
   return <section className="construction-card">
     <strong>{option.label}</strong><p>{option.description}</p>
     <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({
