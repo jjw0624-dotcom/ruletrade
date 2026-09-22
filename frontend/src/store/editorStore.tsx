@@ -6,7 +6,7 @@ import type {
   RegistryPayload,
   ValidationIssue,
 } from "../domain/canonical";
-import type { SemanticSelection } from "../domain/semanticSelection";
+import { selectionInCanonical, type SemanticSelection } from "../domain/semanticSelection";
 
 export type EditorView = "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 
@@ -58,14 +58,12 @@ export function editorReducer(
 ): StrategyEditorState {
   switch (action.type) {
     case "replace_canonical":
-      return { ...state, canonical: action.canonical, validation: { status: "valid", issues: [] } };
+      return { ...state, canonical: action.canonical,
+        editor: { ...state.editor, selection: selectionInCanonical(state.editor.selection, new Set(action.canonical.graph.components.map((item) => item.id))) },
+        validation: { status: "valid", issues: [] } };
     case "replace_canonical_dirty": {
       const survivingIds = new Set(action.canonical.graph.components.map((item) => item.id));
-      const currentSurvives = state.editor.selection?.componentId == null
-        || survivingIds.has(state.editor.selection.componentId);
-      const selection = action.selection !== undefined
-        ? action.selection
-        : currentSurvives ? state.editor.selection : null;
+      const selection = selectionInCanonical(action.selection !== undefined ? action.selection : state.editor.selection, survivingIds);
       return {
         ...state,
         canonical: action.canonical,

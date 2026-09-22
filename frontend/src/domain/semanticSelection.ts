@@ -39,3 +39,24 @@ export function sameSemanticSelection(
     && left?.fieldPath === right?.fieldPath
     && left?.groupId === right?.groupId;
 }
+
+/** Canonical component and optional field form the cross-surface address.
+ * Role and group describe presentation context, not a second identity system.
+ */
+export function sameSemanticAddress(
+  left: Pick<SemanticSelection, "componentId" | "fieldPath"> | null,
+  right: Pick<SemanticSelection, "componentId" | "fieldPath"> | null,
+): boolean {
+  return Boolean(left?.componentId) && left?.componentId === right?.componentId
+    && (left?.fieldPath ?? null) === (right?.fieldPath ?? null);
+}
+
+/** Reconcile selection only when an authoritative Canonical replaces the working copy.
+ * A field may be supplied by Registry defaults, so component existence is the safe check.
+ */
+export function selectionInCanonical(
+  selection: SemanticSelection | null,
+  componentIds: ReadonlySet<string>,
+): SemanticSelection | null {
+  return selection?.componentId && !componentIds.has(selection.componentId) ? null : selection;
+}
