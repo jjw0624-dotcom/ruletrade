@@ -16,7 +16,7 @@ import {
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
-import { semanticSelection } from "./domain/semanticSelection";
+import { sameSemanticAddress, semanticSelection } from "./domain/semanticSelection";
 import {
   INITIAL_WORKBENCH_RESEARCH,
   researchTitle,
@@ -61,8 +61,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
   const readiness = freshDataReadiness(dataReadiness, readinessKey);
   const currentSourceFocus = localSourceFocus ?? sourceFocus;
   const activeSourceFocus = currentSourceFocus
-    && state.editor.selection?.componentId === currentSourceFocus.componentId
-    && state.editor.selection?.fieldPath === (currentSourceFocus.fieldPath ?? null)
+    && sameSemanticAddress(state.editor.selection, { componentId: currentSourceFocus.componentId, fieldPath: currentSourceFocus.fieldPath ?? null })
     ? currentSourceFocus
     : null;
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
