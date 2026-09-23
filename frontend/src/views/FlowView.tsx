@@ -36,8 +36,9 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
 }
 
 export function flowNodeIdForSelection(nodes: SemanticNode[], selection: SemanticSelection | null): string | null {
-  return nodes.find((item) => item.data.selection.componentId === selection?.componentId
-    && (!selection?.fieldPath || item.data.selection.fieldPath === selection.fieldPath))?.id ?? null;
+  if (!selection?.componentId) return null;
+  const matching = nodes.filter((item) => item.data.selection.componentId === selection.componentId);
+  return (matching.find((item) => item.data.selection.fieldPath === selection.fieldPath) ?? matching[0])?.id ?? null;
 }
 
 const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false };

@@ -8,7 +8,7 @@ import type {
 } from "../domain/canonical";
 import type { SemanticSelection } from "../domain/semanticSelection";
 
-export type EditorView = "overview" | "guided" | "flow";
+export type EditorView = "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 
 export interface StrategyEditorState {
   canonical: CanonicalStrategyV1;
