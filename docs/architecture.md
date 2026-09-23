@@ -151,6 +151,12 @@ Canonical, Revision context and Research; viewport and layout remain UI-local.
 No universal future UI AST or editor serialization is Strategy truth. See
 [the representation boundary and operation matrix](editable-representations-v1.md).
 
+The [connected workspace contract](connected-workspace-contract-v1.md) records
+CURRENT state ownership, the Canonical semantic address, shared mutation and
+query/command boundaries, and the seam from persisted Research to the current
+representation. Its Validate/Forward integration notes are FUTURE / DIRECTIONAL,
+not implemented Strategy modes.
+
 ## Authoring today
 
 Supported authoring is backend-owned. The frontend sends current Canonical to
@@ -190,6 +196,19 @@ Result → View rule resolves provenance into shared `SemanticSelection`.
 Rule → Show where this mattered searches persisted successful, non-Candidate
 Runs for the exact Revision and exact provenance, then opens the existing
 Research context. It reuses persisted Evidence and does not execute LEAN.
+
+Feedback Navigation projects persisted Decision summaries into narrow Result
+events carrying exact Run and Decision IDs. Lightweight Charts owns equity
+rendering, crosshair, zoom and pan; RuleTrade owns event categories, selection,
+Evidence and semantic navigation. Dense Daily Results use bounded overview
+markers and a complete paged list. Selecting one event fetches only its persisted
+session details, then `component_id + optional field_path` enters the currently
+active Strategy representation. See [Feedback Navigation v1](feedback-navigation-v1.md).
+
+Decision-time Evidence remains distinct from subsequent outcomes. The current
+Result does not label decisions as mistakes or compute per-asset hindsight
+returns from unavailable data. Quick Result explains what happened and why;
+robustness and parameter variation remain future Validation work.
 
 Candidate v0 applies one backend-validated filter-threshold change to an
 immutable base Revision and runs the resulting immutable Candidate through the

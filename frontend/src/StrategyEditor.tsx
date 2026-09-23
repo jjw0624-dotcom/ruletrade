@@ -16,7 +16,7 @@ import {
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
-import { semanticSelection } from "./domain/semanticSelection";
+import { sameSemanticAddress, semanticSelection } from "./domain/semanticSelection";
 import {
   INITIAL_WORKBENCH_RESEARCH,
   researchTitle,
@@ -60,9 +60,13 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     : null;
   const readiness = freshDataReadiness(dataReadiness, readinessKey);
   const currentSourceFocus = localSourceFocus ?? sourceFocus;
+  const focusedComponentPresent = currentSourceFocus
+    ? state.canonical.graph.components.some((component) => component.id === currentSourceFocus.componentId)
+    : true;
+  const historicalSourceFocus = Boolean(currentSourceFocus && base && currentSourceFocus.revisionId !== base.id
+    && (!focusedComponentPresent || sameSemanticAddress(state.editor.selection, { componentId: currentSourceFocus.componentId, fieldPath: currentSourceFocus.fieldPath ?? null })));
   const activeSourceFocus = currentSourceFocus
-    && state.editor.selection?.componentId === currentSourceFocus.componentId
-    && state.editor.selection?.fieldPath === (currentSourceFocus.fieldPath ?? null)
+    && sameSemanticAddress(state.editor.selection, { componentId: currentSourceFocus.componentId, fieldPath: currentSourceFocus.fieldPath ?? null })
     ? currentSourceFocus
     : null;
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
@@ -111,7 +115,8 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     viewInFlow: boolean,
   ) {
     setLocalSourceFocus({ revisionId, componentId, fieldPath, researchContext: context ?? undefined });
-    dispatch({ type: "select_semantic", selection: semanticSelection("rule", componentId, { fieldPath }) });
+    const exists = state.canonical.graph.components.some((component) => component.id === componentId);
+    dispatch({ type: "select_semantic", selection: exists ? semanticSelection("rule", componentId, { fieldPath }) : null });
     if (viewInFlow) dispatch({ type: "set_active_view", view: "flow" });
   }
 
@@ -219,7 +224,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
 
   const evidence = strategy && base && state.editor.selection?.componentId && runsStatus === "loaded"
     ? <RuleEvidenceHistory revisionId={activeSourceFocus?.revisionId ?? base.id} target={{ componentId: state.editor.selection.componentId, fieldPath: state.editor.selection.fieldPath }} runs={runs} preferredAsset={activeSourceFocus?.researchContext?.asset} onOpen={(context) => void openRun(context.runId, context)} /> : undefined;
-  const notices = <>{confirmation && <div className="save-banner saved" role="status"><span>✓ {confirmation}</span></div>}{saveMessage && <div className={`save-banner ${saveStatus}`} role={saveStatus === "error" || saveStatus === "stale" ? "alert" : "status"}><span>{saveMessage}</span>{saveStatus === "stale" && <button className="secondary-button" onClick={() => void reloadLatest()}>Reload latest</button>}</div>}</>;
+  const notices = <>{confirmation && <div className="save-banner saved" role="status"><span>✓ {confirmation}</span></div>}{historicalSourceFocus && <div className="save-banner historical" role="status"><span>This Decision belongs to Revision {currentSourceFocus!.revisionId.slice(0, 8)}…. You are viewing the current Strategy; field values may have changed.</span></div>}{currentSourceFocus && !focusedComponentPresent && <div className="save-banner historical" role="status"><span>The historical component {currentSourceFocus.componentId} is not present in the current Strategy. Its persisted Evidence remains open in Research.</span></div>}{saveMessage && <div className={`save-banner ${saveStatus}`} role={saveStatus === "error" || saveStatus === "stale" ? "alert" : "status"}><span>{saveMessage}</span>{saveStatus === "stale" && <button className="secondary-button" onClick={() => void reloadLatest()}>Reload latest</button>}</div>}</>;
   const validationPanel = state.validation.issues.length > 0 ? <div className="error-panel" role="alert"><strong>Strategy needs attention</strong>{state.validation.issues.map(issue=><p key={`${issue.path}-${issue.message}`}>{issue.message}</p>)}</div> : null;
   const activityContent = <WorkspaceActivity revisionId={base?.id ?? null} revisionCount={revisions.length} runs={runs} status={runsStatus} onOpenRun={(runId) => void openRun(runId)} />;
   let researchContent = <div className="research-state"><h2>Select saved research</h2><p>Open Activity to choose a saved result.</p></div>;
