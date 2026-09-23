@@ -30,7 +30,8 @@ jobs:
         run: |
           uv --version
           uv python install 3.12
-          uv run python --version
+          uv lock --check
+          uv run --locked python --version
       - name: Install Python dependencies
         run: uv sync --extra bt --extra dev --locked
       - name: Set up Node
@@ -62,7 +63,8 @@ jobs:
         run: |
           uv --version
           uv python install 3.12
-          uv run python --version
+          uv lock --check
+          uv run --locked python --version
       - name: Install compiler dependencies
         run: uv sync --extra dev --locked
       - name: Generate compiler-slice C# algorithms
