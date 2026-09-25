@@ -151,6 +151,12 @@ Canonical, Revision context and Research; viewport and layout remain UI-local.
 No universal future UI AST or editor serialization is Strategy truth. See
 [the representation boundary and operation matrix](editable-representations-v1.md).
 
+The [connected workspace contract](connected-workspace-contract-v1.md) records
+CURRENT state ownership, the Canonical semantic address, shared mutation and
+query/command boundaries, and the seam from persisted Research to the current
+representation. Its Validate/Forward integration notes are FUTURE / DIRECTIONAL,
+not implemented Strategy modes.
+
 ## Authoring today
 
 Supported authoring is backend-owned. The frontend sends current Canonical to
