@@ -63,6 +63,7 @@ unrestricted boolean expressions, or arbitrary Cooldown placement. Summary,
 Guide, and Flow share Canonical and authoring authority, but future
 representations need not share one universal visual layout/projection.
 
-Future Builder representations can call the same operations without reproducing
-domain eligibility or validation, but no Blocky, Rules, Code, or AI consumer is
-implemented today.
+Current Blocky and Rules views use these same semantic operations; Code is
+read-oriented with shared Inspector editing, and AI proposal Apply uses the
+same authoring controller after stateless backend preview. None introduces a
+representation-specific backend mutation endpoint.
