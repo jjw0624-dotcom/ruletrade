@@ -230,7 +230,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .representation-layer[hidden] { display: none; }
 .flow-layer { overflow: hidden; }
 .flow-representation { position: relative; width: 100%; height: 100%; outline: none; }
-.semantic-flow-node { width: 190px; display: grid; gap: 4px; padding: 13px 15px; border: 1px solid #abb9b0; border-radius: 9px; color: #213e30; background: #fff; box-shadow: 0 3px 10px rgba(22,48,34,.08); }
+.semantic-flow-node { position:relative; width: 190px; display: grid; gap: 4px; padding: 13px 15px; border: 1px solid #abb9b0; border-radius: 9px; color: #213e30; background: #fff; box-shadow: 0 3px 10px rgba(22,48,34,.08); }
+.flow-node-add{position:absolute;right:-10px;bottom:-10px;width:24px;height:24px;border:1px solid #b9c8bd;border-radius:50%;background:#fff;color:var(--accent);font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(23,47,33,.12)}
 .semantic-flow-node span { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .semantic-flow-node.selected { border-color: #276746; outline: 3px solid rgba(39,103,70,.17); }
 .semantic-flow-node.qualification { border-style: dashed; }
@@ -784,6 +785,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .code-metadata,.code-component{background:#f8fafc;border:1px solid #dbe1e9;border-radius:8px;padding:12px;margin:10px 0}
 .code-component{border-left:3px solid transparent}
 .ai-handoff-representation{max-width:900px;margin:auto}
+.builder-workbench[data-research-open="true"] .builder-core.active-code.left-open,.builder-workbench[data-research-open="true"] .builder-core.active-ai.left-open{grid-template-columns:42px minmax(0,1fr)}
+.builder-workbench[data-research-open="true"] .builder-core.active-code .workspace-left-panel,.builder-workbench[data-research-open="true"] .builder-core.active-ai .workspace-left-panel{visibility:hidden;pointer-events:none}
+.builder-workbench[data-research-open="true"] .code-representation,.builder-workbench[data-research-open="true"] .ai-handoff-representation{max-width:none;margin:0;padding:18px;min-width:0}
 .ai-handoff-section{padding:18px;margin:18px 0;background:#fff;border:1px solid #dbe1e9;border-radius:10px}
 .ai-handoff-section textarea{display:block;box-sizing:border-box;width:100%;margin:12px 0;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
 .ai-proposal-preview{margin-top:15px;padding:14px;border:1px solid #a5b4fc;border-radius:8px;background:#eef2ff}

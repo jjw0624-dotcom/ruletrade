@@ -9,9 +9,9 @@ import { useStrategyEditor } from "../store/editorStore";
 
 export function shapeTransformationTargets(capabilities: StructuralAuthoringController["capabilities"]) { return { choose: capabilities?.choose_pipeline_targets[0], fallback: capabilities?.fallback_add_targets[0], growthDefensive: capabilities?.growth_defensive_targets[0] }; }
 
-type SemanticNodeData = Record<string, unknown> & { title: string; detail: string; tone?: string; selection: SemanticSelection };
+type SemanticNodeData = Record<string, unknown> & { title: string; detail: string; tone?: string; selection: SemanticSelection; canAdd?: boolean; onAdd?: (selection: SemanticSelection) => void };
 type SemanticNode = Node<SemanticNodeData, "semantic">;
-function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) { return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}><Handle type="target" position={Position.Top} isConnectable={false}/><strong>{data.title}</strong><span>{data.detail}</span><Handle type="source" position={Position.Bottom} isConnectable={false}/></div>; }
+function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) { return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}><Handle type="target" position={Position.Top} isConnectable={false}/><strong>{data.title}</strong><span>{data.detail}</span>{data.canAdd && <button className="flow-node-add" aria-label={`Add a Strategy concept at ${data.title}`} onClick={(event)=>{event.stopPropagation();data.onAdd?.(data.selection);}}>+</button>}<Handle type="source" position={Position.Bottom} isConnectable={false}/></div>; }
 const nodeTypes = { semantic: SemanticFlowNode };
 const node = (id:string,x:number,y:number,title:string,detail:string,selection:SemanticSelection,tone?:string):SemanticNode => ({id,type:"semantic",position:{x,y},data:{title,detail,selection,tone}});
 const edge = (source:string,target:string,label?:string):Edge => ({id:`${source}-${target}`,source,target,label,type:"smoothstep",markerEnd:{type:MarkerType.ArrowClosed},className:"strategy-flow-edge"});
@@ -46,6 +46,7 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
   const {state,dispatch}=useStrategyEditor();
   const projection=useMemo(()=>projectConceptualFlow(state.canonical,state.registry),[state.canonical,state.registry]);
   const graph=useMemo(()=>projectFlowCanvas(projection),[projection]);
+  const options=useMemo(()=>constructionOptions(projection,structural.capabilities,state.editor.selection),[projection,structural.capabilities,state.editor.selection]);
   const [nodes,setNodes,onNodesChange]=useNodesState<SemanticNode>(graph.nodes);
   const instance = useRef<ReactFlowInstance<SemanticNode, Edge> | null>(null);
   useEffect(()=>setNodes(current=>graph.nodes.map(projected=>({...projected,position:current.find(item=>item.id===projected.id)?.position??projected.position}))),[graph.nodes,setNodes]);
@@ -54,12 +55,14 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
     const id=flowNodeIdForSelection(graph.nodes,state.editor.selection);
     if(id)void instance.current.fitView({nodes:[{id}],padding:.9,duration:240,maxZoom:1.15});
   },[graph.nodes,state.editor.activeView,state.editor.selection]);
-  const displayed:SemanticNode[]=nodes.map(item=>({...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection)}));
+  const openAdd=useCallback((selection?:SemanticSelection)=>{if(selection)dispatch({type:"select_semantic",selection});dispatch({type:"set_left_panel_open",open:true});dispatch({type:"set_left_panel_tab",tab:"blocks"});},[dispatch]);
+  const displayed:SemanticNode[]=nodes.map(item=>{const canAdd=options.some(option=>sameSemanticSelection(option.anchorSelection,item.data.selection)||Boolean(option.groupId&&option.groupId===item.data.selection.groupId));return {...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection),data:{...item.data,canAdd,onAdd:openAdd}};});
   const removeSelected=useCallback(()=>{const operation=semanticDeleteOperation(state.editor.selection,structural.capabilities);if(operation)void structural.apply(operation,null);},[state.editor.selection,structural]);
-  const canAdd=constructionOptions(projection,structural.capabilities,state.editor.selection).length>0;
+  const canAdd=options.length>0;
+  const topologyKey=useMemo(()=>`${graph.nodes.map(item=>item.id).join("|")}::${graph.edges.map(item=>item.id).join("|")}`,[graph]);
   return <div className="flow-representation" tabIndex={0} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
-    <ReactFlow<SemanticNode, Edge> nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
+    <ReactFlow<SemanticNode, Edge> key={topologyKey} nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
-    {canAdd && <button className="secondary-button flow-add-action" onClick={()=>{dispatch({type:"set_left_panel_open",open:true});dispatch({type:"set_left_panel_tab",tab:"blocks"});}}>+ Add to selection</button>}
+    {canAdd && <button className="secondary-button flow-add-action" onClick={()=>openAdd()}>+ Add concept</button>}
   </div>;
 }

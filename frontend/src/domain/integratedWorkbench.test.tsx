@@ -68,6 +68,16 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain('data-workspace="research"');
   });
 
+  it("marks Code and AI as full representations so shared Research geometry can preserve their width", () => {
+    const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const renderView = (initialView: "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: false, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+    </StrategyEditorProvider>);
+    expect(renderView("code")).toContain("builder-core active-code left-open");
+    expect(renderView("ai")).toContain("builder-core active-ai left-open");
+  });
+
   it("opens exact persisted Run context without touching Strategy semantic state", () => {
     const editor = createEditorState(sleevesBootstrap, "guided");
     const canonical = editor.canonical;

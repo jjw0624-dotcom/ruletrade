@@ -20,7 +20,9 @@ gesture → exact semantic intent → backend capabilities/apply → validated C
         → all views reproject; Save creates an immutable Revision separately
 ```
 
-Selection is `component_id + optional field_path + role/group`. Where a view has no exact visual counterpart it retains selection in the Inspector and can show a nearby concept. Block IDs, xyflow IDs and text positions never become provenance. Blockly blocks and zoom are UI-local. Blocky uses a lazy chunk; its serialized workspace is never saved as Strategy. Dragging a qualification from its capability-driven Blockly toolbox submits one semantic add. Numeric fields use a pessimistic validator: the displayed value only changes when backend apply returns valid Canonical. Rejected adds and fields reconcile to the prior state. Other structural Add actions reuse the existing panel/controls with explicit intent. Blockly's own semantic undo and arbitrary rewiring are disabled. Flow retains its current contextual Add; free port wiring is still unsupported.
+Selection is `component_id + optional field_path + role/group`. Where a view has no exact visual counterpart it retains selection in the Inspector and can show a nearby concept. Block IDs, xyflow IDs and text positions never become provenance. Blockly blocks and zoom are UI-local. Blocky uses a lazy chunk; its serialized workspace is never saved as Strategy. Its toolbox is generated from the complete backend-supported Add capability set: dragging a concept resolves an exact semantic target, collects only required intent, submits the existing authoring operation, and then rebuilds from returned Canonical. Numeric fields use the same pessimistic lifecycle. Projected logic stacks can be arranged as presentation state, but their internal semantic order and arbitrary Blockly connections are not accepted. Flow exposes the same capability set in the left Add palette and as spatial insertion affordances on compatible nodes. Free port wiring remains unsupported.
+
+The Add palette answers “what can I add to this Strategy?” without requiring the user to first discover the backend target object. Each item still carries its exact backend-approved target. One valid target applies directly; multiple valid targets are labeled by investment path and can be chosen in the representation. Blank workspace gestures clear semantic selection, while switching representation preserves it. Removal remains an Inspector/detail responsibility for MVP 1.
 
 ## Supported operation coverage
 
@@ -34,8 +36,8 @@ Cells show current *surface behavior*, not every backend operation. `ADD/REMOVE`
 | Qualification | ADD/REMOVE via Inspector | ADD/REMOVE via palette/selection | ADD via toolbox; REMOVE selected | ADD/REMOVE inline | READ, Inspector ADD/REMOVE |
 | Threshold | EDIT via Inspector | EDIT via Inspector | EDIT field | EDIT inline | READ, Inspector EDIT |
 | Ranking / Top N | READ and count EDIT | READ and count EDIT via Inspector | READ rank, EDIT count field | READ rank, EDIT count | READ, Inspector EDIT |
-| Fallback | ADD/REMOVE via Inspector | ADD/REMOVE via contextual Add | ADD via control, REMOVE selected | ADD/REMOVE inline | READ, Inspector EDIT |
-| Cooldown | ADD/REMOVE via Inspector | ADD/REMOVE via contextual Add | ADD via control, EDIT field, REMOVE selected | ADD/REMOVE/EDIT inline | READ, Inspector EDIT |
+| Fallback | ADD/REMOVE via Inspector | ADD via palette/node, REMOVE via Inspector | ADD via native toolbox + intent, REMOVE selected | ADD/REMOVE inline | READ, Inspector EDIT |
+| Cooldown | ADD/REMOVE via Inspector | ADD via palette/node, REMOVE via Inspector | ADD via native toolbox + intent, EDIT field, REMOVE selected | ADD/REMOVE/EDIT inline | READ, Inspector EDIT |
 | Group / allocation | EDIT two-sleeve allocation via Inspector | Growth/Defensive shortcut; EDIT via Inspector | READ grouping, Inspector EDIT | READ and EDIT two-sleeve allocation | READ, Inspector EDIT |
 | Schedule | EDIT via Inspector | EDIT via Inspector | READ, Inspector EDIT | EDIT inline | READ, Inspector EDIT |
 

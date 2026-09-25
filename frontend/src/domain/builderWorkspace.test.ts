@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { constructionOptions, projectBuilderStructure, semanticDeleteOperation } from "./builderProjection";
 import { projectConceptualFlow } from "./conceptualFlow";
-import { sameSemanticSelection, semanticSelection } from "./semanticSelection";
+import { isBlankWorkspaceTarget, sameSemanticSelection, semanticSelection } from "./semanticSelection";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
 import { cooldownBootstrap, filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
@@ -32,6 +32,12 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(guide.editor.selection).toEqual(selected.editor.selection);
   });
 
+  it("distinguishes blank workspace gestures from semantic and form interactions", () => {
+    const target = (match: unknown) => ({ closest: () => match }) as unknown as EventTarget;
+    expect(isBlankWorkspaceTarget(target(null))).toBe(true);
+    expect(isBlankWorkspaceTarget(target({ dataset: { componentId: "top_n" } }))).toBe(false);
+  });
+
   it("projects Structure and Flow from the same component identities", () => {
     const projection = projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry);
     const structure = projectBuilderStructure(projection);
@@ -58,6 +64,16 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, selected).map((item) => item.kind)).toEqual(["qualification"]);
     expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["top_n"] }, selected).map((item) => item.kind)).toEqual(["cooldown"]);
     expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["unrelated"] }, selected)).toEqual([]);
+  });
+
+  it("offers Strategy additions without requiring the user to preselect the backend target", () => {
+    const projection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
+    const fromBlankCanvas = constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, null);
+    const fromPortfolio = constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, semanticSelection("portfolio", null));
+    expect(fromBlankCanvas).toHaveLength(1);
+    expect(fromPortfolio).toEqual(fromBlankCanvas);
+    expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });
+    expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
   });
 
   it("maps Delete only to supported semantic inverse operations", () => {

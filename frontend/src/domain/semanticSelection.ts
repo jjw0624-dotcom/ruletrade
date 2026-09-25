@@ -60,3 +60,9 @@ export function selectionInCanonical(
 ): SemanticSelection | null {
   return selection?.componentId && !componentIds.has(selection.componentId) ? null : selection;
 }
+
+/** Blank workspace gestures clear selection; semantic and interactive descendants do not. */
+export function isBlankWorkspaceTarget(target: EventTarget | null): boolean {
+  if (!target || !("closest" in target) || typeof target.closest !== "function") return true;
+  return target.closest("[data-component-id],button,input,textarea,select,a") === null;
+}

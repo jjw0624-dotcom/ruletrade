@@ -4,7 +4,24 @@ import { cooldownBootstrap, fallbackBootstrap, filterBootstrap, goldenBootstrap,
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { authoringResponse } from "../test/authoringResponse";
 
+function backendFallbackRemoval() {
+  const canonical = structuredClone(fallbackBootstrap.strategy);
+  canonical.graph.components = canonical.graph.components.filter((item) => item.id !== "fallback");
+  canonical.graph.connections = canonical.graph.connections.flatMap((connection) => {
+    if (connection.source.component_id === "weights" && connection.target.component_id === "fallback") return [{ source: connection.source, target: { component_id: "rebalance", port: "targets" } }];
+    return connection.source.component_id === "fallback" ? [] : [connection];
+  });
+  canonical.definitions.asset_sets = canonical.definitions.asset_sets.filter((item) => item.id !== "fallback_tlt");
+  return canonical;
+}
+
 describe("Conceptual Flow v2 projection", () => {
+  it("continues to project the backend result after Fallback removal", () => {
+    const flow = projectConceptualFlow(backendFallbackRemoval(), fallbackBootstrap.registry);
+    expect(flow.unsupportedReason).toBeUndefined();
+    expect(flow.groups[0].choose?.fallbackComponentId).toBeUndefined();
+    expect(flow.groups[0].choose?.otherwise).toBeUndefined();
+  });
   it.each([
     ["golden", goldenBootstrap],
     ["momentum", momentumBootstrap],
