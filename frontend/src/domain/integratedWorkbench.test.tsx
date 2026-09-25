@@ -11,6 +11,7 @@ import { semanticSelection } from "./semanticSelection";
 import {
   INITIAL_WORKBENCH_RESEARCH,
   RESEARCH_COMPARISON_SIZE,
+  RESEARCH_BUILDER_MIN_SIZE,
   RESEARCH_DEFAULT_SIZE,
   RESEARCH_MAX_SIZE,
   RESEARCH_MIN_SIZE,
@@ -55,7 +56,7 @@ const run = {
 };
 
 describe("integrated Strategy research workbench", () => {
-  it("mounts Research beside the same Builder representation tree", () => {
+  it("mounts stacked Research with the same Builder representation tree", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}>
@@ -65,17 +66,21 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain("Strategy research");
     expect(markup).toContain("Persisted result");
     expect(markup).toContain('data-research-open="true"');
+    expect(markup).toContain('data-research-layout="stacked"');
     expect(markup).toContain('data-workspace="research"');
   });
 
-  it("marks Code and AI as full representations so shared Research geometry can preserve their width", () => {
+  it("keeps every representation in the full-width Builder while Research is open", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
-    const renderView = (initialView: "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
+    const renderView = (initialView: "guided" | "flow" | "blocky" | "rules" | "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
       <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: false, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);
-    expect(renderView("code")).toContain("builder-core active-code left-open");
-    expect(renderView("ai")).toContain("builder-core active-ai left-open");
+    for (const view of ["guided", "flow", "blocky", "rules", "code", "ai"] as const) {
+      const markup = renderView(view);
+      expect(markup).toContain(`builder-core active-${view}`);
+      expect(markup).toContain('data-research-layout="stacked"');
+    }
   });
 
   it("opens exact persisted Run context without touching Strategy semantic state", () => {
@@ -102,8 +107,8 @@ describe("integrated Strategy research workbench", () => {
     expect(summary.canonical).toBe(initial.canonical);
     expect(summary.editor.selection).toEqual(selected.editor.selection);
     expect(summary.validation.status).toBe("valid");
-    expect(closed).toMatchObject({ researchOpen: false, size: 80, destination: { kind: "run", runId: "run-1" } });
-    expect(reopened).toMatchObject({ researchOpen: true, size: 80, destination: { kind: "run", runId: "run-1" } });
+    expect(closed).toMatchObject({ researchOpen: false, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
+    expect(reopened).toMatchObject({ researchOpen: true, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
   });
 
   it("maps exact semantic identity to the xyflow node used by View in Flow", () => {
@@ -158,10 +163,12 @@ describe("integrated Strategy research workbench", () => {
     expect(comparison).toMatchObject({ activityOpen: false, researchOpen: true, size: RESEARCH_COMPARISON_SIZE, destination: { kind: "comparison", comparisonId: "comparison-1" } });
   });
 
-  it("keeps a user-expanded width when opening Comparison", () => {
+  it("keeps a user-expanded height when opening Comparison", () => {
     const expanded = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 80 });
     const comparison = workbenchResearchReducer(expanded, { type: "open_comparison", comparisonId: "comparison-1" });
-    expect(comparison.size).toBe(80);
+    expect(expanded.size).toBe(RESEARCH_MAX_SIZE);
+    expect(comparison.size).toBe(RESEARCH_MAX_SIZE);
+    expect(100 - RESEARCH_MAX_SIZE).toBe(RESEARCH_BUILDER_MIN_SIZE);
   });
 
   it("selecting a saved Run from Activity switches Research and closes Activity", () => {

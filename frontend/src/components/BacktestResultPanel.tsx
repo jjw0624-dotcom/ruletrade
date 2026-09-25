@@ -46,8 +46,8 @@ function LightweightEquityChart({ result, events, selectedDecisionId, onSelectDe
         if (selected) latest.current.onSelectDecision?.(selected);
       };
       chart.subscribeClick(click);
-      chart.timeScale().fitContent();
-      dispose = () => { markerPlugin.current = null; chart.unsubscribeClick(click); chart.remove(); };
+      const fitFrame = window.requestAnimationFrame(() => chart.timeScale().fitContent());
+      dispose = () => { window.cancelAnimationFrame(fitFrame); markerPlugin.current = null; chart.unsubscribeClick(click); chart.remove(); };
     });
     return () => { active = false; dispose(); };
   }, [result]);

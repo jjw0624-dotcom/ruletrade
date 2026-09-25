@@ -19,7 +19,19 @@ export interface ResultEventPresentation {
 export interface ResultChartPoint { time: string; value: number }
 
 export function projectResultChartSeries(result: BacktestResult): ResultChartPoint[] {
-  return result.equity_curve.map((point) => ({ time: point.timestamp.slice(0, 10), value: Number(point.value) }));
+  // LEAN's real Strategy Equity series can contain more than one candlestick per
+  // UTC trading date. Lightweight Charts requires strictly increasing, unique
+  // times, so retain the final portfolio close for each date.
+  const daily = new Map<string, { timestamp: number; point: ResultChartPoint }>();
+  for (const source of result.equity_curve) {
+    const timestamp = Date.parse(source.timestamp);
+    const value = Number(source.value);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(value)) continue;
+    const time = new Date(timestamp).toISOString().slice(0, 10);
+    const current = daily.get(time);
+    if (!current || timestamp >= current.timestamp) daily.set(time, { timestamp, point: { time, value } });
+  }
+  return [...daily.values()].map((item) => item.point).sort((left, right) => left.time.localeCompare(right.time));
 }
 
 export function resultEventsOnSeries(events: ResultEventPresentation[], series: ResultChartPoint[]): ResultEventPresentation[] {

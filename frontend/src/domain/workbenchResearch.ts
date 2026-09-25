@@ -13,10 +13,13 @@ export interface WorkbenchResearchState {
   context: ResearchContext | null;
 }
 
-export const RESEARCH_DEFAULT_SIZE = 60;
-export const RESEARCH_COMPARISON_SIZE = 72;
-export const RESEARCH_MIN_SIZE = 45;
-export const RESEARCH_MAX_SIZE = 85;
+// Research is a stacked workspace. These values are vertical percentages and
+// intentionally reserve at least 38% for the active Builder representation.
+export const RESEARCH_DEFAULT_SIZE = 48;
+export const RESEARCH_COMPARISON_SIZE = 58;
+export const RESEARCH_MIN_SIZE = 32;
+export const RESEARCH_MAX_SIZE = 62;
+export const RESEARCH_BUILDER_MIN_SIZE = 38;
 
 export type WorkbenchResearchAction =
   | { type: "toggle_activity" }

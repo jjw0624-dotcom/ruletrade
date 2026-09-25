@@ -9,6 +9,7 @@ import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
 import { WorkspaceActivityDrawer, WorkspaceEdgeRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
+import { RESEARCH_BUILDER_MIN_SIZE } from "../domain/workbenchResearch";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 import { RulesView } from "../views/RulesView";
 import { CodeView } from "../views/CodeView";
@@ -95,8 +96,8 @@ export function StrategyBuilderWorkspace({
     </header>
     {notices}
     {validation}
-    <Group className="builder-workbench" data-research-open={research?.researchOpen || undefined} orientation="horizontal" onLayoutChanged={(layout) => { if (research?.researchOpen && layout.research !== undefined) research.onResize(layout.research); }}>
-      <Panel id="builder" defaultSize={`${research?.researchOpen ? 100 - research.size : 100}%`} minSize="15%">
+    <Group className="builder-workbench" data-research-open={research?.researchOpen || undefined} data-research-layout={research?.researchOpen ? "stacked" : undefined} orientation="vertical" onLayoutChanged={(layout) => { if (research?.researchOpen && layout.research !== undefined) research.onResize(layout.research); }}>
+      <Panel id="builder" defaultSize={`${research?.researchOpen ? 100 - research.size : 100}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
         <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
           <WorkspaceLeftPanel projection={projection} structural={structural} />
           <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
@@ -113,7 +114,7 @@ export function StrategyBuilderWorkspace({
       </Panel>
       {research?.researchOpen && <>
         <Separator className="research-resize-handle"><span /></Separator>
-        <Panel id="research" defaultSize={`${research.size}%`} minSize="45%" maxSize="85%">
+        <Panel id="research" defaultSize={`${research.size}%`} minSize="32%" maxSize="62%">
           <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
         </Panel>
       </>}

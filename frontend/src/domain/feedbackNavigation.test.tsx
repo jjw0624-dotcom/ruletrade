@@ -36,6 +36,24 @@ describe("Feedback Navigation and Result Events v1", () => {
     expect(resultEventsOnSeries(events, projectResultChartSeries(result))).toEqual([]);
   });
 
+  it("projects real LEAN intraday equity candlesticks as ordered unique chart dates", () => {
+    const leanResult = {
+      ...result,
+      equity_curve: [
+        { timestamp: "2024-01-02T21:00:00Z", value: "102" },
+        { timestamp: "2024-01-01T05:00:00Z", value: "100" },
+        { timestamp: "2024-01-02T05:00:00Z", value: "101" },
+      ],
+    };
+    const series = projectResultChartSeries(leanResult);
+    expect(series).toEqual([
+      { time: "2024-01-01", value: 100 },
+      { time: "2024-01-02", value: 102 },
+    ]);
+    expect(new Set(series.map((point) => point.time)).size).toBe(series.length);
+    expect(series.every((point, index) => index === 0 || series[index - 1].time < point.time)).toBe(true);
+  });
+
   it("keeps Daily density bounded while retaining the selected exact Decision", () => {
     const summaries = Array.from({ length: 260 }, (_, index) => summary(index + 1));
     const events = projectResultEvents("run-daily", summaries);

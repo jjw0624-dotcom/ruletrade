@@ -19,7 +19,13 @@ Commands stay explicit: authoring Apply, Save, Test, Candidate Test, Keep/adopt,
 
 ## Research continuity
 
-Research remains attached while Flow, Blocky, Rules, Guide, Code, and AI switch. It retains the persisted Run, selected Decision, selected asset, destination, and width. `View rule` focuses the same semantic address in the current representation; `View in Flow` is the explicit money-flow switch. Historical Evidence continues to name its exact Run and Revision. A surviving component can be focused with a historical warning; a removed component is never guessed or matched by label.
+Research remains attached while Flow, Blocky, Rules, Guide, Code, and AI switch. It retains the persisted Run, selected Decision, selected asset, destination, and panel size. `View rule` focuses the same semantic address in the current representation; `View in Flow` is the explicit money-flow switch. Historical Evidence continues to name its exact Run and Revision. A surviving component can be focused with a historical warning; a removed component is never guessed or matched by label.
+
+Research uses a vertically stacked, resizable workspace so the active Builder representation keeps
+its full horizontal authoring area. Opening, closing, or resizing Research is presentation-only and
+does not clear semantic selection. The Result chart projects normalized LEAN equity candlesticks to
+strictly ordered unique UTC dates, retaining the latest portfolio close when LEAN supplies multiple
+points for one date, as required by Lightweight Charts.
 
 Activity is compact persisted-artifact recovery, not an event log. It separates saved Strategy Tests from immutable Candidate Tests and opens either existing Result without executing again. Comparison remains reachable from the active Candidate journey; a general History or comparison-list API is deferred.
 
@@ -47,4 +53,4 @@ Record where the participant pauses, backtracks, or mistakes historical Evidence
 
 ## Deferred
 
-MVP 2 includes Validation/robustness, sensitivity and environment sweeps, Forward, competitions, and first-class parameters. Also deferred are a historical Revision editor, subsequent-outcome analytics, drawdown-range navigation, generic event scoring/clustering, a full Strategy History surface, multi-operation AI transactions, arbitrary code editing, and broader Candidate change families.
+MVP 2 includes Validation/robustness, sensitivity and environment sweeps, Forward, competitions, and first-class parameters. Also deferred are Composable Strategy Authoring, a historical Revision editor, subsequent-outcome analytics, drawdown-range navigation, generic event scoring/clustering, a full Strategy History surface, multi-operation AI transactions, arbitrary code editing, and broader Candidate change families.
