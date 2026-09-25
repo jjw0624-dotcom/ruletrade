@@ -85,6 +85,7 @@ export function researchContextForMatch(
   return {
     runId: match.runId,
     sessionId: match.sessionId,
+    decisionId: match.eventIds[0],
     asset: asset && match.assets.includes(asset) ? asset : null,
   };
 }

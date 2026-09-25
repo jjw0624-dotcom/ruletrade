@@ -8,6 +8,7 @@ import { assetOutcomes, assetPath, groupDecisionSessions } from "./decisionPrese
 import { createEditorState, editorReducer, StrategyEditorProvider } from "../store/editorStore";
 import { sleevesBootstrap } from "../test/fixture";
 import { GuidedView } from "../views/GuidedView";
+import { projectResultEvents } from "./resultEvents";
 
 const source = (role: string, component_id: string, field_path?: string) => ({ role, component_id, field_path });
 function detail(ordinal: number, session_id: string, evidence: DecisionEvidenceV1, refs = [source(evidence.kind, `${evidence.kind}_component`)]): DecisionEventDetail { return { id: `event-${String(ordinal).padStart(6, "0")}`, run_id: "run-1", ordinal, schema_version: 1, session_id, phase: evidence.kind === "filter" ? "evaluation" : evidence.kind === "snapshot_usage" || evidence.kind === "sleeve_contribution" || evidence.kind === "final_targets" ? "portfolio_execution" : "selection", kind: evidence.kind, source_components: refs, evidence }; }
@@ -33,7 +34,7 @@ describe("Decision Timeline and Research Inspector", () => {
     const fetcher = (async () => new Response(JSON.stringify({ items: summaries }), { status: 200 })) as typeof fetch;
     expect((await decisionEvidenceApi.list("run-1", fetcher)).items[0].id).toBe("event-000001");
     const groups = groupDecisionSessions(summaries);
-    expect(groups.map((group) => [group.sessionId, group.label])).toEqual([["2024-06-03", "Fallback used"], ["2024-07-01", "Portfolio updated"]]);
+    expect(groups.map((group) => [group.sessionId, group.label])).toEqual([["2024-06-03", "Fallback evaluated"], ["2024-07-01", "Portfolio updated"]]);
   });
 
   it("fetches one selected event detail through the exact API", async () => {
@@ -78,7 +79,7 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("shows a scannable asset overview and an exact failed condition path", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} onShowInStrategy={() => undefined} />);
-    expect(markup).toContain("Asset outcomes"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
+    expect(markup).toContain("At the decision"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("Fallback selected"); expect(markup).toContain("View rule");
     expect(assetPath("VGT", fallback)).toEqual(expect.arrayContaining([expect.objectContaining({ label: "Qualification rule", detail: "-6.7% > 0%", status: "failed", sourceComponentId: "positive_filter" }), expect.objectContaining({ label: "Ranking", detail: "Not reached", status: "neutral" })]));
   });
 
@@ -121,9 +122,9 @@ describe("Decision Timeline and Research Inspector", () => {
 
   it("connects a selected evidence date to the existing equity chart", () => {
     const result = { initial_value: "100", final_value: "110", total_return: ".1", total_orders: 2, total_fees: "1", equity_curve: [{ timestamp: "2024-06-03T00:00:00Z", value: "100" }, { timestamp: "2024-07-01T00:00:00Z", value: "110" }] };
-    const sessions = groupDecisionSessions(fallback.map(({ evidence: _evidence, ...item }) => item as DecisionEventSummary));
-    const markup = renderToStaticMarkup(<BacktestResultPanel result={result} selectedTimestamp="2024-06-03" decisionSessions={sessions} />);
-    expect(markup).toContain("Decision selected"); expect(markup).toContain("decision-crosshair"); expect(markup).toContain("decision-marker fallback"); expect(markup).toContain('role="button"');
+    const events = projectResultEvents("run-1", fallback.map(({ evidence: _evidence, ...item }) => item as DecisionEventSummary));
+    const markup = renderToStaticMarkup(<BacktestResultPanel result={result} selectedDecisionId={events[0].decisionId} allEvents={events} events={events} />);
+    expect(markup).toContain("Decision selected"); expect(markup).toContain("Fallback evaluated"); expect(markup).toContain("TradingView"); expect(markup).toContain("persisted Result events");
   });
 
   it("does not turn missing asset evidence into no signal", () => {

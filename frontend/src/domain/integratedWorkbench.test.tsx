@@ -114,6 +114,18 @@ describe("integrated Strategy research workbench", () => {
     expect(activity).not.toContain("Test strategy");
   });
 
+  it("separates immutable Candidate tests from saved Strategy tests in Activity", () => {
+    const candidate = { ...run, id: "run-candidate", candidate_id: "candidate-1", created_at: "2026-01-02T00:00:00Z" };
+    const opened: string[] = [];
+    const activity = renderToStaticMarkup(<WorkspaceActivity revisionId="revision-1" runs={[candidate, run]} status="loaded" onOpenRun={(runId) => opened.push(runId)} />);
+    expect(activity).toContain("Saved tests");
+    expect(activity).toContain("Candidate tests");
+    expect(activity).toContain("Separate experiments; opening one does not adopt it.");
+    expect(activity).toContain("Saved test · 2025-01-01 – 2025-12-31");
+    expect(activity).toContain("Candidate test · 2025-01-01 – 2025-12-31");
+    expect(opened).toEqual([]);
+  });
+
   it("opens Activity without replacing or clearing active Research", () => {
     const context = { runId: "run-1", sessionId: "2025-06-02", asset: "VGT" };
     const result = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: "run-1", context });

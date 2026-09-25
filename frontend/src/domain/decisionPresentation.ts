@@ -15,7 +15,9 @@ export function groupDecisionSessions(items: DecisionEventSummary[]): DecisionSe
 
 function sessionLabel(events: DecisionEventSummary[]): string {
   const kinds = new Set(events.map((event) => event.kind));
-  if (kinds.has("fallback")) return "Fallback used";
+  // A summary proves fallback evaluation, not activation. The selected
+  // Decision detail carries the authoritative activated value.
+  if (kinds.has("fallback")) return "Fallback evaluated";
   if (kinds.has("cooldown")) return "Asset still waiting";
   if (kinds.has("final_targets") || kinds.has("sleeve_contribution") || kinds.has("snapshot_usage")) return "Portfolio updated";
   if (kinds.has("state_mutation")) return "Waiting period updated";

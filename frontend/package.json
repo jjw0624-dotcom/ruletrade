@@ -25,6 +25,7 @@
     "@radix-ui/react-tooltip": "1.2.16",
     "@xyflow/react": "12.11.6",
     "blockly": "13.3.0",
+    "lightweight-charts": "5.2.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-resizable-panels": "4.12.4"

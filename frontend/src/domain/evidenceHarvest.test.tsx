@@ -182,6 +182,7 @@ describe("Evidence Harvest semantic boundary", () => {
     expect(researchContextForMatch(matches[0], "VGT")).toEqual({
       runId: "run-1",
       sessionId: "2024-06-03",
+      decisionId: "event-filter",
       asset: "VGT",
     });
     expect(matchingDetail.source_components).toContainEqual({

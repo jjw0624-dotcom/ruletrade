@@ -36,6 +36,10 @@ architecture when they conflict with code or the living architecture.
 | `market-data-v0.md` | CURRENT | Local LEAN-format market-data contract |
 | `market-data-preflight-ux.md` | CURRENT | Product preflight behavior |
 | `integrated-research-workbench.md` | CURRENT | Shared Builder/Activity/Research behavior |
+| `connected-workspace-contract-v1.md` | CURRENT | Semantic address, ownership, and authoritative replacement contract |
+| `editable-representations-v1.md` | CURRENT | Flow/Blocky/Rules/Code/AI representation boundaries |
+| `feedback-navigation-v1.md` | CURRENT | Result events, exact Decision navigation, and density behavior |
+| `connected-research-loop-v1.md` | MVP 1 COMPLETE | End-to-end research journey and formative observer guide |
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |
 | `authoring.md` | CURRENT | Backend-authoritative semantic authoring contract |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
