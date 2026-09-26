@@ -5,6 +5,12 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from ruletrade.strategy.v1.composition import (
+    ComposeStrategyOperation,
+    CompositionCapabilities,
+    apply_composition,
+    composition_capabilities,
+)
 from ruletrade.strategy.v1.models import (
     AssetSetDefinition,
     CanonicalStrategyV1,
@@ -138,7 +144,8 @@ class UpdateFallbackAssetSetOperation(FrozenModel):
 
 
 StructuralAuthoringOperation = Annotated[
-    RenameGroupOperation
+    ComposeStrategyOperation
+    | RenameGroupOperation
     | AddQualificationConditionOperation
     | RemoveQualificationConditionOperation
     | TransformToChooseAssetsOperation
@@ -167,6 +174,8 @@ class ApplyStructuralAuthoringRequest(FrozenModel):
 
 class ApplyStructuralAuthoringResponse(FrozenModel):
     strategy: CanonicalStrategyV1
+    created_component_ids: dict[str, Identifier] = Field(default_factory=dict)
+    created_asset_set_ids: dict[str, Identifier] = Field(default_factory=dict)
 
 
 class NamedCapability(FrozenModel):
@@ -228,6 +237,7 @@ class FallbackAssetSetCapability(FrozenModel):
 
 
 class StructuralAuthoringCapabilities(FrozenModel):
+    composition: CompositionCapabilities
     groups: tuple[NamedCapability, ...]
     qualification_add_targets: tuple[Identifier, ...]
     qualification_remove_targets: tuple[Identifier, ...]
@@ -897,19 +907,25 @@ def _cooldown_source(strategy: CanonicalStrategyV1, selection_id: str) -> Connec
     outbound = _connections_from(strategy, selection_id, "selected")
     if selection.primitive != "top_n@1" or len(outbound) != 1:
         raise StructuralAuthoringError(
-            "unsupported_cooldown_structure", f"graph.components[{selection_id}]",
+            "unsupported_cooldown_structure",
+            f"graph.components[{selection_id}]",
             "Cooldown requires a supported Top N selection.",
         )
     destination = _component(strategy, outbound[0].target.component_id)
     if destination.primitive != "equal_weight@1" or outbound[0].target.port != "assets":
         raise StructuralAuthoringError(
-            "unsupported_cooldown_structure", f"graph.components[{selection_id}]",
+            "unsupported_cooldown_structure",
+            f"graph.components[{selection_id}]",
             "Cooldown requires Top N to feed the allocation directly.",
         )
     allocation_outputs = _connections_from(strategy, destination.id, "targets")
-    if len(allocation_outputs) != 1 or _component(strategy, allocation_outputs[0].target.component_id).primitive == "fallback@1":
+    if (
+        len(allocation_outputs) != 1
+        or _component(strategy, allocation_outputs[0].target.component_id).primitive == "fallback@1"
+    ):
         raise StructuralAuthoringError(
-            "unsupported_cooldown_structure", f"graph.components[{selection_id}]",
+            "unsupported_cooldown_structure",
+            f"graph.components[{selection_id}]",
             "Cooldown cannot be added to a fallback selection in the current supported shape.",
         )
     return outbound[0]
@@ -920,7 +936,8 @@ def _add_cooldown(strategy: CanonicalStrategyV1, operation: AddCooldownOperation
     cooldown_id = f"{operation.selection_component_id}_cooldown"
     _generated_ids(strategy, cooldown_id)
     cooldown = Component(
-        id=cooldown_id, primitive="cooldown@1",
+        id=cooldown_id,
+        primitive="cooldown@1",
         config={"duration": operation.duration, "unit": "trading_days"},
     )
     before = Connection(
@@ -934,32 +951,47 @@ def _add_cooldown(strategy: CanonicalStrategyV1, operation: AddCooldownOperation
     connections: list[Connection] = []
     for item in strategy.graph.connections:
         connections.extend((before, after) if item == direct else (item,))
-    graph = strategy.graph.model_copy(update={
-        "components": tuple(
-            part for item in strategy.graph.components
-            for part in ((cooldown, item) if item.id == direct.target.component_id else (item,))
-        ), "connections": tuple(connections),
-    })
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(
+                part
+                for item in strategy.graph.components
+                for part in ((cooldown, item) if item.id == direct.target.component_id else (item,))
+            ),
+            "connections": tuple(connections),
+        }
+    )
     return strategy.model_copy(update={"graph": graph})
 
 
-def _remove_cooldown(strategy: CanonicalStrategyV1, operation: RemoveCooldownOperation) -> CanonicalStrategyV1:
+def _remove_cooldown(
+    strategy: CanonicalStrategyV1, operation: RemoveCooldownOperation
+) -> CanonicalStrategyV1:
     cooldown = _component(strategy, operation.cooldown_component_id)
     inbound = _connections_to(strategy, cooldown.id, "candidates")
     outbound = _connections_from(strategy, cooldown.id, "eligible")
-    referenced = tuple(item for item in strategy.graph.connections
-                       if item.source.component_id == cooldown.id or item.target.component_id == cooldown.id)
+    referenced = tuple(
+        item
+        for item in strategy.graph.connections
+        if item.source.component_id == cooldown.id or item.target.component_id == cooldown.id
+    )
     if cooldown.primitive != "cooldown@1" or len(inbound) != 1 or len(outbound) != 1 or len(referenced) != 2:
         raise StructuralAuthoringError(
-            "unsupported_cooldown_structure", f"graph.components[{cooldown.id}]",
+            "unsupported_cooldown_structure",
+            f"graph.components[{cooldown.id}]",
             "This cooldown is shared or is not in a supported selection pipeline.",
         )
     source = _component(strategy, inbound[0].source.component_id)
     destination = _component(strategy, outbound[0].target.component_id)
-    if (source.primitive != "top_n@1" or inbound[0].source.port != "selected"
-            or destination.primitive != "equal_weight@1" or outbound[0].target.port != "assets"):
+    if (
+        source.primitive != "top_n@1"
+        or inbound[0].source.port != "selected"
+        or destination.primitive != "equal_weight@1"
+        or outbound[0].target.port != "assets"
+    ):
         raise StructuralAuthoringError(
-            "unsupported_cooldown_structure", f"graph.components[{cooldown.id}]",
+            "unsupported_cooldown_structure",
+            f"graph.components[{cooldown.id}]",
             "Cooldown removal requires a direct Top N to allocation pipeline.",
         )
     direct = Connection(source=inbound[0].source, target=outbound[0].target)
@@ -969,10 +1001,12 @@ def _remove_cooldown(strategy: CanonicalStrategyV1, operation: RemoveCooldownOpe
             connections.append(direct)
         elif item != outbound[0]:
             connections.append(item)
-    graph = strategy.graph.model_copy(update={
-        "components": tuple(item for item in strategy.graph.components if item.id != cooldown.id),
-        "connections": tuple(connections),
-    })
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(item for item in strategy.graph.components if item.id != cooldown.id),
+            "connections": tuple(connections),
+        }
+    )
     return strategy.model_copy(update={"graph": graph})
 
 
@@ -1099,6 +1133,8 @@ def apply_structural_operation(
     strategy: CanonicalStrategyV1,
     operation: StructuralAuthoringOperation,
 ) -> CanonicalStrategyV1:
+    if isinstance(operation, ComposeStrategyOperation):
+        return apply_composition(strategy, operation).strategy
     if isinstance(operation, RenameGroupOperation):
         candidate = _rename(strategy, operation)
     elif isinstance(operation, AddQualificationConditionOperation):
@@ -1364,6 +1400,7 @@ def structural_authoring_capabilities(
                 )
             )
     return StructuralAuthoringCapabilities(
+        composition=composition_capabilities(),
         groups=groups,
         qualification_add_targets=tuple(add_targets),
         qualification_remove_targets=tuple(remove_targets),
