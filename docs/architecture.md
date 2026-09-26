@@ -4,6 +4,12 @@
 implemented repository. Update it when system ownership or end-to-end behavior
 changes. Historical slice documents do not override it.
 
+The composable authoring boundary is described in
+[composable-authoring-contract-v1.md](composable-authoring-contract-v1.md).
+External editors own interaction mechanics while Canonical, Registry
+validation, compiler support, semantic identity, and backend authoring remain
+authoritative.
+
 ## Product loop
 
 ```text
