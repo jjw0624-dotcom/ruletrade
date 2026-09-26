@@ -9,7 +9,7 @@ import { GuidedView } from "../views/GuidedView";
 import { findExample, STRATEGY_STRUCTURES } from "./examples";
 import { pathForRoute, routeFromPath } from "./navigation";
 import { sleevesBootstrap } from "../test/fixture";
-import { workspaceFromCreatedStrategy } from "../App";
+import { routeForCreatedStrategy, StrategyLoadError, workspaceFromCreatedStrategy } from "../App";
 import { AppShell } from "../components/AppShell";
 import { structuralAuthoringApi } from "../structuralAuthoringApi";
 
@@ -99,6 +99,7 @@ describe("Product entry and starting experience", () => {
     expect(workspace.bootstrap.strategy).toBe(persisted);
     expect(workspace.bootstrap.strategy).not.toBe(sleevesBootstrap.strategy);
     expect(workspace.bootstrap.registry).toBe(sleevesBootstrap.registry);
+    expect(routeForCreatedStrategy(detail)).toEqual({ page: "strategy", strategyId: "strategy-1" });
 
     const capabilityResponse = {
       groups: [], qualification_add_targets: [], qualification_remove_targets: [],
@@ -117,6 +118,16 @@ describe("Product entry and starting experience", () => {
     await structuralAuthoringApi.capabilities(workspace.bootstrap.strategy, fetcher);
     await structuralAuthoringApi.capabilities(detail.current_revision.canonical_strategy, fetcher);
     expect(requests).toEqual([JSON.stringify(persisted), JSON.stringify(persisted)]);
+  });
+
+  it("renders an explicit recovery state for a stale Strategy route", () => {
+    const stale = routeFromPath("/strategies/6b62d0c3-c4e3-403c-845b-d17331d6fc06");
+    expect(stale).toEqual({ page: "strategy", strategyId: "6b62d0c3-c4e3-403c-845b-d17331d6fc06" });
+    const markup = renderToStaticMarkup(<StrategyLoadError message="Strategy not found" onHome={() => undefined} />);
+    expect(markup).toContain("We couldn&#x27;t open this strategy");
+    expect(markup).toContain("Strategy not found");
+    expect(markup).toContain("Back to My Strategies");
+    expect(markup).not.toContain("strategy-builder-workspace");
   });
 
   it("preserves existing Strategy, Run, and Comparison deep links", () => {

@@ -56,6 +56,23 @@ const run = {
 };
 
 describe("integrated Strategy research workbench", () => {
+  it("renders every representation in the full Builder without a resizable panel when Research is closed", () => {
+    const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const renderView = (initialView: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: false, canOpenResearch: true, size: RESEARCH_DEFAULT_SIZE, title: "Saved result", hasActivity: true, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+    </StrategyEditorProvider>);
+    for (const view of ["overview", "guided", "flow", "blocky", "rules", "code", "ai"] as const) {
+      const markup = renderView(view);
+      expect(markup).toContain(`builder-core active-${view}`);
+      expect(markup).toContain('data-research-layout="builder-only"');
+      expect(markup).not.toContain('data-research-open="true"');
+      expect(markup).not.toContain('data-workspace="research"');
+      expect(markup).not.toContain('data-group="true"');
+    }
+    expect(renderView("guided")).toContain("Guided strategy editor");
+  });
+
   it("mounts stacked Research with the same Builder representation tree", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
@@ -68,6 +85,7 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain('data-research-open="true"');
     expect(markup).toContain('data-research-layout="stacked"');
     expect(markup).toContain('data-workspace="research"');
+    expect(markup).toContain('data-group="true"');
   });
 
   it("keeps every representation in the full-width Builder while Research is open", () => {
@@ -109,6 +127,7 @@ describe("integrated Strategy research workbench", () => {
     expect(summary.validation.status).toBe("valid");
     expect(closed).toMatchObject({ researchOpen: false, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
     expect(reopened).toMatchObject({ researchOpen: true, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
+    expect(workbenchResearchReducer(reopened, { type: "close_research" })).toMatchObject({ researchOpen: false, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
   });
 
   it("maps exact semantic identity to the xyflow node used by View in Flow", () => {

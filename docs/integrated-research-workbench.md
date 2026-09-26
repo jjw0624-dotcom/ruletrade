@@ -47,6 +47,10 @@ horizontal authoring geometry; Flow, Blocky, Rules, Code, and AI do not collapse
 Research. While Research is open, it supersedes the Inspector without clearing semantic selection;
 closing Research restores the Inspector for the still-selected component.
 
+When Research is closed, Builder is rendered directly in the shell's remaining grid row; the
+resizable panel group is not mounted. This keeps a one-panel layout from retaining or initializing a
+zero-height split. The vertical resizable group exists only while both Builder and Research exist.
+
 Result, Decision, Candidate, and Comparison layouts respond to the Research panel's own width rather
 than only the browser viewport. Narrower user-selected widths stack dense two-column investigation
 surfaces instead of forcing or clipping a desktop layout.

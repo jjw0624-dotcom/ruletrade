@@ -21,7 +21,7 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 
 export const strategyApi = {
   list: (fetcher?: typeof fetch) => request<{ items: StrategyRecord[] }>("/v1/strategies", {}, fetcher),
-  get: (id: string, fetcher?: typeof fetch) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, {}, fetcher),
+  get: (id: string, fetcher?: typeof fetch, signal?: AbortSignal) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, { signal }, fetcher),
   create: (name: string, canonical: CanonicalStrategyV1, fetcher?: typeof fetch) => request<StrategyDetail>("/v1/strategies", jsonBody("POST", { name, canonical_strategy: canonical }), fetcher),
   rename: (id: string, name: string, fetcher?: typeof fetch) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, jsonBody("PATCH", { name }), fetcher),
   archive: (id: string, fetcher?: typeof fetch) => request<void>(`/v1/strategies/${encodeURIComponent(id)}`, { method: "DELETE" }, fetcher),

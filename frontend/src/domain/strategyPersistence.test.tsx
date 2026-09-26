@@ -24,6 +24,17 @@ describe("Strategy and immutable Revision frontend", () => {
     expect(JSON.parse(String(request?.body))).toEqual({ name: "My strategy", canonical_strategy: sleevesBootstrap.strategy });
   });
 
+  it("allows a stale Strategy route request to be aborted when navigation changes", async () => {
+    const controller = new AbortController();
+    let request: RequestInit | undefined;
+    const fetcher = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      request = init;
+      return jsonResponse({ strategy: record, current_revision: { id: "r1" } });
+    }) as typeof fetch;
+    await strategyApi.get("stale-strategy", fetcher, controller.signal);
+    expect(request?.signal).toBe(controller.signal);
+  });
+
   it("saves with the persisted parent and accepts identical-source no-op", async () => {
     let request: RequestInit | undefined;
     const response = { created: false, strategy: record, revision: { id: "r1", strategy_id: "s1", parent_revision_id: null, canonical_strategy: sleevesBootstrap.strategy, source_hash: "hash", schema_version: "ruletrade.dev/strategy/v1", created_at: record.created_at } };
