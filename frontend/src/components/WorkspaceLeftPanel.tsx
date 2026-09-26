@@ -34,11 +34,11 @@ function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: num
   </li>;
 }
 
-function ConstructionControl({ option, structural, groupId }: {
+export function ConstructionControl({ option, structural }: {
   option: ConstructionOption;
   structural: StructuralAuthoringController;
-  groupId: string | null;
 }) {
+  const groupId = option.groupId;
   const busy = structural.status === "applying";
   if (option.kind === "choose") return <ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
     kind: "transform_to_choose_assets",
@@ -60,8 +60,8 @@ function ConstructionControl({ option, structural, groupId }: {
   if (option.kind === "cooldown") return <CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
     kind: "add_cooldown_to_selection", selection_component_id: option.targetComponentId, duration,
   }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} />;
-  return <section className="construction-card">
-    <strong>{option.label}</strong><p>{option.description}</p>
+  return <section className="construction-card" data-construction-kind={option.kind}>
+    <strong>{option.label}</strong><small>{option.targetLabel}</small><p>{option.description}</p>
     <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({
       kind: "add_qualification_condition",
       rank_component_id: option.targetComponentId,
@@ -97,8 +97,9 @@ export function WorkspaceLeftPanel({ projection, structural }: {
         <Tabs.Content value="blocks" className="blocks-panel">
           <header><span className="eyebrow">Construction</span><h2>Add to this Strategy</h2></header>
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && options.length === 0 && <div className="construction-empty"><strong>No supported insertion here</strong><p>Select Portfolio, Assets, or Choose in Structure or Flow.</p></div>}
-          {options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} groupId={state.editor.selection?.groupId ?? projection.groups[0]?.id ?? null} />)}
+          {structural.status !== "checking" && options.length === 0 && <div className="construction-empty"><strong>No supported additions</strong><p>This Strategy already uses every concept the current executable grammar can add here.</p></div>}
+          {options.length > 1 && <p className="panel-hint">Choose a concept and its valid Strategy location. The backend remains the authority.</p>}
+          {options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
         </Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>

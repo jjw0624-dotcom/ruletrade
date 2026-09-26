@@ -3,7 +3,7 @@
 > **Status: CURRENT frontend contract.** System-wide ownership is summarized in
 > [the living architecture](architecture.md).
 
-The Strategy Builder remains mounted while saved research opens in the resizable right workspace.
+The Strategy Builder remains mounted while saved research opens in the resizable workspace below it.
 Summary, Guide, and Flow remain representations of one working Canonical Strategy; Test, Result,
 Decision analysis, Candidate, Comparison, and adoption are research states attached to that Strategy.
 
@@ -19,33 +19,43 @@ so the dedicated rail action can reopen it.
 | --- | --- | --- |
 | Working Canonical, Registry, Strategy/Revision identity | existing Strategy editor | Semantic edits only |
 | Representation, semantic selection, left panel, xyflow viewport/positions | Builder UI | No |
-| Activity open/closed, Research open/closed and Research width | workbench research reducer | No |
+| Activity open/closed, Research open/closed and Research height | workbench research reducer | No |
 | Active Run, session, asset, Candidate/Comparison destination | workbench research reducer and existing research components | No |
 | Candidate Canonical | existing immutable Candidate backend record | No |
 | Adopted Candidate | existing adoption endpoint and new immutable Revision | Yes, only after Keep succeeds |
 
-The right-side state stores identifiers and the existing `ResearchContext`; it is not a second Result,
+The attached-workspace state stores identifiers and the existing `ResearchContext`; it is not a second Result,
 Evidence, Candidate, Comparison, or Strategy model.
 
 ## Integrated progression
 
 1. **Activity** lists Runs already persisted for the Strategy's Revisions without becoming a Research state.
 2. **Test** uses the existing setup, market-data preflight, and BacktestRun endpoint. The returned Run
-   opens in the right workspace without changing the Strategy route.
+   opens in the attached Research workspace without changing the Strategy route.
 3. **Result and Decision analysis** reuse the existing normalized Result and persisted Decision Evidence.
 4. **View rule** selects exact `component_id` plus optional `field_path` in the shared Inspector.
    **View in Flow** also switches the representation and focuses the matching xyflow node.
 5. **Show where this mattered** reuses existing Evidence GET requests and opens the selected persisted
-   Run/session/asset in the same right workspace. It never creates or reruns a Backtest.
+   Run/session/asset in the same Research workspace. It never creates or reruns a Backtest.
 6. **Try change**, Candidate execution, Comparison, and Keep/Return reuse their existing immutable APIs.
    Successful Keep replaces the working Canonical with the adopted Revision response and leaves Test
    immediately available.
 
-Research defaults to 60% of the workbench and can resize between 45% and 85%. Comparison opens at
-least 72% because its behavior and result diffs need more horizontal room; a wider user-selected
-size is preserved. While Research is open, it
-supersedes the Inspector column without clearing semantic selection; closing Research restores the
-Inspector for the still-selected component.
+Research is stacked below Builder, defaults to 48% of the workbench height, and can resize between
+32% and 62%. Comparison opens at 58%. Builder therefore retains at least 38% height and its full
+horizontal authoring geometry; Flow, Blocky, Rules, Code, and AI do not collapse into a strip beside
+Research. While Research is open, it supersedes the Inspector without clearing semantic selection;
+closing Research restores the Inspector for the still-selected component.
+
+When Research is closed, Builder is rendered directly in the shell's remaining grid row; the
+resizable panel group is not mounted. This keeps a one-panel layout from retaining or initializing a
+zero-height split. The vertical resizable group exists only while both Builder and Research exist.
+The optional notice and validation content always has one structural grid wrapper, so the workbench
+is consistently placed in the bounded `minmax(0, 1fr)` row. Panel percentages therefore resolve
+against a real height when Research opens.
+Programmatic layout initialization is not written back into React state; only a completed user
+resize gesture updates the saved panel size. This prevents a zero-size initialization callback from
+creating a render/layout feedback cycle or remounting Result research.
 
 Result, Decision, Candidate, and Comparison layouts respond to the Research panel's own width rather
 than only the browser viewport. Narrower user-selected widths stack dense two-column investigation
@@ -66,8 +76,8 @@ creation flow.
 - `ADOPT EXTERNAL`: `react-resizable-panels` owns split sizing; Radix Tooltip owns the collapsed-rail
   tooltip; xyflow continues to own Flow viewport/focus mechanics.
 - `SMALL NEW SEMANTIC`: none. The workbench reducer is UI orchestration only.
-- `DEFER`: comparison listing (no list API), chart-engine migration, future Builder representations,
-  expanded authoring semantics, Replay, optimization, and analytics infrastructure.
+- `DEFER`: comparison listing (no list API), composable Strategy Authoring, future Builder
+  representations, expanded authoring semantics, Replay, optimization, and analytics infrastructure.
 
 ## WSL browser acceptance
 

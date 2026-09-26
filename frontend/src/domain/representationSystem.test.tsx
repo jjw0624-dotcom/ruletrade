@@ -13,7 +13,7 @@ import { RulesView } from "../views/RulesView";
 import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { CodeView } from "../views/CodeView";
-import { filterBootstrap, momentumBootstrap } from "../test/fixture";
+import { fallbackBootstrap, filterBootstrap, momentumBootstrap } from "../test/fixture";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 
 const cap: StructuralAuthoringCapabilities = {
@@ -32,6 +32,23 @@ const cap: StructuralAuthoringCapabilities = {
 const structural: StructuralAuthoringController = { capabilities: cap, status: "ready", error: null, apply: async () => true };
 
 describe("one Canonical, distinct editable perspectives", () => {
+  it("keeps every representation coherent after authoritative Fallback removal", () => {
+    const canonical = structuredClone(fallbackBootstrap.strategy);
+    canonical.graph.components = canonical.graph.components.filter((item) => item.id !== "fallback");
+    canonical.graph.connections = canonical.graph.connections.flatMap((connection) => connection.source.component_id === "weights" && connection.target.component_id === "fallback"
+      ? [{ source: connection.source, target: { component_id: "rebalance", port: "targets" } }]
+      : connection.source.component_id === "fallback" ? [] : [connection]);
+    canonical.definitions.asset_sets = canonical.definitions.asset_sets.filter((item) => item.id !== "fallback_tlt");
+    const bootstrap = { ...fallbackBootstrap, strategy: canonical };
+    const flow = projectConceptualFlow(canonical, bootstrap.registry);
+    expect(flow.unsupportedReason).toBeUndefined();
+    expect(flow.groups[0].choose?.fallbackComponentId).toBeUndefined();
+    expect(projectFlowCanvas(flow).nodes.some((item) => item.id.startsWith("fallback:"))).toBe(false);
+    expect(projectLogicRepresentation(canonical, bootstrap.registry).groups[0].steps.some((item) => item.kind === "fallback")).toBe(false);
+    expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>)).toContain("Rank strongest first");
+    expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="guided"><GuidedView /></StrategyEditorProvider>)).toContain("No fallback");
+    expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap}><OverviewView onTest={() => undefined} /></StrategyEditorProvider>)).toContain("strongest");
+  });
   it("maps Flow qualification to the same Blocky and Rules identity across switches", () => {
     const canonical = filterBootstrap.strategy;
     const flow = projectConceptualFlow(canonical, filterBootstrap.registry);

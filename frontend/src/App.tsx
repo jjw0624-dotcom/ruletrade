@@ -33,6 +33,14 @@ export function workspaceFromCreatedStrategy(
   };
 }
 
+export function routeForCreatedStrategy(detail: StrategyDetail): AppRoute {
+  return { page: "strategy", strategyId: detail.strategy.id };
+}
+
+export function StrategyLoadError({ message, onHome }: { message: string; onHome: () => void }) {
+  return <div className="page-state error-state" role="alert"><h1>We couldn't open this strategy</h1><p>{message}</p><button className="primary-button" onClick={onHome}>Back to My Strategies</button></div>;
+}
+
 function defaultsFor(bootstrap: EditorBootstrap): StrategyExample {
   const cooldown = bootstrap.strategy.graph.components.some((item) => item.primitive.toLowerCase().includes("cooldown"));
   return findExample(cooldown ? "cooldown" : "sleeves")!;
@@ -95,15 +103,15 @@ export default function App() {
       setCreatedDestination(null);
       return;
     }
-    let cancelled = false; setWorkspaceStatus("loading"); setWorkspaceError(null); setWorkspace(null); setDirty(false);
+    let cancelled = false; const controller = new AbortController(); setWorkspaceStatus("loading"); setWorkspaceError(null); setWorkspace(null); setDirty(false);
     const task = route.page === "example"
       ? (() => { const exampleId = route.exampleId; return loadEditorBootstrap(exampleId).then((bootstrap) => ({ bootstrap, example: findExample(exampleId)! })); })()
-      : (() => { const strategyId = route.strategyId; return Promise.all([strategyApi.get(strategyId), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
+      : (() => { const strategyId = route.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
           const bootstrap = { ...registryBootstrap, strategy: detail.current_revision.canonical_strategy, validation: { valid: true, issues: [] } };
           return { bootstrap, example: defaultsFor(bootstrap), detail };
         }); })();
     task.then((value) => { if (!cancelled) { setWorkspace(value); setWorkspaceStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setWorkspaceError(reason instanceof Error ? reason.message : String(reason)); setWorkspaceStatus("error"); } });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [route]);
 
   async function beginCreate(id: ExampleId) {
@@ -127,7 +135,7 @@ export default function App() {
       setWorkspaceStatus("loaded");
       setCreatedDestination({ strategyId: detail.strategy.id, workspace: destination });
       setCreateDraft(null);
-      navigate({ page: "strategy", strategyId: detail.strategy.id });
+      navigate(routeForCreatedStrategy(detail));
     }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy."); }
     finally { creationInFlight.current = false; setCreating(null); }
@@ -160,7 +168,7 @@ export default function App() {
     {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
     {route.page === "explore" && <ExploreView onOpen={(exampleId) => void beginCreate(exampleId)} onCreate={openPicker} />}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
-    {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this strategy</h1><p>{workspaceError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
+    {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
     {route.page === "strategy" && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? workspace.example.id} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus} /></StrategyEditorProvider>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}

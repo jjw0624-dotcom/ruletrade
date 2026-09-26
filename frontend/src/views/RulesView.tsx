@@ -1,10 +1,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
-import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
+import { isBlankWorkspaceTarget, sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import { useStrategyEditor } from "../store/editorStore";
 import { AssetMembershipEditor, AuthoringNumberInput, ScheduleControl, SleeveAllocationEditor } from "../components/AuthoringControls";
-import { CooldownConstructionControl, FallbackTransformationControl } from "../components/ShapeTransformationControls";
+import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl } from "../components/ShapeTransformationControls";
 
 function Rule({ selection, children }: { selection: SemanticSelection; children: ReactNode }) {
   const { state, dispatch } = useStrategyEditor();
@@ -19,14 +19,15 @@ function Rule({ selection, children }: { selection: SemanticSelection; children:
 }
 
 export function RulesView({ structural }: { structural: StructuralAuthoringController }) {
-  const { state } = useStrategyEditor();
+  const { state, dispatch } = useStrategyEditor();
   const projection = projectConceptualFlow(state.canonical, state.registry);
   if (projection.unsupportedReason) return <div className="rules-representation"><h1>Rules</h1><p role="status">This Strategy cannot yet be stated as supported rules: {projection.unsupportedReason}</p></div>;
   const busy = structural.status === "applying";
   const caps = structural.capabilities;
-  return <div className="rules-representation"><header className="representation-intro"><span className="eyebrow">Rules</span><h1>In plain language</h1><p>Each editable value belongs to the selected Strategy component. Changes are checked by the backend.</p></header>
+  return <div className="rules-representation" onClick={(event) => { if (isBlankWorkspaceTarget(event.target)) dispatch({ type: "select_semantic", selection: null }); }}><header className="representation-intro"><span className="eyebrow">Rules</span><h1>In plain language</h1><p>Each editable value belongs to the selected Strategy component. Changes are checked by the backend.</p></header>
     {projection.groups.map((group) => {
       const choose = group.choose, groupId = group.id;
+      const chooseTarget = !choose && group.allocationComponentId && caps?.choose_pipeline_targets.includes(group.allocationComponentId) ? group.allocationComponentId : null;
       const rank = choose?.rankComponentId;
       const canAddCondition = Boolean(rank && caps?.qualification_add_targets.includes(rank));
       const fallbackTarget = group.allocationComponentId && caps?.fallback_add_targets.includes(group.allocationComponentId) ? group.allocationComponentId : null;
@@ -37,6 +38,7 @@ export function RulesView({ structural }: { structural: StructuralAuthoringContr
       const lookbackEditable = choose?.lookbackComponentId && caps?.lookback_targets.some((target) => target.component_id === choose.lookbackComponentId);
       return <section className="rules-group" key={group.id}><h2>{group.label}{group.allocation ? ` · ${group.allocation}` : ""}</h2>
         {group.universeComponentId && <Rule selection={semanticSelection("universe", group.universeComponentId, { groupId })}><p>Consider {group.assets.join(", ")}.</p>{group.assetSetId && <AssetMembershipEditor authoring={structural} assetSetId={group.assetSetId} assets={group.assets} question="Assets in this rule" />}</Rule>}
+        {chooseTarget && <div className="rule-add"><p>This investment path currently holds its assets directly.</p><ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({ kind: "transform_to_choose_assets", weight_component_id: chooseTarget, lookback_observations: lookback, count }, semanticSelection("selection", `${chooseTarget}_top_n`, { groupId }))} /></div>}
         {choose && <>
           {choose.lookbackComponentId && <Rule selection={semanticSelection("rule", choose.lookbackComponentId, { fieldPath: "config.lookback_bars", groupId })}><p>Measure each asset's trailing return over {lookbackEditable ? <AuthoringNumberInput ariaLabel="Return lookback observations" value={choose.lookbackBars!} minimum={1} disabled={busy} onCommit={(lookback_bars) => void structural.apply({ kind: "update_lookback", component_id: choose.lookbackComponentId!, lookback_bars })} /> : choose.lookbackBars} completed observations.</p></Rule>}
           {thresholdId ? <Rule selection={semanticSelection("qualification", thresholdId, { fieldPath: "config.threshold", groupId })}><p>Only keep assets whose return is above {thresholdEditable ? <AuthoringNumberInput ariaLabel="Qualification threshold percent" value={Number(choose.threshold) * 100} step={0.1} disabled={busy} onCommit={(value) => void structural.apply({ kind: "update_qualification_threshold", component_id: thresholdId, threshold: String(value / 100) })} /> : Number(choose.threshold) * 100}%.</p>{caps?.qualification_remove_targets.includes(thresholdId) && <button className="text-button danger" disabled={busy} onClick={() => void structural.apply({ kind: "remove_qualification_condition", condition_component_id: thresholdId }, semanticSelection("selection", choose.selectionComponentId, { groupId }))}>Remove condition</button>}</Rule>

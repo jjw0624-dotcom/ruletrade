@@ -6,7 +6,7 @@ import { filterBootstrap, momentumBootstrap } from "../test/fixture";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectLogicRepresentation } from "./logicRepresentation";
 import { sameSemanticAddress, semanticSelection } from "./semanticSelection";
-import { INITIAL_WORKBENCH_RESEARCH, workbenchResearchReducer } from "./workbenchResearch";
+import { INITIAL_WORKBENCH_RESEARCH, RESEARCH_MAX_SIZE, workbenchResearchReducer } from "./workbenchResearch";
 
 const target = semanticSelection("qualification", "positive_return", { fieldPath: "config.threshold", groupId: "growth" });
 
@@ -67,7 +67,7 @@ describe("connected workspace authority and navigation contract", () => {
     expect(switched.canonical).toBe(initial.canonical);
     expect(switched.validation).toBe(initial.validation);
     expect(switched.editor.selection).toBe(target);
-    expect(resized).toMatchObject({ destination: { kind: "run", runId: context.runId }, context, size: 75 });
+    expect(resized).toMatchObject({ destination: { kind: "run", runId: context.runId }, context, size: RESEARCH_MAX_SIZE });
   });
 
   it("leaves all projected semantics and dirty state intact after backend rejection", async () => {

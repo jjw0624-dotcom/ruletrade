@@ -9,6 +9,7 @@ import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
 import { WorkspaceActivityDrawer, WorkspaceEdgeRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
+import { RESEARCH_BUILDER_MIN_SIZE } from "../domain/workbenchResearch";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 import { RulesView } from "../views/RulesView";
 import { CodeView } from "../views/CodeView";
@@ -28,6 +29,10 @@ const representationLabel: Record<EditorView, string> = {
 
 export function shouldShowSemanticInspector(hasSelection: boolean, researchOpen: boolean): boolean {
   return hasSelection && !researchOpen;
+}
+
+export function shouldStoreResearchSize(size: number | undefined, isUserInteraction: boolean): size is number {
+  return isUserInteraction && size !== undefined && Number.isFinite(size);
 }
 
 export function StrategyBuilderWorkspace({
@@ -81,6 +86,19 @@ export function StrategyBuilderWorkspace({
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
   const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
+  const builder = <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
+    <WorkspaceLeftPanel projection={projection} structural={structural} />
+    <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
+      <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
+      <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
+      <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
+      {blockyVisited && <section hidden={state.editor.activeView !== "blocky"} className="representation-layer blocky-layer"><Suspense fallback={<p role="status">Loading logic editor…</p>}><BlockyView structural={structural} /></Suspense></section>}
+      <section hidden={state.editor.activeView !== "rules"} className="representation-layer"><RulesView structural={structural} /></section>
+      <section hidden={state.editor.activeView !== "code"} className="representation-layer"><CodeView /></section>
+      <section hidden={state.editor.activeView !== "ai"} className="representation-layer"><AIHandoffView structural={structural} revisionId={revisionId ?? null} researchContext={researchContext ?? null} /></section>
+    </main>
+    {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
+  </div>;
   return <section className="strategy-builder-workspace">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
@@ -93,31 +111,16 @@ export function StrategyBuilderWorkspace({
         <button className="primary-button" onClick={onTest}>Test <span aria-hidden="true">▶</span></button>
       </div>
     </header>
-    {notices}
-    {validation}
-    <Group className="builder-workbench" data-research-open={research?.researchOpen || undefined} orientation="horizontal" onLayoutChanged={(layout) => { if (research?.researchOpen && layout.research !== undefined) research.onResize(layout.research); }}>
-      <Panel id="builder" defaultSize={`${research?.researchOpen ? 100 - research.size : 100}%`} minSize="15%">
-        <div className={`builder-core${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
-          <WorkspaceLeftPanel projection={projection} structural={structural} />
-          <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
-            <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
-            <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
-            <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
-            {blockyVisited && <section hidden={state.editor.activeView !== "blocky"} className="representation-layer blocky-layer"><Suspense fallback={<p role="status">Loading logic editor…</p>}><BlockyView structural={structural} /></Suspense></section>}
-            <section hidden={state.editor.activeView !== "rules"} className="representation-layer"><RulesView structural={structural} /></section>
-            <section hidden={state.editor.activeView !== "code"} className="representation-layer"><CodeView /></section>
-            <section hidden={state.editor.activeView !== "ai"} className="representation-layer"><AIHandoffView structural={structural} revisionId={revisionId ?? null} researchContext={researchContext ?? null} /></section>
-          </main>
-          {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
-        </div>
+    <div className="builder-messages">{notices}{validation}</div>
+    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
+      <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
+        {builder}
       </Panel>
-      {research?.researchOpen && <>
-        <Separator className="research-resize-handle"><span /></Separator>
-        <Panel id="research" defaultSize={`${research.size}%`} minSize="45%" maxSize="85%">
-          <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
-        </Panel>
-      </>}
-    </Group>
+      <Separator className="research-resize-handle"><span /></Separator>
+      <Panel id="research" defaultSize={`${research.size}%`} minSize="32%" maxSize="62%">
+        <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
+      </Panel>
+    </Group> : <div className="builder-workbench builder-only" data-research-layout="builder-only">{builder}</div>}
     {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
     {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
   </section>;

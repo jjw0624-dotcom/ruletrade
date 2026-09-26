@@ -17,6 +17,9 @@ export interface ConstructionOption {
   label: string;
   description: string;
   targetComponentId: string;
+  targetLabel: string;
+  groupId: string | null;
+  anchorSelection: SemanticSelection;
 }
 
 function groupItems(group: ConceptualGroup): StructureItem[] {
@@ -119,13 +122,6 @@ export function projectBuilderStructure(projection: ConceptualFlowProjection): S
   };
 }
 
-function selectedGroup(
-  projection: ConceptualFlowProjection,
-  selection: SemanticSelection | null,
-): ConceptualGroup | undefined {
-  return projection.groups.find((group) => group.id === selection?.groupId);
-}
-
 export function constructionOptions(
   projection: ConceptualFlowProjection,
   capabilities: StructuralAuthoringCapabilities | null,
@@ -133,55 +129,51 @@ export function constructionOptions(
 ): ConstructionOption[] {
   if (!capabilities) return [];
   const options: ConstructionOption[] = [];
-  const group = selectedGroup(projection, selection) ?? projection.groups[0];
-  const rootContext = !selection || selection.role === "portfolio" || selection.role === "group";
-  const universeContext = selection?.role === "universe";
-  const selectionContext = selection?.role === "selection";
-  const chooseTarget = group?.allocationComponentId;
-  if ((rootContext || universeContext) && chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)) {
-    options.push({
-      kind: "choose",
-      label: "Choose assets",
+  for (const group of projection.groups) {
+    const groupId = group.id;
+    const targetLabel = group.label || "Investment";
+    const chooseTarget = group.allocationComponentId;
+    if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)) options.push({
+      kind: "choose", label: "Choose assets", targetLabel, groupId,
       description: "Measure returns, rank this universe, and choose the strongest assets.",
       targetComponentId: chooseTarget,
+      anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
     });
-  }
-  const rankTarget = group?.choose?.rankComponentId;
-  if (selectionContext && rankTarget && capabilities.qualification_add_targets.includes(rankTarget)) {
-    options.push({
-      kind: "qualification",
-      label: "Qualification",
+    const rankTarget = group.choose?.rankComponentId;
+    if (rankTarget && capabilities.qualification_add_targets.includes(rankTarget)) options.push({
+      kind: "qualification", label: "Condition", targetLabel, groupId,
       description: "Require the supported positive-return condition before ranking.",
       targetComponentId: rankTarget,
+      anchorSelection: semanticSelection("selection", group.choose!.selectionComponentId, { groupId }),
     });
-  }
-  const fallbackTarget = group?.allocationComponentId;
-  if (selectionContext && fallbackTarget && capabilities.fallback_add_targets.includes(fallbackTarget)) {
-    options.push({
-      kind: "fallback",
-      label: "Fallback",
+    const fallbackTarget = group.allocationComponentId;
+    if (fallbackTarget && capabilities.fallback_add_targets.includes(fallbackTarget)) options.push({
+      kind: "fallback", label: "Fallback", targetLabel, groupId,
       description: "Choose where money goes when too few assets qualify.",
       targetComponentId: fallbackTarget,
+      anchorSelection: semanticSelection("selection", group.choose?.selectionComponentId ?? fallbackTarget, { groupId }),
     });
-  }
-  const cooldownTarget = group?.choose?.selectionComponentId;
-  if (selectionContext && cooldownTarget && capabilities.cooldown_add_targets.includes(cooldownTarget)) {
-    options.push({
-      kind: "cooldown", label: "Cooldown",
+    const cooldownTarget = group.choose?.selectionComponentId;
+    if (cooldownTarget && capabilities.cooldown_add_targets.includes(cooldownTarget)) options.push({
+      kind: "cooldown", label: "Cooldown", targetLabel, groupId,
       description: "After selling, wait before buying the same asset again.",
       targetComponentId: cooldownTarget,
+      anchorSelection: semanticSelection("selection", cooldownTarget, { groupId }),
     });
   }
   const splitTarget = capabilities.growth_defensive_targets[0];
-  if (rootContext && splitTarget) {
+  if (splitTarget) {
     options.push({
       kind: "split",
-      label: "Split into groups",
+      label: "Growth + Defensive",
+      targetLabel: "Portfolio",
+      groupId: null,
       description: "Keep the current strategy as Growth and add a Defensive group.",
       targetComponentId: splitTarget,
+      anchorSelection: semanticSelection("portfolio", projection.portfolioComponentId ?? splitTarget),
     });
   }
-  return options;
+  return options.sort((left, right) => Number(right.groupId === selection?.groupId) - Number(left.groupId === selection?.groupId));
 }
 
 export function semanticDeleteOperation(

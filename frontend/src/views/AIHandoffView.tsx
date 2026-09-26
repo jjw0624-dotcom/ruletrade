@@ -4,11 +4,12 @@ import type { StructuralAuthoringController } from "../hooks/useStructuralAuthor
 import { decisionEvidenceApi, type DecisionEventDetail } from "../decisionEvidenceApi";
 import { aiContext, describeChange, parseChangeProposal, type ChangeProposalV0 } from "../domain/aiHandoff";
 import { useStrategyEditor } from "../store/editorStore";
+import { isBlankWorkspaceTarget } from "../domain/semanticSelection";
 
 interface Preview { proposal: ChangeProposalV0; source: object; changes: string[] }
 
 export function AIHandoffView({ structural, revisionId, researchContext }: { structural: StructuralAuthoringController; revisionId: string | null; researchContext: { runId: string; sessionId: string; asset: string | null } | null }) {
-  const { state } = useStrategyEditor();
+  const { state, dispatch } = useStrategyEditor();
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [input, setInput] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -47,7 +48,7 @@ export function AIHandoffView({ structural, revisionId, researchContext }: { str
     if (accepted) { setPreview(null); setStatus("Applied through the Authoring Contract. Review all representations, then Save."); }
     else setStatus("The backend rejected the change. The Strategy is unchanged.");
   }
-  return <div className="ai-handoff-representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy a visible Strategy context for an external model, then review a proposed change here. Nothing is sent to a model by RuleTrade.</p></header>
+  return <div className="ai-handoff-representation" onClick={(event) => { if (isBlankWorkspaceTarget(event.target)) dispatch({ type: "select_semantic", selection: null }); }}><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy a visible Strategy context for an external model, then review a proposed change here. Nothing is sent to a model by RuleTrade.</p></header>
     <section className="ai-handoff-section"><h2>Copy context</h2><label><input type="checkbox" checked={selectedOnly} disabled={!state.editor.selection?.componentId} onChange={(event) => setSelectedOnly(event.target.checked)} /> Emphasize selected Strategy object</label>
       <textarea aria-label="Context to copy for AI" readOnly value={markdown} rows={12} /><button className="secondary-button" onClick={() => void navigator.clipboard.writeText(markdown).then(() => setStatus("Context copied.")).catch(() => setStatus("Copy failed; select the text above manually."))}>Copy for AI</button>
       {researchContext && !decision && <p>Saved Decision context is loading or unavailable. Strategy context remains available.</p>}

@@ -16,21 +16,29 @@ export function WorkspaceActivity({
   status: "loading" | "loaded" | "error";
   onOpenRun?: (runId: string) => void;
 }) {
+  const savedRuns = runs.filter((run) => !run.candidate_id);
+  const candidateRuns = runs.filter((run) => Boolean(run.candidate_id));
+  const runButton = (run: BacktestRunRecord, kind: "Saved test" | "Candidate test") => <button key={run.id} onClick={() => onOpenRun?.(run.id)}>
+    <span><strong>{new Date(run.created_at).toLocaleDateString()}</strong><small>{kind} · {run.run_config.start_date} – {run.run_config.end_date}{run.revision_id !== revisionId ? " · Earlier version" : ""}</small></span>
+    <span className={`run-status ${run.status}`}>{run.status === "succeeded" && run.result
+      ? new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 1 }).format(Number(run.result.total_return))
+      : run.status}</span>
+  </button>;
   return <section className="workspace-activity">
       <header><span className="eyebrow">Strategy activity</span><h2>Saved research</h2><p>Open an existing result without running the strategy again.</p></header>
       {revisionId && <section className="dashboard-revision"><span>Current version{revisionCount && revisionCount > 1 ? ` · ${revisionCount - 1} earlier` : ""}</span><code>{revisionId.slice(0, 8)}</code></section>}
       <section className="dashboard-runs">
-        <h3>Backtests</h3>
+        <h3>Saved tests</h3>
         {status === "loading" && <p role="status">Loading saved results…</p>}
         {status === "error" && <p>Saved results are temporarily unavailable.</p>}
         {status === "loaded" && runs.length === 0 && <p>No saved backtests yet.</p>}
-        {runs.map((run) => <button key={run.id} onClick={() => onOpenRun?.(run.id)}>
-          <span><strong>{new Date(run.created_at).toLocaleDateString()}</strong><small>{run.run_config.start_date} – {run.run_config.end_date}{run.revision_id !== revisionId ? " · Earlier version" : ""}</small></span>
-          <span className={`run-status ${run.status}`}>{run.candidate_id ? "Candidate" : run.status === "succeeded" && run.result
-            ? new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 1 }).format(Number(run.result.total_return))
-            : run.status}</span>
-        </button>)}
+        {savedRuns.map((run) => runButton(run, "Saved test"))}
       </section>
+      {candidateRuns.length > 0 && <section className="dashboard-runs dashboard-candidates">
+        <h3>Candidate tests</h3>
+        <p className="activity-hint">Separate experiments; opening one does not adopt it.</p>
+        {candidateRuns.map((run) => runButton(run, "Candidate test"))}
+      </section>}
     </section>;
 }
 

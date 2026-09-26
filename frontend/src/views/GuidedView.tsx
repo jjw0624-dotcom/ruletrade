@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
-import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
+import { isBlankWorkspaceTarget, sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import { useStrategyEditor } from "../store/editorStore";
 
 function GuideObject({selection,question,answer,children}:{selection:SemanticSelection;question:string;answer:string;children?:ReactNode}) {
@@ -8,9 +8,9 @@ function GuideObject({selection,question,answer,children}:{selection:SemanticSel
   return <button className={`guide-object${selected?" selected":""}`} aria-pressed={selected} data-component-id={selection.componentId??undefined} data-field-path={selection.fieldPath??undefined} onClick={()=>dispatch({type:"select_semantic",selection})}><span>{question}</span><strong>{answer}</strong>{children}</button>;
 }
 export function GuidedView(){
-  const {state}=useStrategyEditor();const projection=projectConceptualFlow(state.canonical,state.registry);
+  const {state,dispatch}=useStrategyEditor();const projection=projectConceptualFlow(state.canonical,state.registry);
   if(projection.unsupportedReason)return <div className="guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>This strategy shape is not available in the current Builder.</h1><p>{projection.unsupportedReason}</p></header></div>;
-  return <div className="guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Select any part to inspect or change it without leaving the Strategy workspace.</p></header><div className="guide-sequence">
+  return <div className="guide-representation" aria-label="Guided strategy editor" onClick={(event)=>{if(isBlankWorkspaceTarget(event.target))dispatch({type:"select_semantic",selection:null});}}><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Select any part to inspect or change it without leaving the Strategy workspace.</p></header><div className="guide-sequence">
     {projection.groups.map(group=><section className="guide-group" key={group.id}>
       <GuideObject selection={semanticSelection("group",group.sleeveComponentId??group.universeComponentId??null,{groupId:group.id})} question="Where should money go?" answer={`${group.label}${group.allocation?` · ${group.allocation}`:""}`}/>
       <GuideObject selection={semanticSelection("universe",group.universeComponentId??null,{groupId:group.id})} question="What can it invest in?" answer={group.assets.join(", ")}/>
