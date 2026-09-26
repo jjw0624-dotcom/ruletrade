@@ -50,6 +50,12 @@ closing Research restores the Inspector for the still-selected component.
 When Research is closed, Builder is rendered directly in the shell's remaining grid row; the
 resizable panel group is not mounted. This keeps a one-panel layout from retaining or initializing a
 zero-height split. The vertical resizable group exists only while both Builder and Research exist.
+The optional notice and validation content always has one structural grid wrapper, so the workbench
+is consistently placed in the bounded `minmax(0, 1fr)` row. Panel percentages therefore resolve
+against a real height when Research opens.
+Programmatic layout initialization is not written back into React state; only a completed user
+resize gesture updates the saved panel size. This prevents a zero-size initialization callback from
+creating a render/layout feedback cycle or remounting Result research.
 
 Result, Decision, Candidate, and Comparison layouts respond to the Research panel's own width rather
 than only the browser viewport. Narrower user-selected widths stack dense two-column investigation

@@ -72,7 +72,11 @@ export function workbenchResearchReducer(
     case "set_context":
       return { ...state, context: action.context };
     case "set_size":
-      return { ...state, size: Math.max(RESEARCH_MIN_SIZE, Math.min(RESEARCH_MAX_SIZE, action.size)) };
+      if (!Number.isFinite(action.size)) return state;
+      {
+        const size = Math.max(RESEARCH_MIN_SIZE, Math.min(RESEARCH_MAX_SIZE, action.size));
+        return Math.abs(size - state.size) < 0.01 ? state : { ...state, size };
+      }
     case "reopen_research":
       return state.destination ? { ...state, researchOpen: true } : state;
     case "close_research":

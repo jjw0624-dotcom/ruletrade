@@ -31,6 +31,10 @@ export function shouldShowSemanticInspector(hasSelection: boolean, researchOpen:
   return hasSelection && !researchOpen;
 }
 
+export function shouldStoreResearchSize(size: number | undefined, isUserInteraction: boolean): size is number {
+  return isUserInteraction && size !== undefined && Number.isFinite(size);
+}
+
 export function StrategyBuilderWorkspace({
   name,
   dirty,
@@ -107,9 +111,8 @@ export function StrategyBuilderWorkspace({
         <button className="primary-button" onClick={onTest}>Test <span aria-hidden="true">▶</span></button>
       </div>
     </header>
-    {notices}
-    {validation}
-    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout) => { if (layout.research !== undefined) research.onResize(layout.research); }}>
+    <div className="builder-messages">{notices}{validation}</div>
+    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
       <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
         {builder}
       </Panel>
