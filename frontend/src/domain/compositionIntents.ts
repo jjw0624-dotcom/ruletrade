@@ -1,6 +1,28 @@
 import type { CanonicalStrategyV1 } from "./canonical";
 import type { ComposeStrategyOperation } from "../structuralAuthoringApi";
 
+export function composeRankedSelectionPipeline(
+  canonical: CanonicalStrategyV1,
+  weightComponentId: string,
+  lookbackBars: number,
+  count: number,
+): ComposeStrategyOperation | null {
+  const incoming = canonical.graph.connections.filter((connection) =>
+    connection.target.component_id === weightComponentId && connection.target.port === "assets");
+  if (incoming.length !== 1 || incoming[0].source.port !== "assets") return null;
+  const source = incoming[0].source;
+  return { kind: "compose_strategy", mutations: [
+    { kind: "disconnect", source, target: { component_id: weightComponentId, port: "assets" } },
+    { kind: "create_component", ref: "metric", primitive: "trailing_return@1", config: { lookback_bars: lookbackBars } },
+    { kind: "create_component", ref: "rank", primitive: "rank@1", config: { direction: "descending" } },
+    { kind: "create_component", ref: "choose", primitive: "top_n@1", config: { count } },
+    { kind: "connect", source, target: { created_ref: "metric", port: "assets" } },
+    { kind: "connect", source: { created_ref: "metric", port: "scores" }, target: { created_ref: "rank", port: "scores" } },
+    { kind: "connect", source: { created_ref: "rank", port: "ranked" }, target: { created_ref: "choose", port: "ranked" } },
+    { kind: "connect", source: { created_ref: "choose", port: "selected" }, target: { component_id: weightComponentId, port: "assets" } },
+  ] };
+}
+
 export function insertConditionBeforeRank(
   canonical: CanonicalStrategyV1,
   rankComponentId: string,

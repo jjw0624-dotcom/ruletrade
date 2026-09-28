@@ -3,7 +3,7 @@ import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import type { StructuralAuthoringCapabilities, StructuralAuthoringOperation } from "../structuralAuthoringApi";
 import type { RegistryPayload } from "./canonical";
 
-export type BuilderBlockKind = "choose" | "qualification" | "fallback" | "cooldown" | "split";
+export type BuilderBlockKind = "metric" | "choose" | "qualification" | "fallback" | "cooldown" | "split";
 
 export interface StructureItem {
   id: string;
@@ -49,7 +49,7 @@ const TOOLBOX_DEFINITIONS: ToolboxDefinition[] = [
   { id: "sleeve", category: "Portfolio", label: "Sleeve", description: "A named allocation branch inside a portfolio.", primitives: ["portfolio_sleeve@1"], perspectives: ["flow"] },
   { id: "allocation", category: "Portfolio", label: "Allocation", description: "Convert selected assets into portfolio targets.", primitives: ["equal_weight@1"], perspectives: ["flow"] },
   { id: "asset-set", category: "Assets", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
-  { id: "metric", category: "Decision / logic", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1"], perspectives: ["flow", "blocky"] },
+  { id: "metric", category: "Decision / logic", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "metric", perspectives: ["flow", "blocky"] },
   { id: "condition", category: "Decision / logic", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
   { id: "rank", category: "Decision / logic", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
   { id: "choose", category: "Decision / logic", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
@@ -171,6 +171,13 @@ export function constructionOptions(
     const groupId = group.id;
     const targetLabel = group.label || "Investment";
     const chooseTarget = group.allocationComponentId;
+    if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)
+      && ["trailing_return@1", "rank@1", "top_n@1"].every((primitive) => composable.has(primitive))) options.push({
+      kind: "metric", category: "Decision / routing", label: "Metric", targetLabel, groupId,
+      description: "Add trailing return with the minimum Rank and Choose support required for a valid executable pipeline.",
+      targetComponentId: chooseTarget,
+      anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
+    });
     if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)) options.push({
       kind: "choose", category: "Decision / routing", label: "Choose", targetLabel, groupId,
       description: "Measure returns, rank this universe, and choose the strongest assets.",

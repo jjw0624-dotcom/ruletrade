@@ -26,6 +26,11 @@ const filterComposition = {
   mutation_kinds: ["create_component", "connect", "disconnect"],
   incomplete_working_states: false as const,
 };
+const rankedComposition = {
+  primitives: ["trailing_return@1", "rank@1", "top_n@1"].map((primitive) => ({ primitive, category: "transform", create_supported: true, reason: null })),
+  mutation_kinds: ["create_component", "connect", "disconnect"],
+  incomplete_working_states: false as const,
+};
 
 describe("shared Strategy Builder workspace boundaries", () => {
   it("uses one semantic selection across representation switches without dirtying Canonical", () => {
@@ -82,6 +87,18 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
   });
 
+  it("offers Metric as an atomic minimum-valid scaffold without hiding later primitive gestures", () => {
+    const projection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
+    const capabilities = { ...none, composition: rankedComposition, choose_pipeline_targets: ["weights"] };
+    const options = constructionOptions(projection, capabilities, null);
+    expect(options.map((option) => option.kind)).toEqual(["metric", "choose"]);
+    expect(options[0]).toMatchObject({
+      kind: "metric",
+      targetComponentId: "weights",
+      description: expect.stringContaining("minimum Rank and Choose support"),
+    });
+  });
+
   it("keeps semantic library membership independent from legal application targets", () => {
     const projection = projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry);
     const composition = {
@@ -99,7 +116,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
       "Condition", "Rank", "Choose", "Fallback", "Cooldown", "Schedule",
     ]);
     expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "needs_context", options: [] });
-    expect(entries.find((entry) => entry.label === "Metric")).toMatchObject({ availability: "unavailable", options: [] });
+    expect(entries.find((entry) => entry.label === "Metric")).toMatchObject({ availability: "needs_context", options: [] });
     expect(entries.find((entry) => entry.label === "Schedule")).toMatchObject({ availability: "unsupported", options: [] });
     expect(entries.map((entry) => entry.label)).not.toContain("Growth + Defensive");
   });

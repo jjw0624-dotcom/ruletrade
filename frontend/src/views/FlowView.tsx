@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
-import { constructionOptions, semanticDeleteOperation } from "../domain/builderProjection";
+import { constructionOptions, semanticDeleteOperation, type ConstructionOption } from "../domain/builderProjection";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
-import { insertConditionBeforeRank } from "../domain/compositionIntents";
+import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, GrowthDefensiveTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
 
 export function shapeTransformationTargets(capabilities: StructuralAuthoringController["capabilities"]) { return { choose: capabilities?.choose_pipeline_targets[0], fallback: capabilities?.fallback_add_targets[0], growthDefensive: capabilities?.growth_defensive_targets[0] }; }
 
@@ -50,6 +51,7 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
   const options=useMemo(()=>constructionOptions(projection,structural.capabilities,state.editor.selection),[projection,structural.capabilities,state.editor.selection]);
   const [nodes,setNodes,onNodesChange]=useNodesState<SemanticNode>(graph.nodes);
   const instance = useRef<ReactFlowInstance<SemanticNode, Edge> | null>(null);
+  const [pendingOption,setPendingOption]=useState<ConstructionOption|null>(null);
   useEffect(()=>setNodes(current=>graph.nodes.map(projected=>({...projected,position:current.find(item=>item.id===projected.id)?.position??projected.position}))),[graph.nodes,setNodes]);
   useEffect(()=>{
     if(state.editor.activeView!=="flow"||!state.editor.selection||!instance.current)return;
@@ -69,7 +71,7 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
       if(option.kind==="qualification"){
         const operation=insertConditionBeforeRank(state.canonical,option.targetComponentId);
         if(operation)void structural.compose(operation,(result)=>semanticSelection("qualification",result.created_component_ids.condition??null,{fieldPath:"config.threshold",groupId:option.groupId}));
-      } else dispatch({type:"set_left_panel_tab",tab:"blocks"});
+      } else setPendingOption(option);
     } catch { /* Ignore non-RuleTrade drops. */ }
   },[dispatch,options,state.canonical,structural]);
   const topologyKey=useMemo(()=>`${graph.nodes.map(item=>item.id).join("|")}::${graph.edges.map(item=>item.id).join("|")}`,[graph]);
@@ -77,5 +79,13 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
     <ReactFlow<SemanticNode, Edge> key={topologyKey} nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
     {canAdd && <div className="flow-add-hint">Drag a supported concept from Add onto its compatible Strategy location.</div>}
+    {pendingOption && <div className="flow-actions" aria-label="Pending Flow construction">
+      {pendingOption.kind==="metric"&&<MetricConstructionControl busy={structural.status==="applying"} error={structural.error} onApply={async(lookback,count)=>{const operation=composeRankedSelectionPipeline(state.canonical,pendingOption.targetComponentId,lookback,count);if(!operation)return false;const ok=await structural.compose(operation,result=>semanticSelection("rule",result.created_component_ids.metric??null,{fieldPath:"config.lookback_bars",groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="choose"&&<ChooseTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(lookback,count)=>{const ok=await structural.apply({kind:"transform_to_choose_assets",weight_component_id:pendingOption.targetComponentId,lookback_observations:lookback,count},semanticSelection("selection",`${pendingOption.targetComponentId}_top_n`,{groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="fallback"&&<FallbackTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(asset)=>{const ok=await structural.apply({kind:"add_fallback_selection",weight_component_id:pendingOption.targetComponentId,fallback_asset:asset},semanticSelection("fallback",`${pendingOption.targetComponentId}_fallback`,{groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="cooldown"&&<CooldownConstructionControl busy={structural.status==="applying"} error={structural.error} onApply={async(duration)=>{const ok=await structural.apply({kind:"add_cooldown_to_selection",selection_component_id:pendingOption.targetComponentId,duration},semanticSelection("cooldown",`${pendingOption.targetComponentId}_cooldown`,{fieldPath:"config.duration",groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="split"&&<GrowthDefensiveTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(allocation,assets)=>{const operation=composeTwoSleevePortfolio(state.canonical,pendingOption.targetComponentId,allocation,assets);if(!operation)return false;const ok=await structural.compose(operation,result=>semanticSelection("split",result.created_component_ids.portfolio??null));if(ok)setPendingOption(null);return ok;}}/>}
+      <button className="text-button" onClick={()=>setPendingOption(null)}>Cancel</button>
+    </div>}
   </div>;
 }

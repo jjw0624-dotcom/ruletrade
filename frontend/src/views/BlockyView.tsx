@@ -7,8 +7,8 @@ import { constructionOptions, semanticDeleteOperation, type ConstructionOption }
 import { blockFieldOperation } from "../domain/blockyAuthoring";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import { useStrategyEditor } from "../store/editorStore";
-import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, GrowthDefensiveTransformationControl } from "../components/ShapeTransformationControls";
-import { composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, GrowthDefensiveTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
+import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
@@ -141,6 +141,13 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
     {logic.unsupportedReason && <p role="status">This Strategy cannot yet be shown as logic blocks: {logic.unsupportedReason}</p>}
     <div className="blocky-canvas" ref={host} hidden={Boolean(logic.unsupportedReason)} aria-label="Strategy logic blocks" />
     {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
+      {pendingOption?.kind === "metric" && <MetricConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={async (lookback, count) => {
+        const operation = composeRankedSelectionPipeline(state.canonical, pendingOption.targetComponentId, lookback, count);
+        if (!operation) return false;
+        const ok = await structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId: pendingOption.groupId }));
+        if (ok) setPendingOption(null);
+        return ok;
+      }} />}
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "fallback" && <FallbackTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(asset) => finishPending({ kind: "add_fallback_selection", weight_component_id: pendingOption.targetComponentId, fallback_asset: asset }, semanticSelection("fallback", `${pendingOption.targetComponentId}_fallback`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "cooldown" && <CooldownConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={(duration) => finishPending({ kind: "add_cooldown_to_selection", selection_component_id: pendingOption.targetComponentId, duration }, semanticSelection("cooldown", `${pendingOption.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId: pendingOption.groupId }))} />}
