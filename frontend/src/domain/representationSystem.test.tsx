@@ -15,8 +15,12 @@ import { OverviewView } from "../views/OverviewView";
 import { CodeView } from "../views/CodeView";
 import { fallbackBootstrap, filterBootstrap, momentumBootstrap } from "../test/fixture";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
+import { blocklyViewportOptions } from "../views/BlockyView";
 
 const cap: StructuralAuthoringCapabilities = {
+  composition: { primitives: [
+    { primitive: "filter@1", category: "transform", create_supported: true, reason: null },
+  ], mutation_kinds: ["create_component", "connect", "disconnect"], incomplete_working_states: false },
   groups: [], qualification_add_targets: ["momentum_rank"], qualification_remove_targets: ["positive_return"],
   cooldown_add_targets: [], cooldown_remove_targets: [], add_group: false, remove_group: false,
   rename_group: false, add_qualification_condition: true, remove_qualification_condition: true,
@@ -29,9 +33,13 @@ const cap: StructuralAuthoringCapabilities = {
   selection_resample_targets: [], sleeve_allocation_targets: [], schedule_targets: [],
   cooldown_duration_targets: [], fallback_asset_set_targets: [],
 };
-const structural: StructuralAuthoringController = { capabilities: cap, status: "ready", error: null, apply: async () => true };
+const structural: StructuralAuthoringController = { capabilities: cap, status: "ready", error: null, apply: async () => true, compose: async () => true };
 
 describe("one Canonical, distinct editable perspectives", () => {
+  it("uses Blockly-native pan, scroll, and bounded zoom mechanics", () => {
+    expect(blocklyViewportOptions.move).toEqual({ scrollbars: true, drag: true, wheel: true });
+    expect(blocklyViewportOptions.zoom).toMatchObject({ controls: true, wheel: true, minScale: .45, maxScale: 1.8 });
+  });
   it("keeps every representation coherent after authoritative Fallback removal", () => {
     const canonical = structuredClone(fallbackBootstrap.strategy);
     canonical.graph.components = canonical.graph.components.filter((item) => item.id !== "fallback");

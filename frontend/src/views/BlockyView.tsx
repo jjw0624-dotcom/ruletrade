@@ -4,10 +4,16 @@ import type { StructuralAuthoringController } from "../hooks/useStructuralAuthor
 import { projectConceptualFlow } from "../domain/conceptualFlow";
 import { projectLogicRepresentation, logicStepForSelection, type LogicStep } from "../domain/logicRepresentation";
 import { constructionOptions, semanticDeleteOperation, type ConstructionOption } from "../domain/builderProjection";
-import { blockFieldOperation, qualificationDropOperation } from "../domain/blockyAuthoring";
+import { blockFieldOperation } from "../domain/blockyAuthoring";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import { useStrategyEditor } from "../store/editorStore";
 import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, GrowthDefensiveTransformationControl } from "../components/ShapeTransformationControls";
+import { composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+
+export const blocklyViewportOptions = {
+  move: { scrollbars: true, drag: true, wheel: true },
+  zoom: { controls: true, wheel: true, startScale: 1, minScale: .45, maxScale: 1.8, scaleSpeed: 1.12 },
+} as const;
 
 const blockTypes: Record<LogicStep["kind"], string> = {
   group: "rt_group", assets: "rt_assets", score: "rt_score", condition: "rt_condition", rank: "rt_rank",
@@ -47,14 +53,14 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
   const available = useMemo(() => constructionOptions(flow, cap, state.editor.selection), [flow, cap, state.editor.selection]);
   const selectedStep = logicStepForSelection(logic, state.editor.selection);
   const removable = semanticDeleteOperation(state.editor.selection, cap);
-  const live = useRef({ logic, cap, selection: state.editor.selection, available, structural, dispatch });
-  live.current = { logic, cap, selection: state.editor.selection, available, structural, dispatch };
+  const live = useRef({ canonical: state.canonical, logic, cap, selection: state.editor.selection, available, structural, dispatch });
+  live.current = { canonical: state.canonical, logic, cap, selection: state.editor.selection, available, structural, dispatch };
 
   useEffect(() => {
     if (!host.current) return;
     registerBlocks();
     const canvas = Blockly.inject(host.current, { toolbox: { kind: "flyoutToolbox", contents: [] }, trashcan: false,
-      sounds: false, zoom: { controls: true, wheel: true, startScale: 1 } });
+      sounds: false, ...blocklyViewportOptions });
     workspace.current = canvas;
     const listener = (event: Blockly.Events.Abstract) => {
       if (event.workspaceId !== canvas.id) return;
@@ -67,12 +73,11 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
         block.dispose(false);
         current.dispatch({ type: "select_semantic", selection: option.anchorSelection });
         if (option.kind !== "qualification") { setPendingOption(option); return; }
-        const operation = qualificationDropOperation(option.targetComponentId, current.cap);
+        const operation = insertConditionBeforeRank(current.canonical, option.targetComponentId);
         if (!operation) return;
         busy.current = true;
-        const target = operation.rank_component_id;
-        void current.structural.apply(operation,
-          semanticSelection("qualification", `${target}_qualification`, { fieldPath: "config.threshold", groupId: option.groupId }))
+        void current.structural.compose(operation,
+          (result) => semanticSelection("qualification", result.created_component_ids.condition ?? null, { fieldPath: "config.threshold", groupId: option.groupId }))
           .then((ok) => { if (!ok) setNotice("The backend rejected that block. Strategy unchanged."); else setNotice(null); })
           .finally(() => { busy.current = false; });
       }
@@ -141,14 +146,20 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
   }, [available]);
 
   const finishPending = async (operation: Parameters<typeof structural.apply>[0], selection: SemanticSelection) => { const ok = await structural.apply(operation, selection); if (ok) setPendingOption(null); return ok; };
-  return <div className="blocky-representation"><header className="representation-intro"><span className="eyebrow">Blocky</span><h1>Decision logic</h1><p>Drag an available logical concept from Blockly's toolbox or edit a value. Every gesture becomes a backend semantic operation before the workspace reconciles.</p></header>
+  return <div className="blocky-representation">
     {logic.unsupportedReason && <p role="status">This Strategy cannot yet be shown as logic blocks: {logic.unsupportedReason}</p>}
     <div className="blocky-canvas" ref={host} hidden={Boolean(logic.unsupportedReason)} aria-label="Strategy logic blocks" />
     <div className="blocky-actions">
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "fallback" && <FallbackTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(asset) => finishPending({ kind: "add_fallback_selection", weight_component_id: pendingOption.targetComponentId, fallback_asset: asset }, semanticSelection("fallback", `${pendingOption.targetComponentId}_fallback`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "cooldown" && <CooldownConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={(duration) => finishPending({ kind: "add_cooldown_to_selection", selection_component_id: pendingOption.targetComponentId, duration }, semanticSelection("cooldown", `${pendingOption.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId: pendingOption.groupId }))} />}
-      {pendingOption?.kind === "split" && <GrowthDefensiveTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(allocation, assets) => finishPending({ kind: "transform_to_growth_defensive", target_component_id: pendingOption.targetComponentId, growth_allocation: allocation, defensive_assets: assets }, semanticSelection("split", `${pendingOption.targetComponentId}_portfolio`))} />}
+      {pendingOption?.kind === "split" && <GrowthDefensiveTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={async (allocation, assets) => {
+        const operation = composeTwoSleevePortfolio(state.canonical, pendingOption.targetComponentId, allocation, assets);
+        if (!operation) return false;
+        const ok = await structural.compose(operation, (result) => semanticSelection("split", result.created_component_ids.portfolio ?? null));
+        if (ok) setPendingOption(null);
+        return ok;
+      }} />}
       {removable && <button className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply(removable, null)}>Remove selected {selectedStep?.kind ?? "concept"}</button>}
     </div>{(notice || structural.error) && <p role="alert" className="structural-error">{notice ?? structural.error?.message}</p>}
   </div>;

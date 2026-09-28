@@ -70,6 +70,9 @@ export interface RegistryPrimitive {
   inputs: Array<{ name: string; value_type: string; required: boolean; multiple: boolean }>;
   outputs: Array<{ name: string; value_type: string; required: boolean; multiple: boolean }>;
   fields: RegistryField[];
+  backend_capability?: string;
+  implementation_id?: string;
+  result_type?: string | null;
 }
 
 export interface RegistryPayload {

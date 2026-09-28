@@ -17,6 +17,7 @@ import {
   CooldownConstructionControl,
   GrowthDefensiveTransformationControl,
 } from "./ShapeTransformationControls";
+import { composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -38,6 +39,7 @@ export function ConstructionControl({ option, structural }: {
   option: ConstructionOption;
   structural: StructuralAuthoringController;
 }) {
+  const { state } = useStrategyEditor();
   const groupId = option.groupId;
   const busy = structural.status === "applying";
   if (option.kind === "choose") return <ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
@@ -51,21 +53,24 @@ export function ConstructionControl({ option, structural }: {
     weight_component_id: option.targetComponentId,
     fallback_asset: asset,
   }, semanticSelection("fallback", `${option.targetComponentId}_fallback`, { groupId }))} />;
-  if (option.kind === "split") return <GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => structural.apply({
-    kind: "transform_to_growth_defensive",
-    target_component_id: option.targetComponentId,
-    growth_allocation: allocation,
-    defensive_assets: assets,
-  }, semanticSelection("split", `${option.targetComponentId}_portfolio`))} />;
+  if (option.kind === "split") return <GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => {
+    const operation = composeTwoSleevePortfolio(state.canonical, option.targetComponentId, allocation, assets);
+    if (!operation) return Promise.resolve(false);
+    return structural.compose(operation, (result) => semanticSelection("split", result.created_component_ids.portfolio ?? null));
+  }} />;
   if (option.kind === "cooldown") return <CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
     kind: "add_cooldown_to_selection", selection_component_id: option.targetComponentId, duration,
   }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} />;
-  return <section className="construction-card" data-construction-kind={option.kind}>
+  return <section className="construction-card" data-construction-kind={option.kind} draggable
+    onDragStart={(event) => {
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
+    }}>
     <strong>{option.label}</strong><small>{option.targetLabel}</small><p>{option.description}</p>
-    <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({
-      kind: "add_qualification_condition",
-      rank_component_id: option.targetComponentId,
-    }, semanticSelection("qualification", `${option.targetComponentId}_qualification`, { fieldPath: "config.threshold", groupId }))}>Add to selection</button>
+    <button className="secondary-button" disabled={busy} onClick={() => {
+      const operation = insertConditionBeforeRank(state.canonical, option.targetComponentId);
+      if (operation) void structural.compose(operation, (result) => semanticSelection("qualification", result.created_component_ids.condition ?? null, { fieldPath: "config.threshold", groupId }));
+    }}>Add to selection</button>
   </section>;
 }
 

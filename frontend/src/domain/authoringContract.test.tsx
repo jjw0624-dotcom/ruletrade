@@ -29,7 +29,7 @@ const emptyCapabilities: StructuralAuthoringCapabilities = {
 };
 
 function controller(capabilities: StructuralAuthoringCapabilities): StructuralAuthoringController {
-  return { capabilities, status: "ready", error: null, apply: vi.fn() };
+  return { capabilities, status: "ready", error: null, apply: vi.fn(), compose: vi.fn() };
 }
 
 describe("backend-authoritative typed authoring", () => {
@@ -78,5 +78,20 @@ describe("backend-authoritative typed authoring", () => {
     const initial = createEditorState(filterBootstrap);
     expect(initial.canonical).toBe(filterBootstrap.strategy);
     expect(initial.validation.status).toBe("valid");
+  });
+
+  it("preserves backend-owned IDs returned by a composition batch", async () => {
+    const source = filterBootstrap.strategy;
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      strategy: source,
+      created_component_ids: { condition: "filter_2" },
+      created_asset_set_ids: { defensive: "assets_2" },
+    }), { status: 200 }));
+    const result = await structuralAuthoringApi.applyWithResult(source, {
+      kind: "compose_strategy",
+      mutations: [{ kind: "create_component", ref: "condition", primitive: "filter@1", config: { threshold: "0" } }],
+    }, fetcher);
+    expect(result.created_component_ids).toEqual({ condition: "filter_2" });
+    expect(result.created_asset_set_ids).toEqual({ defensive: "assets_2" });
   });
 });

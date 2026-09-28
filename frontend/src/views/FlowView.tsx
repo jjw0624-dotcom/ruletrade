@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
@@ -6,6 +6,7 @@ import { constructionOptions, semanticDeleteOperation } from "../domain/builderP
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
+import { insertConditionBeforeRank } from "../domain/compositionIntents";
 
 export function shapeTransformationTargets(capabilities: StructuralAuthoringController["capabilities"]) { return { choose: capabilities?.choose_pipeline_targets[0], fallback: capabilities?.fallback_add_targets[0], growthDefensive: capabilities?.growth_defensive_targets[0] }; }
 
@@ -41,7 +42,7 @@ export function flowNodeIdForSelection(nodes: SemanticNode[], selection: Semanti
   return (matching.find((item) => item.data.selection.fieldPath === selection.fieldPath) ?? matching[0])?.id ?? null;
 }
 
-const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false };
+const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false, compose:async()=>false };
 export function FlowView({structural=inertStructural}:{structural?:StructuralAuthoringController}) {
   const {state,dispatch}=useStrategyEditor();
   const projection=useMemo(()=>projectConceptualFlow(state.canonical,state.registry),[state.canonical,state.registry]);
@@ -59,8 +60,21 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
   const displayed:SemanticNode[]=nodes.map(item=>{const canAdd=options.some(option=>sameSemanticSelection(option.anchorSelection,item.data.selection)||Boolean(option.groupId&&option.groupId===item.data.selection.groupId));return {...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection),data:{...item.data,canAdd,onAdd:openAdd}};});
   const removeSelected=useCallback(()=>{const operation=semanticDeleteOperation(state.editor.selection,structural.capabilities);if(operation)void structural.apply(operation,null);},[state.editor.selection,structural]);
   const canAdd=options.length>0;
+  const onDrop=useCallback((event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();
+    try {
+      const intent=JSON.parse(event.dataTransfer.getData("application/x-ruletrade-concept")) as {kind:string;targetComponentId:string};
+      const option=options.find(item=>item.kind===intent.kind&&item.targetComponentId===intent.targetComponentId);
+      if(!option)return;
+      dispatch({type:"select_semantic",selection:option.anchorSelection});
+      if(option.kind==="qualification"){
+        const operation=insertConditionBeforeRank(state.canonical,option.targetComponentId);
+        if(operation)void structural.compose(operation,(result)=>semanticSelection("qualification",result.created_component_ids.condition??null,{fieldPath:"config.threshold",groupId:option.groupId}));
+      } else openAdd(option.anchorSelection);
+    } catch { /* Ignore non-RuleTrade drops. */ }
+  },[dispatch,openAdd,options,state.canonical,structural]);
   const topologyKey=useMemo(()=>`${graph.nodes.map(item=>item.id).join("|")}::${graph.edges.map(item=>item.id).join("|")}`,[graph]);
-  return <div className="flow-representation" tabIndex={0} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
+  return <div className="flow-representation" tabIndex={0} onDragOver={event=>{if(event.dataTransfer.types.includes("application/x-ruletrade-concept")){event.preventDefault();event.dataTransfer.dropEffect="copy";}}} onDrop={onDrop} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
     <ReactFlow<SemanticNode, Edge> key={topologyKey} nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
     {canAdd && <button className="secondary-button flow-add-action" onClick={()=>openAdd()}>+ Add concept</button>}

@@ -21,6 +21,11 @@ const none: StructuralAuthoringCapabilities = {
   sleeve_allocation_targets: [], schedule_targets: [], cooldown_duration_targets: [],
   fallback_asset_set_targets: [],
 };
+const filterComposition = {
+  primitives: [{ primitive: "filter@1", category: "transform", create_supported: true, reason: null }],
+  mutation_kinds: ["create_component", "connect", "disconnect"],
+  incomplete_working_states: false as const,
+};
 
 describe("shared Strategy Builder workspace boundaries", () => {
   it("uses one semantic selection across representation switches without dirtying Canonical", () => {
@@ -61,15 +66,15 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const projection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
     const selected = semanticSelection("selection", "top_n", { groupId: "strategy" });
     expect(constructionOptions(projection, none, selected)).toEqual([]);
-    expect(constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, selected).map((item) => item.kind)).toEqual(["qualification"]);
+    expect(constructionOptions(projection, { ...none, composition: filterComposition, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, selected).map((item) => item.kind)).toEqual(["qualification"]);
     expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["top_n"] }, selected).map((item) => item.kind)).toEqual(["cooldown"]);
     expect(constructionOptions(projection, { ...none, cooldown_add_targets: ["unrelated"] }, selected)).toEqual([]);
   });
 
   it("offers Strategy additions without requiring the user to preselect the backend target", () => {
     const projection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
-    const fromBlankCanvas = constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, null);
-    const fromPortfolio = constructionOptions(projection, { ...none, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, semanticSelection("portfolio", null));
+    const fromBlankCanvas = constructionOptions(projection, { ...none, composition: filterComposition, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, null);
+    const fromPortfolio = constructionOptions(projection, { ...none, composition: filterComposition, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true }, semanticSelection("portfolio", null));
     expect(fromBlankCanvas).toHaveLength(1);
     expect(fromPortfolio).toEqual(fromBlankCanvas);
     expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });

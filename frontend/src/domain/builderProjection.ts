@@ -128,6 +128,8 @@ export function constructionOptions(
   selection: SemanticSelection | null,
 ): ConstructionOption[] {
   if (!capabilities) return [];
+  const composable = new Set(capabilities.composition?.primitives
+    .filter((item) => item.create_supported).map((item) => item.primitive) ?? []);
   const options: ConstructionOption[] = [];
   for (const group of projection.groups) {
     const groupId = group.id;
@@ -140,7 +142,7 @@ export function constructionOptions(
       anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
     });
     const rankTarget = group.choose?.rankComponentId;
-    if (rankTarget && capabilities.qualification_add_targets.includes(rankTarget)) options.push({
+    if (rankTarget && composable.has("filter@1") && capabilities.qualification_add_targets.includes(rankTarget)) options.push({
       kind: "qualification", label: "Condition", targetLabel, groupId,
       description: "Require the supported positive-return condition before ranking.",
       targetComponentId: rankTarget,
@@ -162,7 +164,8 @@ export function constructionOptions(
     });
   }
   const splitTarget = capabilities.growth_defensive_targets[0];
-  if (splitTarget) {
+  if (splitTarget && ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"]
+    .every((primitive) => composable.has(primitive))) {
     options.push({
       kind: "split",
       label: "Growth + Defensive",

@@ -1,6 +1,11 @@
 import type { CanonicalStrategyV1 } from "./domain/canonical";
 
 export interface StructuralAuthoringCapabilities {
+  composition?: {
+    primitives: Array<{ primitive: string; category: string; create_supported: boolean; reason: string | null }>;
+    mutation_kinds: string[];
+    incomplete_working_states: false;
+  };
   groups: Array<{ component_id: string; name: string }>;
   qualification_add_targets: string[];
   qualification_remove_targets: string[];
@@ -46,7 +51,18 @@ interface IntegerCapability {
   maximum: number | null;
 }
 
+export type ComponentAddress = { component_id: string; created_ref?: never } | { created_ref: string; component_id?: never };
+export type PortAddress = ComponentAddress & { port: string };
+export type CompositionMutation =
+  | { kind: "create_component"; ref: string; primitive: string; config?: Record<string, unknown> }
+  | { kind: "create_asset_set"; ref: string; assets: string[] }
+  | { kind: "set_component_field"; target: ComponentAddress; field: string; value?: unknown; created_asset_set_ref?: string }
+  | { kind: "connect" | "disconnect"; source: PortAddress; target: PortAddress }
+  | { kind: "remove_component"; target: ComponentAddress };
+export type ComposeStrategyOperation = { kind: "compose_strategy"; mutations: CompositionMutation[] };
+
 export type StructuralAuthoringOperation =
+  | ComposeStrategyOperation
   | { kind: "rename_group"; group_component_id: string; name: string }
   | { kind: "add_qualification_condition"; rank_component_id: string; threshold?: string }
   | { kind: "remove_qualification_condition"; condition_component_id: string }
@@ -70,6 +86,12 @@ export interface StructuralAuthoringErrorDetail {
   code: string;
   path?: string;
   message: string;
+}
+
+export interface AuthoringApplyResult {
+  strategy: CanonicalStrategyV1;
+  created_component_ids: Record<string, string>;
+  created_asset_set_ids: Record<string, string>;
 }
 
 export class StructuralAuthoringApiError extends Error {
@@ -113,18 +135,31 @@ export const authoringApi = {
     return await response.json() as StructuralAuthoringCapabilities;
   },
 
-  async apply(
+  async applyWithResult(
     strategy: CanonicalStrategyV1,
     operation: StructuralAuthoringOperation,
     fetcher: typeof fetch = fetch,
-  ): Promise<CanonicalStrategyV1> {
+  ): Promise<AuthoringApplyResult> {
     const response = await fetcher("/api/v1/canonical/strategies/authoring/apply", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ strategy, operation }),
     });
     if (!response.ok) throw new StructuralAuthoringApiError(await detail(response));
-    return (await response.json() as { strategy: CanonicalStrategyV1 }).strategy;
+    const result = await response.json() as Partial<AuthoringApplyResult> & { strategy: CanonicalStrategyV1 };
+    return {
+      strategy: result.strategy,
+      created_component_ids: result.created_component_ids ?? {},
+      created_asset_set_ids: result.created_asset_set_ids ?? {},
+    };
+  },
+
+  async apply(
+    strategy: CanonicalStrategyV1,
+    operation: StructuralAuthoringOperation,
+    fetcher: typeof fetch = fetch,
+  ): Promise<CanonicalStrategyV1> {
+    return (await authoringApi.applyWithResult(strategy, operation, fetcher)).strategy;
   },
 };
 

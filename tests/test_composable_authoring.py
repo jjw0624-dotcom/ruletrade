@@ -8,9 +8,11 @@ from ruletrade.strategy.v1.composition import (
     ComposeStrategyOperation,
     CompositionError,
     ConnectMutation,
+    CreateAssetSetMutation,
     CreateComponentMutation,
     DisconnectMutation,
     PortAddress,
+    SetComponentFieldMutation,
     apply_composition,
     composition_capabilities,
 )
@@ -129,3 +131,70 @@ def test_unknown_component_address_is_rejected_without_guessing() -> None:
 def test_component_address_requires_exactly_one_identity() -> None:
     with pytest.raises(ValueError):
         ComponentAddress()
+
+
+def test_composition_builds_exact_two_sleeve_portfolio_and_compiles() -> None:
+    original = momentum_top_n_strategy()
+    operation = ComposeStrategyOperation(
+        mutations=(
+            DisconnectMutation(
+                source=PortAddress(component_id="weights", port="targets"),
+                target=PortAddress(component_id="rebalance", port="targets"),
+            ),
+            CreateComponentMutation(
+                ref="growth_sleeve",
+                primitive="portfolio_sleeve@1",
+                config={"name": "Growth", "allocation": "0.7"},
+            ),
+            ConnectMutation(
+                source=PortAddress(component_id="weights", port="targets"),
+                target=PortAddress(created_ref="growth_sleeve", port="local_targets"),
+            ),
+            CreateAssetSetMutation(ref="defensive_assets", assets=("TLT",)),
+            CreateComponentMutation(ref="defensive_universe", primitive="asset_set@1", config={}),
+            SetComponentFieldMutation(
+                target=ComponentAddress(created_ref="defensive_universe"),
+                field="asset_set_ref",
+                created_asset_set_ref="defensive_assets",
+            ),
+            CreateComponentMutation(
+                ref="defensive_weight", primitive="equal_weight@1", config={"total": "1"}
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_universe", port="assets"),
+                target=PortAddress(created_ref="defensive_weight", port="assets"),
+            ),
+            CreateComponentMutation(
+                ref="defensive_sleeve",
+                primitive="portfolio_sleeve@1",
+                config={"name": "Defensive", "allocation": "0.3"},
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_weight", port="targets"),
+                target=PortAddress(created_ref="defensive_sleeve", port="local_targets"),
+            ),
+            CreateComponentMutation(ref="portfolio", primitive="portfolio@1", config={"name": "Portfolio"}),
+            ConnectMutation(
+                source=PortAddress(created_ref="growth_sleeve", port="contribution"),
+                target=PortAddress(created_ref="portfolio", port="sleeves"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_sleeve", port="contribution"),
+                target=PortAddress(created_ref="portfolio", port="sleeves"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="portfolio", port="targets"),
+                target=PortAddress(component_id="rebalance", port="targets"),
+            ),
+        )
+    )
+
+    result = apply_composition(original, operation)
+    assert result.created_component_ids["portfolio"] == "portfolio"
+    assert result.created_asset_set_ids["defensive_assets"] == "assets"
+    plan = compile_strategy_to_lean_plan(result.strategy)
+    assert len(plan.target_sleeves) == 2
+    assert {item.source_sleeve_component_id for item in plan.target_sleeves} == {
+        result.created_component_ids["growth_sleeve"],
+        result.created_component_ids["defensive_sleeve"],
+    }
