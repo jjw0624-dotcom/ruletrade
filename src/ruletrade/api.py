@@ -108,6 +108,7 @@ from ruletrade.strategy.v1.authoring import (
     apply_structural_operation,
     structural_authoring_capabilities,
 )
+from ruletrade.strategy.v1.composition import ComposeStrategyOperation, CompositionError, apply_composition
 from ruletrade.strategy.v1.fixtures import (
     cooldown_strategy,
     fallback_momentum_strategy,
@@ -215,10 +216,7 @@ async def strategy_domain_error(
         detail = {
             "code": exc.code,
             "message": str(exc),
-            "issues": [
-                {"path": issue.path, "message": issue.message}
-                for issue in exc.issues
-            ],
+            "issues": [{"path": issue.path, "message": issue.message} for issue in exc.issues],
         }
     elif isinstance(exc, (StrategyNotFoundError, RevisionNotFoundError)):
         status_code = 404
@@ -250,10 +248,7 @@ async def backtest_run_domain_error(
                 "detail": {
                     "code": exc.code,
                     "message": str(exc),
-                    "issues": [
-                        {"path": issue.path, "message": issue.message}
-                        for issue in exc.issues
-                    ],
+                    "issues": [{"path": issue.path, "message": issue.message} for issue in exc.issues],
                 }
             },
         )
@@ -293,7 +288,15 @@ async def candidate_domain_error(
 ) -> JSONResponse:
     if isinstance(exc, CandidateNotFoundError):
         status_code = 404
-    elif isinstance(exc, (CandidateExpectedValueMismatchError, CandidateArchivedStrategyError, CandidateAdoptionLineageError, CandidateRunNotSucceededError)):
+    elif isinstance(
+        exc,
+        (
+            CandidateExpectedValueMismatchError,
+            CandidateArchivedStrategyError,
+            CandidateAdoptionLineageError,
+            CandidateRunNotSucceededError,
+        ),
+    ):
         status_code = 409
     elif isinstance(exc, InvalidCandidateChangeError):
         status_code = 422
@@ -354,10 +357,7 @@ def simple_strategy_schema() -> dict[str, object]:
 @app.get("/v1/datasets")
 def datasets() -> dict[str, object]:
     return {
-        "items": [
-            {"dataset_id": item.dataset_id, "filename": item.path.name}
-            for item in registry.list()
-        ]
+        "items": [{"dataset_id": item.dataset_id, "filename": item.path.name} for item in registry.list()]
     }
 
 
@@ -411,21 +411,14 @@ def resolve_core_strategy(
     return {
         "strategy_hash": strategy_hash(request.strategy),
         "event_id": request.event_id,
-        "targets": {
-            symbol: str(weight)
-            for symbol, weight in resolution.target_weights.items()
-        },
+        "targets": {symbol: str(weight) for symbol, weight in resolution.target_weights.items()},
         "groups": [
             {
                 "group_id": group.group_id,
                 "selected_symbols": list(group.selected_symbols),
-                "local_weights": {
-                    symbol: str(weight)
-                    for symbol, weight in group.local_weights.items()
-                },
+                "local_weights": {symbol: str(weight) for symbol, weight in group.local_weights.items()},
                 "portfolio_weights": {
-                    symbol: str(weight)
-                    for symbol, weight in group.portfolio_weights.items()
+                    symbol: str(weight) for symbol, weight in group.portfolio_weights.items()
                 },
             }
             for group in resolution.groups
@@ -452,6 +445,9 @@ def _editor_registry_payload() -> dict[str, object]:
             {
                 "id": primitive.id,
                 "category": primitive.category.value,
+                "backend_capability": primitive.backend_capability.value,
+                "implementation_id": primitive.implementation_id,
+                "result_type": primitive.result_type.value if primitive.result_type else None,
                 "authoring_views": sorted(primitive.authoring_views),
                 "inputs": [
                     {
@@ -494,7 +490,14 @@ def _editor_registry_payload() -> dict[str, object]:
 @app.get("/v1/editor/bootstrap")
 def editor_bootstrap(
     example: Literal[
-        "golden", "momentum", "filter", "fallback", "sleeves", "independent_schedules", "cooldown", "one_investment"
+        "golden",
+        "momentum",
+        "filter",
+        "fallback",
+        "sleeves",
+        "independent_schedules",
+        "cooldown",
+        "one_investment",
     ] = "golden",
 ) -> dict[str, object]:
     examples = {
@@ -513,10 +516,7 @@ def editor_bootstrap(
         "strategy": strategy.model_dump(mode="json"),
         "validation": {
             "valid": not issues,
-            "issues": [
-                {"path": issue.path, "message": issue.message}
-                for issue in issues
-            ],
+            "issues": [{"path": issue.path, "message": issue.message} for issue in issues],
         },
         "registry": _editor_registry_payload(),
     }
@@ -540,8 +540,15 @@ def apply_canonical_structural_authoring(
     request: ApplyStructuralAuthoringRequest,
 ) -> ApplyStructuralAuthoringResponse:
     try:
+        if isinstance(request.operation, ComposeStrategyOperation):
+            result = apply_composition(request.strategy, request.operation)
+            return ApplyStructuralAuthoringResponse(
+                strategy=result.strategy,
+                created_component_ids=result.created_component_ids,
+                created_asset_set_ids=result.created_asset_set_ids,
+            )
         strategy = apply_structural_operation(request.strategy, request.operation)
-    except StructuralAuthoringError as exc:
+    except (StructuralAuthoringError, CompositionError) as exc:
         raise HTTPException(
             status_code=422,
             detail={"code": exc.code, "path": exc.path, "message": str(exc)},
@@ -557,10 +564,7 @@ def validate_canonical_strategy_v1(
     if issues:
         raise HTTPException(
             status_code=422,
-            detail=[
-                {"path": issue.path, "message": issue.message}
-                for issue in issues
-            ],
+            detail=[{"path": issue.path, "message": issue.message} for issue in issues],
         )
 
     return {
@@ -583,10 +587,7 @@ def execute_lean_backtest(
             detail={
                 "code": exc.code,
                 "message": str(exc),
-                "issues": [
-                    {"path": issue.path, "message": issue.message}
-                    for issue in exc.issues
-                ],
+                "issues": [{"path": issue.path, "message": issue.message} for issue in exc.issues],
             },
         ) from exc
     except UnsupportedStrategyError as exc:

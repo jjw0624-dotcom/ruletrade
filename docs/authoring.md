@@ -3,6 +3,12 @@
 **Status: CURRENT.** This document describes the implemented authoring boundary.
 Canonical and the [living architecture](architecture.md) remain authoritative.
 
+Composable Authoring v1 is documented in
+[composable-authoring-contract-v1.md](composable-authoring-contract-v1.md). It
+extends the same backend-authoritative apply endpoint with an atomic, typed
+composition batch; it does not create a second authoring API or permit
+frontend-owned graph mutation.
+
 ## Contract
 
 All currently supported Strategy mutations use the existing endpoints:

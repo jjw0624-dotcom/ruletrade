@@ -9,6 +9,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "transform",
         "fields": [
           {
@@ -24,6 +25,7 @@
           }
         ],
         "id": "asset_set@1",
+        "implementation_id": "asset_set.named",
         "inputs": [],
         "outputs": [
           {
@@ -32,7 +34,8 @@
             "required": true,
             "value_type": "asset_set"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -42,6 +45,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "composite",
         "category": "transform",
         "fields": [
           {
@@ -70,6 +74,7 @@
           }
         ],
         "id": "cooldown@1",
+        "implementation_id": "selection.cooldown",
         "inputs": [
           {
             "multiple": false,
@@ -85,7 +90,8 @@
             "required": true,
             "value_type": "asset_set"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -95,11 +101,14 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "event",
         "fields": [],
         "id": "daily@1",
+        "implementation_id": "event.daily",
         "inputs": [],
-        "outputs": []
+        "outputs": [],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -109,6 +118,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "allocator",
         "fields": [
           {
@@ -124,6 +134,7 @@
           }
         ],
         "id": "equal_weight@1",
+        "implementation_id": "allocation.equal_weight",
         "inputs": [
           {
             "multiple": false,
@@ -139,7 +150,8 @@
             "required": true,
             "value_type": "portfolio_targets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -149,6 +161,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "composite",
         "category": "transform",
         "fields": [
           {
@@ -164,6 +177,7 @@
           }
         ],
         "id": "fallback@1",
+        "implementation_id": "targets.fallback_asset",
         "inputs": [
           {
             "multiple": false,
@@ -179,7 +193,8 @@
             "required": true,
             "value_type": "portfolio_targets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -189,6 +204,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [
           {
@@ -217,6 +233,7 @@
           }
         ],
         "id": "filter@1",
+        "implementation_id": "selection.filter",
         "inputs": [
           {
             "multiple": false,
@@ -232,7 +249,8 @@
             "required": true,
             "value_type": "asset_scores"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -242,9 +260,11 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [],
         "id": "merge_targets@1",
+        "implementation_id": "targets.merge",
         "inputs": [
           {
             "multiple": false,
@@ -266,7 +286,8 @@
             "required": true,
             "value_type": "portfolio_targets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -276,6 +297,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "event",
         "fields": [
           {
@@ -291,8 +313,10 @@
           }
         ],
         "id": "monthly@1",
+        "implementation_id": "event.monthly",
         "inputs": [],
-        "outputs": []
+        "outputs": [],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -302,6 +326,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "composite",
         "category": "transform",
         "fields": [
           {
@@ -317,6 +342,7 @@
           }
         ],
         "id": "portfolio@1",
+        "implementation_id": "portfolio.compose",
         "inputs": [
           {
             "multiple": true,
@@ -332,7 +358,8 @@
             "required": true,
             "value_type": "portfolio_targets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -342,6 +369,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "composite",
         "category": "transform",
         "fields": [
           {
@@ -368,6 +396,7 @@
           }
         ],
         "id": "portfolio_sleeve@1",
+        "implementation_id": "portfolio.sleeve",
         "inputs": [
           {
             "multiple": false,
@@ -383,7 +412,8 @@
             "required": true,
             "value_type": "portfolio_targets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -393,6 +423,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "event",
         "fields": [
           {
@@ -408,8 +439,10 @@
           }
         ],
         "id": "quarterly@1",
+        "implementation_id": "event.quarterly",
         "inputs": [],
-        "outputs": []
+        "outputs": [],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -419,6 +452,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [
           {
@@ -448,6 +482,7 @@
           }
         ],
         "id": "random_select@1",
+        "implementation_id": "selection.random_n_v1",
         "inputs": [
           {
             "multiple": false,
@@ -463,7 +498,8 @@
             "required": true,
             "value_type": "asset_set"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -473,6 +509,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [
           {
@@ -490,6 +527,7 @@
           }
         ],
         "id": "rank@1",
+        "implementation_id": "selection.rank",
         "inputs": [
           {
             "multiple": false,
@@ -505,7 +543,8 @@
             "required": true,
             "value_type": "ranked_assets"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -515,9 +554,11 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "native",
         "category": "effect",
         "fields": [],
         "id": "rebalance@1",
+        "implementation_id": "effect.rebalance",
         "inputs": [
           {
             "multiple": false,
@@ -526,7 +567,8 @@
             "value_type": "portfolio_targets"
           }
         ],
-        "outputs": []
+        "outputs": [],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -536,11 +578,14 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "rule",
         "fields": [],
         "id": "rule@1",
+        "implementation_id": "rule.condition_actions",
         "inputs": [],
-        "outputs": []
+        "outputs": [],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -550,6 +595,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [
           {
@@ -565,6 +611,7 @@
           }
         ],
         "id": "top_n@1",
+        "implementation_id": "selection.top_n",
         "inputs": [
           {
             "multiple": false,
@@ -580,7 +627,8 @@
             "required": true,
             "value_type": "asset_set"
           }
-        ]
+        ],
+        "result_type": null
       },
       {
         "authoring_views": [
@@ -590,6 +638,7 @@
           "guided",
           "rules"
         ],
+        "backend_capability": "generated",
         "category": "transform",
         "fields": [
           {
@@ -605,6 +654,7 @@
           }
         ],
         "id": "trailing_return@1",
+        "implementation_id": "market.trailing_return",
         "inputs": [
           {
             "multiple": false,
@@ -620,7 +670,8 @@
             "required": true,
             "value_type": "asset_scores"
           }
-        ]
+        ],
+        "result_type": null
       }
     ]
   },
