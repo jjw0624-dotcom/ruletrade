@@ -40,6 +40,7 @@ architecture when they conflict with code or the living architecture.
 | `editable-representations-v1.md` | CURRENT | Flow/Blocky/Rules/Code/AI representation boundaries |
 | `feedback-navigation-v1.md` | CURRENT | Result events, exact Decision navigation, and density behavior |
 | `connected-research-loop-v1.md` | MVP 1 COMPLETE | End-to-end research journey and formative observer guide |
+| `connected-workspace-integration-v1.md` | MVP 1 | Interaction families, persisted Test command, and bounded Research geometry |
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |
 | `authoring.md` | CURRENT | Backend-authoritative semantic authoring contract |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |

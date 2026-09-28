@@ -74,6 +74,12 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(projectBuilderStructure(flow).children[0].children[0].children.find((item) => item.label === "Qualification")?.selection.componentId).toBe(selected.componentId);
   });
 
+  it("makes the Rules card itself the accessible semantic selection affordance", () => {
+    const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
+    expect(rules).toContain('aria-label="Select rule"');
+    expect(rules).not.toContain("Inspect rule");
+  });
+
   it("takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", async () => {
     const changed = structuredClone(filterBootstrap.strategy);
     changed.graph.components.find((item) => item.id === "positive_return")!.config.threshold = "0.05";

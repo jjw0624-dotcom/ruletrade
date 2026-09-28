@@ -15,6 +15,7 @@ import {
 } from "./domain/marketDataReadiness";
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
+import { createPersistedTest } from "./domain/persistedTest";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
 import { sameSemanticAddress, semanticSelection } from "./domain/semanticSelection";
 import {
@@ -145,10 +146,14 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
 
   async function checkDataReadiness(targetConfig = config): Promise<MarketDataPreflight | null> {
     if (!base || dirty || targetConfig.dataset_id !== "us-equity-daily-local") return null;
-    const key = dataReadinessKey(base.id, targetConfig);
+    return checkRevisionDataReadiness(base.id, targetConfig);
+  }
+
+  async function checkRevisionDataReadiness(revisionId: string, targetConfig: BacktestConfig): Promise<MarketDataPreflight | null> {
+    const key = dataReadinessKey(revisionId, targetConfig);
     setDataReadiness({ status: "checking", key });
     try {
-      const result = await marketDataApi.preflight(base.id, targetConfig);
+      const result = await marketDataApi.preflight(revisionId, targetConfig);
       setDataReadiness(readinessFromResult(key, result));
       return result;
     } catch (reason) {
@@ -169,29 +174,54 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
 
   async function runCurrent() {
     setRunError(null);
-    if (!strategy || !base || dirty) {
+    if (!strategy || !base) {
       setShowSetup(false);
       const result = await backtest.run(state.canonical, config);
       if (result) researchDispatch({ type: "open_temporary_result" });
       return;
     }
-    if (config.dataset_id === "us-equity-daily-local") {
-      const checked = readinessKey && canLaunchPersistedRealDataRun(readiness, readinessKey)
-        && readiness.status === "available"
-        ? readiness.result
-        : await checkDataReadiness();
-      if (!checked || checked.overall !== "available") return;
-    }
-    setShowSetup(false);
     setPersistentRunning(true);
     try {
-      const run = await backtestRunApi.create(base.id, config);
+      const result = await createPersistedTest({
+        strategyId: strategy.id,
+        baseRevisionId: base.id,
+        canonical: state.canonical,
+        dirty,
+        config,
+        save: strategyApi.save,
+        ready: async (revisionId) => {
+          if (config.dataset_id !== "us-equity-daily-local") return true;
+          const key = dataReadinessKey(revisionId, config);
+          const checked = !dirty && readinessKey === key && canLaunchPersistedRealDataRun(readiness, key)
+            && readiness.status === "available"
+            ? readiness.result
+            : await checkRevisionDataReadiness(revisionId, config);
+          return checked?.overall === "available";
+        },
+        createRun: backtestRunApi.create,
+      });
+      if (result.saved) {
+        setStrategy(result.saved.strategy);
+        setBase(result.saved.revision);
+        setSaveStatus("saved");
+        setSaveMessage(result.saved.created ? "Saved as a new revision before testing." : "Already saved.");
+      }
+      if (!result.run) return;
+      const run = result.run;
+      setShowSetup(false);
       setRuns((current) => [run, ...current.filter((item) => item.id !== run.id)]);
       setActiveRun(run);
       setResearchLoad("idle");
       researchDispatch({ type: "open_run", runId: run.id });
     }
-    catch (reason) { setRunError(reason instanceof BacktestRunApiError ? reason.detail.message : reason instanceof Error ? reason.message : "We couldn't create this backtest."); }
+    catch (reason) {
+      if (reason instanceof StrategyApiError && reason.detail.code === "stale_revision") {
+        setSaveStatus("stale");
+        setSaveMessage("This strategy was updated after you opened it. Your edits are still here; no Test was created.");
+      } else {
+        setRunError(reason instanceof BacktestRunApiError ? reason.detail.message : reason instanceof Error ? reason.message : "We couldn't create this backtest.");
+      }
+    }
     finally { setPersistentRunning(false); }
   }
 
@@ -240,7 +270,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     researchContent = <ComparisonWorkspace comparisonId={research.destination.comparisonId} initialContext={research.context} onContextChange={(context) => researchDispatch({ type: "set_context", context })} onOpenRun={(runId, context) => void openRun(runId, context ?? null)} onViewRule={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, false)} onAdopted={(response) => void acceptAdoption(response)} onOpenLatest={() => void openLatest()} />;
   }
   return <><StrategyBuilderWorkspace name={strategy?.name ?? state.canonical.metadata.name} dirty={dirty} saving={saveStatus === "saving"} persisted={Boolean(strategy)} revisionId={base?.id ?? null} researchContext={research.context} projection={projectConceptualFlow(state.canonical,state.registry)} structural={structural} inspectorEvidence={evidence} notices={notices} validation={validationPanel} research={strategy ? { activityOpen: research.activityOpen, researchOpen: research.researchOpen, canOpenResearch: Boolean(research.destination), size: research.size, title: researchTitle(research.destination), hasActivity: runs.length > 0, content: researchContent, activity: activityContent, onToggleActivity: () => researchDispatch({ type: "toggle_activity" }), onToggleResearch: () => researchDispatch(research.researchOpen ? { type: "close_research" } : { type: "reopen_research" }), onResize: (size) => researchDispatch({ type: "set_size", size }) } : undefined} onHome={onHome} onRename={()=>void rename()} onSave={()=>void save()} onTest={openTestSetup}/>
-    {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} onCheckData={() => void checkDataReadiness()} readiness={readiness} exampleDatasetId={example.backtestDefaults.dataset_id} persistence={strategy && base && !dirty ? "historical" : "temporary"} />}
+    {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} onCheckData={() => void checkDataReadiness()} readiness={readiness} exampleDatasetId={example.backtestDefaults.dataset_id} persistence={strategy && base ? "historical" : "temporary"} />}
     {(backtest.state.status === "running" || persistentRunning) && <div className="run-overlay" role="status"><span className="loading-spinner" /><h2>Testing your strategy…</h2><p>{persistentRunning ? "Creating a saved backtest result." : "Testing unsaved changes temporarily."}</p></div>}
     {backtest.state.status === "error" && <BacktestErrorPanel error={backtest.state.error} />}
     {runError && <div className="backtest-error" role="alert"><strong>We couldn't run this backtest</strong><p>{runError}</p></div>}

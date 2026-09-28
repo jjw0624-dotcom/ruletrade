@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
 import { isBlankWorkspaceTarget, sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
@@ -12,9 +12,11 @@ function Rule({ selection, children }: { selection: SemanticSelection; children:
     && state.editor.selection.componentId === selection.componentId
     && (!state.editor.selection.fieldPath || state.editor.selection.fieldPath === selection.fieldPath));
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (selected && state.editor.activeView === "rules") { ref.current?.scrollIntoView({ block: "nearest" }); ref.current?.querySelector<HTMLButtonElement>(".rule-select")?.focus({ preventScroll: true }); } }, [selected, state.editor.activeView]);
-  return <div ref={ref} className={`human-rule${selected ? " selected" : ""}`} data-component-id={selection.componentId ?? undefined} data-field-path={selection.fieldPath ?? undefined}>
-    <button className="rule-select" aria-pressed={selected} onClick={() => dispatch({ type: "select_semantic", selection })}>Inspect rule</button>{children}
+  useEffect(() => { if (selected && state.editor.activeView === "rules") { ref.current?.scrollIntoView({ block: "nearest" }); ref.current?.focus({ preventScroll: true }); } }, [selected, state.editor.activeView]);
+  const select = () => dispatch({ type: "select_semantic", selection });
+  const keySelect = (event: KeyboardEvent<HTMLDivElement>) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); select(); } };
+  return <div ref={ref} className={`human-rule${selected ? " selected" : ""}`} role="button" tabIndex={0} aria-pressed={selected} aria-label="Select rule" data-component-id={selection.componentId ?? undefined} data-field-path={selection.fieldPath ?? undefined} onClick={select} onKeyDown={keySelect}>
+    {children}
   </div>;
 }
 

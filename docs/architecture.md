@@ -252,6 +252,15 @@ gestures use the backend composition contract. The current direct-composition
 proofs and deliberate boundary are documented in
 [Composer UX v1](composer-ux-v1.md).
 
+The production shell applies three proven interaction families without sharing
+one visual AST: Flow/Blocky are composers, Guide/Rules are structured editors,
+and Summary/Code/AI are wide document or handoff surfaces. Dirty persisted
+Strategies save one immutable Revision before Test, and the Run uses the exact
+Revision returned by that save. Desktop Research occupies a resizable right-side
+overlay layer while the underlying Builder remains full-sized; Inspector uses
+the same layered principle. Narrow screens use the attached full overlay.
+See [Connected Workspace Integration v1](connected-workspace-integration-v1.md).
+
 Deferred work includes arbitrary wiring, generic Group CRUD, unrestricted
 nested groups or boolean-expression authoring, editable arbitrary Code,
 embedded AI, multi-operation AI transactions, optimization, sensitivity,

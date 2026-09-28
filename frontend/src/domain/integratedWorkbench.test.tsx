@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { WorkspaceActivity, WorkspaceEdgeRail } from "../components/WorkspaceDashboard";
 import { ResultWorkspace } from "../components/ResultWorkspace";
-import { shouldShowSemanticInspector, shouldStoreResearchSize, StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
+import { interactionFamily, shouldShowSemanticInspector, shouldStoreResearchSize, StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
 import { StrategyEditorProvider, createEditorState, editorReducer } from "../store/editorStore";
 import { sleevesBootstrap } from "../test/fixture";
 import { flowNodeIdForSelection, projectFlowCanvas } from "../views/FlowView";
@@ -66,28 +66,37 @@ describe("integrated Strategy research workbench", () => {
     for (const view of ["overview", "guided", "flow", "blocky", "rules", "code", "ai"] as const) {
       const markup = renderView(view);
       expect(markup).toContain(`builder-core active-${view}`);
+      expect(markup).toContain(`data-interaction-family="${interactionFamily(view)}"`);
       expect(markup).toContain('data-research-layout="builder-only"');
       expect(markup).not.toContain('data-research-open="true"');
       expect(markup).not.toContain('data-workspace="research"');
       expect(markup).not.toContain('data-group="true"');
+      if (interactionFamily(view) === "document") {
+        expect(markup).toContain("content-wide");
+        expect(markup).not.toContain('class="workspace-left-root');
+      } else {
+        expect(markup).toContain('class="workspace-left-root');
+      }
     }
     expect(renderView("guided")).toContain("Guided strategy editor");
   });
 
-  it("mounts stacked Research with the same Builder representation tree", () => {
+  it("layers Research over the same full Builder representation tree", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}>
-      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: true, content: <ResultWorkspace run={run} strategyName="Integrated strategy" onBack={() => undefined} />, activity: <p>Saved activity</p>, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: RESEARCH_DEFAULT_SIZE, title: "Saved result", hasActivity: true, content: <ResultWorkspace run={run} strategyName="Integrated strategy" onBack={() => undefined} />, activity: <p>Saved activity</p>, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);
     expect(markup).toContain("Summary representation");
     expect(markup).toContain("Strategy research");
     expect(markup).toContain("Saved test");
     expect(markup).toContain("result-workspace page");
     expect(markup).toContain('data-research-open="true"');
-    expect(markup).toContain('data-research-layout="stacked"');
+    expect(markup).toContain('data-research-layout="overlay"');
     expect(markup).toContain('data-workspace="research"');
-    expect(markup).toContain('data-group="true"');
+    expect(markup).toContain('class="research-overlay"');
+    expect(markup).toContain('aria-label="Resize Research"');
+    expect(markup).not.toContain('data-group="true"');
     expect(markup.indexOf("builder-messages")).toBeLessThan(markup.indexOf("builder-workbench"));
   });
 
@@ -100,16 +109,17 @@ describe("integrated Strategy research workbench", () => {
     expect(workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: Number.NaN })).toBe(INITIAL_WORKBENCH_RESEARCH);
   });
 
-  it("keeps every representation in the full-width Builder while Research is open", () => {
+  it("keeps every representation mounted underneath Research without changing Builder geometry", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const renderView = (initialView: "guided" | "flow" | "blocky" | "rules" | "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
-      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: false, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: RESEARCH_DEFAULT_SIZE, title: "Saved result", hasActivity: false, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);
     for (const view of ["guided", "flow", "blocky", "rules", "code", "ai"] as const) {
       const markup = renderView(view);
       expect(markup).toContain(`builder-core active-${view}`);
-      expect(markup).toContain('data-research-layout="stacked"');
+      expect(markup).toContain('data-research-layout="overlay"');
+      expect(markup).toContain('data-workspace="research"');
     }
   });
 
@@ -137,9 +147,9 @@ describe("integrated Strategy research workbench", () => {
     expect(summary.canonical).toBe(initial.canonical);
     expect(summary.editor.selection).toEqual(selected.editor.selection);
     expect(summary.validation.status).toBe("valid");
-    expect(closed).toMatchObject({ researchOpen: false, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
-    expect(reopened).toMatchObject({ researchOpen: true, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
-    expect(workbenchResearchReducer(reopened, { type: "close_research" })).toMatchObject({ researchOpen: false, size: RESEARCH_MAX_SIZE, destination: { kind: "run", runId: "run-1" } });
+    expect(closed).toMatchObject({ researchOpen: false, size: 80, destination: { kind: "run", runId: "run-1" } });
+    expect(reopened).toMatchObject({ researchOpen: true, size: 80, destination: { kind: "run", runId: "run-1" } });
+    expect(workbenchResearchReducer(reopened, { type: "close_research" })).toMatchObject({ researchOpen: false, size: 80, destination: { kind: "run", runId: "run-1" } });
   });
 
   it("maps exact semantic identity to the xyflow node used by View in Flow", () => {
@@ -194,12 +204,12 @@ describe("integrated Strategy research workbench", () => {
     expect(comparison).toMatchObject({ activityOpen: false, researchOpen: true, size: RESEARCH_COMPARISON_SIZE, destination: { kind: "comparison", comparisonId: "comparison-1" } });
   });
 
-  it("keeps a user-expanded height when opening Comparison", () => {
+  it("keeps a user-expanded overlay width when opening Comparison", () => {
     const expanded = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 80 });
     const comparison = workbenchResearchReducer(expanded, { type: "open_comparison", comparisonId: "comparison-1" });
-    expect(expanded.size).toBe(RESEARCH_MAX_SIZE);
-    expect(comparison.size).toBe(RESEARCH_MAX_SIZE);
-    expect(100 - RESEARCH_MAX_SIZE).toBe(RESEARCH_BUILDER_MIN_SIZE);
+    expect(expanded.size).toBe(80);
+    expect(comparison.size).toBe(80);
+    expect(RESEARCH_BUILDER_MIN_SIZE).toBe(100);
   });
 
   it("selecting a saved Run from Activity switches Research and closes Activity", () => {
