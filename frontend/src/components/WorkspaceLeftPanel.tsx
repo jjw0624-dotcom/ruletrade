@@ -9,6 +9,7 @@ import {
   type StructureItem,
   type ToolboxCategory,
 } from "../domain/builderProjection";
+import { blockyProgramToolboxEntries, PROGRAM_TOOLBOX_CATEGORIES } from "../domain/blockyToolbox";
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import { sameSemanticSelection, semanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -21,6 +22,7 @@ import {
   MetricConstructionControl,
 } from "./ShapeTransformationControls";
 import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
 
 const availabilityTitle = {
   available_now: "Available now",
@@ -90,6 +92,23 @@ export function ConstructionControl({ option, structural }: {
   </section>;
 }
 
+export function BlockyProgramToolbox({ entries, structural }: {
+  entries: ProgramToolboxEntry[];
+  structural: StructuralAuthoringController;
+}) {
+  const { dispatch } = useStrategyEditor();
+  return <>{PROGRAM_TOOLBOX_CATEGORIES.map((category) => {
+    const categoryEntries = entries.filter((item) => item.category === category);
+    return <section className="construction-category" key={category}><h3>{category}</h3>{categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.status}`} data-program-concept={entry.id} key={entry.id}>
+      <header><strong>{entry.label}</strong><span>{entry.statusLabel}</span></header>
+      <p>{entry.description}</p>
+      {entry.focusSelection && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: entry.focusSelection })}>Focus existing</button>}
+      {entry.draftKind && <button className="secondary-button" onClick={() => dispatch({ type: "add_logic_if_draft" })}>Add draft IF</button>}
+      {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
+    </article>)}</section>;
+  })}</>;
+}
+
 export function WorkspaceLeftPanel({ projection, structural }: {
   projection: ConceptualFlowProjection;
   structural: StructuralAuthoringController;
@@ -98,6 +117,7 @@ export function WorkspaceLeftPanel({ projection, structural }: {
   const structure = projectBuilderStructure(projection);
   const perspective = state.editor.activeView === "blocky" ? "blocky" : "flow";
   const library = semanticToolboxEntries(projection, state.registry, structural.capabilities, state.editor.selection, perspective);
+  const programLibrary = blockyProgramToolboxEntries(projection, structural.capabilities, state.editor.selection);
   return <Collapsible.Root
     className="workspace-left-root"
     open={state.editor.leftPanelOpen}
@@ -117,10 +137,10 @@ export function WorkspaceLeftPanel({ projection, structural }: {
           <p className="panel-hint">Select an investment object to inspect it everywhere.</p>
         </Tabs.Content>
         <Tabs.Content value="blocks" className="blocks-panel">
-          <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>
+          <header><span className="eyebrow">{perspective === "blocky" ? "Program toolbox" : "Semantic toolbox"}</span><h2>{perspective === "blocky" ? "Compose decision logic" : "Add to this Strategy"}</h2><p>{perspective === "blocky" ? "Contexts, triggers, statements, and modifiers. Recipes remain in Guide." : "Build with executable concepts. Recipes remain in Guide."}</p></header>
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
-          {(["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
+          {structural.status !== "checking" && <p className="panel-hint">{perspective === "blocky" ? "Draft controls stay local. Committed changes always return through backend authority." : "The library stays visible even when a concept has no legal target. The backend remains the authority."}</p>}
+          {perspective === "blocky" ? <BlockyProgramToolbox entries={programLibrary} structural={structural} /> : (["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
             const categoryEntries = library.filter((entry) => entry.category === category);
             return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
               {categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id}>

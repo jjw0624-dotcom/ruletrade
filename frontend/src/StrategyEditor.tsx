@@ -13,6 +13,7 @@ import {
   readinessFromResult,
   type DataReadiness,
 } from "./domain/marketDataReadiness";
+import { hasUnresolvedLogicDraft, logicDraftMessage } from "./domain/logicDraft";
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
@@ -161,6 +162,10 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
   }
 
   function openTestSetup() {
+    if (hasUnresolvedLogicDraft(state.editor.logicDraft)) {
+      setRunError(logicDraftMessage(state.editor.logicDraft));
+      return;
+    }
     setShowSetup(true);
     if (base && !dirty && config.dataset_id === "us-equity-daily-local") {
       void checkDataReadiness();
@@ -196,6 +201,11 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
   }
 
   async function save() {
+    if (hasUnresolvedLogicDraft(state.editor.logicDraft)) {
+      setSaveStatus("error");
+      setSaveMessage(logicDraftMessage(state.editor.logicDraft));
+      return;
+    }
     if (!strategy || !base || !dirty) return;
     setSaveStatus("saving"); setSaveMessage(null);
     try {

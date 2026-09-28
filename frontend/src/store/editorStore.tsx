@@ -7,6 +7,7 @@ import type {
   ValidationIssue,
 } from "../domain/canonical";
 import { selectionInCanonical, type SemanticSelection } from "../domain/semanticSelection";
+import { EMPTY_LOGIC_DRAFT, type LogicDraftState } from "../domain/logicDraft";
 
 export type EditorView = "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 
@@ -18,6 +19,7 @@ export interface StrategyEditorState {
     selection: SemanticSelection | null;
     leftPanelOpen: boolean;
     leftPanelTab: "structure" | "blocks";
+    logicDraft: LogicDraftState;
   };
   validation: {
     status: "valid" | "dirty" | "invalid" | "checking";
@@ -32,6 +34,9 @@ export type StrategyEditorAction =
   | { type: "select_semantic"; selection: SemanticSelection | null }
   | { type: "set_left_panel_open"; open: boolean }
   | { type: "set_left_panel_tab"; tab: "structure" | "blocks" }
+  | { type: "add_logic_if_draft" }
+  | { type: "update_logic_if_draft"; draftId: string; predicateSummary: string }
+  | { type: "discard_logic_draft"; draftId: string }
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
@@ -44,6 +49,7 @@ export function createEditorState(bootstrap: EditorBootstrap, initialView: Edito
       selection: null,
       leftPanelOpen: true,
       leftPanelTab: "structure",
+      logicDraft: EMPTY_LOGIC_DRAFT,
     },
     validation: {
       status: bootstrap.validation.valid ? "valid" : "invalid",
@@ -82,6 +88,29 @@ export function editorReducer(
       return { ...state, editor: { ...state.editor, leftPanelOpen: action.open } };
     case "set_left_panel_tab":
       return { ...state, editor: { ...state.editor, leftPanelTab: action.tab } };
+    case "add_logic_if_draft": {
+      const draftId = `logic-draft-${state.editor.logicDraft.nextId}`;
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        nextId: state.editor.logicDraft.nextId + 1,
+        controls: [...state.editor.logicDraft.controls, {
+          draftId,
+          kind: "if_otherwise",
+          predicateSummary: "",
+        }],
+      } } };
+    }
+    case "update_logic_if_draft":
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        controls: state.editor.logicDraft.controls.map((item) => item.draftId === action.draftId
+          ? { ...item, predicateSummary: action.predicateSummary }
+          : item),
+      } } };
+    case "discard_logic_draft":
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        controls: state.editor.logicDraft.controls.filter((item) => item.draftId !== action.draftId),
+      } } };
     case "validation_started":
       return { ...state, validation: { ...state.validation, status: "checking" } };
     case "validation_finished":
