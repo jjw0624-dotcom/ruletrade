@@ -62,7 +62,7 @@ describe("connected workspace authority and navigation contract", () => {
     const initial = editorReducer(createEditorState(filterBootstrap, "flow"), { type: "select_semantic", selection: target });
     const context = { runId: "run-1", sessionId: "2025-06-01", asset: "QQQ" };
     const opened = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "open_run", runId: context.runId, context });
-    const resized = workbenchResearchReducer(opened, { type: "set_size", size: 75 });
+    const resized = workbenchResearchReducer(opened, { type: "set_size", size: 95 });
     const switched = editorReducer(editorReducer(initial, { type: "set_active_view", view: "blocky" }), { type: "set_active_view", view: "rules" });
     expect(switched.canonical).toBe(initial.canonical);
     expect(switched.validation).toBe(initial.validation);

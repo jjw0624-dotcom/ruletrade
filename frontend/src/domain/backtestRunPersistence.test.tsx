@@ -69,4 +69,11 @@ describe("persistent BacktestRun frontend", () => {
     expect(saved).toContain("Saved test"); expect(saved).toContain("Run and save result");
     expect(draft).toContain("Testing current changes"); expect(draft).toContain("Test current changes");
   });
+
+  it("keeps invalid Test configuration in the modal before submission", () => {
+    const invalid = { ...config, start_date: "2026-01-01", end_date: "2025-01-01" };
+    const markup = renderToStaticMarkup(<BacktestSetup config={invalid} onChange={() => undefined} onClose={() => undefined} onRun={() => undefined} persistence="historical" />);
+    expect(markup).toContain("Choose an end date after the start date");
+    expect(markup).toMatch(/<button class="primary-button" disabled=""[^>]*>Run and save result/);
+  });
 });

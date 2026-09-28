@@ -1,5 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import { lazy, Suspense, useState, type PointerEvent, type ReactNode } from "react";
 
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -9,7 +8,6 @@ import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
 import { SemanticInspector } from "./SemanticInspector";
 import { WorkspaceActivityDrawer, WorkspaceEdgeRail, WorkspaceResearchSurface } from "./WorkspaceDashboard";
-import { RESEARCH_BUILDER_MIN_SIZE } from "../domain/workbenchResearch";
 import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 import { RulesView } from "../views/RulesView";
 import { CodeView } from "../views/CodeView";
@@ -29,6 +27,13 @@ const representationLabel: Record<EditorView, string> = {
 
 export function shouldShowSemanticInspector(hasSelection: boolean, researchOpen: boolean): boolean {
   return hasSelection && !researchOpen;
+}
+
+export type InteractionFamily = "composer" | "structured" | "document";
+export function interactionFamily(view: EditorView): InteractionFamily {
+  if (view === "flow" || view === "blocky") return "composer";
+  if (view === "guided" || view === "rules") return "structured";
+  return "document";
 }
 
 export function shouldStoreResearchSize(size: number | undefined, isUserInteraction: boolean): size is number {
@@ -84,10 +89,24 @@ export function StrategyBuilderWorkspace({
 }) {
   const { state, dispatch } = useStrategyEditor();
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
-  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
+  const family = interactionFamily(state.editor.activeView);
+  const showContext = family !== "document";
+  const showInspector = family !== "document" && shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
-  const builder = <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
-    <WorkspaceLeftPanel projection={projection} structural={structural} />
+  const beginResearchResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (!research) return;
+    const surface = event.currentTarget.parentElement;
+    const workbench = surface?.parentElement;
+    if (!surface || !workbench) return;
+    const bounds = workbench.getBoundingClientRect();
+    const move = (pointer: globalThis.PointerEvent) => research.onResize(((bounds.right - pointer.clientX) / bounds.width) * 100);
+    const finish = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", finish); };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", finish, { once: true });
+    event.preventDefault();
+  };
+  const builder = <div data-interaction-family={family} className={`builder-core active-${state.editor.activeView}${showContext && state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}${!showContext ? " content-wide" : ""}`}>
+    {showContext && <WorkspaceLeftPanel projection={projection} structural={structural} />}
     <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
       <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
       <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView structural={structural} /></section>
@@ -112,15 +131,13 @@ export function StrategyBuilderWorkspace({
       </div>
     </header>
     <div className="builder-messages">{notices}{validation}</div>
-    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
-      <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
-        {builder}
-      </Panel>
-      <Separator className="research-resize-handle"><span /></Separator>
-      <Panel id="research" defaultSize={`${research.size}%`} minSize="32%" maxSize="62%">
+    {research?.researchOpen ? <div className="builder-workbench" data-research-open data-research-layout="overlay">
+      {builder}
+      <aside className="research-overlay" style={{ width: `${research.size}%` }}>
+        <div className="research-resize-handle" role="separator" aria-label="Resize Research" aria-orientation="vertical" onPointerDown={beginResearchResize}><span /></div>
         <WorkspaceResearchSurface title={research.title} onClose={research.onToggleResearch}>{research.content}</WorkspaceResearchSurface>
-      </Panel>
-    </Group> : <div className="builder-workbench builder-only" data-research-layout="builder-only">{builder}</div>}
+      </aside>
+    </div> : <div className="builder-workbench builder-only" data-research-layout="builder-only">{builder}</div>}
     {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
     {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
   </section>;
