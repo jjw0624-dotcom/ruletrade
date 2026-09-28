@@ -42,6 +42,7 @@ architecture when they conflict with code or the living architecture.
 | `connected-research-loop-v1.md` | MVP 1 COMPLETE | End-to-end research journey and formative observer guide |
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |
 | `authoring.md` | CURRENT | Backend-authoritative semantic authoring contract |
+| `semantic-composition-model-v1.md` | MVP 1 | Shared semantic vocabulary and distinct Flow/Logic headless contracts |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |
 | `final-frontend-mvp-cohesion.md` | HISTORICAL | Pre-workbench frontend cohesion record |

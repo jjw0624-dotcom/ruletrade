@@ -6,6 +6,9 @@ changes. Historical slice documents do not override it.
 
 The composable authoring boundary is described in
 [composable-authoring-contract-v1.md](composable-authoring-contract-v1.md).
+The headless user-semantic vocabulary, aggregate provenance, distinct Flow and
+Logic projections, and atomic-versus-draft boundary are described in
+[Semantic Composition Model v1](semantic-composition-model-v1.md).
 External editors own interaction mechanics while Canonical, Registry
 validation, compiler support, semantic identity, and backend authoring remain
 authoritative.

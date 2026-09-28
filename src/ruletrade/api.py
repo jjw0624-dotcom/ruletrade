@@ -121,6 +121,14 @@ from ruletrade.strategy.v1.fixtures import (
 )
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
+from ruletrade.strategy.v1.semantics import (
+    ApplySemanticIntentRequest,
+    ApplySemanticIntentResponse,
+    SemanticCompositionProjection,
+    SemanticIntentError,
+    apply_semantic_intent,
+    project_semantic_composition,
+)
 from ruletrade.strategy.v1.validation import collect_semantic_issues
 
 logger = logging.getLogger(__name__)
@@ -554,6 +562,41 @@ def apply_canonical_structural_authoring(
             detail={"code": exc.code, "path": exc.path, "message": str(exc)},
         ) from exc
     return ApplyStructuralAuthoringResponse(strategy=strategy)
+
+
+@app.post(
+    "/v1/canonical/strategies/semantic-projections",
+    response_model=SemanticCompositionProjection,
+)
+def project_canonical_strategy_semantics(
+    spec: CanonicalStrategyV1,
+) -> SemanticCompositionProjection:
+    return project_semantic_composition(spec)
+
+
+@app.post(
+    "/v1/canonical/strategies/semantic-intents/apply",
+    response_model=ApplySemanticIntentResponse,
+)
+def apply_canonical_semantic_intent(
+    request: ApplySemanticIntentRequest,
+) -> ApplySemanticIntentResponse:
+    try:
+        strategy = apply_semantic_intent(request.strategy, request.intent)
+    except SemanticIntentError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except (StructuralAuthoringError, CompositionError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "path": exc.path, "message": str(exc)},
+        ) from exc
+    return ApplySemanticIntentResponse(
+        strategy=strategy,
+        projection=project_semantic_composition(strategy),
+    )
 
 
 @app.post("/v1/canonical/strategies/validate")
