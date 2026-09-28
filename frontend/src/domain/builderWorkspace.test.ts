@@ -78,6 +78,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(fromBlankCanvas).toHaveLength(1);
     expect(fromPortfolio).toEqual(fromBlankCanvas);
     expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });
+    expect(fromBlankCanvas[0]).toMatchObject({ category: "Decision / routing", label: "Condition" });
     expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
   });
 

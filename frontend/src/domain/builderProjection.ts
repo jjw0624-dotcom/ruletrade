@@ -14,6 +14,7 @@ export interface StructureItem {
 
 export interface ConstructionOption {
   kind: BuilderBlockKind;
+  category: "Portfolio" | "Decision / routing";
   label: string;
   description: string;
   targetComponentId: string;
@@ -136,28 +137,28 @@ export function constructionOptions(
     const targetLabel = group.label || "Investment";
     const chooseTarget = group.allocationComponentId;
     if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)) options.push({
-      kind: "choose", label: "Choose assets", targetLabel, groupId,
+      kind: "choose", category: "Decision / routing", label: "Choose", targetLabel, groupId,
       description: "Measure returns, rank this universe, and choose the strongest assets.",
       targetComponentId: chooseTarget,
       anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
     });
     const rankTarget = group.choose?.rankComponentId;
     if (rankTarget && composable.has("filter@1") && capabilities.qualification_add_targets.includes(rankTarget)) options.push({
-      kind: "qualification", label: "Condition", targetLabel, groupId,
+      kind: "qualification", category: "Decision / routing", label: "Condition", targetLabel, groupId,
       description: "Require the supported positive-return condition before ranking.",
       targetComponentId: rankTarget,
       anchorSelection: semanticSelection("selection", group.choose!.selectionComponentId, { groupId }),
     });
     const fallbackTarget = group.allocationComponentId;
     if (fallbackTarget && capabilities.fallback_add_targets.includes(fallbackTarget)) options.push({
-      kind: "fallback", label: "Fallback", targetLabel, groupId,
+      kind: "fallback", category: "Decision / routing", label: "Fallback", targetLabel, groupId,
       description: "Choose where money goes when too few assets qualify.",
       targetComponentId: fallbackTarget,
       anchorSelection: semanticSelection("selection", group.choose?.selectionComponentId ?? fallbackTarget, { groupId }),
     });
     const cooldownTarget = group.choose?.selectionComponentId;
     if (cooldownTarget && capabilities.cooldown_add_targets.includes(cooldownTarget)) options.push({
-      kind: "cooldown", label: "Cooldown", targetLabel, groupId,
+      kind: "cooldown", category: "Decision / routing", label: "Cooldown", targetLabel, groupId,
       description: "After selling, wait before buying the same asset again.",
       targetComponentId: cooldownTarget,
       anchorSelection: semanticSelection("selection", cooldownTarget, { groupId }),
@@ -168,10 +169,11 @@ export function constructionOptions(
     .every((primitive) => composable.has(primitive))) {
     options.push({
       kind: "split",
-      label: "Growth + Defensive",
+      category: "Portfolio",
+      label: "Split",
       targetLabel: "Portfolio",
       groupId: null,
-      description: "Keep the current strategy as Growth and add a Defensive group.",
+      description: "Split capital into two valid sleeves and set their initial allocation.",
       targetComponentId: splitTarget,
       anchorSelection: semanticSelection("portfolio", projection.portfolioComponentId ?? splitTarget),
     });

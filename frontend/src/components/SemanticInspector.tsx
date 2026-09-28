@@ -6,9 +6,7 @@ import type { StructuralAuthoringController } from "../hooks/useStructuralAuthor
 import { useStrategyEditor } from "../store/editorStore";
 import { AssetMembershipEditor, AuthoringNumberInput, CooldownControl, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "./AuthoringControls";
 import {
-  ChooseTransformationControl,
   FallbackTransformationControl,
-  GrowthDefensiveTransformationControl,
 } from "./ShapeTransformationControls";
 import { GroupRenameControl } from "./StructuralAuthoringControls";
 
@@ -48,23 +46,10 @@ export function SemanticInspector({
 
   let content: ReactNode;
   if (role === "portfolio") {
-    const chooseTarget = structural.capabilities?.choose_pipeline_targets[0];
-    const splitTarget = structural.capabilities?.growth_defensive_targets[0];
     content = <>
       <h2>{projection.title}</h2>
       <p>Money can go to {projection.groups.map((item) => item.label).join(" and ")}.</p>
-      {chooseTarget && <ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
-        kind: "transform_to_choose_assets",
-        weight_component_id: chooseTarget,
-        lookback_observations: lookback,
-        count,
-      }, semanticSelection("selection", `${chooseTarget}_top_n`, { groupId: projection.groups[0]?.id }))} />}
-      {splitTarget && <GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => structural.apply({
-        kind: "transform_to_growth_defensive",
-        target_component_id: splitTarget,
-        growth_allocation: allocation,
-        defensive_assets: assets,
-      }, semanticSelection("split", `${splitTarget}_portfolio`))} />}
+      <p className="fixed-setting">Select a semantic object for local properties. Guided recipes live in Guide; primitive construction lives in Add.</p>
     </>;
   } else if (role === "split" && projection.split) {
     content = <><h2>Portfolio split</h2><SleeveAllocationEditor authoring={structural} groups={projection.split.groups} /></>;

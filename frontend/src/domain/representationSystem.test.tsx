@@ -15,7 +15,7 @@ import { OverviewView } from "../views/OverviewView";
 import { CodeView } from "../views/CodeView";
 import { fallbackBootstrap, filterBootstrap, momentumBootstrap } from "../test/fixture";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
-import { blocklyViewportOptions } from "../views/BlockyView";
+import { blocklyInjectionOptions, blocklyViewportOptions } from "../views/BlockyView";
 
 const cap: StructuralAuthoringCapabilities = {
   composition: { primitives: [
@@ -110,7 +110,8 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(describeChange(before.canonical, before.canonical, proposal.operations[0])).toHaveLength(1);
   });
 
-  it("keeps Blockly toolbox and field intents gated by exact backend targets", () => {
+  it("uses the RuleTrade Add panel as the only semantic toolbox while retaining Blockly mechanics", () => {
+    expect(blocklyInjectionOptions).not.toHaveProperty("toolbox");
     const logic = projectLogicRepresentation(filterBootstrap.strategy, filterBootstrap.registry);
     const condition = logic.groups[0].steps.find((step) => step.kind === "condition")!;
     expect(qualificationDropOperation("unrelated", cap)).toBeNull();
