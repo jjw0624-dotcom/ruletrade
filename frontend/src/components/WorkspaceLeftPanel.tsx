@@ -3,10 +3,11 @@ import * as Tabs from "@radix-ui/react-tabs";
 import type { DragEvent } from "react";
 
 import {
-  constructionOptions,
   projectBuilderStructure,
+  semanticToolboxEntries,
   type ConstructionOption,
   type StructureItem,
+  type ToolboxCategory,
 } from "../domain/builderProjection";
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import { sameSemanticSelection, semanticSelection } from "../domain/semanticSelection";
@@ -19,6 +20,13 @@ import {
   GrowthDefensiveTransformationControl,
 } from "./ShapeTransformationControls";
 import { composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+
+const availabilityTitle = {
+  available_now: "Available now",
+  needs_context: "Needs compatible context",
+  unavailable: "Currently unavailable",
+  unsupported: "Unsupported",
+} as const;
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -82,7 +90,8 @@ export function WorkspaceLeftPanel({ projection, structural }: {
 }) {
   const { state, dispatch } = useStrategyEditor();
   const structure = projectBuilderStructure(projection);
-  const options = constructionOptions(projection, structural.capabilities, state.editor.selection);
+  const perspective = state.editor.activeView === "blocky" ? "blocky" : "flow";
+  const library = semanticToolboxEntries(projection, state.registry, structural.capabilities, state.editor.selection, perspective);
   return <Collapsible.Root
     className="workspace-left-root"
     open={state.editor.leftPanelOpen}
@@ -104,12 +113,16 @@ export function WorkspaceLeftPanel({ projection, structural }: {
         <Tabs.Content value="blocks" className="blocks-panel">
           <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && options.length === 0 && <div className="construction-empty"><strong>No supported additions</strong><p>This Strategy already uses every concept the current executable grammar can add here.</p></div>}
-          {options.length > 1 && <p className="panel-hint">Choose a concept and its valid Strategy location. The backend remains the authority.</p>}
-          {(["Portfolio", "Decision / routing"] as const).map((category) => {
-            const categoryOptions = options.filter((option) => option.category === category);
-            return categoryOptions.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
-              {categoryOptions.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
+          {structural.status !== "checking" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
+          {(["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
+            const categoryEntries = library.filter((entry) => entry.category === category);
+            return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
+              {categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id}>
+                <header><strong>{entry.label}</strong><span>{availabilityTitle[entry.availability]}</span></header>
+                <p>{entry.description}</p>
+                {entry.availability !== "available_now" && <small>{entry.availabilityLabel}</small>}
+                {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
+              </article>)}
             </section>;
           })}
         </Tabs.Content>

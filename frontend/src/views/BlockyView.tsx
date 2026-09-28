@@ -140,8 +140,7 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
   return <div className="blocky-representation" onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {logic.unsupportedReason && <p role="status">This Strategy cannot yet be shown as logic blocks: {logic.unsupportedReason}</p>}
     <div className="blocky-canvas" ref={host} hidden={Boolean(logic.unsupportedReason)} aria-label="Strategy logic blocks" />
-    <div className="blocky-actions">
-      <p className="blocky-toolbox-hint">Add semantic concepts from the RuleTrade toolbox at left. Blockly owns movement, snapping, pan, and zoom—not Strategy truth.</p>
+    {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "fallback" && <FallbackTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(asset) => finishPending({ kind: "add_fallback_selection", weight_component_id: pendingOption.targetComponentId, fallback_asset: asset }, semanticSelection("fallback", `${pendingOption.targetComponentId}_fallback`, { groupId: pendingOption.groupId }))} />}
       {pendingOption?.kind === "cooldown" && <CooldownConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={(duration) => finishPending({ kind: "add_cooldown_to_selection", selection_component_id: pendingOption.targetComponentId, duration }, semanticSelection("cooldown", `${pendingOption.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId: pendingOption.groupId }))} />}
@@ -153,6 +152,6 @@ export function BlockyView({ structural }: { structural: StructuralAuthoringCont
         return ok;
       }} />}
       {removable && <button className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply(removable, null)}>Remove selected {selectedStep?.kind ?? "concept"}</button>}
-    </div>{(notice || structural.error) && <p role="alert" className="structural-error">{notice ?? structural.error?.message}</p>}
+    </div>}{(notice || structural.error) && <p role="alert" className="structural-error blocky-notice">{notice ?? structural.error?.message}</p>}
   </div>;
 }

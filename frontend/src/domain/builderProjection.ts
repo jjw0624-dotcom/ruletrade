@@ -1,6 +1,7 @@
 import type { ConceptualFlowProjection, ConceptualGroup } from "./conceptualFlow";
 import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import type { StructuralAuthoringCapabilities, StructuralAuthoringOperation } from "../structuralAuthoringApi";
+import type { RegistryPayload } from "./canonical";
 
 export type BuilderBlockKind = "choose" | "qualification" | "fallback" | "cooldown" | "split";
 
@@ -22,6 +23,40 @@ export interface ConstructionOption {
   groupId: string | null;
   anchorSelection: SemanticSelection;
 }
+
+export type ToolboxCategory = "Portfolio" | "Assets" | "Decision / logic" | "Timing";
+export type ToolboxAvailability = "available_now" | "needs_context" | "unavailable" | "unsupported";
+
+export interface SemanticToolboxEntry {
+  id: string;
+  category: ToolboxCategory;
+  label: string;
+  description: string;
+  availability: ToolboxAvailability;
+  availabilityLabel: string;
+  options: ConstructionOption[];
+}
+
+type ToolboxDefinition = Omit<SemanticToolboxEntry, "availability" | "availabilityLabel" | "options"> & {
+  primitives: string[];
+  operationKind?: BuilderBlockKind;
+  perspectives: Array<"flow" | "blocky">;
+};
+
+const TOOLBOX_DEFINITIONS: ToolboxDefinition[] = [
+  { id: "investment", category: "Portfolio", label: "Investment", description: "A capital path backed by an asset set and allocation.", primitives: ["asset_set@1", "equal_weight@1"], perspectives: ["flow"] },
+  { id: "split", category: "Portfolio", label: "Split", description: "Split capital into two valid sleeves.", primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"], operationKind: "split", perspectives: ["flow"] },
+  { id: "sleeve", category: "Portfolio", label: "Sleeve", description: "A named allocation branch inside a portfolio.", primitives: ["portfolio_sleeve@1"], perspectives: ["flow"] },
+  { id: "allocation", category: "Portfolio", label: "Allocation", description: "Convert selected assets into portfolio targets.", primitives: ["equal_weight@1"], perspectives: ["flow"] },
+  { id: "asset-set", category: "Assets", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
+  { id: "metric", category: "Decision / logic", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1"], perspectives: ["flow", "blocky"] },
+  { id: "condition", category: "Decision / logic", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
+  { id: "rank", category: "Decision / logic", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
+  { id: "choose", category: "Decision / logic", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
+  { id: "fallback", category: "Decision / logic", label: "Fallback", description: "Route incomplete selections to a fallback asset.", primitives: ["fallback@1"], operationKind: "fallback", perspectives: ["flow", "blocky"] },
+  { id: "cooldown", category: "Decision / logic", label: "Cooldown", description: "Wait before buying the same asset again.", primitives: ["cooldown@1"], operationKind: "cooldown", perspectives: ["flow", "blocky"] },
+  { id: "schedule", category: "Timing", label: "Schedule", description: "Choose when the Strategy evaluates and rebalances.", primitives: ["daily@1", "monthly@1"], perspectives: ["flow", "blocky"] },
+];
 
 function groupItems(group: ConceptualGroup): StructureItem[] {
   const universe: StructureItem = {
@@ -179,6 +214,43 @@ export function constructionOptions(
     });
   }
   return options.sort((left, right) => Number(right.groupId === selection?.groupId) - Number(left.groupId === selection?.groupId));
+}
+
+export function semanticToolboxEntries(
+  projection: ConceptualFlowProjection,
+  registry: RegistryPayload,
+  capabilities: StructuralAuthoringCapabilities | null,
+  selection: SemanticSelection | null,
+  perspective: "flow" | "blocky",
+): SemanticToolboxEntry[] {
+  const registryIds = new Set(registry.primitives.map((primitive) => primitive.id));
+  const composition = new Map(capabilities?.composition?.primitives.map((item) => [item.primitive, item]) ?? []);
+  const legalOptions = constructionOptions(projection, capabilities, selection);
+  return TOOLBOX_DEFINITIONS.filter((definition) => definition.perspectives.includes(perspective))
+    .filter((definition) => definition.primitives.every((primitive) => registryIds.has(primitive)))
+    .map((definition) => {
+      const options = definition.operationKind
+        ? legalOptions.filter((option) => option.kind === definition.operationKind)
+        : [];
+      if (options.length > 0) return {
+        ...definition, options, availability: "available_now" as const,
+        availabilityLabel: options.length === 1 ? "Available now" : `${options.length} valid locations`,
+      };
+      const unsupported = definition.primitives.map((primitive) => composition.get(primitive))
+        .find((item) => item && !item.create_supported);
+      if (unsupported) return {
+        ...definition, options, availability: "unsupported" as const,
+        availabilityLabel: unsupported.reason ?? "Not supported by the current composition grammar.",
+      };
+      if (definition.operationKind) return {
+        ...definition, options, availability: "needs_context" as const,
+        availabilityLabel: "Needs a compatible Strategy location; no legal target exists right now.",
+      };
+      return {
+        ...definition, options, availability: "unavailable" as const,
+        availabilityLabel: "Executable primitive; standalone insertion is not yet a supported authoring operation.",
+      };
+    });
 }
 
 export function semanticDeleteOperation(
