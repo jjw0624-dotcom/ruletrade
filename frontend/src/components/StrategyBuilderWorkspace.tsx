@@ -90,7 +90,7 @@ export function StrategyBuilderWorkspace({
     <WorkspaceLeftPanel projection={projection} structural={structural} />
     <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
       <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
-      <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView /></section>
+      <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView structural={structural} /></section>
       <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
       {blockyVisited && <section hidden={state.editor.activeView !== "blocky"} className="representation-layer blocky-layer"><Suspense fallback={<p role="status">Loading logic editor…</p>}><BlockyView structural={structural} /></Suspense></section>}
       <section hidden={state.editor.activeView !== "rules"} className="representation-layer"><RulesView structural={structural} /></section>

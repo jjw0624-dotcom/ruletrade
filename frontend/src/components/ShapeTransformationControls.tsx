@@ -9,6 +9,31 @@ function ErrorMessage({ error }: { error: ErrorState }) {
   </div>;
 }
 
+export function MetricConstructionControl({ busy, error, onApply }: {
+  busy: boolean;
+  error: ErrorState;
+  onApply: (lookbackBars: number, count: number) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lookback, setLookback] = useState(126);
+  const [count, setCount] = useState(1);
+  if (!open) return <section className="shape-transformation"><span className="eyebrow">Logic primitive</span>
+    <h4>Add Metric</h4><p>Add trailing return. Rank and Choose are included only as the minimum typed support for a valid executable pipeline.</p>
+    <button className="secondary-button" onClick={() => setOpen(true)}>Add Metric pipeline</button>
+  </section>;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (await onApply(lookback, count)) setOpen(false);
+  };
+  return <form className="shape-transformation" onSubmit={(event) => void submit(event)}>
+    <span className="eyebrow">Metric scaffold</span>
+    <label>Trailing-return lookback<input type="number" min={1} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} /><small>completed trading observations</small></label>
+    <label>Initial Choose count<input type="number" min={1} value={count} onChange={(event) => setCount(Number(event.target.value))} /><small>required to keep the pipeline executable</small></label>
+    <div className="dialog-actions"><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || lookback < 1 || count < 1}>{busy ? "Adding…" : "Create Metric pipeline"}</button></div>
+    <ErrorMessage error={error} />
+  </form>;
+}
+
 export function ChooseTransformationControl({ busy, error, onApply }: {
   busy: boolean;
   error: ErrorState;
@@ -88,9 +113,9 @@ export function GrowthDefensiveTransformationControl({ busy, error, onApply }: {
   const [open, setOpen] = useState(false);
   const [growthPercent, setGrowthPercent] = useState(70);
   const [assets, setAssets] = useState("IEF");
-  if (!open) return <section className="shape-transformation"><span className="eyebrow">Evolve portfolio</span>
-    <h4>Add Growth + Defensive</h4><p>Keep this strategy as Growth and add a defensive allocation alongside it.</p>
-    <button className="secondary-button" onClick={() => setOpen(true)}>Split into two groups</button>
+  if (!open) return <section className="shape-transformation"><span className="eyebrow">Portfolio primitive</span>
+    <h4>Add Split</h4><p>Create the smallest valid two-sleeve scaffold, then edit its semantic parts.</p>
+    <button className="secondary-button" onClick={() => setOpen(true)}>Add Split</button>
   </section>;
   const defensive = assets.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
   const submit = async (event: FormEvent) => {
@@ -98,11 +123,11 @@ export function GrowthDefensiveTransformationControl({ busy, error, onApply }: {
     if (await onApply(String(growthPercent / 100), defensive)) setOpen(false);
   };
   return <form className="shape-transformation" onSubmit={(event) => void submit(event)}>
-    <span className="eyebrow">Growth + Defensive</span>
-    <label>Growth allocation<span className="percent-field"><input type="number" min={1} max={99} value={growthPercent} onChange={(event) => setGrowthPercent(Number(event.target.value))} />%</span></label>
-    <p className="fixed-setting">Defensive receives {100 - growthPercent}%.</p>
-    <label>Defensive assets<input aria-label="Defensive assets" value={assets} onChange={(event) => setAssets(event.target.value.toUpperCase())} /><small>comma-separated tickers</small></label>
-    <div className="dialog-actions"><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || growthPercent <= 0 || growthPercent >= 100 || defensive.length === 0}>{busy ? "Updating…" : "Create groups"}</button></div>
+    <span className="eyebrow">Split scaffold</span>
+    <label>First sleeve allocation<span className="percent-field"><input type="number" min={1} max={99} value={growthPercent} onChange={(event) => setGrowthPercent(Number(event.target.value))} />%</span></label>
+    <p className="fixed-setting">The second sleeve receives {100 - growthPercent}%.</p>
+    <label>Second sleeve assets<input aria-label="Second sleeve assets" value={assets} onChange={(event) => setAssets(event.target.value.toUpperCase())} /><small>comma-separated tickers</small></label>
+    <div className="dialog-actions"><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || growthPercent <= 0 || growthPercent >= 100 || defensive.length === 0}>{busy ? "Updating…" : "Create Split"}</button></div>
     <ErrorMessage error={error} />
   </form>;
 }

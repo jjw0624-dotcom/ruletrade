@@ -1,11 +1,13 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as Tabs from "@radix-ui/react-tabs";
+import type { DragEvent } from "react";
 
 import {
-  constructionOptions,
   projectBuilderStructure,
+  semanticToolboxEntries,
   type ConstructionOption,
   type StructureItem,
+  type ToolboxCategory,
 } from "../domain/builderProjection";
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
 import { sameSemanticSelection, semanticSelection } from "../domain/semanticSelection";
@@ -16,7 +18,16 @@ import {
   FallbackTransformationControl,
   CooldownConstructionControl,
   GrowthDefensiveTransformationControl,
+  MetricConstructionControl,
 } from "./ShapeTransformationControls";
+import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+
+const availabilityTitle = {
+  available_now: "Available now",
+  needs_context: "Needs compatible context",
+  unavailable: "Currently unavailable",
+  unsupported: "Unsupported",
+} as const;
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -38,34 +49,44 @@ export function ConstructionControl({ option, structural }: {
   option: ConstructionOption;
   structural: StructuralAuthoringController;
 }) {
+  const { state } = useStrategyEditor();
   const groupId = option.groupId;
   const busy = structural.status === "applying";
-  if (option.kind === "choose") return <ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
+  const drag = (event: DragEvent<HTMLDivElement>) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
+  };
+  if (option.kind === "metric") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><MetricConstructionControl busy={busy} error={structural.error} onApply={(lookback, count) => {
+    const operation = composeRankedSelectionPipeline(state.canonical, option.targetComponentId, lookback, count);
+    if (!operation) return Promise.resolve(false);
+    return structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId }));
+  }} /></div>;
+  if (option.kind === "choose") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
     kind: "transform_to_choose_assets",
     weight_component_id: option.targetComponentId,
     lookback_observations: lookback,
     count,
-  }, semanticSelection("selection", `${option.targetComponentId}_top_n`, { groupId }))} />;
-  if (option.kind === "fallback") return <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({
+  }, semanticSelection("selection", `${option.targetComponentId}_top_n`, { groupId }))} /></div>;
+  if (option.kind === "fallback") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({
     kind: "add_fallback_selection",
     weight_component_id: option.targetComponentId,
     fallback_asset: asset,
-  }, semanticSelection("fallback", `${option.targetComponentId}_fallback`, { groupId }))} />;
-  if (option.kind === "split") return <GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => structural.apply({
-    kind: "transform_to_growth_defensive",
-    target_component_id: option.targetComponentId,
-    growth_allocation: allocation,
-    defensive_assets: assets,
-  }, semanticSelection("split", `${option.targetComponentId}_portfolio`))} />;
-  if (option.kind === "cooldown") return <CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
+  }, semanticSelection("fallback", `${option.targetComponentId}_fallback`, { groupId }))} /></div>;
+  if (option.kind === "split") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => {
+    const operation = composeTwoSleevePortfolio(state.canonical, option.targetComponentId, allocation, assets);
+    if (!operation) return Promise.resolve(false);
+    return structural.compose(operation, (result) => semanticSelection("split", result.created_component_ids.portfolio ?? null));
+  }} /></div>;
+  if (option.kind === "cooldown") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
     kind: "add_cooldown_to_selection", selection_component_id: option.targetComponentId, duration,
-  }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} />;
-  return <section className="construction-card" data-construction-kind={option.kind}>
+  }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} /></div>;
+  return <section className="construction-card" data-construction-kind={option.kind} draggable
+    onDragStart={drag}>
     <strong>{option.label}</strong><small>{option.targetLabel}</small><p>{option.description}</p>
-    <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({
-      kind: "add_qualification_condition",
-      rank_component_id: option.targetComponentId,
-    }, semanticSelection("qualification", `${option.targetComponentId}_qualification`, { fieldPath: "config.threshold", groupId }))}>Add to selection</button>
+    <button className="secondary-button" disabled={busy} onClick={() => {
+      const operation = insertConditionBeforeRank(state.canonical, option.targetComponentId);
+      if (operation) void structural.compose(operation, (result) => semanticSelection("qualification", result.created_component_ids.condition ?? null, { fieldPath: "config.threshold", groupId }));
+    }}>Add to selection</button>
   </section>;
 }
 
@@ -75,7 +96,8 @@ export function WorkspaceLeftPanel({ projection, structural }: {
 }) {
   const { state, dispatch } = useStrategyEditor();
   const structure = projectBuilderStructure(projection);
-  const options = constructionOptions(projection, structural.capabilities, state.editor.selection);
+  const perspective = state.editor.activeView === "blocky" ? "blocky" : "flow";
+  const library = semanticToolboxEntries(projection, state.registry, structural.capabilities, state.editor.selection, perspective);
   return <Collapsible.Root
     className="workspace-left-root"
     open={state.editor.leftPanelOpen}
@@ -95,11 +117,20 @@ export function WorkspaceLeftPanel({ projection, structural }: {
           <p className="panel-hint">Select an investment object to inspect it everywhere.</p>
         </Tabs.Content>
         <Tabs.Content value="blocks" className="blocks-panel">
-          <header><span className="eyebrow">Construction</span><h2>Add to this Strategy</h2></header>
+          <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && options.length === 0 && <div className="construction-empty"><strong>No supported additions</strong><p>This Strategy already uses every concept the current executable grammar can add here.</p></div>}
-          {options.length > 1 && <p className="panel-hint">Choose a concept and its valid Strategy location. The backend remains the authority.</p>}
-          {options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
+          {structural.status !== "checking" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
+          {(["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
+            const categoryEntries = library.filter((entry) => entry.category === category);
+            return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
+              {categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id}>
+                <header><strong>{entry.label}</strong><span>{availabilityTitle[entry.availability]}</span></header>
+                <p>{entry.description}</p>
+                {entry.availability !== "available_now" && <small>{entry.availabilityLabel}</small>}
+                {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
+              </article>)}
+            </section>;
+          })}
         </Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>

@@ -247,6 +247,11 @@ persisted Decision Evidence; dense Result-event navigation; one typed Candidate
 change family; behavioral and outcome Comparison; Activity recovery; and
 stale-safe Return/Keep. See [the connected research loop](connected-research-loop-v1.md).
 
+Flow and Blocky reuse xyflow and Blockly for canvas mechanics while semantic
+gestures use the backend composition contract. The current direct-composition
+proofs and deliberate boundary are documented in
+[Composer UX v1](composer-ux-v1.md).
+
 Deferred work includes arbitrary wiring, generic Group CRUD, unrestricted
 nested groups or boolean-expression authoring, editable arbitrary Code,
 embedded AI, multi-operation AI transactions, optimization, sensitivity,

@@ -8,13 +8,23 @@ from ruletrade.strategy.v1.composition import (
     ComposeStrategyOperation,
     CompositionError,
     ConnectMutation,
+    CreateAssetSetMutation,
     CreateComponentMutation,
     DisconnectMutation,
     PortAddress,
+    SetComponentFieldMutation,
     apply_composition,
     composition_capabilities,
 )
-from ruletrade.strategy.v1.fixtures import momentum_top_n_strategy
+from ruletrade.strategy.v1.authoring import (
+    AddCooldownOperation,
+    AddFallbackSelectionOperation,
+    RemoveCooldownOperation,
+    RemoveFallbackSelectionOperation,
+    RemoveQualificationConditionOperation,
+    apply_structural_operation,
+)
+from ruletrade.strategy.v1.fixtures import momentum_top_n_strategy, one_investment_strategy
 
 client = TestClient(app)
 
@@ -41,6 +51,98 @@ def _qualification_operation() -> ComposeStrategyOperation:
             ),
         )
     )
+
+
+def _metric_pipeline_operation() -> ComposeStrategyOperation:
+    return ComposeStrategyOperation(
+        mutations=(
+            DisconnectMutation(
+                source=PortAddress(component_id="investment_assets", port="assets"),
+                target=PortAddress(component_id="weights", port="assets"),
+            ),
+            CreateComponentMutation(
+                ref="metric", primitive="trailing_return@1", config={"lookback_bars": 126}
+            ),
+            CreateComponentMutation(
+                ref="rank", primitive="rank@1", config={"direction": "descending"}
+            ),
+            CreateComponentMutation(ref="choose", primitive="top_n@1", config={"count": 1}),
+            ConnectMutation(
+                source=PortAddress(component_id="investment_assets", port="assets"),
+                target=PortAddress(created_ref="metric", port="assets"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="metric", port="scores"),
+                target=PortAddress(created_ref="rank", port="scores"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="rank", port="ranked"),
+                target=PortAddress(created_ref="choose", port="ranked"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="choose", port="selected"),
+                target=PortAddress(component_id="weights", port="assets"),
+            ),
+        )
+    )
+
+
+def test_composition_builds_metric_scaffold_then_accepts_independent_primitives() -> None:
+    original = one_investment_strategy()
+    metric = apply_composition(original, _metric_pipeline_operation())
+    assert metric.created_component_ids == {
+        "metric": "trailing_return",
+        "rank": "rank",
+        "choose": "top_n",
+    }
+    assert compile_strategy_to_lean_plan(metric.strategy).momentum_selections[0].lookback_bars == 126
+
+    condition = apply_composition(
+        metric.strategy,
+        ComposeStrategyOperation(
+            mutations=(
+                DisconnectMutation(
+                    source=PortAddress(component_id="trailing_return", port="scores"),
+                    target=PortAddress(component_id="rank", port="scores"),
+                ),
+                CreateComponentMutation(
+                    ref="condition", primitive="filter@1", config={"operator": "gt", "threshold": "0"}
+                ),
+                ConnectMutation(
+                    source=PortAddress(component_id="trailing_return", port="scores"),
+                    target=PortAddress(created_ref="condition", port="scores"),
+                ),
+                ConnectMutation(
+                    source=PortAddress(created_ref="condition", port="scores"),
+                    target=PortAddress(component_id="rank", port="scores"),
+                ),
+            )
+        ),
+    )
+    assert condition.created_component_ids == {"condition": "filter"}
+    assert compile_strategy_to_lean_plan(condition.strategy).momentum_selections[0].filter_threshold == 0
+
+    fallback = apply_structural_operation(
+        condition.strategy,
+        AddFallbackSelectionOperation(weight_component_id="weights", fallback_asset="TLT"),
+    )
+    assert compile_strategy_to_lean_plan(fallback).target_sleeves[0].fallback_symbols == ("TLT",)
+
+    without_fallback = apply_structural_operation(
+        fallback, RemoveFallbackSelectionOperation(fallback_component_id="weights_fallback")
+    )
+    cooldown = apply_structural_operation(
+        without_fallback,
+        AddCooldownOperation(selection_component_id="top_n", duration=10),
+    )
+    assert compile_strategy_to_lean_plan(cooldown).cooldown_states[0].required_completed_sessions == 10
+    without_cooldown = apply_structural_operation(
+        cooldown, RemoveCooldownOperation(cooldown_component_id="top_n_cooldown")
+    )
+    restored_metric = apply_structural_operation(
+        without_cooldown, RemoveQualificationConditionOperation(condition_component_id="filter")
+    )
+    assert compile_strategy_to_lean_plan(restored_metric).momentum_selections[0].filter_threshold is None
 
 
 def test_composition_creates_backend_owned_component_and_compiles() -> None:
@@ -129,3 +231,70 @@ def test_unknown_component_address_is_rejected_without_guessing() -> None:
 def test_component_address_requires_exactly_one_identity() -> None:
     with pytest.raises(ValueError):
         ComponentAddress()
+
+
+def test_composition_builds_exact_two_sleeve_portfolio_and_compiles() -> None:
+    original = momentum_top_n_strategy()
+    operation = ComposeStrategyOperation(
+        mutations=(
+            DisconnectMutation(
+                source=PortAddress(component_id="weights", port="targets"),
+                target=PortAddress(component_id="rebalance", port="targets"),
+            ),
+            CreateComponentMutation(
+                ref="growth_sleeve",
+                primitive="portfolio_sleeve@1",
+                config={"name": "Growth", "allocation": "0.7"},
+            ),
+            ConnectMutation(
+                source=PortAddress(component_id="weights", port="targets"),
+                target=PortAddress(created_ref="growth_sleeve", port="local_targets"),
+            ),
+            CreateAssetSetMutation(ref="defensive_assets", assets=("TLT",)),
+            CreateComponentMutation(ref="defensive_universe", primitive="asset_set@1", config={}),
+            SetComponentFieldMutation(
+                target=ComponentAddress(created_ref="defensive_universe"),
+                field="asset_set_ref",
+                created_asset_set_ref="defensive_assets",
+            ),
+            CreateComponentMutation(
+                ref="defensive_weight", primitive="equal_weight@1", config={"total": "1"}
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_universe", port="assets"),
+                target=PortAddress(created_ref="defensive_weight", port="assets"),
+            ),
+            CreateComponentMutation(
+                ref="defensive_sleeve",
+                primitive="portfolio_sleeve@1",
+                config={"name": "Defensive", "allocation": "0.3"},
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_weight", port="targets"),
+                target=PortAddress(created_ref="defensive_sleeve", port="local_targets"),
+            ),
+            CreateComponentMutation(ref="portfolio", primitive="portfolio@1", config={"name": "Portfolio"}),
+            ConnectMutation(
+                source=PortAddress(created_ref="growth_sleeve", port="contribution"),
+                target=PortAddress(created_ref="portfolio", port="sleeves"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="defensive_sleeve", port="contribution"),
+                target=PortAddress(created_ref="portfolio", port="sleeves"),
+            ),
+            ConnectMutation(
+                source=PortAddress(created_ref="portfolio", port="targets"),
+                target=PortAddress(component_id="rebalance", port="targets"),
+            ),
+        )
+    )
+
+    result = apply_composition(original, operation)
+    assert result.created_component_ids["portfolio"] == "portfolio"
+    assert result.created_asset_set_ids["defensive_assets"] == "assets"
+    plan = compile_strategy_to_lean_plan(result.strategy)
+    assert len(plan.target_sleeves) == 2
+    assert {item.source_sleeve_component_id for item in plan.target_sleeves} == {
+        result.created_component_ids["growth_sleeve"],
+        result.created_component_ids["defensive_sleeve"],
+    }

@@ -4,6 +4,8 @@ import {
   authoringApi,
   StructuralAuthoringApiError,
   type StructuralAuthoringCapabilities,
+  type AuthoringApplyResult,
+  type ComposeStrategyOperation,
   type StructuralAuthoringOperation,
 } from "../structuralAuthoringApi";
 import { useStrategyEditor } from "../store/editorStore";
@@ -70,15 +72,15 @@ export function useAuthoring() {
     return () => { active = false; };
   }, [state.canonical]);
 
-  const apply = useCallback(async (
+  const applyResolved = useCallback(async (
     operation: StructuralAuthoringOperation,
-    selection?: SemanticSelection | null,
+    resolveSelection?: (result: AuthoringApplyResult) => SemanticSelection | null | undefined,
   ) => {
     const source = latest.current;
     setStatus("applying");
     setError(null);
     try {
-      const canonical = await authoringApi.apply(source, operation);
+      const result = await authoringApi.applyWithResult(source, operation);
       if (latest.current !== source) {
         setStatus("error");
         setError({ message: "The strategy changed while this update was being applied. Please try again." });
@@ -86,8 +88,8 @@ export function useAuthoring() {
       }
       dispatch({
         type: "replace_canonical_dirty",
-        canonical,
-        selection,
+        canonical: result.strategy,
+        selection: resolveSelection?.(result),
       });
       return true;
     } catch (reason) {
@@ -97,7 +99,12 @@ export function useAuthoring() {
     }
   }, [dispatch]);
 
-  return { capabilities, status, error, apply };
+  const apply = useCallback((operation: StructuralAuthoringOperation, selection?: SemanticSelection | null) =>
+    applyResolved(operation, () => selection), [applyResolved]);
+  const compose = useCallback((operation: ComposeStrategyOperation, selection?: (result: AuthoringApplyResult) => SemanticSelection | null) =>
+    applyResolved(operation, selection), [applyResolved]);
+
+  return { capabilities, status, error, apply, compose };
 }
 
 export const useStructuralAuthoring = useAuthoring;

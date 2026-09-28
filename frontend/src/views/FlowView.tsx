@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { projectConceptualFlow } from "../domain/conceptualFlow";
-import { constructionOptions, semanticDeleteOperation } from "../domain/builderProjection";
+import { constructionOptions, semanticDeleteOperation, type ConstructionOption } from "../domain/builderProjection";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
+import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, GrowthDefensiveTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
 
 export function shapeTransformationTargets(capabilities: StructuralAuthoringController["capabilities"]) { return { choose: capabilities?.choose_pipeline_targets[0], fallback: capabilities?.fallback_add_targets[0], growthDefensive: capabilities?.growth_defensive_targets[0] }; }
 
-type SemanticNodeData = Record<string, unknown> & { title: string; detail: string; tone?: string; selection: SemanticSelection; canAdd?: boolean; onAdd?: (selection: SemanticSelection) => void };
+type SemanticNodeData = Record<string, unknown> & { title: string; detail: string; tone?: string; selection: SemanticSelection };
 type SemanticNode = Node<SemanticNodeData, "semantic">;
-function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) { return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}><Handle type="target" position={Position.Top} isConnectable={false}/><strong>{data.title}</strong><span>{data.detail}</span>{data.canAdd && <button className="flow-node-add" aria-label={`Add a Strategy concept at ${data.title}`} onClick={(event)=>{event.stopPropagation();data.onAdd?.(data.selection);}}>+</button>}<Handle type="source" position={Position.Bottom} isConnectable={false}/></div>; }
+function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) { return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}><Handle type="target" position={Position.Top} isConnectable={false}/><strong>{data.title}</strong><span>{data.detail}</span><Handle type="source" position={Position.Bottom} isConnectable={false}/></div>; }
 const nodeTypes = { semantic: SemanticFlowNode };
 const node = (id:string,x:number,y:number,title:string,detail:string,selection:SemanticSelection,tone?:string):SemanticNode => ({id,type:"semantic",position:{x,y},data:{title,detail,selection,tone}});
 const edge = (source:string,target:string,label?:string):Edge => ({id:`${source}-${target}`,source,target,label,type:"smoothstep",markerEnd:{type:MarkerType.ArrowClosed},className:"strategy-flow-edge"});
@@ -41,7 +43,7 @@ export function flowNodeIdForSelection(nodes: SemanticNode[], selection: Semanti
   return (matching.find((item) => item.data.selection.fieldPath === selection.fieldPath) ?? matching[0])?.id ?? null;
 }
 
-const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false };
+const inertStructural: StructuralAuthoringController = { capabilities:null, status:"ready", error:null, apply:async()=>false, compose:async()=>false };
 export function FlowView({structural=inertStructural}:{structural?:StructuralAuthoringController}) {
   const {state,dispatch}=useStrategyEditor();
   const projection=useMemo(()=>projectConceptualFlow(state.canonical,state.registry),[state.canonical,state.registry]);
@@ -49,20 +51,41 @@ export function FlowView({structural=inertStructural}:{structural?:StructuralAut
   const options=useMemo(()=>constructionOptions(projection,structural.capabilities,state.editor.selection),[projection,structural.capabilities,state.editor.selection]);
   const [nodes,setNodes,onNodesChange]=useNodesState<SemanticNode>(graph.nodes);
   const instance = useRef<ReactFlowInstance<SemanticNode, Edge> | null>(null);
+  const [pendingOption,setPendingOption]=useState<ConstructionOption|null>(null);
   useEffect(()=>setNodes(current=>graph.nodes.map(projected=>({...projected,position:current.find(item=>item.id===projected.id)?.position??projected.position}))),[graph.nodes,setNodes]);
   useEffect(()=>{
     if(state.editor.activeView!=="flow"||!state.editor.selection||!instance.current)return;
     const id=flowNodeIdForSelection(graph.nodes,state.editor.selection);
     if(id)void instance.current.fitView({nodes:[{id}],padding:.9,duration:240,maxZoom:1.15});
   },[graph.nodes,state.editor.activeView,state.editor.selection]);
-  const openAdd=useCallback((selection?:SemanticSelection)=>{if(selection)dispatch({type:"select_semantic",selection});dispatch({type:"set_left_panel_open",open:true});dispatch({type:"set_left_panel_tab",tab:"blocks"});},[dispatch]);
-  const displayed:SemanticNode[]=nodes.map(item=>{const canAdd=options.some(option=>sameSemanticSelection(option.anchorSelection,item.data.selection)||Boolean(option.groupId&&option.groupId===item.data.selection.groupId));return {...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection),data:{...item.data,canAdd,onAdd:openAdd}};});
+  const displayed:SemanticNode[]=nodes.map(item=>({...item,selected:sameSemanticSelection(item.data.selection,state.editor.selection)}));
   const removeSelected=useCallback(()=>{const operation=semanticDeleteOperation(state.editor.selection,structural.capabilities);if(operation)void structural.apply(operation,null);},[state.editor.selection,structural]);
   const canAdd=options.length>0;
+  const onDrop=useCallback((event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();
+    try {
+      const intent=JSON.parse(event.dataTransfer.getData("application/x-ruletrade-concept")) as {kind:string;targetComponentId:string};
+      const option=options.find(item=>item.kind===intent.kind&&item.targetComponentId===intent.targetComponentId);
+      if(!option)return;
+      dispatch({type:"select_semantic",selection:option.anchorSelection});
+      if(option.kind==="qualification"){
+        const operation=insertConditionBeforeRank(state.canonical,option.targetComponentId);
+        if(operation)void structural.compose(operation,(result)=>semanticSelection("qualification",result.created_component_ids.condition??null,{fieldPath:"config.threshold",groupId:option.groupId}));
+      } else setPendingOption(option);
+    } catch { /* Ignore non-RuleTrade drops. */ }
+  },[dispatch,options,state.canonical,structural]);
   const topologyKey=useMemo(()=>`${graph.nodes.map(item=>item.id).join("|")}::${graph.edges.map(item=>item.id).join("|")}`,[graph]);
-  return <div className="flow-representation" tabIndex={0} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
+  return <div className="flow-representation" tabIndex={0} onDragOver={event=>{if(event.dataTransfer.types.includes("application/x-ruletrade-concept")){event.preventDefault();event.dataTransfer.dropEffect="copy";}}} onDrop={onDrop} onKeyDown={event=>{if(event.key==="Escape")dispatch({type:"select_semantic",selection:null});if((event.key==="Delete"||event.key==="Backspace")&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement))removeSelected();}}>
     <ReactFlow<SemanticNode, Edge> key={topologyKey} nodes={displayed} edges={graph.edges} nodeTypes={nodeTypes} onInit={(flow)=>{instance.current=flow;}} onNodesChange={onNodesChange} onNodeClick={(_,selected)=>dispatch({type:"select_semantic",selection:selected.data.selection})} onPaneClick={()=>dispatch({type:"select_semantic",selection:null})} nodesConnectable={false} deleteKeyCode={null} fitView fitViewOptions={{padding:.2}} minZoom={.35} maxZoom={1.8}><Background gap={24} size={1}/><Controls showInteractive={false}/></ReactFlow>
     <div className="flow-canvas-hint">Select to inspect · drag to arrange · scroll to zoom · drag the canvas to pan</div>
-    {canAdd && <button className="secondary-button flow-add-action" onClick={()=>openAdd()}>+ Add concept</button>}
+    {canAdd && <div className="flow-add-hint">Drag a supported concept from Add onto its compatible Strategy location.</div>}
+    {pendingOption && <div className="flow-actions" aria-label="Pending Flow construction">
+      {pendingOption.kind==="metric"&&<MetricConstructionControl busy={structural.status==="applying"} error={structural.error} onApply={async(lookback,count)=>{const operation=composeRankedSelectionPipeline(state.canonical,pendingOption.targetComponentId,lookback,count);if(!operation)return false;const ok=await structural.compose(operation,result=>semanticSelection("rule",result.created_component_ids.metric??null,{fieldPath:"config.lookback_bars",groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="choose"&&<ChooseTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(lookback,count)=>{const ok=await structural.apply({kind:"transform_to_choose_assets",weight_component_id:pendingOption.targetComponentId,lookback_observations:lookback,count},semanticSelection("selection",`${pendingOption.targetComponentId}_top_n`,{groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="fallback"&&<FallbackTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(asset)=>{const ok=await structural.apply({kind:"add_fallback_selection",weight_component_id:pendingOption.targetComponentId,fallback_asset:asset},semanticSelection("fallback",`${pendingOption.targetComponentId}_fallback`,{groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="cooldown"&&<CooldownConstructionControl busy={structural.status==="applying"} error={structural.error} onApply={async(duration)=>{const ok=await structural.apply({kind:"add_cooldown_to_selection",selection_component_id:pendingOption.targetComponentId,duration},semanticSelection("cooldown",`${pendingOption.targetComponentId}_cooldown`,{fieldPath:"config.duration",groupId:pendingOption.groupId}));if(ok)setPendingOption(null);return ok;}}/>}
+      {pendingOption.kind==="split"&&<GrowthDefensiveTransformationControl busy={structural.status==="applying"} error={structural.error} onApply={async(allocation,assets)=>{const operation=composeTwoSleevePortfolio(state.canonical,pendingOption.targetComponentId,allocation,assets);if(!operation)return false;const ok=await structural.compose(operation,result=>semanticSelection("split",result.created_component_ids.portfolio??null));if(ok)setPendingOption(null);return ok;}}/>}
+      <button className="text-button" onClick={()=>setPendingOption(null)}>Cancel</button>
+    </div>}
   </div>;
 }

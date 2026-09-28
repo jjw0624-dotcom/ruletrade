@@ -59,7 +59,7 @@ const run = {
 describe("integrated Strategy research workbench", () => {
   it("renders every representation in the full Builder without a resizable panel when Research is closed", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
-    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const renderView = (initialView: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
       <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: false, canOpenResearch: true, size: RESEARCH_DEFAULT_SIZE, title: "Saved result", hasActivity: true, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);
@@ -76,7 +76,7 @@ describe("integrated Strategy research workbench", () => {
 
   it("mounts stacked Research with the same Builder representation tree", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
-    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}>
       <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: true, content: <ResultWorkspace run={run} strategyName="Integrated strategy" onBack={() => undefined} />, activity: <p>Saved activity</p>, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);
@@ -102,7 +102,7 @@ describe("integrated Strategy research workbench", () => {
 
   it("keeps every representation in the full-width Builder while Research is open", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
-    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false };
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const renderView = (initialView: "guided" | "flow" | "blocky" | "rules" | "code" | "ai") => renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView={initialView}>
       <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} research={{ activityOpen: false, researchOpen: true, canOpenResearch: true, size: 60, title: "Saved result", hasActivity: false, content: <p>Persisted result</p>, activity: null, onToggleActivity: () => undefined, onToggleResearch: () => undefined, onResize: () => undefined }} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
     </StrategyEditorProvider>);

@@ -12,6 +12,7 @@ import { FlowView, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { semanticSelection } from "./semanticSelection";
+import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 
 const capabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -199,6 +200,16 @@ describe("Structural Authoring Guide and Flow integration", () => {
       </StrategyEditorProvider>,
     );
     expect(markup).not.toMatch(/Add group|Remove group|Create Choose|\+ Add condition/);
+  });
+
+  it("keeps high-level shape recipes in Guide rather than the Composer toolbox", () => {
+    const guideStructural: StructuralAuthoringController = {
+      capabilities: { ...capabilities, growth_defensive_targets: ["weights"], transform_to_growth_defensive: true },
+      status: "ready", error: null, apply: async () => true, compose: async () => true,
+    };
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={momentumBootstrap} initialView="guided"><GuidedView structural={guideStructural} /></StrategyEditorProvider>);
+    expect(markup).toContain("Guided recipes");
+    expect(markup).toContain("Add Split");
   });
 
   it("Guide rename updates Canonical and the Flow projection with stable identity", () => {
