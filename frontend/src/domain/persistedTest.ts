@@ -11,6 +11,7 @@ export interface PersistedTestRequest {
   config: BacktestConfig;
   save: (strategyId: string, parentRevisionId: string, canonical: CanonicalStrategyV1) => Promise<SaveRevisionResponse>;
   ready: (revisionId: string) => Promise<boolean>;
+  onRunStart?: (revisionId: string) => void;
   createRun: (revisionId: string, config: BacktestConfig) => Promise<BacktestRunRecord>;
 }
 
@@ -23,5 +24,6 @@ export async function createPersistedTest(request: PersistedTestRequest): Promis
     : null;
   const revisionId = saved?.revision.id ?? request.baseRevisionId;
   if (!(await request.ready(revisionId))) return { saved, run: null };
+  request.onRunStart?.(revisionId);
   return { saved, run: await request.createRun(revisionId, request.config) };
 }

@@ -11,12 +11,16 @@ const run = { id: "run", revision_id: "revision-new" } as BacktestRunRecord;
 
 describe("persisted Test lifecycle", () => {
   it("saves a dirty Strategy once and creates the Run from the exact returned Revision", async () => {
+    const order: string[] = [];
     const save = vi.fn().mockResolvedValue(saved);
     const ready = vi.fn().mockResolvedValue(true);
-    const createRun = vi.fn().mockResolvedValue(run);
-    expect(await createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: true, config, save, ready, createRun })).toEqual({ saved, run });
+    const onRunStart = vi.fn((revisionId: string) => order.push(`start:${revisionId}`));
+    const createRun = vi.fn().mockImplementation(async () => { order.push("create"); return run; });
+    expect(await createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: true, config, save, ready, onRunStart, createRun })).toEqual({ saved, run });
     expect(save).toHaveBeenCalledOnce();
     expect(ready).toHaveBeenCalledWith("revision-new");
+    expect(onRunStart).toHaveBeenCalledWith("revision-new");
+    expect(order).toEqual(["start:revision-new", "create"]);
     expect(createRun).toHaveBeenCalledWith("revision-new", config);
   });
 
@@ -30,10 +34,20 @@ describe("persisted Test lifecycle", () => {
 
   it("creates no Run when Save fails or readiness rejects the exact Revision", async () => {
     const createRun = vi.fn();
-    await expect(createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: true, config, save: async () => { throw new Error("stale"); }, ready: async () => true, createRun })).rejects.toThrow("stale");
+    const onRunStart = vi.fn();
+    await expect(createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: true, config, save: async () => { throw new Error("stale"); }, ready: async () => true, onRunStart, createRun })).rejects.toThrow("stale");
     expect(createRun).not.toHaveBeenCalled();
-    const result = await createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: false, config, save: vi.fn(), ready: async () => false, createRun });
+    const result = await createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: false, config, save: vi.fn(), ready: async () => false, onRunStart, createRun });
     expect(result.run).toBeNull();
     expect(createRun).not.toHaveBeenCalled();
+    expect(onRunStart).not.toHaveBeenCalled();
+  });
+
+  it("signals accepted execution before awaiting the persisted Run response", async () => {
+    const onRunStart = vi.fn();
+    const createRun = vi.fn().mockRejectedValue(new Error("engine unavailable"));
+    await expect(createPersistedTest({ strategyId: "strategy", baseRevisionId: "revision-old", canonical: momentumBootstrap.strategy, dirty: false, config, save: vi.fn(), ready: async () => true, onRunStart, createRun })).rejects.toThrow("engine unavailable");
+    expect(onRunStart).toHaveBeenCalledWith("revision-old");
+    expect(createRun).toHaveBeenCalledOnce();
   });
 });

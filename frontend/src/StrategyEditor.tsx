@@ -198,6 +198,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
             : await checkRevisionDataReadiness(revisionId, config);
           return checked?.overall === "available";
         },
+        onRunStart: () => setShowSetup(false),
         createRun: backtestRunApi.create,
       });
       if (result.saved) {
@@ -208,7 +209,6 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
       }
       if (!result.run) return;
       const run = result.run;
-      setShowSetup(false);
       setRuns((current) => [run, ...current.filter((item) => item.id !== run.id)]);
       setActiveRun(run);
       setResearchLoad("idle");
@@ -273,6 +273,6 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} onCheckData={() => void checkDataReadiness()} readiness={readiness} exampleDatasetId={example.backtestDefaults.dataset_id} persistence={strategy && base ? "historical" : "temporary"} />}
     {(backtest.state.status === "running" || persistentRunning) && <div className="run-overlay" role="status"><span className="loading-spinner" /><h2>Testing your strategy…</h2><p>{persistentRunning ? "Creating a saved backtest result." : "Testing unsaved changes temporarily."}</p></div>}
     {backtest.state.status === "error" && <BacktestErrorPanel error={backtest.state.error} />}
-    {runError && <div className="backtest-error" role="alert"><strong>We couldn't run this backtest</strong><p>{runError}</p></div>}
+    {runError && <div className="backtest-error" role="alert"><strong>We couldn't run this backtest</strong><p>{runError}</p><button className="secondary-button" onClick={() => { setRunError(null); setShowSetup(true); }}>Review test settings</button></div>}
   </>;
 }

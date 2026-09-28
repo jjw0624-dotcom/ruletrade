@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { constructionOptions, projectBuilderStructure, semanticDeleteOperation } from "./builderProjection";
+import { constructionOptions, projectBuilderStructure, semanticDeleteOperation, semanticToolboxEntries } from "./builderProjection";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { isBlankWorkspaceTarget, sameSemanticSelection, semanticSelection } from "./semanticSelection";
 import { createEditorState, editorReducer } from "../store/editorStore";
@@ -80,6 +80,40 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });
     expect(fromBlankCanvas[0]).toMatchObject({ category: "Decision / routing", label: "Condition" });
     expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
+  });
+
+  it("keeps semantic library membership independent from legal application targets", () => {
+    const projection = projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry);
+    const composition = {
+      primitives: filterBootstrap.registry.primitives.map((primitive) => ({
+        primitive: primitive.id,
+        category: primitive.category,
+        create_supported: !["event", "effect", "rule"].includes(primitive.category),
+        reason: ["event", "effect", "rule"].includes(primitive.category) ? "Requires recipe-owned context." : null,
+      })),
+      mutation_kinds: ["create_component", "connect"], incomplete_working_states: false as const,
+    };
+    const entries = semanticToolboxEntries(projection, filterBootstrap.registry, { ...none, composition }, null, "flow");
+    expect(entries.map((entry) => entry.label)).toEqual([
+      "Investment", "Split", "Sleeve", "Allocation", "Asset Set", "Metric",
+      "Condition", "Rank", "Choose", "Fallback", "Cooldown", "Schedule",
+    ]);
+    expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "needs_context", options: [] });
+    expect(entries.find((entry) => entry.label === "Metric")).toMatchObject({ availability: "unavailable", options: [] });
+    expect(entries.find((entry) => entry.label === "Schedule")).toMatchObject({ availability: "unsupported", options: [] });
+    expect(entries.map((entry) => entry.label)).not.toContain("Growth + Defensive");
+  });
+
+  it("separates available toolbox concepts from unavailable concepts without inventing mutations", () => {
+    const projection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
+    const capabilities = { ...none, composition: filterComposition, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true };
+    const entries = semanticToolboxEntries(projection, momentumBootstrap.registry, capabilities, null, "blocky");
+    expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "available_now" });
+    expect(entries.find((entry) => entry.label === "Asset Set")).toMatchObject({ availability: "unavailable", options: [] });
+    expect(entries.some((entry) => entry.category === "Portfolio")).toBe(false);
+    const initial = createEditorState(momentumBootstrap);
+    expect(initial.canonical).toBe(momentumBootstrap.strategy);
+    expect(initial.validation.status).toBe("valid");
   });
 
   it("maps Delete only to supported semantic inverse operations", () => {

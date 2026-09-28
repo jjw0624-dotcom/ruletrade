@@ -15,7 +15,7 @@ import { OverviewView } from "../views/OverviewView";
 import { CodeView } from "../views/CodeView";
 import { fallbackBootstrap, filterBootstrap, momentumBootstrap } from "../test/fixture";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
-import { blocklyInjectionOptions, blocklyViewportOptions } from "../views/BlockyView";
+import { BlockyView, blocklyInjectionOptions, blocklyViewportOptions } from "../views/BlockyView";
 
 const cap: StructuralAuthoringCapabilities = {
   composition: { primitives: [
@@ -126,6 +126,10 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(blockFieldOperation(condition, 5, cap)).toEqual({ kind: "update_qualification_threshold", component_id: "positive_return", threshold: "0.05" });
     expect(blockFieldOperation(condition, 5, { ...cap, qualification_threshold_targets: [] })).toBeNull();
     expect(blockFieldOperation(condition, Number.NaN, cap)).toBeNull();
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="blocky"><BlockyView structural={structural} /></StrategyEditorProvider>);
+    expect(markup).toContain("blocky-canvas");
+    expect(markup).not.toContain("Add semantic concepts from the RuleTrade toolbox");
+    expect(markup).not.toContain("blockly-toolbox-hint");
   });
 
   it("degrades explicitly instead of inventing a decision order", () => {

@@ -25,6 +25,13 @@ Test is one explicit command over an immutable Revision:
 - a failed or stale save creates no Run;
 - real-data readiness is checked against the Revision that will execute.
 
+The Test configuration modal remains open through local input validation,
+Revision save, and data readiness. Once those pre-start gates accept the exact
+Revision, the modal closes immediately before the persisted Run request begins;
+the workspace owns the running state. An execution failure is then reported at
+workspace level with a path back to the same Test settings. A failed save or
+readiness check never dismisses the modal and never creates a Run.
+
 The temporary execution path remains only for examples that do not yet have a
 persisted Strategy and Revision.
 
