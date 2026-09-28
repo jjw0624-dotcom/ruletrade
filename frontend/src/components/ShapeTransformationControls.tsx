@@ -9,6 +9,31 @@ function ErrorMessage({ error }: { error: ErrorState }) {
   </div>;
 }
 
+export function MetricConstructionControl({ busy, error, onApply }: {
+  busy: boolean;
+  error: ErrorState;
+  onApply: (lookbackBars: number, count: number) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lookback, setLookback] = useState(126);
+  const [count, setCount] = useState(1);
+  if (!open) return <section className="shape-transformation"><span className="eyebrow">Logic primitive</span>
+    <h4>Add Metric</h4><p>Add trailing return. Rank and Choose are included only as the minimum typed support for a valid executable pipeline.</p>
+    <button className="secondary-button" onClick={() => setOpen(true)}>Add Metric pipeline</button>
+  </section>;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (await onApply(lookback, count)) setOpen(false);
+  };
+  return <form className="shape-transformation" onSubmit={(event) => void submit(event)}>
+    <span className="eyebrow">Metric scaffold</span>
+    <label>Trailing-return lookback<input type="number" min={1} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} /><small>completed trading observations</small></label>
+    <label>Initial Choose count<input type="number" min={1} value={count} onChange={(event) => setCount(Number(event.target.value))} /><small>required to keep the pipeline executable</small></label>
+    <div className="dialog-actions"><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" disabled={busy || lookback < 1 || count < 1}>{busy ? "Adding…" : "Create Metric pipeline"}</button></div>
+    <ErrorMessage error={error} />
+  </form>;
+}
+
 export function ChooseTransformationControl({ busy, error, onApply }: {
   busy: boolean;
   error: ErrorState;

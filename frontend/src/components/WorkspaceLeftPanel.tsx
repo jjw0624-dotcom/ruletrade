@@ -18,8 +18,9 @@ import {
   FallbackTransformationControl,
   CooldownConstructionControl,
   GrowthDefensiveTransformationControl,
+  MetricConstructionControl,
 } from "./ShapeTransformationControls";
-import { composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
 
 const availabilityTitle = {
   available_now: "Available now",
@@ -55,6 +56,11 @@ export function ConstructionControl({ option, structural }: {
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
   };
+  if (option.kind === "metric") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><MetricConstructionControl busy={busy} error={structural.error} onApply={(lookback, count) => {
+    const operation = composeRankedSelectionPipeline(state.canonical, option.targetComponentId, lookback, count);
+    if (!operation) return Promise.resolve(false);
+    return structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId }));
+  }} /></div>;
   if (option.kind === "choose") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><ChooseTransformationControl busy={busy} error={structural.error} onApply={(lookback, count) => structural.apply({
     kind: "transform_to_choose_assets",
     weight_component_id: option.targetComponentId,
