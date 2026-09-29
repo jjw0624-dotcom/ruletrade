@@ -31,6 +31,10 @@ make api
 make frontend
 ```
 
+The Make target binds Vite to `0.0.0.0`, so a browser on the Windows host can
+open the WSL-served frontend through the printed Network URL. This changes the
+development server only; production build and serving behavior are unchanged.
+
 Open `http://127.0.0.1:5173`. FastAPI documentation is available at
 `http://127.0.0.1:8000/docs`.
 

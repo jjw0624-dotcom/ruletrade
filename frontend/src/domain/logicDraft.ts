@@ -19,6 +19,7 @@ export interface LogicWorkingProgram {
 export interface PendingLogicControl {
   draftId: string;
   kind: DraftControlKind;
+  position?: { x: number; y: number };
 }
 
 export interface LogicDraftState {

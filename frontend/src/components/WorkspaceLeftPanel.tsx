@@ -1,6 +1,6 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as Tabs from "@radix-ui/react-tabs";
-import type { DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 
 import {
   projectBuilderStructure,
@@ -97,16 +97,33 @@ export function BlockyProgramToolbox({ entries, structural }: {
   structural: StructuralAuthoringController;
 }) {
   const { dispatch } = useStrategyEditor();
-  return <>{PROGRAM_TOOLBOX_CATEGORIES.map((category) => {
-    const categoryEntries = entries.filter((item) => item.category === category);
-    return <section className="construction-category" key={category}><h3>{category}</h3>{categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.status}`} data-program-concept={entry.id} key={entry.id}>
-      <header><strong>{entry.label}</strong><span>{entry.statusLabel}</span></header>
-      <p>{entry.description}</p>
-      {entry.focusSelection && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: entry.focusSelection })}>Focus existing</button>}
-      {entry.draftKind && <button className="secondary-button" onClick={() => dispatch({ type: "request_logic_control", kind: entry.draftKind! })}>Add {entry.label}</button>}
-      {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
-    </article>)}</section>;
-  })}</>;
+  const busy = structural.status === "checking" || structural.status === "applying";
+  const [activeCategory, setActiveCategory] = useState(PROGRAM_TOOLBOX_CATEGORIES[0]);
+  const categoryEntries = entries.filter((item) => item.category === activeCategory);
+  const startDraftDrag = (event: DragEvent<HTMLButtonElement>, entry: ProgramToolboxEntry) => {
+    if (!entry.draftKind) return;
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-ruletrade-blocky-control", JSON.stringify({ kind: entry.draftKind }));
+  };
+  const startConceptDrag = (event: DragEvent<HTMLButtonElement>, option: ConstructionOption) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
+  };
+  return <div className="blocky-program-toolbox" data-program-toolbox>
+    <nav className="blocky-toolbox-categories" aria-label="Block categories">
+      {PROGRAM_TOOLBOX_CATEGORIES.map((category) => <button key={category} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
+    </nav>
+    <section className="blocky-toolbox-library" aria-label={`${activeCategory} blocks`}>
+      {categoryEntries.map((entry) => <article className={`blocky-toolbox-entry ${entry.status}`} data-program-concept={entry.id} key={entry.id} title={entry.description}>
+        <div className="blocky-toolbox-entry-label"><strong>{entry.label}</strong><small>{entry.statusLabel}</small></div>
+        {entry.draftKind && <button className="blocky-toolbox-block" disabled={busy} draggable={!busy} onDragStart={(event) => startDraftDrag(event, entry)} onClick={() => dispatch({ type: "request_logic_control", kind: entry.draftKind! })} aria-describedby={`blocky-help-${entry.id}`}>{entry.label}<span className="sr-only"> — drag to the workspace or click to add</span></button>}
+        {entry.options.map((option) => <button className="blocky-toolbox-block" disabled={busy} draggable={!busy} onDragStart={(event) => startConceptDrag(event, option)} key={`${option.kind}:${option.targetComponentId}`} title={`Drag ${entry.label} onto the Blocky workspace`}>{entry.label}<span className="sr-only"> — drag to the workspace</span></button>)}
+        {entry.focusSelection && <button className="blocky-toolbox-block existing-block" onClick={() => dispatch({ type: "select_semantic", selection: entry.focusSelection })}>{entry.label}<span className="sr-only"> — focus existing</span></button>}
+        {!entry.draftKind && entry.options.length === 0 && !entry.focusSelection && <button className="blocky-toolbox-block" disabled>{entry.label}</button>}
+        <span className="sr-only" id={`blocky-help-${entry.id}`}>{entry.description}</span>
+      </article>)}
+    </section>
+  </div>;
 }
 
 export function WorkspaceLeftPanel({ projection, structural }: {
@@ -126,8 +143,8 @@ export function WorkspaceLeftPanel({ projection, structural }: {
     <Collapsible.Trigger className="workspace-panel-toggle" aria-label={state.editor.leftPanelOpen ? "Collapse construction panel" : "Open construction panel"}>
       {state.editor.leftPanelOpen ? "‹" : "›"}
     </Collapsible.Trigger>
-    <Collapsible.Content className="workspace-left-panel">
-      <Tabs.Root value={state.editor.leftPanelTab} onValueChange={(tab) => dispatch({ type: "set_left_panel_tab", tab: tab as "structure" | "blocks" })}>
+    <Collapsible.Content className="workspace-left-panel" data-perspective={perspective}>
+      <Tabs.Root className="workspace-left-tabs" value={state.editor.leftPanelTab} onValueChange={(tab) => dispatch({ type: "set_left_panel_tab", tab: tab as "structure" | "blocks" })}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools">
           <Tabs.Trigger value="structure">Structure</Tabs.Trigger>
           <Tabs.Trigger value="blocks">Add</Tabs.Trigger>
@@ -136,10 +153,10 @@ export function WorkspaceLeftPanel({ projection, structural }: {
           <ul className="structure-tree"><StructureBranch item={structure} /></ul>
           <p className="panel-hint">Select an investment object to inspect it everywhere.</p>
         </Tabs.Content>
-        <Tabs.Content value="blocks" className="blocks-panel">
-          <header><span className="eyebrow">{perspective === "blocky" ? "Program toolbox" : "Semantic toolbox"}</span><h2>{perspective === "blocky" ? "Compose decision logic" : "Add to this Strategy"}</h2><p>{perspective === "blocky" ? "Contexts, triggers, statements, and modifiers. Recipes remain in Guide." : "Build with executable concepts. Recipes remain in Guide."}</p></header>
+        <Tabs.Content value="blocks" className="blocks-panel" data-perspective={perspective}>
+          {perspective !== "blocky" && <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>}
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && <p className="panel-hint">{perspective === "blocky" ? "Draft controls stay local. Committed changes always return through backend authority." : "The library stays visible even when a concept has no legal target. The backend remains the authority."}</p>}
+          {structural.status !== "checking" && perspective !== "blocky" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
           {perspective === "blocky" ? <BlockyProgramToolbox entries={programLibrary} structural={structural} /> : (["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
             const categoryEntries = library.filter((entry) => entry.category === category);
             return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>

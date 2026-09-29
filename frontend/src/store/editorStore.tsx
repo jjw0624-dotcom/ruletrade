@@ -34,7 +34,7 @@ export type StrategyEditorAction =
   | { type: "select_semantic"; selection: SemanticSelection | null }
   | { type: "set_left_panel_open"; open: boolean }
   | { type: "set_left_panel_tab"; tab: "structure" | "blocks" }
-  | { type: "request_logic_control"; kind: DraftControlKind }
+  | { type: "request_logic_control"; kind: DraftControlKind; position?: { x: number; y: number } }
   | { type: "ack_logic_control"; draftId: string }
   | { type: "set_logic_working_program"; program: LogicWorkingProgram | null; status: LogicDraftStatus }
   | { type: "select_logic_draft"; draftId: string | null }
@@ -97,7 +97,7 @@ export function editorReducer(
       return { ...state, editor: { ...state.editor, logicDraft: {
         ...state.editor.logicDraft,
         nextId: state.editor.logicDraft.nextId + 1,
-        pendingControls: [...state.editor.logicDraft.pendingControls, { draftId, kind: action.kind }],
+        pendingControls: [...state.editor.logicDraft.pendingControls, { draftId, kind: action.kind, position: action.position }],
       } } };
     }
     case "ack_logic_control":

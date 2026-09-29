@@ -112,13 +112,26 @@ The Blocky Add panel is the user program language, not the Primitive Registry:
 
 Entries remain visible as available, draftable, existing/focus, or unsupported.
 Flow-only Split recipes are not Blocky statements; Guide owns recipes. After
-the fixed left panel, all remaining space is Blockly canvas.
+the fixed left panel, all remaining space is Blockly canvas. The production
+toolbox uses a compact category rail and an independently scrolling block
+library. Dragging a draft Control into the workspace places a native Blockly
+block at the drop location; clicking remains the keyboard/accessibility
+fallback. The fixed RuleTrade panel is the only semantic library, so Blockly
+does not mount a duplicate flyout.
+
+Blockly's native click event, rather than its lower-level selection event,
+opens Inspector. A drag may select a block internally but does not open a
+newly closed Inspector. Inspector, draft state, validation, and contextual
+errors are overlays: appearing or disappearing does not resize the Blockly
+world. Save and Test remain disabled while the local topology is unresolved.
 
 Blockly trash/context menu/keyboard delete are the primary canvas deletion
 mechanics. Inspector provides contextual semantic removal and draft discard.
 The left panel remains construction-oriented rather than introducing a second
-drag/delete engine. One unobtrusive working-state indicator replaces the old
-per-draft manager.
+drag/delete engine. Blockly's built-in trashcan is the native drag deletion
+target; making the fixed RuleTrade Add panel another Blockly delete area is
+deferred because it would require parallel drag ownership. One unobtrusive
+working-state overlay replaces the old per-draft manager.
 
 ## Current limits
 

@@ -113,7 +113,7 @@ export function StrategyBuilderWorkspace({
         <button className="primary-button" onClick={onTest} disabled={Boolean(draftMessage)} title={draftMessage ?? undefined}>Test <span aria-hidden="true">▶</span></button>
       </div>
     </header>
-    <div className="builder-messages">{notices}{validation}{draftMessage && <div className="save-banner draft" role="status"><span>{draftMessage}</span></div>}</div>
+    {(notices || validation) && <div className="builder-messages" data-workspace-status="overlay">{notices}{validation}</div>}
     {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
       <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
         {builder}

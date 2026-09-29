@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BlockyProgramToolbox } from "../components/WorkspaceLeftPanel";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
+import * as Blockly from "blockly";
 import { semanticCompositionApi, type SemanticCompositionProjection, type SemanticFact, type SemanticProjectionRef } from "../semanticCompositionApi";
 import { StrategyEditorProvider, createEditorState, editorReducer } from "../store/editorStore";
 import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
@@ -12,6 +13,7 @@ import { projectBlockyProgram, programStatementForSelection } from "./blockyProg
 import { blockyProgramToolboxEntries } from "./blockyToolbox";
 import { hasUnresolvedLogicDraft, logicDraftMessage } from "./logicDraft";
 import { semanticSelection } from "./semanticSelection";
+import { blockyClickIntent } from "../views/BlockyView";
 
 const ref = (primary: string, role: SemanticProjectionRef["semantic_role"], related: string[] = [], field: string | null = null): SemanticProjectionRef => ({
   primary_component_id: primary,
@@ -114,24 +116,34 @@ describe("production Blocky program boundary", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/v1/canonical/strategies/semantic-projections", expect.objectContaining({ method: "POST", body: JSON.stringify(momentumBootstrap.strategy) }));
   });
 
-  it("renders the actual Blocky program toolbox without Flow Split or primitive boilerplate", () => {
+  it("renders a compact category toolbox without Flow Split, recipes, or primitive boilerplate", () => {
     const entries = blockyProgramToolboxEntries(projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry), capabilities, null);
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="blocky"><BlockyProgramToolbox entries={entries} structural={structural} /></StrategyEditorProvider>);
+    expect(entries.map((item) => item.category)).toEqual(expect.arrayContaining(["Control", "Selection", "Action", "Timing", "Behavior"]));
+    expect(markup).toContain('data-program-toolbox="true"');
+    expect(markup).toContain('aria-label="Block categories"');
+    expect(markup).toContain('aria-label="Control blocks"');
     expect(markup).toContain("If / Otherwise");
-    expect(markup).toContain("Add If");
-    expect(markup).toContain("Choose assets");
-    expect(markup).toContain("Eligibility");
-    expect(markup).toContain("Selection fallback");
-    expect(markup).toContain("Constraint");
+    expect(markup).toContain('draggable="true"');
+    expect(markup).not.toContain("Add If");
     expect(markup).not.toContain("Add Split");
+    expect(markup).not.toContain("Growth + Defensive");
     expect(markup).not.toContain(">Metric<");
     expect(markup).not.toContain(">Rank<");
   });
 
+  it("opens Inspector only for native Blockly clicks, not selection or drag events", () => {
+    expect(blockyClickIntent({ type: Blockly.Events.CLICK, targetType: Blockly.Events.ClickTarget.BLOCK, blockId: "selection" })).toEqual({ kind: "select", blockId: "selection" });
+    expect(blockyClickIntent({ type: Blockly.Events.CLICK, targetType: Blockly.Events.ClickTarget.WORKSPACE })).toEqual({ kind: "clear" });
+    expect(blockyClickIntent({ type: Blockly.Events.SELECTED, blockId: "selection" })).toBeNull();
+    expect(blockyClickIntent({ type: Blockly.Events.BLOCK_DRAG, blockId: "selection" })).toBeNull();
+  });
+
   it("keeps LogicDraft ephemeral across representation switches and blocks commands until discard", () => {
     const initial = createEditorState(filterBootstrap, "blocky");
-    const drafted = editorReducer(initial, { type: "request_logic_control", kind: "if" });
+    const drafted = editorReducer(initial, { type: "request_logic_control", kind: "if", position: { x: 120, y: 80 } });
     expect(hasUnresolvedLogicDraft(drafted.editor.logicDraft)).toBe(true);
+    expect(drafted.editor.logicDraft.pendingControls[0]).toMatchObject({ kind: "if", position: { x: 120, y: 80 } });
     expect(logicDraftMessage(drafted.editor.logicDraft)).toContain("before saving or testing");
     expect(drafted.canonical).toBe(initial.canonical);
     const rules = editorReducer(drafted, { type: "set_active_view", view: "rules" });

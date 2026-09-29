@@ -26,6 +26,14 @@ interface BlockSemanticData {
   relatedComponentIds?: string[];
 }
 
+export type BlockyClickIntent = { kind: "select"; blockId: string } | { kind: "clear" } | null;
+export function blockyClickIntent(event: Pick<Blockly.Events.Abstract, "type"> & { targetType?: string; blockId?: string }): BlockyClickIntent {
+  if (event.type !== Blockly.Events.CLICK) return null;
+  if (event.targetType === Blockly.Events.ClickTarget.WORKSPACE) return { kind: "clear" };
+  if (event.targetType === Blockly.Events.ClickTarget.BLOCK && event.blockId) return { kind: "select", blockId: event.blockId };
+  return null;
+}
+
 let registered = false;
 export function registerBlockyProgramBlocks() {
   if (registered) return;
@@ -140,13 +148,15 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     workspace.current = canvas;
     const listener = (event: Blockly.Events.Abstract) => {
       if (event.workspaceId !== canvas.id || initializing.current) return;
-      if (event.type === Blockly.Events.SELECTED) {
-        const block = Blockly.common.getSelected();
-        if (!(block instanceof Blockly.Block) || block.workspace !== canvas) {
+      const click = blockyClickIntent(event as Blockly.Events.Abstract & { targetType?: string; blockId?: string });
+      if (click) {
+        if (click.kind === "clear") {
           if (live.current.state.editor.selection) live.current.dispatch({ type: "select_semantic", selection: null });
           if (live.current.state.editor.logicDraft.selectedDraftId) live.current.dispatch({ type: "select_logic_draft", draftId: null });
           return;
         }
+        const block = canvas.getBlockById(click.blockId);
+        if (!block) return;
         const data = parseData(block);
         if (data?.source === "draft") {
           live.current.dispatch({ type: "select_logic_draft", draftId: data.workingId });
@@ -222,7 +232,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
       block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
       block.initSvg(); block.render();
       const metrics = canvas.getMetrics();
-      block.moveBy((metrics?.viewLeft ?? 0) + 70, (metrics?.viewTop ?? 0) + 70);
+      block.moveBy(request.position?.x ?? (metrics?.viewLeft ?? 0) + 70, request.position?.y ?? (metrics?.viewTop ?? 0) + 70);
       block.select();
       dispatch({ type: "ack_logic_control", draftId: request.draftId });
     }
@@ -264,6 +274,18 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   };
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    const control = event.dataTransfer.getData("application/x-ruletrade-blocky-control");
+    if (control) {
+      try {
+        const intent = JSON.parse(control) as { kind: "if" | "if_otherwise" };
+        const canvas = workspace.current;
+        const position = canvas
+          ? Blockly.utils.svgMath.screenToWsCoordinates(canvas, new Blockly.utils.Coordinate(event.clientX, event.clientY))
+          : undefined;
+        dispatch({ type: "request_logic_control", kind: intent.kind, position });
+      } catch { /* Ignore malformed RuleTrade control drops. */ }
+      return;
+    }
     try {
       const intent = JSON.parse(event.dataTransfer.getData("application/x-ruletrade-concept")) as { kind: string; targetComponentId: string };
       const option = available.find((item) => item.kind === intent.kind && item.targetComponentId === intent.targetComponentId);
@@ -276,11 +298,11 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     return ok;
   };
 
-  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
+  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />
-    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" role="status"><span>Unfinished Blocky changes</span><button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
+    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" data-workspace-status="overlay" role="status"><span>Unfinished Blocky changes · Save/Test disabled</span><button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
     {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
       {pendingOption?.kind === "metric" && <MetricConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={async (lookback, count) => { const operation = composeRankedSelectionPipeline(state.canonical, pendingOption.targetComponentId, lookback, count); if (!operation) return false; const ok = await structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId: pendingOption.groupId })); if (ok) setPendingOption(null); return ok; }} />}
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}
