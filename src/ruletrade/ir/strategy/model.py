@@ -118,9 +118,7 @@ class ElapsedSessionsGateOp:
     last_exit_state: str
     minimum_completed_sessions: int
     provenance: SourceProvenance
-    operation: Literal["selection.elapsed_sessions_gate"] = (
-        "selection.elapsed_sessions_gate"
-    )
+    operation: Literal["selection.elapsed_sessions_gate"] = "selection.elapsed_sessions_gate"
 
 
 @dataclass(frozen=True)
@@ -166,9 +164,7 @@ class FirstNonEmptyTargetsOp:
     primary: str
     fallback: str
     provenance: SourceProvenance
-    operation: Literal["portfolio.first_non_empty_targets"] = (
-        "portfolio.first_non_empty_targets"
-    )
+    operation: Literal["portfolio.first_non_empty_targets"] = "portfolio.first_non_empty_targets"
 
 
 @dataclass(frozen=True)
@@ -186,6 +182,20 @@ class RebalanceOp:
     targets: str
     provenance: SourceProvenance
     operation: Literal["portfolio.rebalance"] = "portfolio.rebalance"
+
+
+@dataclass(frozen=True)
+class PredicateRebalanceOp:
+    """Restricted executable IF around a portfolio rebalance."""
+
+    id: str
+    asset: str
+    lookback_bars: int
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
+    targets: str
+    provenance: SourceProvenance
+    operation: Literal["control.predicate_rebalance"] = "control.predicate_rebalance"
 
 
 StrategyIROperation: TypeAlias = (
@@ -206,6 +216,7 @@ StrategyIROperation: TypeAlias = (
     | FirstNonEmptyTargetsOp
     | ObserveTargetExitsOp
     | RebalanceOp
+    | PredicateRebalanceOp
 )
 
 

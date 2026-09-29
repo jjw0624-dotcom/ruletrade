@@ -18,6 +18,7 @@ export interface ProgramToolboxEntry {
   options: ConstructionOption[];
   focusSelection: SemanticSelection | null;
   draftKind: DraftControlKind | null;
+  predicateTarget?: string | null;
 }
 
 export const PROGRAM_TOOLBOX_CATEGORIES: ProgramToolboxCategory[] = [
@@ -48,21 +49,24 @@ export function blockyProgramToolboxEntries(
   const fallbackOptions = option(["fallback"]);
   const cooldownOptions = option(["cooldown"]);
   const scheduleId = firstGroup?.scheduleComponentId ?? projection.rebalanceScheduleComponentId;
+  const predicate = capabilities?.predicate_remove_targets?.[0] ?? null;
+  const predicateTarget = capabilities?.predicate_add_targets?.[0] ?? null;
   return [
     entry({
       id: "if",
       category: "Control",
       label: "If",
-      description: "Draft one control branch without pretending it is executable Canonical.",
-      status: "draftable",
-      statusLabel: "Draft only",
-      draftKind: "if",
+      description: "Run the current rebalance only when a market trailing-return predicate passes.",
+      status: predicate ? "existing" : predicateTarget ? "available" : "unsupported",
+      statusLabel: predicate ? "Present · focus" : predicateTarget ? "Available" : "Needs a compatible rebalance",
+      predicateTarget,
+      focusSelection: predicate ? semanticSelection("rule", predicate, { fieldPath: "condition" }) : null,
     }),
     entry({
       id: "if-otherwise",
       category: "Control",
       label: "If / Otherwise",
-      description: "Draft two control branches without changing Canonical.",
+      description: "Two executable branches are not part of Predicate v1.",
       status: "draftable",
       statusLabel: "Draft only",
       draftKind: "if_otherwise",

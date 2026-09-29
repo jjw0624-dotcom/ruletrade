@@ -15,9 +15,14 @@ from ruletrade.strategy.v1.models import (
     AssetSetDefinition,
     CanonicalStrategyV1,
     Component,
+    ComponentOutputExpression,
+    ComparisonExpression,
     Connection,
     FrozenModel,
     Identifier,
+    IndicatorExpression,
+    LiteralExpression,
+    RebalanceAction,
     PortReference,
     Symbol,
 )
@@ -143,6 +148,29 @@ class UpdateFallbackAssetSetOperation(FrozenModel):
     asset_set_id: Identifier
 
 
+class AddPredicateOperation(FrozenModel):
+    kind: Literal["add_predicate"] = "add_predicate"
+    rebalance_component_id: Identifier
+    asset: Symbol
+    lookback_bars: Annotated[int, Field(ge=1)] = 126
+    operator: Literal["gt", "gte", "lt", "lte"] = "gt"
+    threshold: Decimal = Decimal(0)
+
+
+class UpdatePredicateOperation(FrozenModel):
+    kind: Literal["update_predicate"] = "update_predicate"
+    component_id: Identifier
+    asset: Symbol
+    lookback_bars: Annotated[int, Field(ge=1)]
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
+
+
+class RemovePredicateOperation(FrozenModel):
+    kind: Literal["remove_predicate"] = "remove_predicate"
+    component_id: Identifier
+
+
 StructuralAuthoringOperation = Annotated[
     ComposeStrategyOperation
     | RenameGroupOperation
@@ -162,7 +190,10 @@ StructuralAuthoringOperation = Annotated[
     | UpdateSleeveAllocationsOperation
     | UpdateScheduleOperation
     | UpdateCooldownDurationOperation
-    | UpdateFallbackAssetSetOperation,
+    | UpdateFallbackAssetSetOperation
+    | AddPredicateOperation
+    | UpdatePredicateOperation
+    | RemovePredicateOperation,
     Field(discriminator="kind"),
 ]
 
@@ -266,6 +297,129 @@ class StructuralAuthoringCapabilities(FrozenModel):
     schedule_targets: tuple[ScheduleCapability, ...] = ()
     cooldown_duration_targets: tuple[IntegerCapability, ...] = ()
     fallback_asset_set_targets: tuple[FallbackAssetSetCapability, ...] = ()
+    predicate_add_targets: tuple[Identifier, ...] = ()
+    predicate_remove_targets: tuple[Identifier, ...] = ()
+
+
+def _predicate_condition(
+    asset: str, lookback: int, operator: str, threshold: Decimal
+) -> ComparisonExpression:
+    return ComparisonExpression(
+        operator=operator,
+        left=IndicatorExpression(
+            indicator_id="trailing_return_indicator@1",
+            asset=LiteralExpression(value_type="asset", value=asset),
+            parameters={"lookback_bars": lookback},
+        ),
+        right=LiteralExpression(value_type="percentage", value=threshold),
+    )
+
+
+def _add_predicate(strategy: CanonicalStrategyV1, operation: AddPredicateOperation) -> CanonicalStrategyV1:
+    rebalance = _require_primitive(
+        strategy, operation.rebalance_component_id, {"rebalance@1"}, "Predicate creation"
+    )
+    inbound = _connections_to(strategy, rebalance.id, "targets")
+    if len(inbound) != 1:
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            f"graph.components[{rebalance.id}]",
+            "Predicate v1 requires one rebalance target.",
+        )
+    source = inbound[0].source
+    rule = rebalance.model_copy(
+        update={
+            "primitive": "rule@1",
+            "condition": _predicate_condition(
+                operation.asset, operation.lookback_bars, operation.operator, operation.threshold
+            ),
+            "actions": (
+                RebalanceAction(
+                    targets=ComponentOutputExpression(component_id=source.component_id, port=source.port)
+                ),
+            ),
+        }
+    )
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(rule if item.id == rule.id else item for item in strategy.graph.components),
+            "connections": tuple(item for item in strategy.graph.connections if item != inbound[0]),
+        }
+    )
+    return strategy.model_copy(update={"graph": graph})
+
+
+def _is_predicate_v1_rule(component: Component) -> bool:
+    condition = component.condition
+    return (
+        component.primitive == "rule@1"
+        and isinstance(condition, ComparisonExpression)
+        and condition.operator in {"gt", "gte", "lt", "lte"}
+        and isinstance(condition.left, IndicatorExpression)
+        and condition.left.indicator_id == "trailing_return_indicator@1"
+        and isinstance(condition.left.asset, LiteralExpression)
+        and condition.left.asset.value_type == "asset"
+        and isinstance(condition.right, LiteralExpression)
+        and condition.right.value_type in {"decimal", "percentage"}
+        and len(component.actions) == 1
+        and isinstance(component.actions[0], RebalanceAction)
+        and isinstance(component.actions[0].targets, ComponentOutputExpression)
+        and not component.else_actions
+    )
+
+
+def _require_predicate_v1_rule(
+    strategy: CanonicalStrategyV1, component_id: str, operation: str
+) -> Component:
+    component = _component(strategy, component_id)
+    if not _is_predicate_v1_rule(component):
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            f"graph.components[{component.id}]",
+            f"{operation} is only available for an executable Predicate v1 rule.",
+        )
+    return component
+
+
+def _update_predicate(
+    strategy: CanonicalStrategyV1, operation: UpdatePredicateOperation
+) -> CanonicalStrategyV1:
+    rule = _require_predicate_v1_rule(strategy, operation.component_id, "Predicate editing")
+    return _replace_component(
+        strategy,
+        rule.model_copy(
+            update={
+                "condition": _predicate_condition(
+                    operation.asset, operation.lookback_bars, operation.operator, operation.threshold
+                )
+            }
+        ),
+    )
+
+
+def _remove_predicate(
+    strategy: CanonicalStrategyV1, operation: RemovePredicateOperation
+) -> CanonicalStrategyV1:
+    rule = _require_predicate_v1_rule(strategy, operation.component_id, "Predicate removal")
+    target = rule.actions[0].targets
+    if not isinstance(target, ComponentOutputExpression):
+        raise StructuralAuthoringError(
+            "unsupported_target", f"graph.components[{rule.id}]", "That rule target cannot be restored."
+        )
+    rebalance = Component(id=rule.id, primitive="rebalance@1")
+    connection = Connection(
+        source=PortReference(component_id=target.component_id, port=target.port),
+        target=PortReference(component_id=rebalance.id, port="targets"),
+    )
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(
+                rebalance if item.id == rule.id else item for item in strategy.graph.components
+            ),
+            "connections": (*strategy.graph.connections, connection),
+        }
+    )
+    return strategy.model_copy(update={"graph": graph})
 
 
 def _component(strategy: CanonicalStrategyV1, component_id: str) -> Component:
@@ -1177,6 +1331,12 @@ def apply_structural_operation(
     elif isinstance(operation, UpdateCooldownDurationOperation):
         component = _require_primitive(strategy, operation.component_id, {"cooldown@1"}, "Cooldown editing")
         candidate = _update_config(strategy, component, "duration", operation.duration)
+    elif isinstance(operation, AddPredicateOperation):
+        candidate = _add_predicate(strategy, operation)
+    elif isinstance(operation, UpdatePredicateOperation):
+        candidate = _update_predicate(strategy, operation)
+    elif isinstance(operation, RemovePredicateOperation):
+        candidate = _remove_predicate(strategy, operation)
     else:
         component = _require_primitive(
             strategy,
@@ -1426,4 +1586,10 @@ def structural_authoring_capabilities(
         schedule_targets=tuple(schedule_targets),
         cooldown_duration_targets=tuple(cooldown_targets),
         fallback_asset_set_targets=tuple(fallback_edit_targets),
+        predicate_add_targets=tuple(
+            item.id for item in strategy.graph.components if item.primitive == "rebalance@1"
+        ),
+        predicate_remove_targets=tuple(
+            item.id for item in strategy.graph.components if _is_predicate_v1_rule(item)
+        ),
     )

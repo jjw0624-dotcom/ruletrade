@@ -25,7 +25,18 @@ from ruletrade.strategy.v1.composition import (
     ComposeStrategyOperation,
     SetComponentFieldMutation,
 )
-from ruletrade.strategy.v1.models import CanonicalStrategyV1, Component, FrozenModel, Identifier, Symbol
+from ruletrade.strategy.v1.models import (
+    CanonicalStrategyV1,
+    Component,
+    ComponentOutputExpression,
+    ComparisonExpression,
+    FrozenModel,
+    Identifier,
+    IndicatorExpression,
+    LiteralExpression,
+    RebalanceAction,
+    Symbol,
+)
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
 
 
@@ -158,6 +169,13 @@ class _Graph:
         for connection in strategy.graph.connections:
             self.incoming[connection.target.component_id].append(connection.source.component_id)
             self.outgoing[connection.source.component_id].append(connection.target.component_id)
+        for component in strategy.graph.components:
+            for action in (*component.actions, *component.else_actions):
+                if isinstance(action, RebalanceAction) and isinstance(
+                    action.targets, ComponentOutputExpression
+                ):
+                    self.incoming[component.id].append(action.targets.component_id)
+                    self.outgoing[action.targets.component_id].append(component.id)
 
     def ancestors(self, component_id: str) -> set[str]:
         result: set[str] = set()
@@ -344,14 +362,38 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
             )
         elif primitive == "rule@1":
             if component.condition is not None:
+                label = "Rule predicate"
+                detail = {"expression": component.condition.model_dump(mode="json")}
+                if (
+                    isinstance(component.condition, ComparisonExpression)
+                    and isinstance(component.condition.left, IndicatorExpression)
+                    and isinstance(component.condition.left.asset, LiteralExpression)
+                    and isinstance(component.condition.right, LiteralExpression)
+                ):
+                    operator = {"gt": ">", "gte": "≥", "lt": "<", "lte": "≤"}.get(
+                        component.condition.operator, component.condition.operator
+                    )
+                    asset = str(component.condition.left.asset.value)
+                    lookback = int(component.condition.left.parameters.get("lookback_bars", 0))
+                    threshold = str(component.condition.right.value)
+                    label = f"IF {asset} {lookback}-bar return {operator} {threshold}"
+                    detail.update(
+                        {
+                            "asset": asset,
+                            "measure": "trailing_return",
+                            "lookback_bars": lookback,
+                            "operator": component.condition.operator,
+                            "threshold": threshold,
+                        }
+                    )
                 facts.append(
                     SemanticFact(
                         id=f"predicate:{component.id}",
                         category=SemanticCategory.PREDICATE,
                         kind="control_predicate",
-                        label="Rule predicate",
+                        label=label,
                         ref=_ref(component, SemanticCategory.PREDICATE, field="condition"),
-                        detail={"expression": component.condition.model_dump(mode="json")},
+                        detail=detail,
                     )
                 )
             for index, action in enumerate(component.actions):

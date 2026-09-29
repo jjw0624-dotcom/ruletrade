@@ -120,6 +120,20 @@ describe("Structural Authoring Guide and Flow integration", () => {
       .toBe("monthly@1");
   });
 
+  it("sends Predicate creation through the backend Authoring Contract", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ strategy: filterBootstrap.strategy }), { status: 200 }),
+    );
+    await structuralAuthoringApi.apply(filterBootstrap.strategy, {
+      kind: "add_predicate", rebalance_component_id: "rebalance", asset: "SPY",
+      lookback_bars: 126, operator: "gt", threshold: "0",
+    }, fetcher);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).operation).toEqual({
+      kind: "add_predicate", rebalance_component_id: "rebalance", asset: "SPY",
+      lookback_bars: 126, operator: "gt", threshold: "0",
+    });
+  });
+
   it("exposes transformations only from backend capability targets", () => {
     expect(shapeTransformationTargets(capabilities)).toEqual({
       choose: undefined,

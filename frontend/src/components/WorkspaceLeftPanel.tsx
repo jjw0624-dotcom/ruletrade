@@ -109,6 +109,10 @@ export function BlockyProgramToolbox({ entries, structural }: {
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
   };
+  const addPredicate = (target: string) => structural.apply({
+    kind: "add_predicate", rebalance_component_id: target, asset: "SPY",
+    lookback_bars: 126, operator: "gt", threshold: "0",
+  }, semanticSelection("rule", target, { fieldPath: "condition" }));
   return <div className="blocky-program-toolbox" data-program-toolbox>
     <nav className="blocky-toolbox-categories" aria-label="Block categories">
       {PROGRAM_TOOLBOX_CATEGORIES.map((category) => <button key={category} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
@@ -117,9 +121,10 @@ export function BlockyProgramToolbox({ entries, structural }: {
       {categoryEntries.map((entry) => <article className={`blocky-toolbox-entry ${entry.status}`} data-program-concept={entry.id} key={entry.id} title={entry.description}>
         <div className="blocky-toolbox-entry-label"><strong>{entry.label}</strong><small>{entry.statusLabel}</small></div>
         {entry.draftKind && <button className="blocky-toolbox-block" disabled={busy} draggable={!busy} onDragStart={(event) => startDraftDrag(event, entry)} onClick={() => dispatch({ type: "request_logic_control", kind: entry.draftKind! })} aria-describedby={`blocky-help-${entry.id}`}>{entry.label}<span className="sr-only"> — drag to the workspace or click to add</span></button>}
+        {entry.predicateTarget && <button className="blocky-toolbox-block" disabled={busy} draggable={!busy} onDragStart={(event) => { event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("application/x-ruletrade-predicate", entry.predicateTarget!); }} onClick={() => void addPredicate(entry.predicateTarget!)}>{entry.label}<span className="sr-only"> — drag to the workspace or click to add</span></button>}
         {entry.options.map((option) => <button className="blocky-toolbox-block" disabled={busy} draggable={!busy} onDragStart={(event) => startConceptDrag(event, option)} key={`${option.kind}:${option.targetComponentId}`} title={`Drag ${entry.label} onto the Blocky workspace`}>{entry.label}<span className="sr-only"> — drag to the workspace</span></button>)}
         {entry.focusSelection && <button className="blocky-toolbox-block existing-block" onClick={() => dispatch({ type: "select_semantic", selection: entry.focusSelection })}>{entry.label}<span className="sr-only"> — focus existing</span></button>}
-        {!entry.draftKind && entry.options.length === 0 && !entry.focusSelection && <button className="blocky-toolbox-block" disabled>{entry.label}</button>}
+        {!entry.draftKind && !entry.predicateTarget && entry.options.length === 0 && !entry.focusSelection && <button className="blocky-toolbox-block" disabled>{entry.label}</button>}
         <span className="sr-only" id={`blocky-help-${entry.id}`}>{entry.description}</span>
       </article>)}
     </section>

@@ -11,6 +11,7 @@ from ruletrade.strategy.v1.models import (
     BuyAction,
     CanonicalStrategyV1,
     ComparisonExpression,
+    ComponentOutputExpression,
     EmitSignalAction,
     Expression,
     IncrementStateAction,
@@ -57,9 +58,7 @@ DefinitionIds = dict[DefinitionReference, set[str]]
 
 def _definition_ids(strategy: CanonicalStrategyV1) -> DefinitionIds:
     return {
-        DefinitionReference.ASSET_SET: {
-            definition.id for definition in strategy.definitions.asset_sets
-        },
+        DefinitionReference.ASSET_SET: {definition.id for definition in strategy.definitions.asset_sets},
     }
 
 
@@ -99,17 +98,13 @@ def _field_issues(
                 at_exclusive_minimum = field.exclusive_minimum and number == field.minimum
                 if below_minimum or at_exclusive_minimum:
                     qualifier = "greater than" if field.exclusive_minimum else "at least"
-                    issues.append(
-                        SemanticIssue(field_path, f"must be {qualifier} {field.minimum}")
-                    )
+                    issues.append(SemanticIssue(field_path, f"must be {qualifier} {field.minimum}"))
             if number is not None and field.maximum is not None and number > field.maximum:
                 issues.append(SemanticIssue(field_path, f"must be at most {field.maximum}"))
         if field.reference is not None:
             if not isinstance(value, str) or value not in definition_ids[field.reference]:
                 reference_label = field.reference.value.replace("_", " ")
-                issues.append(
-                    SemanticIssue(field_path, f"unknown {reference_label}: {value}")
-                )
+                issues.append(SemanticIssue(field_path, f"unknown {reference_label}: {value}"))
 
     return issues
 
@@ -124,13 +119,10 @@ class _TypeChecker:
         self.registry = registry
         self.definition_ids = definition_ids
         self.parameters = {
-            definition.id: definition.value_type
-            for definition in strategy.definitions.parameters
+            definition.id: definition.value_type for definition in strategy.definitions.parameters
         }
-        self.state = {
-            definition.id: definition.value_type
-            for definition in strategy.definitions.state
-        }
+        self.state = {definition.id: definition.value_type for definition in strategy.definitions.state}
+        self.components = {item.id: item for item in strategy.graph.components}
 
     def expression_type(self, expression: Expression, path: str) -> ValueType:
         if isinstance(expression, LiteralExpression):
@@ -163,6 +155,15 @@ class _TypeChecker:
             if field_issues:
                 raise StrategySemanticError(field_issues)
             return indicator.result_type
+        if isinstance(expression, ComponentOutputExpression):
+            component = self.components.get(expression.component_id)
+            if component is None:
+                raise StrategySemanticError([SemanticIssue(f"{path}.component_id", "unknown component")])
+            primitive = self.registry.get(component.primitive)
+            output = next((item for item in primitive.outputs if item.name == expression.port), None)
+            if output is None:
+                raise StrategySemanticError([SemanticIssue(f"{path}.port", "unknown component output port")])
+            return output.value_type
         if isinstance(expression, ArithmeticExpression):
             left = self.expression_type(expression.left, f"{path}.left")
             right = self.expression_type(expression.right, f"{path}.right")
@@ -227,20 +228,14 @@ class _TypeChecker:
     def require(self, expression: Expression, expected: ValueType, path: str) -> None:
         actual = self.expression_type(expression, path)
         if actual != expected:
-            raise StrategySemanticError(
-                [SemanticIssue(path, f"expected {expected}, got {actual}")]
-            )
+            raise StrategySemanticError([SemanticIssue(path, f"expected {expected}, got {actual}")])
 
     @staticmethod
-    def _lookup(
-        values: dict[str, ValueType], key: str, path: str, label: str
-    ) -> ValueType:
+    def _lookup(values: dict[str, ValueType], key: str, path: str, label: str) -> ValueType:
         try:
             return values[key]
         except KeyError as exc:
-            raise StrategySemanticError(
-                [SemanticIssue(path, f"unknown {label}: {key}")]
-            ) from exc
+            raise StrategySemanticError([SemanticIssue(path, f"unknown {label}: {key}")]) from exc
 
     @staticmethod
     def _arithmetic_type(
@@ -250,9 +245,7 @@ class _TypeChecker:
         path: str,
     ) -> ValueType:
         if left not in NUMERIC_TYPES or right not in NUMERIC_TYPES:
-            raise StrategySemanticError(
-                [SemanticIssue(path, "arithmetic operands must be numeric")]
-            )
+            raise StrategySemanticError([SemanticIssue(path, "arithmetic operands must be numeric")])
         if operator in {"add", "subtract"}:
             if left != right:
                 raise StrategySemanticError(
@@ -314,7 +307,7 @@ def collect_semantic_issues(
                 issues.append(SemanticIssue(f"{path}.condition", "rule condition is required"))
             if not component.actions:
                 issues.append(SemanticIssue(f"{path}.actions", "rule must contain at least one action"))
-        elif component.condition is not None or component.actions:
+        elif component.condition is not None or component.actions or component.else_actions:
             issues.append(SemanticIssue(path, "condition/actions are only valid on rule components"))
 
     inbound: set[tuple[str, str]] = set()
@@ -438,10 +431,7 @@ def collect_semantic_issues(
                     rank_id = input_sources.get((selected_id, "ranked"))
                     filter_id = input_sources.get((rank_id, "scores")) if rank_id else None
                     filter_spec = primitive_specs.get(filter_id) if filter_id else None
-                    if (
-                        filter_spec is not None
-                        and filter_spec.implementation_id != "selection.filter"
-                    ):
+                    if filter_spec is not None and filter_spec.implementation_id != "selection.filter":
                         issues.append(
                             SemanticIssue(
                                 f"graph.components[{component_id}].inputs.primary",
@@ -516,10 +506,7 @@ def collect_semantic_issues(
             if len(sleeve_components) == len(sleeve_ids) == 2 and not invalid_sources:
                 try:
                     allocation = sum(
-                        (
-                            Decimal(str(item.config["allocation"]))
-                            for item in sleeve_components
-                        ),
+                        (Decimal(str(item.config["allocation"])) for item in sleeve_components),
                         Decimal(0),
                     )
                 except (InvalidOperation, KeyError, TypeError, ValueError):
@@ -558,6 +545,14 @@ def collect_semantic_issues(
                 checker.validate_action(
                     action,
                     f"graph.components[{component.id}].actions[{index}]",
+                )
+            except StrategySemanticError as exc:
+                issues.extend(exc.issues)
+        for index, action in enumerate(component.else_actions):
+            try:
+                checker.validate_action(
+                    action,
+                    f"graph.components[{component.id}].else_actions[{index}]",
                 )
             except StrategySemanticError as exc:
                 issues.extend(exc.issues)

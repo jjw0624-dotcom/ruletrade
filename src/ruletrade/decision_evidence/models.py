@@ -18,7 +18,9 @@ class SourceComponentRef(EvidenceModel):
     component_id: str
     field_path: Annotated[
         str,
-        Field(pattern=r"^config\.[a-z][a-z0-9_]*$"),
+        Field(
+            pattern=r"^(?:config\.[a-z][a-z0-9_]*|condition|actions\[[0-9]+\]|else_actions\[[0-9]+\])$"
+        ),
     ] | None = None
 
 
@@ -35,6 +37,18 @@ class FilterEvidence(EvidenceModel):
     threshold: Decimal
     evaluations: tuple[AssetPredicate, ...]
     decision_universe: tuple[str, ...] | None = None
+
+
+class PredicateEvidence(EvidenceModel):
+    kind: Literal["predicate"] = "predicate"
+    asset: str
+    measure: Literal["trailing_return"] = "trailing_return"
+    lookback_bars: int = Field(ge=1)
+    operator: Literal["gt", "gte", "lt", "lte"]
+    observed: Decimal | None
+    threshold: Decimal
+    outcome: bool
+    branch: Literal["then", "otherwise"]
 
 
 class SelectionAssetOutcome(EvidenceModel):
@@ -131,6 +145,7 @@ class FinalTargetsEvidence(EvidenceModel):
 
 DecisionEvidence = Annotated[
     FilterEvidence
+    | PredicateEvidence
     | SelectionEvidence
     | RandomSelectionEvidence
     | FallbackEvidence
@@ -175,6 +190,7 @@ class DecisionEventSummary(EvidenceModel):
     ]
     kind: Literal[
         "filter",
+        "predicate",
         "selection",
         "random_selection",
         "fallback",

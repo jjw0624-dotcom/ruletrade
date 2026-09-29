@@ -76,6 +76,20 @@ class ProjectionGraph {
       connections.push(connection);
       this.incoming.set(connection.target.component_id, connections);
     }
+    for (const component of strategy.graph.components) {
+      if (component.primitive !== "rule@1") continue;
+      const action = component.actions[0];
+      if (!action || typeof action !== "object" || Array.isArray(action)) continue;
+      const targets = action.targets;
+      if (!targets || typeof targets !== "object" || Array.isArray(targets)
+        || targets.kind !== "component_output" || typeof targets.component_id !== "string" || typeof targets.port !== "string") continue;
+      const connections = this.incoming.get(component.id) ?? [];
+      connections.push({
+        source: { component_id: targets.component_id, port: targets.port },
+        target: { component_id: component.id, port: "targets" },
+      });
+      this.incoming.set(component.id, connections);
+    }
   }
 
   component(id: string): CanonicalComponent | undefined { return this.components.get(id); }
@@ -197,7 +211,8 @@ function projectSemanticStrategyUnsafe(
   registry: RegistryPayload,
 ): SemanticStrategyProjection {
   const graph = new ProjectionGraph(strategy);
-  const rebalance = graph.uniquePrimitive("rebalance@1");
+  const rebalance = graph.uniquePrimitive("rebalance@1")
+    ?? strategy.graph.components.find((item) => item.primitive === "rule@1");
   if (!rebalance) throw new Error("A supported strategy needs one rebalance component");
   const rebalanceSchedule = scheduleForTarget(graph, rebalance.id);
   const portfolio = graph.uniquePrimitive("portfolio@1");

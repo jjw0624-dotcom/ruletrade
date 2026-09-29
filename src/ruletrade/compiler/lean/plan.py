@@ -68,6 +68,16 @@ class LeanRebalance:
     sleeve_ids: tuple[str, ...]
     snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
     exit_state_ids: tuple[str, ...] = ()
+    predicate: "LeanTrailingReturnPredicate | None" = None
+
+
+@dataclass(frozen=True)
+class LeanTrailingReturnPredicate:
+    component_id: str
+    asset: str
+    lookback_bars: int
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
 
 
 @dataclass(frozen=True)

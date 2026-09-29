@@ -78,6 +78,13 @@ describe("Feedback Navigation and Result Events v1", () => {
     expect(markup).toContain("Fallback");
   });
 
+  it("keeps control Predicate events distinct from candidate Eligibility", () => {
+    const predicate = projectResultEvents("run-daily", [summary(1, "predicate")]);
+    const cooldown = projectResultEvents("run-daily", [summary(2, "cooldown")]);
+    expect(predicate[0].category).toBe("condition");
+    expect(cooldown[0].category).toBe("eligibility");
+  });
+
   it("selects one persisted Decision detail with GET only and no execution or experiment request", async () => {
     const calls: Array<{ url: string; method?: string }> = [];
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {

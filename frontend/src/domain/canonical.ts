@@ -24,6 +24,7 @@ export interface CanonicalComponent {
   config: Record<string, JsonValue>;
   condition: JsonValue;
   actions: JsonValue[];
+  else_actions?: JsonValue[];
 }
 
 export interface PortReference {

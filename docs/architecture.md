@@ -189,6 +189,13 @@ Capabilities carry exact eligible targets, current values, choices, and useful
 constraints. Registry and domain validation remain authoritative; the frontend
 owns wording and temporary form state, not semantic eligibility.
 
+Executable Predicate v1 activates the existing Canonical `rule@1` model for
+one restricted market control: explicit asset trailing return over completed
+daily observations compared with a scalar percentage, guarding one existing
+rebalance. Blocky projects it as IF → THEN Rebalance; an omitted OTHERWISE
+explicitly retains holdings. Eligibility and selection fallback remain separate
+semantics. See [Executable Predicate v1](executable-predicate-v1.md).
+
 Arbitrary primitive CRUD, free edge wiring, generic Group CRUD, unrestricted
 multiple conditions, and arbitrary Cooldown placement are not supported. See the
 [current authoring contract](authoring.md).

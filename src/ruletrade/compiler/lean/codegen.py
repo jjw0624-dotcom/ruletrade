@@ -27,7 +27,7 @@ def _csharp_string(value: str) -> str:
 
 
 def _decimal_literal(value: Decimal) -> str:
-    literal = f'{format(value.normalize(), "f")}m'
+    literal = f"{format(value.normalize(), 'f')}m"
     # Member access binds before unary minus in C#. Parenthesize negative literals
     # so both arithmetic use and generated ``literal.ToString(...)`` remain numeric.
     return f"({literal})" if value < 0 else literal
@@ -50,7 +50,7 @@ def _seed_expression(plan: LeanPlan, selection: LeanRandomSelection) -> str:
 def _random_helper_source() -> str:
     # This intentionally ports only the CPython operations used by
     # random.Random(seed).sample(pool, k): MT19937, getrandbits and _randbelow.
-    return r'''
+    return r"""
 internal static class RuleTradeRandom
 {
     public static ulong Seed(
@@ -194,7 +194,7 @@ internal static class RuleTradeRandom
             return value;
         }
     }
-}'''.strip()
+}""".strip()
 
 
 def generate_csharp(
@@ -211,12 +211,9 @@ def generate_csharp(
     momentum_selections = {item.id: item for item in plan.momentum_selections}
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
-    snapshot_indexes = {
-        snapshot.id: index for index, snapshot in enumerate(plan.target_snapshots)
-    }
-    cooldown_indexes = {
-        state.id: index for index, state in enumerate(plan.cooldown_states)
-    }
+    predicates = tuple(item.predicate for item in plan.rebalances if item.predicate is not None)
+    snapshot_indexes = {snapshot.id: index for index, snapshot in enumerate(plan.target_snapshots)}
+    cooldown_indexes = {state.id: index for index, state in enumerate(plan.cooldown_states)}
     scheduled_events = tuple(
         sorted(
             (*plan.daily_events, *plan.monthly_events, *plan.quarterly_events),
@@ -228,7 +225,8 @@ def generate_csharp(
     )
     history_symbols = frozenset(
         symbol for selection in plan.momentum_selections for symbol in selection.symbols
-    )
+    ) | frozenset(item.asset for item in predicates)
+    needs_history = bool(history_symbols)
     has_subscription_only_assets = history_symbols != frozenset(
         subscription.symbol for subscription in plan.subscriptions
     )
@@ -241,7 +239,7 @@ def generate_csharp(
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
     ]
-    if plan.momentum_selections:
+    if needs_history:
         lines.append("using QuantConnect.Indicators;")
     if plan.random_selections:
         lines[4:4] = [
@@ -249,15 +247,23 @@ def generate_csharp(
             "using System.Text;",
             "using System.Text.Json;",
         ]
-    lines.extend([
-        "",
-        f"public class {settings.algorithm_class} : QCAlgorithm",
-        "{",
-        "    private readonly Dictionary<string, Symbol> _symbols = new Dictionary<string, Symbol>();",
-        "    private int _decisionEvidenceSequence;",
-    ])
-    if plan.momentum_selections:
-        history_capacity = max(item.lookback_bars for item in plan.momentum_selections) + 1
+    lines.extend(
+        [
+            "",
+            f"public class {settings.algorithm_class} : QCAlgorithm",
+            "{",
+            "    private readonly Dictionary<string, Symbol> _symbols = new Dictionary<string, Symbol>();",
+            "    private int _decisionEvidenceSequence;",
+        ]
+    )
+    if needs_history:
+        history_capacity = (
+            max(
+                [item.lookback_bars for item in plan.momentum_selections]
+                + [item.lookback_bars for item in predicates]
+            )
+            + 1
+        )
         lines.append(
             "    private readonly Dictionary<string, RollingWindow<decimal>> "
             "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
@@ -304,7 +310,7 @@ def generate_csharp(
     )
     for subscription_index, subscription in enumerate(plan.subscriptions):
         ticker = _csharp_string(subscription.symbol)
-        if plan.momentum_selections:
+        if needs_history:
             security_variable = f"security{subscription_index}"
             lines.extend(
                 (
@@ -315,13 +321,15 @@ def generate_csharp(
             )
             if subscription.symbol in history_symbols:
                 lines.append(
-                    f"        _dailyCloses[{ticker}] = "
-                    f"new RollingWindow<decimal>({history_capacity});"
+                    f"        _dailyCloses[{ticker}] = new RollingWindow<decimal>({history_capacity});"
                 )
         else:
             lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
-    if plan.momentum_selections:
-        warm_up_bars = max(item.lookback_bars for item in plan.momentum_selections)
+    if needs_history:
+        warm_up_bars = max(
+            [item.lookback_bars for item in plan.momentum_selections]
+            + [item.lookback_bars for item in predicates]
+        )
         lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
     for index, event in enumerate(scheduled_events):
         anchor = _csharp_string(event.anchor_symbol)
@@ -340,34 +348,34 @@ def generate_csharp(
             "",
             "    private void EmitDecisionEvidence(string session, string phase, string kind, params string[] fields)",
             "    {",
-            "        if (fields.Length % 2 != 0) throw new ArgumentException(\"Evidence fields must be key/value pairs.\");",
+            '        if (fields.Length % 2 != 0) throw new ArgumentException("Evidence fields must be key/value pairs.");',
             "        _decisionEvidenceSequence++;",
             "        var parts = new List<string>",
             "        {",
-            "            \"sequence=\" + _decisionEvidenceSequence.ToString(CultureInfo.InvariantCulture),",
-            "            \"session=\" + Uri.EscapeDataString(session),",
-            "            \"phase=\" + Uri.EscapeDataString(phase),",
-            "            \"kind=\" + Uri.EscapeDataString(kind)",
+            '            "sequence=" + _decisionEvidenceSequence.ToString(CultureInfo.InvariantCulture),',
+            '            "session=" + Uri.EscapeDataString(session),',
+            '            "phase=" + Uri.EscapeDataString(phase),',
+            '            "kind=" + Uri.EscapeDataString(kind)',
             "        };",
             "        for (var index = 0; index < fields.Length; index += 2)",
             "        {",
-            "            parts.Add(Uri.EscapeDataString(fields[index]) + \"=\" + Uri.EscapeDataString(fields[index + 1] ?? \"\"));",
+            '            parts.Add(Uri.EscapeDataString(fields[index]) + "=" + Uri.EscapeDataString(fields[index + 1] ?? ""));',
             "        }",
-            "        Debug(\"RULETRADE_EVIDENCE_V2|\" + string.Join(\"|\", parts));",
+            '        Debug("RULETRADE_EVIDENCE_V2|" + string.Join("|", parts));',
             "    }",
             "",
             "    private static string EvidenceRanks(IEnumerable<string> ranked)",
             "    {",
-            "        return string.Join(\",\", ranked.Select((asset, index) => asset + \"=\" + (index + 1).ToString(CultureInfo.InvariantCulture)));",
+            '        return string.Join(",", ranked.Select((asset, index) => asset + "=" + (index + 1).ToString(CultureInfo.InvariantCulture)));',
             "    }",
             "",
             "    private static string EvidenceSelectionStops(IEnumerable<string> ranked, IEnumerable<string> candidates, bool primaryComplete, bool fallbackConfigured)",
             "    {",
             "        var candidateSet = new HashSet<string>(candidates, StringComparer.Ordinal);",
-            "        return string.Join(\",\", ranked.Select(asset =>",
+            '        return string.Join(",", ranked.Select(asset =>',
             "        {",
-            "            if (!candidateSet.Contains(asset)) return asset + \"=rank_cutoff\";",
-            "            if (!primaryComplete) return asset + (fallbackConfigured ? \"=fallback_replacement\" : \"=primary_selection_incomplete\");",
+            '            if (!candidateSet.Contains(asset)) return asset + "=rank_cutoff";',
+            '            if (!primaryComplete) return asset + (fallbackConfigured ? "=fallback_replacement" : "=primary_selection_incomplete");',
             "            return null;",
             "        }).Where(item => item != null));",
             "    }",
@@ -395,7 +403,7 @@ def generate_csharp(
         )
 
     lines.extend(("    public override void OnData(Slice slice)", "    {"))
-    if plan.momentum_selections:
+    if needs_history:
         if has_subscription_only_assets:
             tickers = ", ".join(_csharp_string(item) for item in sorted(history_symbols))
             lines.extend(
@@ -635,6 +643,28 @@ def generate_csharp(
         lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
+            if rebalance.predicate is not None:
+                predicate = rebalance.predicate
+                predicate_window = f"predicateWindow{event_index}_{rebalance_index}"
+                predicate_observed = f"predicateObserved{event_index}_{rebalance_index}"
+                predicate_outcome = f"predicateOutcome{event_index}_{rebalance_index}"
+                operator = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}[predicate.operator]
+                threshold = _decimal_literal(predicate.threshold)
+                lines.extend(
+                    (
+                        f"        var {predicate_window} = _dailyCloses[{_csharp_string(predicate.asset)}];",
+                        f"        decimal? {predicate_observed} = {predicate_window}.Count >= {predicate.lookback_bars + 1} && {predicate_window}[{predicate.lookback_bars}] != 0m",
+                        f"            ? {predicate_window}[0] / {predicate_window}[{predicate.lookback_bars}] - 1m : (decimal?)null;",
+                        f"        var {predicate_outcome} = {predicate_observed}.HasValue && {predicate_observed}.Value {operator} {threshold};",
+                        '        EmitDecisionEvidence(eventIdentity, "evaluation", "predicate",',
+                        f'            "predicate_component", {_csharp_string(predicate.component_id)}, "predicate_field", "condition",',
+                        f'            "asset", {_csharp_string(predicate.asset)}, "measure", "trailing_return", "lookback_bars", "{predicate.lookback_bars}",',
+                        f'            "operator", "{predicate.operator}", "observed", {predicate_observed}.HasValue ? {predicate_observed}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+                        f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "outcome", {predicate_outcome} ? "true" : "false",',
+                        f'            "branch", {predicate_outcome} ? "then" : "otherwise");',
+                        f"        if (!{predicate_outcome}) return;",
+                    )
+                )
             targets_variable = f"targets{event_index}_{rebalance_index}"
             selected_variable = f"selectedTickers{event_index}_{rebalance_index}"
             lines.extend(
@@ -675,9 +705,7 @@ def generate_csharp(
                 for allocation in rebalance.snapshot_allocations:
                     snapshot_index = snapshot_indexes[allocation.snapshot_id]
                     factor = _decimal_literal(allocation.factor)
-                    sleeve_component = _csharp_string(
-                        allocation.source_sleeve_component_id
-                    )
+                    sleeve_component = _csharp_string(allocation.source_sleeve_component_id)
                     lines.extend(
                         (
                             f"        foreach (var item in _targetSnapshot{snapshot_index})",
@@ -784,8 +812,12 @@ def generate_csharp(
                                 if item.id == selection.cooldown_state_id
                             )
                             state_index = cooldown_indexes[state.id]
-                            candidate_variable = f"signalCandidate{event_index}_{rebalance_index}_{sleeve_index}"
-                            cooldown_eligible = f"cooldownEligible{event_index}_{rebalance_index}_{sleeve_index}"
+                            candidate_variable = (
+                                f"signalCandidate{event_index}_{rebalance_index}_{sleeve_index}"
+                            )
+                            cooldown_eligible = (
+                                f"cooldownEligible{event_index}_{rebalance_index}_{sleeve_index}"
+                            )
                             component_id = _csharp_string(state.component_id)
                             lines.extend(
                                 (
@@ -831,14 +863,10 @@ def generate_csharp(
                                 )
                             )
                         eligible_count_variable = (
-                            ranking_input
-                            if selection.filter_threshold is not None
-                            else variable
+                            ranking_input if selection.filter_threshold is not None else variable
                         )
                         if selection.filter_threshold is not None:
-                            insufficient_decision = (
-                                "insufficient" if sleeve.fallback_symbols else "skipped"
-                            )
+                            insufficient_decision = "insufficient" if sleeve.fallback_symbols else "skipped"
                             lines.extend(
                                 (
                                     '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -864,9 +892,7 @@ def generate_csharp(
                             )
                         if sleeve.fallback_symbols:
                             fallback_symbol = _csharp_string(sleeve.fallback_symbols[0])
-                            fallback_component = _csharp_string(
-                                sleeve.fallback_component_id or ""
-                            )
+                            fallback_component = _csharp_string(sleeve.fallback_component_id or "")
                             fallback_activated = (
                                 f"fallbackActivated{event_index}_{rebalance_index}_{sleeve_index}"
                             )
@@ -901,10 +927,7 @@ def generate_csharp(
                                     "        }",
                                 )
                             )
-                        if (
-                            selection.filter_threshold is None
-                            and selection.cooldown_state_id is None
-                        ):
+                        if selection.filter_threshold is None and selection.cooldown_state_id is None:
                             lines.extend(
                                 (
                                     '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -928,13 +951,10 @@ def generate_csharp(
                     lines.append(f"        {selected_variable}.AddRange({variable});")
                 weight = _decimal_literal(sleeve.total_weight)
                 cooldown_selection = (
-                    momentum_selections.get(sleeve.selection_id)
-                    if sleeve.selection_id is not None
-                    else None
+                    momentum_selections.get(sleeve.selection_id) if sleeve.selection_id is not None else None
                 )
                 has_cooldown = (
-                    cooldown_selection is not None
-                    and cooldown_selection.cooldown_state_id is not None
+                    cooldown_selection is not None and cooldown_selection.cooldown_state_id is not None
                 )
                 if has_cooldown:
                     lines.extend((f"        if ({variable}.Count > 0)", "        {"))
@@ -958,18 +978,10 @@ def generate_csharp(
                 if sleeve.source_sleeve_component_id is not None:
                     if has_cooldown:
                         raise ValueError("cooldown v0 does not support portfolio sleeves")
-                    local_total = _decimal_literal(
-                        sleeve.local_total_weight or Decimal(1)
-                    )
-                    allocation = _decimal_literal(
-                        sleeve.source_allocation or Decimal(1)
-                    )
-                    local_weight_variable = (
-                        f"localWeight{event_index}_{rebalance_index}_{sleeve_index}"
-                    )
-                    sleeve_component = _csharp_string(
-                        sleeve.source_sleeve_component_id
-                    )
+                    local_total = _decimal_literal(sleeve.local_total_weight or Decimal(1))
+                    allocation = _decimal_literal(sleeve.source_allocation or Decimal(1))
+                    local_weight_variable = f"localWeight{event_index}_{rebalance_index}_{sleeve_index}"
+                    sleeve_component = _csharp_string(sleeve.source_sleeve_component_id)
                     lines.extend(
                         (
                             f"        var {local_weight_variable} = {local_total} / {variable}.Count();",
@@ -1001,7 +1013,7 @@ def generate_csharp(
                         f"            var hasTarget = {targets_variable}.TryGetValue(_symbols[ticker], out var newTarget) && newTarget > 0m;",
                         "            if (hadTarget && !hasTarget)",
                         "            {",
-                        f"                var oldExit = _lastExitDate{state_index}.TryGetValue(ticker, out var priorExit) ? priorExit : \"none\";",
+                        f'                var oldExit = _lastExitDate{state_index}.TryGetValue(ticker, out var priorExit) ? priorExit : "none";',
                         f"                _lastExitSession{state_index}[ticker] = _tradingSessionIndex;",
                         f"                _lastExitDate{state_index}[ticker] = eventIdentity;",
                         f'                Debug("RULETRADE_STATE|" + eventIdentity + "|component=" + {component_id}',
@@ -1016,8 +1028,7 @@ def generate_csharp(
                     )
                 )
             final_selected_expression = (
-                f"{targets_variable}.Where(item => item.Value != 0m)"
-                ".Select(item => item.Key.Value)"
+                f"{targets_variable}.Where(item => item.Value != 0m).Select(item => item.Key.Value)"
                 if has_source_sleeves
                 else selected_variable
             )
@@ -1034,9 +1045,7 @@ def generate_csharp(
                         f"        foreach (var target in {targets_variable}) "
                         "SetHoldings(target.Key, target.Value);"
                     ),
-                    (
-                        '        Debug("RULETRADE_TARGETS|" + eventIdentity'
-                    ),
+                    ('        Debug("RULETRADE_TARGETS|" + eventIdentity'),
                     (
                         f'            + "|selected=" + string.Join(",", '
                         + (

@@ -132,6 +132,25 @@ describe("production Blocky program boundary", () => {
     expect(markup).not.toContain(">Rank<");
   });
 
+  it("exposes executable Predicate IF separately from draft-only IF / Otherwise", () => {
+    const entries = blockyProgramToolboxEntries(
+      projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry),
+      { ...capabilities, predicate_add_targets: ["rebalance"], predicate_remove_targets: [] },
+      null,
+    );
+    const executable = entries.find((item) => item.id === "if")!;
+    const twoBranch = entries.find((item) => item.id === "if-otherwise")!;
+    expect(executable).toMatchObject({ status: "available", predicateTarget: "rebalance", draftKind: null });
+    expect(twoBranch).toMatchObject({ status: "draftable", draftKind: "if_otherwise" });
+    const markup = renderToStaticMarkup(
+      <StrategyEditorProvider bootstrap={filterBootstrap} initialView="blocky">
+        <BlockyProgramToolbox entries={entries} structural={structural} />
+      </StrategyEditorProvider>,
+    );
+    expect(markup).toContain("Run the current rebalance only when a market trailing-return predicate passes.");
+    expect(markup).toContain("Two executable branches are not part of Predicate v1.");
+  });
+
   it("opens Inspector only for native Blockly clicks, not selection or drag events", () => {
     expect(blockyClickIntent({ type: Blockly.Events.CLICK, targetType: Blockly.Events.ClickTarget.BLOCK, blockId: "selection" })).toEqual({ kind: "select", blockId: "selection" });
     expect(blockyClickIntent({ type: Blockly.Events.CLICK, targetType: Blockly.Events.ClickTarget.WORKSPACE })).toEqual({ kind: "clear" });

@@ -49,7 +49,7 @@ export function aiContext(strategy: CanonicalStrategyV1, registry: RegistryPaylo
   const projection = projectConceptualFlow(strategy, registry);
   const selected = strategy.graph.components.find((item) => item.id === selection?.componentId) ?? null;
   return { format: "ruletrade.ai-context/v0", revision_id: revisionId, working_copy: true,
-    explanation: projection.unsupportedReason ? projection.unsupportedReason : projection.groups.map((group) => `${group.label}: ${group.assets.join(", ")}; ${group.choose?.label ?? "hold assets"}; ${group.timing ?? "scheduled"}`).join("\n"),
+    explanation: projection.unsupportedReason ? projection.unsupportedReason : [projection.predicate ? `Control: IF ${projection.predicate.label}, execute the rebalance; otherwise retain holdings.` : null, ...projection.groups.map((group) => `${group.label}: ${group.assets.join(", ")}; ${group.choose?.label ?? "hold assets"}; ${group.timing ?? "scheduled"}`)].filter(Boolean).join("\n"),
     canonical: strategy, selected: selection ? { ...selection, component: selected, value: selection.fieldPath?.startsWith("config.") ? selected?.config[selection.fieldPath.slice(7)] : null } : null,
     authoring_capabilities: capabilities, decision_time_evidence: decision ?? null,
     instructions: "Suggest exactly one operation using the available target IDs. Return JSON: {\"format\":\"ruletrade.change-proposal/v0\",\"operations\":[{\"kind\":\"update_qualification_threshold\",\"component_id\":\"EXACT_ID\",\"threshold\":\"0.05\"}]}. Do not return Canonical, executable C#, or unsupported graph edits. The user will preview and apply the change in RuleTrade.",

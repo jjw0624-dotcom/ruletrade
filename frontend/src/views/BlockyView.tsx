@@ -274,6 +274,14 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   };
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    const predicateTarget = event.dataTransfer.getData("application/x-ruletrade-predicate");
+    if (predicateTarget) {
+      void structural.apply({
+        kind: "add_predicate", rebalance_component_id: predicateTarget, asset: "SPY",
+        lookback_bars: 126, operator: "gt", threshold: "0",
+      }, semanticSelection("rule", predicateTarget, { fieldPath: "condition" }));
+      return;
+    }
     const control = event.dataTransfer.getData("application/x-ruletrade-blocky-control");
     if (control) {
       try {
@@ -298,7 +306,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     return ok;
   };
 
-  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
+  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control") || event.dataTransfer.types.includes("application/x-ruletrade-predicate")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />

@@ -6,7 +6,15 @@ from decimal import Decimal
 
 from ruletrade.hashing import strategy_hash
 from ruletrade.ir import strategy as strategy_ir
-from ruletrade.strategy.v1.models import CanonicalStrategyV1, Component
+from ruletrade.strategy.v1.models import (
+    CanonicalStrategyV1,
+    ComparisonExpression,
+    Component,
+    ComponentOutputExpression,
+    IndicatorExpression,
+    LiteralExpression,
+    RebalanceAction,
+)
 from ruletrade.strategy.v1.randomness import canonical_parameter_bindings_json
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveRegistry
 
@@ -28,6 +36,7 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "portfolio.sleeve",
         "portfolio.compose",
         "effect.rebalance",
+        "rule.condition_actions",
     }
 )
 
@@ -47,9 +56,9 @@ def desugar_strategy(
     asset_sets = {definition.id: tuple(definition.assets) for definition in strategy.definitions.asset_sets}
     inputs: dict[tuple[str, str], list[str]] = {}
     for connection in strategy.graph.connections:
-        inputs.setdefault(
-            (connection.target.component_id, connection.target.port), []
-        ).append(connection.source.component_id)
+        inputs.setdefault((connection.target.component_id, connection.target.port), []).append(
+            connection.source.component_id
+        )
     implementations = {
         component.id: registry.get(component.primitive).implementation_id
         for component in strategy.graph.components
@@ -69,7 +78,9 @@ def desugar_strategy(
             f"unsupported Strategy IR v0 primitive implementations: {', '.join(unsupported)}"
         )
     if strategy.definitions.state:
-        raise StrategyDesugaringError("Strategy IR v0 does not support state definitions")
+        raise StrategyDesugaringError(
+            "rule.condition_actions predicate v1 does not support state definitions"
+        )
 
     def config(component: Component) -> dict[str, object]:
         return registry.resolve_config(component.primitive, component.config)
@@ -195,9 +206,7 @@ def desugar_strategy(
             primary_id = input_id(component, "primary")
             primary_component = components[primary_id]
             if implementations[primary_id] != "allocation.equal_weight":
-                raise StrategyDesugaringError(
-                    "fallback v0 primary must be equal-weight targets"
-                )
+                raise StrategyDesugaringError("fallback v0 primary must be equal-weight targets")
             reference = str(resolved["fallback_asset_set_ref"])
             fallback_symbols = asset_sets[reference]
             if len(fallback_symbols) != 1:
@@ -252,10 +261,7 @@ def desugar_strategy(
                     provenance=provenance,
                 )
         elif implementation == "portfolio.compose":
-            sleeve_ids = tuple(
-                sleeve_outputs.get(item, item)
-                for item in input_ids(component, "sleeves")
-            )
+            sleeve_ids = tuple(sleeve_outputs.get(item, item) for item in input_ids(component, "sleeves"))
             if len(sleeve_ids) != 2:
                 raise StrategyDesugaringError("portfolio v0 requires exactly two sleeves")
             operation = strategy_ir.MergeTargetsOp(
@@ -281,15 +287,44 @@ def desugar_strategy(
                         id=observed_targets,
                         targets=targets,
                         last_exit_state=cooldown_states[cooldown_id],
-                        provenance=strategy_ir.SourceProvenance(
-                            component_id=cooldown_id
-                        ),
+                        provenance=strategy_ir.SourceProvenance(component_id=cooldown_id),
                     )
                 )
                 targets = observed_targets
             operation = strategy_ir.RebalanceOp(
                 id=component.id,
                 targets=targets,
+                provenance=provenance,
+            )
+        elif implementation == "rule.condition_actions":
+            condition = component.condition
+            if (
+                not isinstance(condition, ComparisonExpression)
+                or condition.operator not in {"gt", "gte", "lt", "lte"}
+                or not isinstance(condition.left, IndicatorExpression)
+                or condition.left.indicator_id != "trailing_return_indicator@1"
+                or not isinstance(condition.left.asset, LiteralExpression)
+                or condition.left.asset.value_type.value != "asset"
+                or not isinstance(condition.right, LiteralExpression)
+                or condition.right.value_type.value not in {"percentage", "decimal"}
+                or len(component.actions) != 1
+                or component.else_actions
+                or not isinstance(component.actions[0], RebalanceAction)
+                or not isinstance(component.actions[0].targets, ComponentOutputExpression)
+            ):
+                raise StrategyDesugaringError(
+                    "predicate v1 requires trailing-return comparison and one THEN rebalance"
+                )
+            target_ref = component.actions[0].targets
+            if target_ref.port != "targets":
+                raise StrategyDesugaringError("predicate rebalance must reference a targets output")
+            operation = strategy_ir.PredicateRebalanceOp(
+                id=component.id,
+                asset=str(condition.left.asset.value),
+                lookback_bars=int(condition.left.parameters["lookback_bars"]),
+                operator=typing.cast(typing.Literal["gt", "gte", "lt", "lte"], condition.operator),
+                threshold=Decimal(str(condition.right.value)),
+                targets=target_ref.component_id,
                 provenance=provenance,
             )
         else:  # guarded by SUPPORTED_SOURCE_IMPLEMENTATIONS
@@ -318,9 +353,6 @@ def _source_depends_on(
     if component_id == ancestor_id:
         return True
     upstream = {
-        source
-        for (target, _), sources in inputs.items()
-        if target == component_id
-        for source in sources
+        source for (target, _), sources in inputs.items() if target == component_id for source in sources
     }
     return any(_source_depends_on(source, ancestor_id, inputs) for source in upstream)

@@ -161,6 +161,14 @@ class IndicatorExpression(FrozenModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
+class ComponentOutputExpression(FrozenModel):
+    """A typed reference to another Canonical component's output port."""
+
+    kind: Literal["component_output"] = "component_output"
+    component_id: Identifier
+    port: Annotated[str, Field(min_length=1, max_length=100)]
+
+
 class ArithmeticExpression(FrozenModel):
     kind: Literal["arithmetic"] = "arithmetic"
     operator: Literal["add", "subtract", "multiply", "divide"]
@@ -193,6 +201,7 @@ Expression = Annotated[
     | PriceExpression
     | AverageCostExpression
     | IndicatorExpression
+    | ComponentOutputExpression
     | ArithmeticExpression
     | ComparisonExpression
     | BooleanExpression
@@ -269,6 +278,7 @@ class Component(FrozenModel):
     config: dict[str, Any] = Field(default_factory=dict)
     condition: Expression | None = None
     actions: tuple[Action, ...] = ()
+    else_actions: tuple[Action, ...] = Field(default=(), exclude_if=lambda value: not value)
 
 
 class PortReference(FrozenModel):
@@ -312,6 +322,7 @@ for _model in (
     PriceExpression,
     AverageCostExpression,
     IndicatorExpression,
+    ComponentOutputExpression,
     ArithmeticExpression,
     ComparisonExpression,
     BooleanExpression,

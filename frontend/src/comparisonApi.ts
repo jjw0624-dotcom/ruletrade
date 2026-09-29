@@ -1,7 +1,7 @@
 import type { DecisionEventDetail } from "./decisionEvidenceApi";
 import { readApiErrorDetail } from "./apiError";
 
-export type BehaviorDifferenceKind = "event_presence_changed" | "qualification_changed" | "rank_changed" | "candidate_membership_changed" | "primary_selection_changed" | "fallback_activation_changed" | "cooldown_eligibility_changed" | "final_selection_changed" | "snapshot_targets_changed" | "snapshot_usage_changed" | "sleeve_contribution_changed" | "state_mutation_changed" | "final_target_changed";
+export type BehaviorDifferenceKind = "event_presence_changed" | "predicate_branch_changed" | "qualification_changed" | "rank_changed" | "candidate_membership_changed" | "primary_selection_changed" | "fallback_activation_changed" | "cooldown_eligibility_changed" | "final_selection_changed" | "snapshot_targets_changed" | "snapshot_usage_changed" | "sleeve_contribution_changed" | "state_mutation_changed" | "final_target_changed";
 export interface BehaviorDifference { key: string; presence: "both" | "original_only" | "candidate_only"; kinds: BehaviorDifferenceKind[]; original_event: DecisionEventDetail | null; candidate_event: DecisionEventDetail | null }
 export interface DecisionContextDiff { session_id: string; differences: BehaviorDifference[] }
 export interface MetricDiff<T> { original: T; candidate: T; delta: T }

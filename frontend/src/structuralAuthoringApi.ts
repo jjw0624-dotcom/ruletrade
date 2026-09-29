@@ -42,6 +42,8 @@ export interface StructuralAuthoringCapabilities {
   }>;
   cooldown_duration_targets: Array<IntegerCapability>;
   fallback_asset_set_targets: Array<{ component_id: string; asset_set_id: string; choices: string[] }>;
+  predicate_add_targets?: string[];
+  predicate_remove_targets?: string[];
 }
 
 interface IntegerCapability {
@@ -80,7 +82,10 @@ export type StructuralAuthoringOperation =
   | { kind: "update_sleeve_allocations"; allocations: Array<{ component_id: string; allocation: string }> }
   | { kind: "update_schedule"; component_id: string; cadence: "daily" | "monthly" | "quarterly"; day?: number | null }
   | { kind: "update_cooldown_duration"; component_id: string; duration: number }
-  | { kind: "update_fallback_asset_set"; component_id: string; asset_set_id: string };
+  | { kind: "update_fallback_asset_set"; component_id: string; asset_set_id: string }
+  | { kind: "add_predicate"; rebalance_component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
+  | { kind: "update_predicate"; component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
+  | { kind: "remove_predicate"; component_id: string };
 
 export interface StructuralAuthoringErrorDetail {
   code: string;

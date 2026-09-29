@@ -196,6 +196,21 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 implementation_id="market.trailing_return",
             ),
             PrimitiveSpec(
+                id="trailing_return_indicator@1",
+                category=PrimitiveCategory.INDICATOR,
+                fields=(
+                    PrimitiveFieldSpec(
+                        "lookback_bars",
+                        ValueType.INTEGER,
+                        minimum=Decimal("1"),
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.GENERATED,
+                implementation_id="market.trailing_return_indicator",
+                result_type=ValueType.PERCENTAGE,
+            ),
+            PrimitiveSpec(
                 id="filter@1",
                 category=PrimitiveCategory.TRANSFORM,
                 inputs=(PortSpec("scores", ValueType.ASSET_SCORES),),
@@ -237,9 +252,7 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 category=PrimitiveCategory.TRANSFORM,
                 inputs=(PortSpec("ranked", ValueType.RANKED_ASSETS),),
                 outputs=(PortSpec("selected", ValueType.ASSET_SET),),
-                fields=(
-                    PrimitiveFieldSpec("count", ValueType.INTEGER, minimum=Decimal("1")),
-                ),
+                fields=(PrimitiveFieldSpec("count", ValueType.INTEGER, minimum=Decimal("1")),),
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.GENERATED,
                 implementation_id="selection.top_n",

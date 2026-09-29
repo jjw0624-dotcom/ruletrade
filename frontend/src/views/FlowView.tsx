@@ -34,6 +34,7 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
     if(group.choose.fallbackComponentId){const id=`fallback:${group.id}`;nodes.push(node(id,x+220,y+(group.choose.filterComponentId?390:260),"Fallback",group.choose.otherwise??"Alternative destination",semanticSelection("fallback",group.choose.fallbackComponentId,{groupId:group.id}),"fallback"));edges.push(edge(selectId,id,"if incomplete"));}
   });
   if(projection.rebalanceScheduleComponentId){const id="schedule";nodes.push(node(id,360,Math.max(...nodes.map(item=>item.position.y))+150,"Rebalance",projection.rebalance??"Schedule",semanticSelection("schedule",projection.rebalanceScheduleComponentId),"schedule"));edges.push(edge(rootId,id,"when"));}
+  if(projection.predicate){const id="predicate";nodes.push(node(id,620,150,"Market condition",projection.predicate.label,semanticSelection("rule",projection.predicate.componentId,{fieldPath:"condition"}),"qualification"));edges.push(edge(id,rootId,"allows rebalance"));}
   return {nodes,edges};
 }
 
