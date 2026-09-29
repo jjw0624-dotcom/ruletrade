@@ -10,21 +10,24 @@ import { useStrategyEditor } from "../store/editorStore";
 import { semanticCompositionApi, type SemanticCompositionProjection } from "../semanticCompositionApi";
 import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
 import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { classifyWorkingProgram, hasUnresolvedLogicDraft, logicWorkingProgramSignature, type LogicWorkingProgram } from "../domain/logicDraft";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
   zoom: { controls: true, wheel: true, startScale: 1, minScale: .45, maxScale: 1.8, scaleSpeed: 1.12 },
 } as const;
-export const blocklyInjectionOptions = { trashcan: false, sounds: false, ...blocklyViewportOptions } as const;
+export const blocklyInjectionOptions = { trashcan: true, sounds: false, maxUndo: 100, ...blocklyViewportOptions } as const;
 
 interface BlockSemanticData {
+  workingId: string;
+  source: "canonical" | "draft";
+  kind: string;
   selection?: SemanticSelection;
   relatedComponentIds?: string[];
-  draftId?: string;
 }
 
 let registered = false;
-function registerBlocks() {
+export function registerBlockyProgramBlocks() {
   if (registered) return;
   registered = true;
   Blockly.defineBlocksWithJsonArray([
@@ -38,7 +41,8 @@ function registerBlocks() {
     { type: "rt_allocation", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Allocate capital" }], previousStatement: null, nextStatement: null, colour: 120 },
     { type: "rt_action", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Rebalance" }], previousStatement: null, nextStatement: null, colour: 20 },
     { type: "rt_control", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 300 },
-    { type: "rt_draft_if", message0: "DRAFT IF %1", args0: [{ type: "field_input", name: "PREDICATE", text: "describe predicate" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if", message0: "DRAFT IF %1", args0: [{ type: "field_input", name: "PREDICATE", text: "set condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if_else", message0: "DRAFT IF %1", args0: [{ type: "field_input", name: "PREDICATE", text: "set condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
   ]);
 }
 
@@ -47,6 +51,29 @@ function parseData(block: Blockly.Block): BlockSemanticData | null {
   try { return JSON.parse(block.data) as BlockSemanticData; } catch { return null; }
 }
 function setData(block: Blockly.Block, value: BlockSemanticData) { block.data = JSON.stringify(value); }
+
+export function projectWorkingProgram(canvas: Blockly.Workspace): LogicWorkingProgram {
+  const blocks = canvas.getAllBlocks(false).flatMap((block) => {
+    const data = parseData(block);
+    if (!data || block.type === "rt_context") return [];
+    const parent = block.getParent();
+    const parentData = parent ? parseData(parent) : null;
+    const input = parent?.inputList.find((item) => item.connection?.targetBlock() === block)?.name
+      ?? (parent?.getNextBlock() === block ? "NEXT" : null);
+    const next = block.getNextBlock();
+    return [{
+      workingId: data.workingId,
+      blockType: block.type,
+      source: data.source,
+      componentId: data.selection?.componentId ?? null,
+      parentWorkingId: parentData?.workingId ?? null,
+      inputName: input,
+      nextWorkingId: next ? parseData(next)?.workingId ?? null : null,
+      summary: data.source === "draft" ? String(block.getFieldValue("PREDICATE") ?? "") : null,
+    }];
+  });
+  return { blocks };
+}
 
 function editableNumber(block: Blockly.BlockSvg, field: string, value: number, apply: (value: number) => Promise<boolean>, busy: MutableRefObject<boolean>, rejected: () => void) {
   block.setFieldValue(String(value), field);
@@ -71,6 +98,9 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const busy = useRef(false);
   const positions = useRef(new Map<string, { x: number; y: number }>());
+  const baseline = useRef<LogicWorkingProgram>({ blocks: [] });
+  const initializing = useRef(false);
+  const snapshotQueued = useRef(false);
   const [projection, setProjection] = useState<SemanticCompositionProjection | null>(initialProjection);
   const [projectionError, setProjectionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -82,6 +112,16 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   const removable = semanticDeleteOperation(state.editor.selection, structural.capabilities);
   const live = useRef({ state, structural, dispatch });
   live.current = { state, structural, dispatch };
+
+  const publishWorkingProgram = (canvas: Blockly.WorkspaceSvg) => {
+    if (initializing.current) return;
+    const snapshot = projectWorkingProgram(canvas);
+    const status = classifyWorkingProgram(snapshot, baseline.current);
+    const current = live.current.state.editor.logicDraft;
+    if (current.status === status
+      && logicWorkingProgramSignature(current.workingProgram ?? { blocks: [] }) === logicWorkingProgramSignature(status === "clean" ? { blocks: [] } : snapshot)) return;
+    live.current.dispatch({ type: "set_logic_working_program", program: status === "clean" ? null : snapshot, status });
+  };
 
   useEffect(() => {
     if (initialProjection) { setProjection(initialProjection); return; }
@@ -95,18 +135,33 @@ export function BlockyView({ structural, initialProjection = null }: { structura
 
   useEffect(() => {
     if (!host.current) return;
-    registerBlocks();
+    registerBlockyProgramBlocks();
     const canvas = Blockly.inject(host.current, blocklyInjectionOptions);
     workspace.current = canvas;
     const listener = (event: Blockly.Events.Abstract) => {
-      if (event.workspaceId !== canvas.id || event.type !== Blockly.Events.SELECTED) return;
-      const block = Blockly.common.getSelected();
-      if (!(block instanceof Blockly.Block) || block.workspace !== canvas) {
-        if (live.current.state.editor.selection) live.current.dispatch({ type: "select_semantic", selection: null });
+      if (event.workspaceId !== canvas.id || initializing.current) return;
+      if (event.type === Blockly.Events.SELECTED) {
+        const block = Blockly.common.getSelected();
+        if (!(block instanceof Blockly.Block) || block.workspace !== canvas) {
+          if (live.current.state.editor.selection) live.current.dispatch({ type: "select_semantic", selection: null });
+          if (live.current.state.editor.logicDraft.selectedDraftId) live.current.dispatch({ type: "select_logic_draft", draftId: null });
+          return;
+        }
+        const data = parseData(block);
+        if (data?.source === "draft") {
+          live.current.dispatch({ type: "select_logic_draft", draftId: data.workingId });
+        } else if (data?.selection && !sameSemanticSelection(data.selection, live.current.state.editor.selection)) {
+          if (live.current.state.editor.logicDraft.selectedDraftId) live.current.dispatch({ type: "select_logic_draft", draftId: null });
+          live.current.dispatch({ type: "select_semantic", selection: data.selection });
+        }
         return;
       }
-      const data = parseData(block);
-      if (data?.selection && !sameSemanticSelection(data.selection, live.current.state.editor.selection)) live.current.dispatch({ type: "select_semantic", selection: data.selection });
+      const structuralEventTypes = new Set<string>([Blockly.Events.BLOCK_CREATE, Blockly.Events.BLOCK_DELETE, Blockly.Events.BLOCK_MOVE, Blockly.Events.BLOCK_CHANGE]);
+      if (!structuralEventTypes.has(event.type)) return;
+      if (!snapshotQueued.current) {
+        snapshotQueued.current = true;
+        queueMicrotask(() => { snapshotQueued.current = false; publishWorkingProgram(canvas); });
+      }
     };
     canvas.addChangeListener(listener);
     return () => { canvas.removeChangeListener(listener); canvas.dispose(); workspace.current = null; };
@@ -117,27 +172,28 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     if (!canvas || !program) return;
     for (const block of canvas.getTopBlocks(false)) {
       const data = parseData(block);
-      const key = data?.draftId ?? data?.selection?.componentId;
+      const key = data?.workingId;
       if (key) positions.current.set(key, block.getRelativeToSurfaceXY());
     }
+    initializing.current = true;
     Blockly.Events.disable();
     try {
       canvas.clear();
       program.contexts.forEach((context, contextIndex) => {
         const contextBlock = canvas.newBlock("rt_context") as Blockly.BlockSvg;
         contextBlock.setFieldValue(`${context.label} · ${context.kind}`, "LABEL");
-        setData(contextBlock, { selection: context.selection });
+        setData(contextBlock, { workingId: context.id, source: "canonical", kind: "context", selection: context.selection });
         contextBlock.setDeletable(false); contextBlock.setMovable(true); contextBlock.contextMenu = false;
         contextBlock.initSvg(); contextBlock.render();
-        const contextPosition = positions.current.get(context.selection.componentId ?? context.id);
+        const contextPosition = positions.current.get(context.id);
         contextBlock.moveBy(contextPosition?.x ?? 40 + contextIndex * 360, contextPosition?.y ?? 30);
         context.scripts.forEach((script, scriptIndex) => {
           const trigger = canvas.newBlock("rt_trigger") as Blockly.BlockSvg;
           trigger.setFieldValue(script.triggerLabel.toLowerCase(), "LABEL");
-          setData(trigger, { selection: script.triggerSelection });
-          trigger.setDeletable(false); trigger.setMovable(true); trigger.contextMenu = false;
+          setData(trigger, { workingId: `trigger:${script.id}`, source: "canonical", kind: "trigger", selection: script.triggerSelection });
+          trigger.setDeletable(true); trigger.setMovable(true); trigger.contextMenu = true;
           trigger.initSvg(); trigger.render();
-          const triggerPosition = positions.current.get(script.triggerSelection.componentId ?? script.id);
+          const triggerPosition = positions.current.get(`trigger:${script.id}`);
           trigger.moveBy(triggerPosition?.x ?? 60 + contextIndex * 360, triggerPosition?.y ?? 85 + scriptIndex * 250);
           let prior = trigger;
           for (const statement of script.statements) {
@@ -147,21 +203,41 @@ export function BlockyView({ structural, initialProjection = null }: { structura
           }
         });
       });
-      state.editor.logicDraft.controls.forEach((draft, index) => {
-        const block = canvas.newBlock("rt_draft_if") as Blockly.BlockSvg;
-        block.setFieldValue(draft.predicateSummary || "describe predicate", "PREDICATE");
-        setData(block, { draftId: draft.draftId });
-        block.setDeletable(false); block.setMovable(true); block.contextMenu = false;
-        block.getField("PREDICATE")?.setValidator((value) => {
-          live.current.dispatch({ type: "update_logic_if_draft", draftId: draft.draftId, predicateSummary: String(value) });
-          return value;
-        });
-        block.initSvg(); block.render();
-        const point = positions.current.get(draft.draftId);
-        block.moveBy(point?.x ?? 80 + index * 40, point?.y ?? 380 + index * 35);
-      });
-    } finally { Blockly.Events.enable(); }
-  }, [program, state.editor.logicDraft.controls]);
+      baseline.current = projectWorkingProgram(canvas);
+      canvas.clearUndo();
+    } finally { Blockly.Events.enable(); initializing.current = false; }
+    dispatch({ type: "set_logic_working_program", program: null, status: "clean" });
+  }, [program, state.editor.logicDraft.restoreVersion, dispatch]);
+
+  useEffect(() => {
+    const canvas = workspace.current;
+    if (!canvas || state.editor.logicDraft.pendingControls.length === 0) return;
+    for (const request of state.editor.logicDraft.pendingControls) {
+      if (canvas.getAllBlocks(false).some((block) => parseData(block)?.workingId === request.draftId)) {
+        dispatch({ type: "ack_logic_control", draftId: request.draftId });
+        continue;
+      }
+      const block = canvas.newBlock(request.kind === "if" ? "rt_draft_if" : "rt_draft_if_else") as Blockly.BlockSvg;
+      setData(block, { workingId: request.draftId, source: "draft", kind: request.kind });
+      block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
+      block.initSvg(); block.render();
+      const metrics = canvas.getMetrics();
+      block.moveBy((metrics?.viewLeft ?? 0) + 70, (metrics?.viewTop ?? 0) + 70);
+      block.select();
+      dispatch({ type: "ack_logic_control", draftId: request.draftId });
+    }
+    queueMicrotask(() => publishWorkingProgram(canvas));
+  }, [state.editor.logicDraft.pendingControls, dispatch]);
+
+  useEffect(() => {
+    const canvas = workspace.current;
+    const request = state.editor.logicDraft.removalRequestId;
+    if (!canvas || !request) return;
+    const block = canvas.getAllBlocks(false).find((item) => parseData(item)?.workingId === request);
+    block?.dispose(true);
+    dispatch({ type: "ack_remove_logic_draft" });
+    queueMicrotask(() => publishWorkingProgram(canvas));
+  }, [state.editor.logicDraft.removalRequestId, dispatch]);
 
   useEffect(() => {
     const canvas = workspace.current;
@@ -204,7 +280,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />
-    {state.editor.logicDraft.controls.length > 0 && <aside className="logic-draft-status" aria-label="Unfinished Blocky edits"><strong>Draft logic</strong><span>Not part of the Strategy yet.</span>{state.editor.logicDraft.controls.map((draft) => <button key={draft.draftId} className="text-button danger" onClick={() => dispatch({ type: "discard_logic_draft", draftId: draft.draftId })}>Discard {draft.draftId}</button>)}</aside>}
+    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" role="status"><span>Unfinished Blocky changes</span><button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
     {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
       {pendingOption?.kind === "metric" && <MetricConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={async (lookback, count) => { const operation = composeRankedSelectionPipeline(state.canonical, pendingOption.targetComponentId, lookback, count); if (!operation) return false; const ok = await structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId: pendingOption.groupId })); if (ok) setPendingOption(null); return ok; }} />}
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}
@@ -220,8 +296,8 @@ export function BlockyView({ structural, initialProjection = null }: { structura
 function createModifierBlock(canvas: Blockly.WorkspaceSvg, modifier: ProgramModifier, structural: StructuralAuthoringController, busy: MutableRefObject<boolean>, rejected: () => void): Blockly.BlockSvg {
   const type = modifier.kind === "eligibility" ? "rt_eligibility" : modifier.kind === "constraint" ? "rt_constraint" : "rt_fallback";
   const block = canvas.newBlock(type) as Blockly.BlockSvg;
-  setData(block, { selection: modifier.selection, relatedComponentIds: modifier.ref.related_component_ids });
-  block.setDeletable(false); block.setMovable(false); block.contextMenu = false;
+  setData(block, { workingId: `modifier:${modifier.kind}:${modifier.selection.componentId ?? modifier.ref.primary_component_id}`, source: "canonical", kind: modifier.kind, selection: modifier.selection, relatedComponentIds: modifier.ref.related_component_ids });
+  block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
   if (modifier.kind === "fallback") block.setFieldValue(modifier.label, "LABEL");
   else if (modifier.value !== undefined) editableNumber(block, "VALUE", modifier.kind === "eligibility" ? modifier.value * 100 : modifier.value, async (next) => {
     const id = modifier.selection.componentId;
@@ -239,8 +315,8 @@ function createStatementBlock(canvas: Blockly.WorkspaceSvg, statement: ProgramSt
     ? statement.label.toLowerCase().includes("random") ? "rt_random_selection" : "rt_selection"
     : statement.kind === "allocation" ? "rt_allocation" : statement.kind === "control" ? "rt_control" : "rt_action";
   const block = canvas.newBlock(type) as Blockly.BlockSvg;
-  setData(block, { selection: statement.selection, relatedComponentIds: statement.ref.related_component_ids });
-  block.setDeletable(false); block.setMovable(false); block.contextMenu = false;
+  setData(block, { workingId: statement.id, source: "canonical", kind: statement.kind, selection: statement.selection, relatedComponentIds: statement.ref.related_component_ids });
+  block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
   if (statement.kind === "selection" && statement.count !== undefined) editableNumber(block, "COUNT", statement.count, async (count) => {
     const id = statement.selection.componentId;
     return id ? structural.apply({ kind: "update_selection_count", component_id: id, count }, statement.selection) : false;

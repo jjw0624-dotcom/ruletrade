@@ -31,6 +31,21 @@ export function SemanticInspector({
 }) {
   const { state, dispatch } = useStrategyEditor();
   const selection = state.editor.selection;
+  const selectedDraftId = state.editor.logicDraft.selectedDraftId;
+  if (!selection && !selectedDraftId) return null;
+  if (!selection && selectedDraftId) {
+    const draft = state.editor.logicDraft.workingProgram?.blocks.find((item) => item.workingId === selectedDraftId);
+    const label = draft?.blockType === "rt_draft_if_else" ? "If / Otherwise" : "If";
+    return <aside className="semantic-inspector" aria-label="Semantic Inspector">
+      <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={() => dispatch({ type: "select_logic_draft", draftId: null })}>×</button></header>
+      <div className="semantic-inspector-content">
+        <h2>{label}</h2>
+        <p className="fixed-setting">Unfinished control structure in this Blocky working program.</p>
+        {draft?.summary && <p>Predicate: {draft.summary}</p>}
+        <button className="text-button danger" onClick={() => dispatch({ type: "request_remove_logic_draft", draftId: selectedDraftId })}>Discard unfinished control</button>
+      </div>
+    </aside>;
+  }
   if (!selection) return null;
   const group = groupFor(projection, selection.componentId, selection.groupId);
   const choose = group?.choose;

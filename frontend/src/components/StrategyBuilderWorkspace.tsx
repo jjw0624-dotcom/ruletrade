@@ -86,7 +86,7 @@ export function StrategyBuilderWorkspace({
   const { state, dispatch } = useStrategyEditor();
   const draftMessage = logicDraftMessage(state.editor.logicDraft);
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
-  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
+  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection || state.editor.logicDraft.selectedDraftId), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
   const builder = <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
     <WorkspaceLeftPanel projection={projection} structural={structural} />

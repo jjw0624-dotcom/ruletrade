@@ -158,10 +158,20 @@ export function programStatementForSelection(
   selection: SemanticSelection | null,
 ): ProgramStatement | null {
   if (!selection?.componentId) return null;
-  for (const statement of program.contexts.flatMap((context) => context.scripts.flatMap((item) => item.statements))) {
-    if (statement.selection.componentId === selection.componentId
-      || statement.ref.related_component_ids.includes(selection.componentId)
-      || statement.modifiers.some((item) => item.selection.componentId === selection.componentId)) return statement;
+  const componentId = selection.componentId;
+  const visit = (statements: ProgramStatement[]): ProgramStatement | null => {
+    for (const statement of statements) {
+      if (statement.selection.componentId === componentId
+        || statement.ref.related_component_ids.includes(componentId)
+        || statement.modifiers.some((item) => item.selection.componentId === componentId)) return statement;
+      const nested = visit([...statement.thenStatements, ...statement.elseStatements]);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  for (const script of program.contexts.flatMap((context) => context.scripts)) {
+    const found = visit(script.statements);
+    if (found) return found;
   }
   return null;
 }

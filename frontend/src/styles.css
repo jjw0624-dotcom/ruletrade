@@ -779,8 +779,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .blocky-actions{position:absolute;right:14px;bottom:14px;z-index:4;display:flex;flex-wrap:wrap;gap:12px;max-width:min(680px,calc(100% - 28px));max-height:55%;overflow:auto;margin:0;padding:10px 14px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;background:#f8f9f7;box-shadow:0 10px 30px rgba(20,25,20,.16)}
 .blocky-actions .shape-transformation{max-width:320px}
 .blocky-loading{position:absolute;inset:18px auto auto 18px;z-index:3;margin:0;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.94);color:var(--muted)}
-.logic-draft-status{position:absolute;top:14px;right:14px;z-index:4;display:grid;gap:5px;max-width:280px;padding:10px 12px;border:1px dashed #8b5bb0;border-radius:10px;background:rgba(251,247,255,.96);box-shadow:0 8px 24px rgba(35,20,45,.12)}
-.logic-draft-status span{color:var(--muted);font-size:12px}.save-banner.draft{background:#fbf2ff}
+.blocky-draft-indicator{position:absolute;left:14px;bottom:14px;z-index:4;display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid #b99acb;border-radius:999px;background:rgba(251,247,255,.94);box-shadow:0 6px 18px rgba(35,20,45,.1);font-size:12px}.save-banner.draft{background:#fbf2ff}
 .flow-actions{position:absolute;right:14px;bottom:54px;z-index:5;max-width:min(360px,calc(100% - 28px));max-height:65%;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:10px;background:#f8f9f7;box-shadow:0 10px 30px rgba(20,25,20,.16)}
 .blocky-notice{position:absolute;left:14px;bottom:14px;z-index:5;margin:0;max-width:calc(100% - 28px)}
 .rules-representation{max-width:900px;margin:auto}

@@ -118,6 +118,7 @@ describe("production Blocky program boundary", () => {
     const entries = blockyProgramToolboxEntries(projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry), capabilities, null);
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="blocky"><BlockyProgramToolbox entries={entries} structural={structural} /></StrategyEditorProvider>);
     expect(markup).toContain("If / Otherwise");
+    expect(markup).toContain("Add If");
     expect(markup).toContain("Choose assets");
     expect(markup).toContain("Eligibility");
     expect(markup).toContain("Selection fallback");
@@ -129,14 +130,14 @@ describe("production Blocky program boundary", () => {
 
   it("keeps LogicDraft ephemeral across representation switches and blocks commands until discard", () => {
     const initial = createEditorState(filterBootstrap, "blocky");
-    const drafted = editorReducer(initial, { type: "add_logic_if_draft" });
+    const drafted = editorReducer(initial, { type: "request_logic_control", kind: "if" });
     expect(hasUnresolvedLogicDraft(drafted.editor.logicDraft)).toBe(true);
     expect(logicDraftMessage(drafted.editor.logicDraft)).toContain("before saving or testing");
     expect(drafted.canonical).toBe(initial.canonical);
     const rules = editorReducer(drafted, { type: "set_active_view", view: "rules" });
     expect(rules.editor.logicDraft).toEqual(drafted.editor.logicDraft);
     expect(rules.canonical).toBe(initial.canonical);
-    const discarded = editorReducer(rules, { type: "discard_logic_draft", draftId: "logic-draft-1" });
+    const discarded = editorReducer(rules, { type: "restore_logic_program" });
     expect(hasUnresolvedLogicDraft(discarded.editor.logicDraft)).toBe(false);
     expect(discarded.canonical).toBe(initial.canonical);
   });

@@ -103,7 +103,7 @@ export function BlockyProgramToolbox({ entries, structural }: {
       <header><strong>{entry.label}</strong><span>{entry.statusLabel}</span></header>
       <p>{entry.description}</p>
       {entry.focusSelection && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: entry.focusSelection })}>Focus existing</button>}
-      {entry.draftKind && <button className="secondary-button" onClick={() => dispatch({ type: "add_logic_if_draft" })}>Add draft IF</button>}
+      {entry.draftKind && <button className="secondary-button" onClick={() => dispatch({ type: "request_logic_control", kind: entry.draftKind! })}>Add {entry.label}</button>}
       {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
     </article>)}</section>;
   })}</>;

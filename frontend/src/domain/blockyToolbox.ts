@@ -1,4 +1,5 @@
 import type { ConceptualFlowProjection } from "./conceptualFlow";
+import type { DraftControlKind } from "./logicDraft";
 import type { SemanticSelection } from "./semanticSelection";
 import { semanticSelection } from "./semanticSelection";
 import { constructionOptions, type ConstructionOption } from "./builderProjection";
@@ -16,7 +17,7 @@ export interface ProgramToolboxEntry {
   statusLabel: string;
   options: ConstructionOption[];
   focusSelection: SemanticSelection | null;
-  draftKind: "if_otherwise" | null;
+  draftKind: DraftControlKind | null;
 }
 
 export const PROGRAM_TOOLBOX_CATEGORIES: ProgramToolboxCategory[] = [
@@ -49,10 +50,19 @@ export function blockyProgramToolboxEntries(
   const scheduleId = firstGroup?.scheduleComponentId ?? projection.rebalanceScheduleComponentId;
   return [
     entry({
+      id: "if",
+      category: "Control",
+      label: "If",
+      description: "Draft one control branch without pretending it is executable Canonical.",
+      status: "draftable",
+      statusLabel: "Draft only",
+      draftKind: "if",
+    }),
+    entry({
       id: "if-otherwise",
       category: "Control",
       label: "If / Otherwise",
-      description: "Draft a control branch without pretending it is executable Canonical.",
+      description: "Draft two control branches without changing Canonical.",
       status: "draftable",
       statusLabel: "Draft only",
       draftKind: "if_otherwise",
