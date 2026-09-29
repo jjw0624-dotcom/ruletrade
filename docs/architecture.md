@@ -8,7 +8,10 @@ The composable authoring boundary is described in
 [composable-authoring-contract-v1.md](composable-authoring-contract-v1.md).
 The headless user-semantic vocabulary, aggregate provenance, distinct Flow and
 Logic projections, and atomic-versus-draft boundary are described in
-[Semantic Composition Model v1](semantic-composition-model-v1.md).
+[Semantic Composition Model v1](semantic-composition-model-v1.md). Production
+Blocky consumes its Logic projection through the representation-specific
+[Blocky Program Composer v1](blocky-program-composer-v1.md); Blockly state is
+not Canonical and no universal Flow/Blocky AST is introduced.
 External editors own interaction mechanics while Canonical, Registry
 validation, compiler support, semantic identity, and backend authoring remain
 authoritative.

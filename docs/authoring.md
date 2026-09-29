@@ -73,3 +73,11 @@ Current Blocky and Rules views use these same semantic operations; Code is
 read-oriented with shared Inspector editing, and AI proposal Apply uses the
 same authoring controller after stateless backend preview. None introduces a
 representation-specific backend mutation endpoint.
+
+Blocky now consumes the backend Semantic Composition Projection as a decision
+program (`Context -> Script -> Trigger -> Statements`). User-level Selection
+aggregates its Canonical Universe/Measure/Eligibility/Rank provenance, while
+fallback and Cooldown retain their selection-modifier and Constraint meaning.
+Unfinished generic IF/Otherwise structure is Blocky-local `LogicDraft`; it
+blocks Save/Test and never enters Canonical. See
+[Blocky Program Composer v1](blocky-program-composer-v1.md).

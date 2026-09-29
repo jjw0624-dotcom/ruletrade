@@ -31,6 +31,21 @@ export function SemanticInspector({
 }) {
   const { state, dispatch } = useStrategyEditor();
   const selection = state.editor.selection;
+  const selectedDraftId = state.editor.logicDraft.selectedDraftId;
+  if (!selection && !selectedDraftId) return null;
+  if (!selection && selectedDraftId) {
+    const draft = state.editor.logicDraft.workingProgram?.blocks.find((item) => item.workingId === selectedDraftId);
+    const label = draft?.blockType === "rt_draft_if_else" ? "If / Otherwise" : "If";
+    return <aside className="semantic-inspector" aria-label="Semantic Inspector">
+      <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={() => dispatch({ type: "select_logic_draft", draftId: null })}>×</button></header>
+      <div className="semantic-inspector-content">
+        <h2>{label}</h2>
+        <p className="fixed-setting">Unfinished control structure in this Blocky working program.</p>
+        {draft?.summary && <p>Predicate: {draft.summary}</p>}
+        <button className="text-button danger" onClick={() => dispatch({ type: "request_remove_logic_draft", draftId: selectedDraftId })}>Discard unfinished control</button>
+      </div>
+    </aside>;
+  }
   if (!selection) return null;
   const group = groupFor(projection, selection.componentId, selection.groupId);
   const choose = group?.choose;
@@ -73,11 +88,14 @@ export function SemanticInspector({
     const resampleCapability = structural.capabilities?.selection_resample_targets.find((item) => item.component_id === choose.selectionComponentId);
     content = <>
       <h2>{choose.label}</h2>
+      {group.assetSetId && <AssetMembershipEditor authoring={structural} question="Candidate universe" assetSetId={group.assetSetId} assets={group.assets} />}
       {choose.lookbackComponentId && <LookbackControl authoring={structural} id="inspector-lookback" componentId={choose.lookbackComponentId} value={choose.lookbackBars!} />}
       {choose.selectionMode === "ranked"
         ? <p className="fixed-setting">Strongest return first</p>
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
       {countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
+      {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "config.threshold", groupId: group.id }) })}>Eligibility: return &gt; {Number(choose.threshold) * 100}%</button>}
+      {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}
       {choose.cooldownComponentId && choose.cooldownDuration && <CooldownControl authoring={structural} componentId={choose.cooldownComponentId} value={choose.cooldownDuration} />}
       {qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "config.threshold", groupId: group.id }))}>+ Add qualification</button>}
       {fallbackTarget && <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({ kind: "add_fallback_selection", weight_component_id: fallbackTarget, fallback_asset: asset }, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id }))} />}

@@ -38,6 +38,7 @@ architecture when they conflict with code or the living architecture.
 | `integrated-research-workbench.md` | CURRENT | Shared Builder/Activity/Research behavior |
 | `connected-workspace-contract-v1.md` | CURRENT | Semantic address, ownership, and authoritative replacement contract |
 | `editable-representations-v1.md` | CURRENT | Flow/Blocky/Rules/Code/AI representation boundaries |
+| `blocky-program-composer-v1.md` | MVP 1 / CURRENT | Production Blocky decision-program grammar and LogicDraft boundary |
 | `feedback-navigation-v1.md` | CURRENT | Result events, exact Decision navigation, and density behavior |
 | `connected-research-loop-v1.md` | MVP 1 COMPLETE | End-to-end research journey and formative observer guide |
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |

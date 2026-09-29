@@ -14,6 +14,7 @@ import { WorkspaceLeftPanel } from "./WorkspaceLeftPanel";
 import { RulesView } from "../views/RulesView";
 import { CodeView } from "../views/CodeView";
 import { AIHandoffView } from "../views/AIHandoffView";
+import { logicDraftMessage } from "../domain/logicDraft";
 
 const BlockyView = lazy(() => import("../views/BlockyView").then((module) => ({ default: module.BlockyView })));
 
@@ -83,8 +84,9 @@ export function StrategyBuilderWorkspace({
   researchContext?: { runId: string; sessionId: string; asset: string | null } | null;
 }) {
   const { state, dispatch } = useStrategyEditor();
+  const draftMessage = logicDraftMessage(state.editor.logicDraft);
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
-  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection), Boolean(research?.researchOpen));
+  const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection || state.editor.logicDraft.selectedDraftId), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
   const builder = <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
     <WorkspaceLeftPanel projection={projection} structural={structural} />
@@ -107,11 +109,11 @@ export function StrategyBuilderWorkspace({
       </div>
       <button className="builder-identity" onClick={onRename} disabled={!persisted}><strong>{name}</strong><small>{dirty ? "Unsaved changes" : persisted ? "Saved" : "Preview"}</small></button>
       <div className="builder-actions">
-        {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving}>{saving ? "Saving…" : "Save"}</button>}
-        <button className="primary-button" onClick={onTest}>Test <span aria-hidden="true">▶</span></button>
+        {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(draftMessage)} title={draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
+        <button className="primary-button" onClick={onTest} disabled={Boolean(draftMessage)} title={draftMessage ?? undefined}>Test <span aria-hidden="true">▶</span></button>
       </div>
     </header>
-    <div className="builder-messages">{notices}{validation}</div>
+    {(notices || validation) && <div className="builder-messages" data-workspace-status="overlay">{notices}{validation}</div>}
     {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
       <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
         {builder}

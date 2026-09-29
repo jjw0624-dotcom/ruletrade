@@ -7,6 +7,7 @@ import type {
   ValidationIssue,
 } from "../domain/canonical";
 import { selectionInCanonical, type SemanticSelection } from "../domain/semanticSelection";
+import { EMPTY_LOGIC_DRAFT, type DraftControlKind, type LogicDraftState, type LogicDraftStatus, type LogicWorkingProgram } from "../domain/logicDraft";
 
 export type EditorView = "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 
@@ -18,6 +19,7 @@ export interface StrategyEditorState {
     selection: SemanticSelection | null;
     leftPanelOpen: boolean;
     leftPanelTab: "structure" | "blocks";
+    logicDraft: LogicDraftState;
   };
   validation: {
     status: "valid" | "dirty" | "invalid" | "checking";
@@ -32,6 +34,13 @@ export type StrategyEditorAction =
   | { type: "select_semantic"; selection: SemanticSelection | null }
   | { type: "set_left_panel_open"; open: boolean }
   | { type: "set_left_panel_tab"; tab: "structure" | "blocks" }
+  | { type: "request_logic_control"; kind: DraftControlKind; position?: { x: number; y: number } }
+  | { type: "ack_logic_control"; draftId: string }
+  | { type: "set_logic_working_program"; program: LogicWorkingProgram | null; status: LogicDraftStatus }
+  | { type: "select_logic_draft"; draftId: string | null }
+  | { type: "request_remove_logic_draft"; draftId: string }
+  | { type: "ack_remove_logic_draft" }
+  | { type: "restore_logic_program" }
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
@@ -44,6 +53,7 @@ export function createEditorState(bootstrap: EditorBootstrap, initialView: Edito
       selection: null,
       leftPanelOpen: true,
       leftPanelTab: "structure",
+      logicDraft: EMPTY_LOGIC_DRAFT,
     },
     validation: {
       status: bootstrap.validation.valid ? "valid" : "invalid",
@@ -77,11 +87,39 @@ export function editorReducer(
     case "set_active_view":
       return { ...state, editor: { ...state.editor, activeView: action.view } };
     case "select_semantic":
-      return { ...state, editor: { ...state.editor, selection: action.selection } };
+      return { ...state, editor: { ...state.editor, selection: action.selection, logicDraft: { ...state.editor.logicDraft, selectedDraftId: action.selection ? null : state.editor.logicDraft.selectedDraftId } } };
     case "set_left_panel_open":
       return { ...state, editor: { ...state.editor, leftPanelOpen: action.open } };
     case "set_left_panel_tab":
       return { ...state, editor: { ...state.editor, leftPanelTab: action.tab } };
+    case "request_logic_control": {
+      const draftId = `logic-draft-${state.editor.logicDraft.nextId}`;
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        nextId: state.editor.logicDraft.nextId + 1,
+        pendingControls: [...state.editor.logicDraft.pendingControls, { draftId, kind: action.kind, position: action.position }],
+      } } };
+    }
+    case "ack_logic_control":
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        pendingControls: state.editor.logicDraft.pendingControls.filter((item) => item.draftId !== action.draftId),
+      } } };
+    case "set_logic_working_program":
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        workingProgram: action.program,
+        status: action.status,
+        selectedDraftId: action.status === "clean" ? null : state.editor.logicDraft.selectedDraftId,
+      } } };
+    case "select_logic_draft":
+      return { ...state, editor: { ...state.editor, selection: action.draftId ? null : state.editor.selection, logicDraft: { ...state.editor.logicDraft, selectedDraftId: action.draftId } } };
+    case "request_remove_logic_draft":
+      return { ...state, editor: { ...state.editor, logicDraft: { ...state.editor.logicDraft, removalRequestId: action.draftId } } };
+    case "ack_remove_logic_draft":
+      return { ...state, editor: { ...state.editor, logicDraft: { ...state.editor.logicDraft, removalRequestId: null, selectedDraftId: null } } };
+    case "restore_logic_program":
+      return { ...state, editor: { ...state.editor, logicDraft: { ...EMPTY_LOGIC_DRAFT, nextId: state.editor.logicDraft.nextId, restoreVersion: state.editor.logicDraft.restoreVersion + 1 } } };
     case "validation_started":
       return { ...state, validation: { ...state.validation, status: "checking" } };
     case "validation_finished":

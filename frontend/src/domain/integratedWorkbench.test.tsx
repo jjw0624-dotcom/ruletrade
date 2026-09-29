@@ -88,7 +88,17 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain('data-research-layout="stacked"');
     expect(markup).toContain('data-workspace="research"');
     expect(markup).toContain('data-group="true"');
-    expect(markup.indexOf("builder-messages")).toBeLessThan(markup.indexOf("builder-workbench"));
+    expect(markup).not.toContain("builder-messages");
+  });
+
+  it("renders workspace notices as overlays outside the sizing grid contract", () => {
+    const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
+    const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
+    const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap} initialView="blocky">
+      <StrategyBuilderWorkspace name="Integrated strategy" dirty={false} saving={false} persisted projection={projection} structural={structural} notices={<p>Workspace notice</p>} onHome={() => undefined} onRename={() => undefined} onSave={() => undefined} onTest={() => undefined} />
+    </StrategyEditorProvider>);
+    expect(markup).toContain('class="builder-messages" data-workspace-status="overlay"');
+    expect(markup).toContain('data-research-layout="builder-only"');
   });
 
   it("stores panel size only after a real resize gesture", () => {

@@ -31,7 +31,7 @@ api:
 	uv run uvicorn ruletrade.api:app --reload
 
 frontend:
-	cd frontend && npm run dev
+	cd frontend && npm run dev -- --host 0.0.0.0
 
 smoke:
 	./scripts/smoke_test.sh
