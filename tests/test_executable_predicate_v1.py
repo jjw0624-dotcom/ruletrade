@@ -97,7 +97,10 @@ def test_predicate_projects_as_control_with_nested_action() -> None:
         if statement.family == "control"
     )
     assert control.label == "IF SPY 126-bar return > 0"
-    assert control.then_statement_ids == ("statement:action:rebalance:0",)
+    assert control.then_statement_ids == (
+        "statement:allocation:action:rebalance:0",
+        "statement:action:rebalance:0",
+    )
     assert control.else_statement_ids == ()
 
 
@@ -246,8 +249,12 @@ def test_typed_control_branches_are_atomic_and_project_independently() -> None:
         if statement.family == "control"
     )
     assert control.kind == "if_otherwise"
-    assert control.then_statement_ids == ("statement:action:rebalance:0",)
+    assert control.then_statement_ids == (
+        "statement:allocation:action:rebalance:0",
+        "statement:action:rebalance:0",
+    )
     assert control.else_statement_ids == (
+        "statement:allocation:action:rebalance:otherwise:0",
         "statement:action:rebalance:otherwise:0",
     )
 

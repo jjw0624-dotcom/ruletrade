@@ -575,41 +575,52 @@ def _logic_projection(
             )
         predicates = [fact for fact in semantic_facts if fact.category == SemanticCategory.PREDICATE]
         actions = [fact for fact in semantic_facts if fact.category == SemanticCategory.ACTION]
-        for predicate in predicates:
-            then_action_ids = tuple(
-                f"statement:{item.id}" for item in actions if item.detail.get("branch") == "then"
-            )
-            else_action_ids = tuple(
-                f"statement:{item.id}" for item in actions if item.detail.get("branch") == "otherwise"
-            )
-            statements.append(
-                LogicStatement(
-                    id=f"statement:{predicate.id}",
-                    family="control",
-                    kind="if_otherwise" if else_action_ids else "if",
-                    label=predicate.label,
-                    ref=predicate.ref,
-                    fact_ids=(predicate.id,),
-                    then_statement_ids=then_action_ids,
-                    else_statement_ids=else_action_ids,
-                )
-            )
         allocations = [fact for fact in semantic_facts if fact.category == SemanticCategory.ALLOCATION]
-        if allocations:
-            first = allocations[0]
-            statements.append(
-                LogicStatement(
-                    id=f"statement:allocation:{target.id}",
-                    family="portfolio_operation",
-                    kind="compound_allocation",
-                    label="Allocate capital",
-                    ref=first.ref,
-                    fact_ids=tuple(item.id for item in allocations),
+        if predicates:
+            branch_statement_ids: dict[str, list[str]] = {"then": [], "otherwise": []}
+            selection_statements = {
+                item.ref.primary_component_id: item
+                for item in statements
+                if item.family == "selection" and item.ref.primary_component_id
+            }
+            for action in actions:
+                branch = str(action.detail.get("branch", "then"))
+                action_payload = action.detail.get("action", {})
+                target_expression = (
+                    action_payload.get("targets", {})
+                    if isinstance(action_payload, dict)
+                    else {}
                 )
-            )
-        for action in actions:
-            statements.append(
-                LogicStatement(
+                target_component_id = (
+                    target_expression.get("component_id")
+                    if isinstance(target_expression, dict)
+                    else None
+                )
+                target_scope = (
+                    graph.ancestors(str(target_component_id)) | {str(target_component_id)}
+                    if target_component_id
+                    else set()
+                )
+                for component_id, selection_statement in selection_statements.items():
+                    if component_id in target_scope:
+                        branch_statement_ids[branch].append(selection_statement.id)
+                branch_allocations = [
+                    fact
+                    for fact in allocations
+                    if fact.ref.primary_component_id in target_scope
+                ]
+                if branch_allocations:
+                    allocation_statement = LogicStatement(
+                        id=f"statement:allocation:{action.id}",
+                        family="portfolio_operation",
+                        kind="compound_allocation",
+                        label="Allocate capital",
+                        ref=branch_allocations[0].ref,
+                        fact_ids=tuple(item.id for item in branch_allocations),
+                    )
+                    statements.append(allocation_statement)
+                    branch_statement_ids[branch].append(allocation_statement.id)
+                action_statement = LogicStatement(
                     id=f"statement:{action.id}",
                     family="action",
                     kind=action.kind,
@@ -617,7 +628,47 @@ def _logic_projection(
                     ref=action.ref,
                     fact_ids=(action.id,),
                 )
-            )
+                statements.append(action_statement)
+                branch_statement_ids[branch].append(action_statement.id)
+            for predicate in predicates:
+                then_ids = tuple(branch_statement_ids["then"])
+                else_ids = tuple(branch_statement_ids["otherwise"])
+                statements.append(
+                    LogicStatement(
+                        id=f"statement:{predicate.id}",
+                        family="control",
+                        kind="if_otherwise" if else_ids else "if",
+                        label=predicate.label,
+                        ref=predicate.ref,
+                        fact_ids=(predicate.id,),
+                        then_statement_ids=then_ids,
+                        else_statement_ids=else_ids,
+                    )
+                )
+        else:
+            if allocations:
+                first = allocations[0]
+                statements.append(
+                    LogicStatement(
+                        id=f"statement:allocation:{target.id}",
+                        family="portfolio_operation",
+                        kind="compound_allocation",
+                        label="Allocate capital",
+                        ref=first.ref,
+                        fact_ids=tuple(item.id for item in allocations),
+                    )
+                )
+            for action in actions:
+                statements.append(
+                    LogicStatement(
+                        id=f"statement:{action.id}",
+                        family="action",
+                        kind=action.kind,
+                        label=action.label,
+                        ref=action.ref,
+                        fact_ids=(action.id,),
+                    )
+                )
         trigger_fact = next(
             item for item in facts_by_component[event.id] if item.category == SemanticCategory.TIMING
         )
