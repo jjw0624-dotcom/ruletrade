@@ -16,7 +16,7 @@ type SemanticNode = Node<SemanticNodeData, "semantic">;
 function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) { return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}><Handle type="target" position={Position.Top} isConnectable={false}/><strong>{data.title}</strong><span>{data.detail}</span><Handle type="source" position={Position.Bottom} isConnectable={false}/></div>; }
 const nodeTypes = { semantic: SemanticFlowNode };
 const node = (id:string,x:number,y:number,title:string,detail:string,selection:SemanticSelection,tone?:string):SemanticNode => ({id,type:"semantic",position:{x,y},data:{title,detail,selection,tone}});
-const edge = (source:string,target:string,label?:string):Edge => ({id:`${source}-${target}`,source,target,label,type:"smoothstep",markerEnd:{type:MarkerType.ArrowClosed},className:"strategy-flow-edge"});
+const edge = (source:string,target:string,label?:string):Edge => ({id:`${source}-${target}-${label ?? ""}`,source,target,label,type:"smoothstep",markerEnd:{type:MarkerType.ArrowClosed},className:"strategy-flow-edge"});
 
 export function projectFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
   const nodes:SemanticNode[]=[]; const edges:Edge[]=[]; const rootId="portfolio";
@@ -34,7 +34,9 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
     if(group.choose.fallbackComponentId){const id=`fallback:${group.id}`;nodes.push(node(id,x+220,y+(group.choose.filterComponentId?390:260),"Fallback",group.choose.otherwise??"Alternative destination",semanticSelection("fallback",group.choose.fallbackComponentId,{groupId:group.id}),"fallback"));edges.push(edge(selectId,id,"if incomplete"));}
   });
   if(projection.rebalanceScheduleComponentId){const id="schedule";nodes.push(node(id,360,Math.max(...nodes.map(item=>item.position.y))+150,"Rebalance",projection.rebalance??"Schedule",semanticSelection("schedule",projection.rebalanceScheduleComponentId),"schedule"));edges.push(edge(rootId,id,"when"));}
-  if(projection.predicate){const id="predicate";nodes.push(node(id,620,150,"Market condition",projection.predicate.label,semanticSelection("rule",projection.predicate.componentId,{fieldPath:"condition"}),"qualification"));edges.push(edge(id,rootId,"allows rebalance"));}
+  if(projection.predicate){const id="predicate";nodes.push(node(id,620,150,"Market condition",projection.predicate.label,semanticSelection("rule",projection.predicate.componentId,{fieldPath:"condition"}),"qualification"));
+    if(projection.predicate.otherwiseTarget){nodes.push(node("predicate:then",540,290,"THEN program",projection.predicate.thenTarget??"Portfolio targets",semanticSelection("rule",projection.predicate.componentId,{fieldPath:"actions[0]"}),"growth"));nodes.push(node("predicate:otherwise",760,290,"OTHERWISE program",projection.predicate.otherwiseTarget,semanticSelection("rule",projection.predicate.componentId,{fieldPath:"else_actions[0]"}),"defensive"));edges.push(edge(id,"predicate:then","true"),edge(id,"predicate:otherwise","false"),edge("predicate:then",rootId,"target"),edge("predicate:otherwise",rootId,"target"));}
+    else edges.push(edge(id,rootId,"true · rebalance"));}
   return {nodes,edges};
 }
 
