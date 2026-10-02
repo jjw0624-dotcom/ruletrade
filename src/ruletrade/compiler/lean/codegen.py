@@ -731,7 +731,7 @@ def generate_csharp(
                                 f'            + "|scaled=" + string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key)',
                                 f'                .Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
                                 '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution",',
-                                f'            "sleeve_component", {sleeve_component}, "allocation_component", {_csharp_string(sleeve.id)},',
+                                f'            "sleeve_component", {sleeve_component}, "allocation_component", {sleeve_component},',
                                 f'            "local_selected", string.Join(",", _targetSnapshot{snapshot_index}.Keys.OrderBy(item => item)),',
                                 f'            "local_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                                 f'            "allocation", {factor}.ToString("G29", CultureInfo.InvariantCulture),',
