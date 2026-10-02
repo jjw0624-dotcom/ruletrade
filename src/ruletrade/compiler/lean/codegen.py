@@ -643,6 +643,7 @@ def generate_csharp(
         lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
+            predicate_outcome: str | None = None
             if rebalance.predicate is not None:
                 predicate = rebalance.predicate
                 predicate_window = f"predicateWindow{event_index}_{rebalance_index}"
@@ -662,9 +663,10 @@ def generate_csharp(
                         f'            "operator", "{predicate.operator}", "observed", {predicate_observed}.HasValue ? {predicate_observed}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
                         f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "outcome", {predicate_outcome} ? "true" : "false",',
                         f'            "branch", {predicate_outcome} ? "then" : "otherwise");',
-                        f"        if (!{predicate_outcome}) return;",
                     )
                 )
+                if not rebalance.otherwise_sleeve_ids and not rebalance.otherwise_snapshot_allocations:
+                    lines.append(f"        if (!{predicate_outcome}) return;")
             targets_variable = f"targets{event_index}_{rebalance_index}"
             selected_variable = f"selectedTickers{event_index}_{rebalance_index}"
             lines.extend(
@@ -673,17 +675,21 @@ def generate_csharp(
                     f"        var {selected_variable} = new List<string>();",
                 )
             )
-            if rebalance.snapshot_allocations:
+            branch_snapshot_allocations = (
+                *rebalance.snapshot_allocations,
+                *rebalance.otherwise_snapshot_allocations,
+            )
+            if branch_snapshot_allocations:
                 missing = " || ".join(
                     f"_targetSnapshot{snapshot_indexes[item.snapshot_id]} == null"
-                    for item in rebalance.snapshot_allocations
+                    for item in branch_snapshot_allocations
                 )
                 snapshot_times = ", ".join(
                     (
                         f'{_csharp_string(item.source_sleeve_component_id)} + "=" + '
                         f"_targetSnapshotTimestamp{snapshot_indexes[item.snapshot_id]}"
                     )
-                    for item in rebalance.snapshot_allocations
+                    for item in branch_snapshot_allocations
                 )
                 lines.extend(
                     (
@@ -702,9 +708,16 @@ def generate_csharp(
                         f'            "snapshots", string.Join(",", new[] {{ {snapshot_times} }}), "executed", "true");',
                     )
                 )
-                for allocation in rebalance.snapshot_allocations:
+                for allocation in branch_snapshot_allocations:
                     snapshot_index = snapshot_indexes[allocation.snapshot_id]
                     factor = _decimal_literal(allocation.factor)
+                    if predicate_outcome is not None:
+                        is_otherwise = allocation in rebalance.otherwise_snapshot_allocations
+                        factor = (
+                            f"(!{predicate_outcome} ? {factor} : 0m)"
+                            if is_otherwise
+                            else f"({predicate_outcome} ? {factor} : 0m)"
+                        )
                     sleeve_component = _csharp_string(allocation.source_sleeve_component_id)
                     lines.extend(
                         (
@@ -730,8 +743,10 @@ def generate_csharp(
                             f'            "scaled_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
                         )
                     )
-            for sleeve_index, sleeve_id in enumerate(rebalance.sleeve_ids):
+            branch_sleeve_ids = (*rebalance.sleeve_ids, *rebalance.otherwise_sleeve_ids)
+            for sleeve_index, sleeve_id in enumerate(branch_sleeve_ids):
                 sleeve = sleeves[sleeve_id]
+                is_otherwise_sleeve = sleeve_id in rebalance.otherwise_sleeve_ids
                 variable = f"sleeve{event_index}_{rebalance_index}_{sleeve_index}"
                 weight_variable = f"weight{event_index}_{rebalance_index}_{sleeve_index}"
                 if sleeve.selection_id is None:
@@ -950,6 +965,12 @@ def generate_csharp(
                             )
                     lines.append(f"        {selected_variable}.AddRange({variable});")
                 weight = _decimal_literal(sleeve.total_weight)
+                if predicate_outcome is not None:
+                    weight = (
+                        f"(!{predicate_outcome} ? {weight} : 0m)"
+                        if is_otherwise_sleeve
+                        else f"({predicate_outcome} ? {weight} : 0m)"
+                    )
                 cooldown_selection = (
                     momentum_selections.get(sleeve.selection_id) if sleeve.selection_id is not None else None
                 )
@@ -1000,7 +1021,10 @@ def generate_csharp(
                             f'            "scaled_targets", string.Join(",", {variable}.OrderBy(item => item).Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
                         )
                     )
-            for state_id in rebalance.exit_state_ids:
+            branch_exit_state_ids = tuple(
+                dict.fromkeys((*rebalance.exit_state_ids, *rebalance.otherwise_exit_state_ids))
+            )
+            for state_id in branch_exit_state_ids:
                 state = next(item for item in plan.cooldown_states if item.id == state_id)
                 state_index = cooldown_indexes[state_id]
                 state_symbols = ", ".join(_csharp_string(item) for item in state.symbols)
@@ -1029,7 +1053,7 @@ def generate_csharp(
                 )
             final_selected_expression = (
                 f"{targets_variable}.Where(item => item.Value != 0m).Select(item => item.Key.Value)"
-                if has_source_sleeves
+                if has_source_sleeves or rebalance.otherwise_sleeve_ids
                 else selected_variable
             )
             lines.extend(
@@ -1051,7 +1075,7 @@ def generate_csharp(
                         + (
                             f"{targets_variable}.Where(item => item.Value != 0m)"
                             ".Select(item => item.Key.Value)"
-                            if has_source_sleeves
+                            if has_source_sleeves or rebalance.otherwise_sleeve_ids
                             else selected_variable
                         )
                         + ".OrderBy(item => item, StringComparer.Ordinal))"
