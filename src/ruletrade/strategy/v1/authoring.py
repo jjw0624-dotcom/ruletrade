@@ -171,6 +171,19 @@ class RemovePredicateOperation(FrozenModel):
     component_id: Identifier
 
 
+class CommitPredicateBranchesOperation(FrozenModel):
+    """Commit a complete Blocky control topology using Canonical component identity."""
+
+    kind: Literal["commit_predicate_branches"] = "commit_predicate_branches"
+    component_id: Identifier
+    then_target_component_id: Identifier
+    otherwise_target_component_id: Identifier | None = None
+    asset: Symbol
+    lookback_bars: Annotated[int, Field(ge=1)] = 126
+    operator: Literal["gt", "gte", "lt", "lte"] = "gt"
+    threshold: Decimal = Decimal(0)
+
+
 StructuralAuthoringOperation = Annotated[
     ComposeStrategyOperation
     | RenameGroupOperation
@@ -193,7 +206,8 @@ StructuralAuthoringOperation = Annotated[
     | UpdateFallbackAssetSetOperation
     | AddPredicateOperation
     | UpdatePredicateOperation
-    | RemovePredicateOperation,
+    | RemovePredicateOperation
+    | CommitPredicateBranchesOperation,
     Field(discriminator="kind"),
 ]
 
@@ -417,6 +431,56 @@ def _remove_predicate(
                 rebalance if item.id == rule.id else item for item in strategy.graph.components
             ),
             "connections": (*strategy.graph.connections, connection),
+        }
+    )
+    return strategy.model_copy(update={"graph": graph})
+
+
+def _commit_predicate_branches(
+    strategy: CanonicalStrategyV1, operation: CommitPredicateBranchesOperation
+) -> CanonicalStrategyV1:
+    control = _component(strategy, operation.component_id)
+    if control.primitive not in {"rebalance@1", "rule@1"}:
+        raise StructuralAuthoringError(
+            "unsupported_target",
+            f"graph.components[{control.id}]",
+            "Control composition requires an existing rebalance or Predicate control.",
+        )
+
+    def branch_action(component_id: str, field: str) -> RebalanceAction:
+        target = _component(strategy, component_id)
+        outputs = {port.name for port in BUILTIN_REGISTRY.get(target.primitive).outputs}
+        if "targets" not in outputs:
+            raise StructuralAuthoringError(
+                "incompatible_statement",
+                f"graph.components[{control.id}].{field}",
+                f"{component_id} does not produce portfolio targets.",
+            )
+        return RebalanceAction(
+            targets=ComponentOutputExpression(component_id=component_id, port="targets")
+        )
+
+    then_action = branch_action(operation.then_target_component_id, "actions")
+    else_actions = (
+        (branch_action(operation.otherwise_target_component_id, "else_actions"),)
+        if operation.otherwise_target_component_id is not None
+        else ()
+    )
+    inbound = _connections_to(strategy, control.id, "targets") if control.primitive == "rebalance@1" else ()
+    rule = control.model_copy(
+        update={
+            "primitive": "rule@1",
+            "condition": _predicate_condition(
+                operation.asset, operation.lookback_bars, operation.operator, operation.threshold
+            ),
+            "actions": (then_action,),
+            "else_actions": else_actions,
+        }
+    )
+    graph = strategy.graph.model_copy(
+        update={
+            "components": tuple(rule if item.id == rule.id else item for item in strategy.graph.components),
+            "connections": tuple(item for item in strategy.graph.connections if item not in inbound),
         }
     )
     return strategy.model_copy(update={"graph": graph})
@@ -1337,6 +1401,8 @@ def apply_structural_operation(
         candidate = _update_predicate(strategy, operation)
     elif isinstance(operation, RemovePredicateOperation):
         candidate = _remove_predicate(strategy, operation)
+    elif isinstance(operation, CommitPredicateBranchesOperation):
+        candidate = _commit_predicate_branches(strategy, operation)
     else:
         component = _require_primitive(
             strategy,

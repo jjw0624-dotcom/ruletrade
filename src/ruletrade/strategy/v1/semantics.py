@@ -396,17 +396,19 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                         detail=detail,
                     )
                 )
-            for index, action in enumerate(component.actions):
-                facts.append(
-                    SemanticFact(
-                        id=f"action:{component.id}:{index}",
-                        category=SemanticCategory.ACTION,
-                        kind=action.kind,
-                        label=action.kind.replace("_", " ").title(),
-                        ref=_ref(component, SemanticCategory.ACTION, field=f"actions[{index}]"),
-                        detail={"action": action.model_dump(mode="json")},
+            for branch, branch_actions in (("then", component.actions), ("otherwise", component.else_actions)):
+                field_name = "actions" if branch == "then" else "else_actions"
+                for index, action in enumerate(branch_actions):
+                    facts.append(
+                        SemanticFact(
+                            id=f"action:{component.id}:{branch}:{index}",
+                            category=SemanticCategory.ACTION,
+                            kind=action.kind,
+                            label=action.kind.replace("_", " ").title(),
+                            ref=_ref(component, SemanticCategory.ACTION, field=f"{field_name}[{index}]"),
+                            detail={"action": action.model_dump(mode="json"), "branch": branch},
+                        )
                     )
-                )
     for definition in strategy.definitions.state:
         facts.append(
             SemanticFact(
@@ -570,16 +572,22 @@ def _logic_projection(
         predicates = [fact for fact in semantic_facts if fact.category == SemanticCategory.PREDICATE]
         actions = [fact for fact in semantic_facts if fact.category == SemanticCategory.ACTION]
         for predicate in predicates:
-            action_ids = tuple(f"statement:{item.id}" for item in actions)
+            then_action_ids = tuple(
+                f"statement:{item.id}" for item in actions if item.detail.get("branch") == "then"
+            )
+            else_action_ids = tuple(
+                f"statement:{item.id}" for item in actions if item.detail.get("branch") == "otherwise"
+            )
             statements.append(
                 LogicStatement(
                     id=f"statement:{predicate.id}",
                     family="control",
-                    kind="if",
+                    kind="if_otherwise" if else_action_ids else "if",
                     label=predicate.label,
                     ref=predicate.ref,
                     fact_ids=(predicate.id,),
-                    then_statement_ids=action_ids,
+                    then_statement_ids=then_action_ids,
+                    else_statement_ids=else_action_ids,
                 )
             )
         allocations = [fact for fact in semantic_facts if fact.category == SemanticCategory.ALLOCATION]
