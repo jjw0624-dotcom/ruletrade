@@ -56,13 +56,71 @@ export function logicWorkingProgramSignature(program: LogicWorkingProgram): stri
   return JSON.stringify([...program.blocks].sort((left, right) => left.workingId.localeCompare(right.workingId)));
 }
 
+function branchChain(program: LogicWorkingProgram, controlId: string, inputName: "THEN" | "ELSE"): LogicWorkingBlock[] {
+  const byId = new Map(program.blocks.map((item) => [item.workingId, item]));
+  const first = program.blocks.find((item) => item.parentWorkingId === controlId && item.inputName === inputName);
+  const result: LogicWorkingBlock[] = [];
+  let current = first;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.workingId)) {
+    seen.add(current.workingId);
+    result.push(current);
+    current = current.nextWorkingId ? byId.get(current.nextWorkingId) : undefined;
+  }
+  return result;
+}
+
+function supportedExecutableBranch(blocks: LogicWorkingBlock[]): boolean {
+  const types = blocks.map((item) => item.blockType);
+  return (
+    JSON.stringify(types) === JSON.stringify(["rt_selection", "rt_allocation", "rt_action"])
+    || JSON.stringify(types) === JSON.stringify(["rt_allocation", "rt_action"])
+  );
+}
+
+export interface ControlCommitIntent {
+  component_id: string;
+  then_target_component_id: string;
+  otherwise_target_component_id?: string;
+  asset: string;
+  lookback_bars: number;
+  operator: "gt" | "gte" | "lt" | "lte";
+  threshold: string;
+}
+
+export function controlCommitIntent(program: LogicWorkingProgram): ControlCommitIntent | null {
+  const controls = program.blocks.filter((item) => item.source === "draft" && item.blockType.startsWith("rt_draft_if"));
+  if (controls.length !== 1) return null;
+  const control = controls[0];
+  const match = control.summary?.trim().match(/^([A-Z0-9._:-]+)\s+(\d+)-bar return\s*(>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)%?$/i);
+  if (!match) return null;
+  const thenBranch = branchChain(program, control.workingId, "THEN");
+  const elseBranch = branchChain(program, control.workingId, "ELSE");
+  if (!supportedExecutableBranch(thenBranch)) return null;
+  if (control.blockType === "rt_draft_if_else" && !supportedExecutableBranch(elseBranch)) return null;
+  const action = program.blocks.find((item) => item.source === "canonical" && item.blockType === "rt_action" && item.componentId);
+  const thenAllocation = thenBranch.find((item) => item.blockType === "rt_allocation" && item.componentId);
+  const elseAllocation = elseBranch.find((item) => item.blockType === "rt_allocation" && item.componentId);
+  if (!action?.componentId || !thenAllocation?.componentId) return null;
+  const operators = { ">": "gt", ">=": "gte", "<": "lt", "<=": "lte" } as const;
+  return {
+    component_id: action.componentId,
+    then_target_component_id: thenAllocation.componentId,
+    ...(elseAllocation?.componentId ? { otherwise_target_component_id: elseAllocation.componentId } : {}),
+    asset: match[1].toUpperCase(),
+    lookback_bars: Number(match[2]),
+    operator: operators[match[3] as keyof typeof operators],
+    threshold: String(Number(match[4]) / 100),
+  };
+}
+
 export function classifyWorkingProgram(program: LogicWorkingProgram, baseline: LogicWorkingProgram): LogicDraftStatus {
   if (logicWorkingProgramSignature(program) === logicWorkingProgramSignature(baseline)) return "clean";
   const baselineCanonical = new Set(baseline.blocks.filter((item) => item.source === "canonical").map((item) => item.workingId));
   const currentCanonical = new Set(program.blocks.filter((item) => item.source === "canonical").map((item) => item.workingId));
   if ([...baselineCanonical].some((id) => !currentCanonical.has(id))) return "incomplete";
   const draftControls = program.blocks.filter((item) => item.source === "draft" && item.blockType.startsWith("rt_draft_if"));
-  if (draftControls.some((item) => !item.summary?.trim() || !program.blocks.some((candidate) => candidate.parentWorkingId === item.workingId))) return "incomplete";
-  // Current Canonical has no generic statement-order or Predicate-creation intent.
-  return "valid_but_unsupported";
+  if (draftControls.some((item) => !item.summary?.trim() || branchChain(program, item.workingId, "THEN").length === 0)) return "incomplete";
+  if (draftControls.some((item) => item.blockType === "rt_draft_if_else" && branchChain(program, item.workingId, "ELSE").length === 0)) return "incomplete";
+  return controlCommitIntent(program) ? "commit_ready" : "valid_but_unsupported";
 }
