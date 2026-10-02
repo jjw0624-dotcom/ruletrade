@@ -401,7 +401,11 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                 for index, action in enumerate(branch_actions):
                     facts.append(
                         SemanticFact(
-                            id=f"action:{component.id}:{branch}:{index}",
+                            id=(
+                                f"action:{component.id}:{index}"
+                                if branch == "then"
+                                else f"action:{component.id}:otherwise:{index}"
+                            ),
                             category=SemanticCategory.ACTION,
                             kind=action.kind,
                             label=action.kind.replace("_", " ").title(),
