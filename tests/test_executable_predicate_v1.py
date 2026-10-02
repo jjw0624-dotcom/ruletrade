@@ -259,7 +259,21 @@ def test_typed_control_branches_are_atomic_and_project_independently() -> None:
     )
 
 
-def test_typed_control_compiler_keeps_branch_targets_distinct() -> None:
+def _csharp_block(source: str, marker: str, start: int = 0) -> tuple[str, int]:
+    marker_index = source.index(marker, start)
+    brace_index = source.index("{", marker_index)
+    depth = 0
+    for index in range(brace_index, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[brace_index + 1 : index], index + 1
+    raise AssertionError(f"unclosed C# block after {marker!r}")
+
+
+def test_typed_control_compiler_emits_real_conditional_branch_execution() -> None:
     plan = compile_strategy_to_lean_plan(two_branch_predicate_strategy())
     rebalance = plan.rebalances[0]
     assert rebalance.predicate is not None
@@ -268,9 +282,48 @@ def test_typed_control_compiler_keeps_branch_targets_distinct() -> None:
     assert rebalance.sleeve_ids != rebalance.otherwise_sleeve_ids
 
     source = generate_csharp(plan)
-    assert "predicateOutcome0_0 ? 1m : 0m" in source
-    assert "!predicateOutcome0_0 ? 1m : 0m" in source
+    then_body, then_end = _csharp_block(source, "if (predicateOutcome0_0)")
+    otherwise_body, _ = _csharp_block(source, "else", then_end)
+
+    assert 'var sleeve0_0_0 = new[] { "QQQ" };' in then_body
+    assert 'var sleeve0_0_0 = new[] { "TLT" };' not in then_body
+    assert 'var sleeve0_0_0 = new[] { "TLT" };' in otherwise_body
+    assert 'var sleeve0_0_0 = new[] { "QQQ" };' not in otherwise_body
+    assert "predicateOutcome0_0 ? 1m : 0m" not in source
+    assert "!predicateOutcome0_0 ? 1m : 0m" not in source
     assert '"branch", predicateOutcome0_0 ? "then" : "otherwise"' in source
+
+
+@pytest.mark.parametrize(
+    ("predicate_outcome", "executed_asset", "unselected_asset"),
+    ((True, "QQQ", "TLT"), (False, "TLT", "QQQ")),
+)
+def test_only_selected_branch_contains_pipeline_and_branch_local_evidence(
+    predicate_outcome: bool,
+    executed_asset: str,
+    unselected_asset: str,
+) -> None:
+    source = generate_csharp(compile_strategy_to_lean_plan(two_branch_predicate_strategy()))
+    then_body, then_end = _csharp_block(source, "if (predicateOutcome0_0)")
+    otherwise_body, _ = _csharp_block(source, "else", then_end)
+    executed_body = then_body if predicate_outcome else otherwise_body
+
+    assert f'new[] {{ "{executed_asset}" }}' in executed_body
+    assert f'new[] {{ "{unselected_asset}" }}' not in executed_body
+    assert executed_body.count(
+        'EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",'
+    ) == 1
+
+
+def test_no_else_false_returns_before_any_branch_local_evaluation_or_mutation() -> None:
+    source = generate_csharp(compile_strategy_to_lean_plan(predicate_strategy()))
+    guard = source.index("if (!predicateOutcome0_0) return;")
+    branch_program = source.index('var sleeve0_0_0 = new[] { "QQQ" };')
+    portfolio_mutation = source.index("SetHoldings")
+
+    assert guard < branch_program < portfolio_mutation
+    assert "if (predicateOutcome0_0)" not in source
+    assert source[guard:branch_program].count("EmitDecisionEvidence") == 0
 
 
 def test_invalid_branch_target_rejection_is_atomic() -> None:

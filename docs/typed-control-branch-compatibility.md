@@ -21,3 +21,12 @@ draftable-only for this PR.
 Blocky uses the contract to classify its working topology. Future Flow authoring
 may use the same consumes/produces information to validate ports, while retaining
 its own capital-routing projection and interaction grammar.
+
+
+## Execution invariant
+
+The compiler evaluates the Predicate before entering either branch. Generated C#/LEAN
+uses a real conditional: the selected branch alone evaluates its Selection, Allocation,
+Action, state mutation, and branch-local Decision/Evidence pipeline. The unselected branch
+is not evaluated. A false Predicate without OTHERWISE returns before branch-local work,
+retaining current holdings without mutation.
