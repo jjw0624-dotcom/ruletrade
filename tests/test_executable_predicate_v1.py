@@ -268,8 +268,8 @@ def test_typed_control_compiler_keeps_branch_targets_distinct() -> None:
     assert rebalance.sleeve_ids != rebalance.otherwise_sleeve_ids
 
     source = generate_csharp(plan)
-    assert "predicateOutcome0_0 ? 1.0m : 0m" in source
-    assert "!predicateOutcome0_0 ? 1.0m : 0m" in source
+    assert "predicateOutcome0_0 ? 1m : 0m" in source
+    assert "!predicateOutcome0_0 ? 1m : 0m" in source
     assert '"branch", predicateOutcome0_0 ? "then" : "otherwise"' in source
 
 
