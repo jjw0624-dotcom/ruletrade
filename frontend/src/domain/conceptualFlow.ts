@@ -53,7 +53,7 @@ export interface ConceptualFlowProjection {
   rebalanceScheduleComponentId?: string;
   portfolioComponentId?: string;
   unsupportedReason?: string;
-  predicate?: { componentId: string; asset: string; lookbackBars: number; operator: string; threshold: string; label: string };
+  predicate?: { componentId: string; asset: string; lookbackBars: number; operator: string; threshold: string; label: string; thenTarget?: string; otherwiseTarget?: string };
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
@@ -75,11 +75,20 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
     ? condition.right as Record<string, unknown> : null;
   const operator = String(condition?.operator ?? "gt");
   const operatorLabel: Record<string, string> = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
+  const actionTarget = (action: unknown) => {
+    if (!action || typeof action !== "object" || Array.isArray(action)) return undefined;
+    const targets = (action as Record<string, unknown>).targets;
+    if (!targets || typeof targets !== "object" || Array.isArray(targets)) return undefined;
+    const componentId = (targets as Record<string, unknown>).component_id;
+    return typeof componentId === "string" ? componentId : undefined;
+  };
   const predicate = rule && left?.indicator_id === "trailing_return_indicator@1" ? {
     componentId: rule.id, asset: String(asset?.value ?? ""),
     lookbackBars: Number(parameters?.lookback_bars ?? 0), operator,
     threshold: String(right?.value ?? "0"),
     label: `${String(asset?.value ?? "Asset")} ${Number(parameters?.lookback_bars ?? 0)}-day return ${operatorLabel[operator] ?? operator} ${Number(right?.value ?? 0) * 100}%`,
+    thenTarget: actionTarget(rule.actions[0]),
+    otherwiseTarget: actionTarget(rule.else_actions?.[0]),
   } : undefined;
   return {
     kind: semantic.kind, title: semantic.title, groups,
