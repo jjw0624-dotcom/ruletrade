@@ -40,6 +40,22 @@ def _ranking_method(selection: LeanMomentumSelection) -> str:
     return "OrderByDescending" if selection.direction == "descending" else "OrderBy"
 
 
+def _filter_operator(selection: LeanMomentumSelection) -> str:
+    return selection.filter_clauses[0].operator if selection.filter_clauses else (selection.filter_operator or "gt")
+
+
+def _filter_clause_evidence(selection: LeanMomentumSelection) -> str:
+    clauses = selection.filter_clauses
+    if not clauses and selection.filter_operator is not None and selection.filter_threshold is not None:
+        from ruletrade.compiler.lean.plan import LeanFilterClause
+        clauses = (LeanFilterClause(selection.filter_operator, selection.filter_threshold),)
+    return ",".join(f"{item.operator}:{item.threshold}" for item in clauses)
+
+
+def _selection_success(selection: LeanMomentumSelection, variable: str) -> str:
+    return f"{variable}.Count > 0" if selection.shortage_policy == "choose_all" else f"{variable}.Count == {selection.count}"
+
+
 def _decimal_literal(value: Decimal) -> str:
     literal = f"{format(value.normalize(), 'f')}m"
     # Member access binds before unary minus in C#. Parenthesize negative literals
@@ -557,8 +573,8 @@ def generate_csharp(
                     '            + "|eligible=" + string.Join(",", eligible.Keys.OrderBy(item => item))',
                     '            + "|rejected=" + string.Join(",", scores.Keys.Except(eligible.Keys).OrderBy(item => item)));',
                     '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
-                    f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "config.threshold", "operator", "gt",',
-                    f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture),',
+                    f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "condition", "operator", {_csharp_string(_filter_operator(selection))},',
+                    f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "clauses", {_csharp_string(_filter_clause_evidence(selection))},',
                     f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
                     '            "scores", string.Join(",", scores.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                     '            "eligible", string.Join(",", eligible.Keys.OrderBy(item => item)),',
@@ -571,8 +587,8 @@ def generate_csharp(
                     '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
                     '            + "|ranked=" + string.Join(",", ranked.Select(item => item.Key))',
                     f'            + "|candidate=" + string.Join(",", {variable})',
-                    f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
-                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "insufficient"));',
+                    f'            + "|selected=" + ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : "")',
+                    f'            + "|decision=" + ({_selection_success(selection, variable)} ? "executed" : "insufficient"));',
                     '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
                     f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
                     f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
@@ -580,11 +596,11 @@ def generate_csharp(
                     '            "scores", string.Join(",", scores.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                     '            "ranked", string.Join(",", ranked.Select(item => item.Key)),',
                     f'            "candidates", string.Join(",", {variable}),',
-                    f'            "primary_selected", ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : ""),',
+                    f'            "primary_selected", ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : ""),',
                     f'            "required_count", "{selection.count}", "evaluated", string.Join(",", ranked.Select(item => item.Key)),',
                     f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", ranked.Select(item => item.Key).Except({variable})),',
-                    f'            "ranks", EvidenceRanks(ranked.Select(item => item.Key)), "stops", EvidenceSelectionStops(ranked.Select(item => item.Key), {variable}, {variable}.Count == {selection.count}, {str(bool(sleeve.fallback_symbols)).lower()}),',
-                    f'            "decision", ({variable}.Count == {selection.count} ? "executed" : "insufficient"));',
+                    f'            "ranks", EvidenceRanks(ranked.Select(item => item.Key)), "stops", EvidenceSelectionStops(ranked.Select(item => item.Key), {variable}, {_selection_success(selection, variable)}, {str(bool(sleeve.fallback_symbols)).lower()}),',
+                    f'            "decision", ({_selection_success(selection, variable)} ? "executed" : "insufficient"));',
                 )
             )
             if sleeve.fallback_symbols:
@@ -808,8 +824,8 @@ def generate_csharp(
                                         f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
                                         f'            + "|rejected=" + string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
                                         '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
-                                        f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "config.threshold", "operator", "gt",',
-                                        f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture),',
+                                        f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "condition", "operator", {_csharp_string(_filter_operator(selection))},',
+                                        f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "clauses", {_csharp_string(_filter_clause_evidence(selection))},',
                                         f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                                         f'            "eligible", string.Join(",", {eligible_variable}.Keys.OrderBy(item => item)),',
@@ -887,7 +903,10 @@ def generate_csharp(
                                 ranking_input if selection.filter_threshold is not None else variable
                             )
                             if selection.filter_threshold is not None:
-                                insufficient_decision = "insufficient" if sleeve.fallback_symbols else "skipped"
+                                insufficient_decision = (
+                                    "insufficient" if sleeve.fallback_symbols
+                                    else ("executed" if selection.shortage_policy == "choose_all" else "skipped")
+                                )
                                 lines.extend(
                                     (
                                         '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -895,8 +914,8 @@ def generate_csharp(
                                         '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
                                         f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
                                         f'            + "|candidate=" + string.Join(",", {variable})',
-                                        f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
-                                        f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
+                                        f'            + "|selected=" + ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : "")',
+                                        f'            + "|decision=" + ({_selection_success(selection, variable)} ? "executed" : "{insufficient_decision}"));',
                                         '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
                                         f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
                                         f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
@@ -904,11 +923,11 @@ def generate_csharp(
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                                         f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
                                         f'            "candidates", string.Join(",", {variable}),',
-                                        f'            "primary_selected", ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : ""),',
+                                        f'            "primary_selected", ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : ""),',
                                         f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
                                         f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({variable})),',
-                                        f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, {variable}.Count == {selection.count}, {str(bool(sleeve.fallback_symbols)).lower()}),',
-                                        f'            "decision", ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
+                                        f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, {_selection_success(selection, variable)}, {str(bool(sleeve.fallback_symbols)).lower()}),',
+                                        f'            "decision", ({_selection_success(selection, variable)} ? "executed" : "{insufficient_decision}"));',
                                     )
                                 )
                             if sleeve.fallback_symbols:
@@ -944,6 +963,16 @@ def generate_csharp(
                                         f"        if ({variable}.Count < {selection.count})",
                                         "        {",
                                         f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
+                                        "            return;",
+                                        "        }",
+                                    )
+                                )
+                            elif selection.cooldown_state_id is None:
+                                lines.extend(
+                                    (
+                                        f"        if ({variable}.Count == 0)",
+                                        "        {",
+                                        f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=0|required={selection.count}");',
                                         "            return;",
                                         "        }",
                                     )
