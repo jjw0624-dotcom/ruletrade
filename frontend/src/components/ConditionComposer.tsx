@@ -38,10 +38,11 @@ export function ConditionComposer({ role, expression, disabled, defaultLookback 
       const left = item.left;
       const right = item.right;
       const parameters = left.parameters;
+      const conditionAsset = left.asset.kind === "literal" ? left.asset : null;
       return <div key={index} className="condition-clause">
-        {role === "predicate" && left.asset.kind === "literal" &&
-          <label>Asset<input aria-label="Condition asset" value={String(left.asset.value)}
-            onChange={(event) => update(index, { ...item, left: { ...left, asset: { ...left.asset, value: event.target.value.toUpperCase() } } })} /></label>}
+        {role === "predicate" && conditionAsset &&
+          <label>Asset<input aria-label="Condition asset" value={String(conditionAsset.value)}
+            onChange={(event) => update(index, { ...item, left: { ...left, asset: { ...conditionAsset, value: event.target.value.toUpperCase() } } })} /></label>}
         <span>{role === "predicate" ? "Asset" : "Candidate"} trailing return</span>
         {role === "predicate"
           ? <input aria-label="Lookback days" type="number" min="1" value={Number(parameters.lookback_bars ?? defaultLookback)}
