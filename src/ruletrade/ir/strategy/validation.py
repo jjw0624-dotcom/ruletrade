@@ -14,6 +14,7 @@ from ruletrade.ir.strategy.model import (
     MergeTargetsOp,
     MonthlyScheduleOp,
     ObserveTargetExitsOp,
+    PredicateRebalanceOp,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -63,7 +64,7 @@ def _result_type(operation: StrategyIROperation) -> IRType:
         ),
     ):
         return IRType.PORTFOLIO_TARGETS
-    if isinstance(operation, RebalanceOp):
+    if isinstance(operation, (RebalanceOp, PredicateRebalanceOp)):
         return IRType.EFFECT
     raise TypeError(f"unknown IR operation type: {type(operation).__name__}")
 
@@ -99,7 +100,7 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
         )
     if isinstance(operation, ObserveTargetExitsOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
-    if isinstance(operation, RebalanceOp):
+    if isinstance(operation, (RebalanceOp, PredicateRebalanceOp)):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     return ()
 
@@ -149,6 +150,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         FirstNonEmptyTargetsOp,
         ObserveTargetExitsOp,
         RebalanceOp,
+        PredicateRebalanceOp,
     )
     for index, operation in enumerate(strategy_ir.operations):
         path = f"operations[{index}]"
@@ -197,6 +199,13 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 issues.append(
                     IRValidationIssue(f"{path}.threshold", "filter threshold must be finite decimal")
                 )
+        if isinstance(operation, PredicateRebalanceOp):
+            if operation.lookback_bars < 1:
+                issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
+            if operation.operator not in {"gt", "gte", "lt", "lte"}:
+                issues.append(IRValidationIssue(f"{path}.operator", "unsupported predicate operator"))
+            if not operation.threshold.is_finite():
+                issues.append(IRValidationIssue(f"{path}.threshold", "predicate threshold must be finite"))
         if isinstance(operation, RankOp) and operation.direction != "descending":
             issues.append(IRValidationIssue(f"{path}.direction", "only descending rank is supported"))
         if isinstance(operation, TopNOp) and operation.count < 1:
@@ -321,7 +330,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         path = f"entrypoints[{index}]"
         if not isinstance(event, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
             issues.append(IRValidationIssue(f"{path}.event", "entrypoint event must be a schedule"))
-        if not isinstance(target, (RetainTargetsOp, RebalanceOp)):
+        if not isinstance(target, (RetainTargetsOp, RebalanceOp, PredicateRebalanceOp)):
             issues.append(
                 IRValidationIssue(
                     f"{path}.target",

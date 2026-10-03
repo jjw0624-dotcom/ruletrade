@@ -672,6 +672,35 @@
           }
         ],
         "result_type": null
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "backend_capability": "generated",
+        "category": "indicator",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": "1",
+            "name": "lookback_bars",
+            "reference": null,
+            "required": true,
+            "value_type": "integer"
+          }
+        ],
+        "id": "trailing_return_indicator@1",
+        "implementation_id": "market.trailing_return_indicator",
+        "inputs": [],
+        "outputs": [],
+        "result_type": "percentage"
       }
     ]
   },

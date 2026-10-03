@@ -19,6 +19,7 @@ function sessionLabel(events: DecisionEventSummary[]): string {
   // Decision detail carries the authoritative activated value.
   if (kinds.has("fallback")) return "Fallback evaluated";
   if (kinds.has("cooldown")) return "Asset still waiting";
+  if (kinds.has("predicate")) return "Market condition evaluated";
   if (kinds.has("final_targets") || kinds.has("sleeve_contribution") || kinds.has("snapshot_usage")) return "Portfolio updated";
   if (kinds.has("state_mutation")) return "Waiting period updated";
   if (kinds.has("filter") || kinds.has("selection")) return "Assets evaluated";
@@ -27,6 +28,10 @@ function sessionLabel(events: DecisionEventSummary[]): string {
 }
 
 export function happenedText(details: DecisionEventDetail[]): string {
+  const predicate = details.find((item) => item.evidence.kind === "predicate")?.evidence;
+  if (predicate?.kind === "predicate") return predicate.outcome
+    ? `The market condition passed and the strategy took its THEN branch.`
+    : `The market condition did not pass and the strategy retained its current portfolio.`;
   const final = details.find((item) => item.evidence.kind === "final_selection")?.evidence;
   if (final?.kind === "final_selection") return final.source === "fallback" ? `The strategy used its fallback: ${final.selected.join(", ")}.` : `The strategy selected ${final.selected.join(", ")}.`;
   const targets = details.find((item) => item.evidence.kind === "final_targets")?.evidence;
@@ -41,6 +46,7 @@ export function happenedText(details: DecisionEventDetail[]): string {
 export function relevantAssets(details: DecisionEventDetail[]): string[] {
   const assets = new Set<string>();
   for (const { evidence } of details) {
+    if (evidence.kind === "predicate") assets.add(evidence.asset);
     if (evidence.kind === "filter") {
       evidence.evaluations.forEach((item) => assets.add(item.asset));
       if ("decision_universe" in evidence) evidence.decision_universe.forEach((asset) => assets.add(asset));
@@ -86,6 +92,15 @@ function sourceFor(details: DecisionEventDetail[], kind: DecisionEventDetail["ki
 
 export function assetPath(asset: string, details: DecisionEventDetail[]): AssetPathStep[] {
   const steps: AssetPathStep[] = [];
+  const predicate = details.find((item) => item.evidence.kind === "predicate" && item.evidence.asset === asset)?.evidence;
+  const predicateSource = sourceFor(details, "predicate", "predicate");
+  if (predicate?.kind === "predicate") steps.push({
+    id: "predicate", label: "Market condition",
+    detail: `${predicate.observed === null ? "Not enough completed history" : formatScore(predicate.observed)} ${predicate.operator} ${formatScore(predicate.threshold)} · ${predicate.branch.toUpperCase()} branch`,
+    status: predicate.outcome ? "passed" : "failed",
+    sourceComponentId: predicateSource?.component_id,
+    sourceFieldPath: predicateSource?.field_path,
+  });
   const filter = details.find((item) => item.evidence.kind === "filter")?.evidence;
   const evaluation = filter?.kind === "filter" ? filter.evaluations.find((item) => item.asset === asset) : undefined;
   const selection = details.find((item) => item.evidence.kind === "selection")?.evidence;

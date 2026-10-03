@@ -18,6 +18,7 @@ from ruletrade.compiler.lean.plan import (
     LeanSubscription,
     LeanTargetSleeve,
     LeanTargetSnapshot,
+    LeanTrailingReturnPredicate,
     normalize_lean_plan,
 )
 from ruletrade.ir.strategy import (
@@ -30,6 +31,7 @@ from ruletrade.ir.strategy import (
     MergeTargetsOp,
     MonthlyScheduleOp,
     ObserveTargetExitsOp,
+    PredicateRebalanceOp,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -68,8 +70,7 @@ def lower_strategy_ir_to_lean_plan(
 
     operations = {operation.id: operation for operation in strategy_ir.operations}
     history_requirements = {
-        requirement.source_component_id: requirement
-        for requirement in requirements.daily_history
+        requirement.source_component_id: requirement for requirement in requirements.daily_history
     }
     selections: dict[str, LeanRandomSelection] = {}
     momentum_selections: dict[str, LeanMomentumSelection] = {}
@@ -78,8 +79,7 @@ def lower_strategy_ir_to_lean_plan(
     snapshots: dict[str, LeanTargetSnapshot] = {}
 
     calendar_requirements = {
-        requirement.source_component_id: requirement
-        for requirement in requirements.trading_calendars
+        requirement.source_component_id: requirement for requirement in requirements.trading_calendars
     }
 
     def lower_momentum_selection(
@@ -93,7 +93,11 @@ def lower_strategy_ir_to_lean_plan(
         filter_operation = rank_input if isinstance(rank_input, FilterOp) else None
         score = operations.get(filter_operation.scores) if filter_operation is not None else rank_input
         asset_set = operations.get(score.assets) if isinstance(score, TrailingReturnOp) else None
-        if not isinstance(rank, RankOp) or not isinstance(score, TrailingReturnOp) or not isinstance(asset_set, AssetSetOp):
+        if (
+            not isinstance(rank, RankOp)
+            or not isinstance(score, TrailingReturnOp)
+            or not isinstance(asset_set, AssetSetOp)
+        ):
             raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
         history = history_requirements.get(score.provenance.component_id)
         if history is None:
@@ -109,9 +113,7 @@ def lower_strategy_ir_to_lean_plan(
             direction=rank.direction,
             price_field=history.price_field,
             filter_component_id=(
-                filter_operation.provenance.component_id
-                if filter_operation is not None
-                else None
+                filter_operation.provenance.component_id if filter_operation is not None else None
             ),
             filter_operator=(filter_operation.operator if filter_operation is not None else None),
             filter_threshold=(filter_operation.threshold if filter_operation is not None else None),
@@ -165,9 +167,7 @@ def lower_strategy_ir_to_lean_plan(
         elif isinstance(upstream, AssetSetOp):
             symbols = upstream.symbols
         else:
-            raise LeanLoweringError(
-                "equal-weight input must be a market asset set or RandomN selection"
-            )
+            raise LeanLoweringError("equal-weight input must be a market asset set or RandomN selection")
         sleeve = LeanTargetSleeve(
             id=operation.id,
             symbols=symbols,
@@ -189,11 +189,13 @@ def lower_strategy_ir_to_lean_plan(
                 operation.left,
                 scale=scale,
                 source_sleeve_component_id=source_sleeve_component_id,
-            ).merged(lower_targets(
-                operation.right,
-                scale=scale,
-                source_sleeve_component_id=source_sleeve_component_id,
-            ))
+            ).merged(
+                lower_targets(
+                    operation.right,
+                    scale=scale,
+                    source_sleeve_component_id=source_sleeve_component_id,
+                )
+            )
         if isinstance(operation, ScaleTargetsOp):
             if source_sleeve_component_id is not None:
                 raise LeanLoweringError("nested portfolio sleeves are not supported")
@@ -220,38 +222,24 @@ def lower_strategy_ir_to_lean_plan(
                 local,
                 total_weight=local.total_weight * scale,
                 source_sleeve_component_id=source_sleeve_component_id,
-                local_total_weight=(
-                    local.total_weight if source_sleeve_component_id is not None else None
-                ),
-                source_allocation=(
-                    scale if source_sleeve_component_id is not None else None
-                ),
+                local_total_weight=(local.total_weight if source_sleeve_component_id is not None else None),
+                source_allocation=(scale if source_sleeve_component_id is not None else None),
             )
             sleeves[lowered.id] = lowered
             return _LoweredTargets(sleeves=(lowered,))
         if isinstance(operation, FirstNonEmptyTargetsOp):
             primary = operations.get(operation.primary)
             fallback = operations.get(operation.fallback)
-            fallback_assets = (
-                operations.get(fallback.assets)
-                if isinstance(fallback, EqualWeightOp)
-                else None
-            )
-            if not isinstance(primary, EqualWeightOp) or not isinstance(
-                fallback, EqualWeightOp
-            ):
-                raise LeanLoweringError(
-                    "first-non-empty targets require equal-weight primary and fallback"
-                )
+            fallback_assets = operations.get(fallback.assets) if isinstance(fallback, EqualWeightOp) else None
+            if not isinstance(primary, EqualWeightOp) or not isinstance(fallback, EqualWeightOp):
+                raise LeanLoweringError("first-non-empty targets require equal-weight primary and fallback")
             if not isinstance(fallback_assets, AssetSetOp) or len(fallback_assets.symbols) != 1:
                 raise LeanLoweringError("LEAN fallback v0 requires one fallback asset")
             if primary.total_weight != fallback.total_weight:
                 raise LeanLoweringError("fallback allocation must match the primary allocation")
             primary_sleeve = lower_sleeve(primary.id)
             if primary_sleeve.selection_id not in momentum_selections:
-                raise LeanLoweringError(
-                    "LEAN fallback v0 requires a momentum Top N primary selection"
-                )
+                raise LeanLoweringError("LEAN fallback v0 requires a momentum Top N primary selection")
             lowered = replace(
                 primary_sleeve,
                 total_weight=primary_sleeve.total_weight * scale,
@@ -259,13 +247,9 @@ def lower_strategy_ir_to_lean_plan(
                 fallback_symbols=fallback_assets.symbols,
                 source_sleeve_component_id=source_sleeve_component_id,
                 local_total_weight=(
-                    primary_sleeve.total_weight
-                    if source_sleeve_component_id is not None
-                    else None
+                    primary_sleeve.total_weight if source_sleeve_component_id is not None else None
                 ),
-                source_allocation=(
-                    scale if source_sleeve_component_id is not None else None
-                ),
+                source_allocation=(scale if source_sleeve_component_id is not None else None),
             )
             sleeves[lowered.id] = lowered
             return _LoweredTargets(sleeves=(lowered,))
@@ -315,18 +299,14 @@ def lower_strategy_ir_to_lean_plan(
         if not isinstance(event, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
             raise LeanLoweringError("LEAN compiler v0 supports daily, monthly, and quarterly events")
         if not isinstance(event, DailyScheduleOp) and event.day != 1:
-            raise LeanLoweringError(
-                "LEAN compiler v0 supports only the first trading day of a period"
-            )
+            raise LeanLoweringError("LEAN compiler v0 supports only the first trading day of a period")
         actions = event_actions.setdefault(event.id, {"refresh": [], "rebalance": []})
         if isinstance(target, RetainTargetsOp):
             lower_snapshot(target)
             actions["refresh"].append(target.id)
-        elif isinstance(target, RebalanceOp):
+        elif isinstance(target, (RebalanceOp, PredicateRebalanceOp)):
             lowered = lower_targets(target.targets)
-            total_weight = sum(
-                (sleeve.total_weight for sleeve in lowered.sleeves), Decimal(0)
-            ) + sum(
+            total_weight = sum((sleeve.total_weight for sleeve in lowered.sleeves), Decimal(0)) + sum(
                 (item.factor for item in lowered.snapshot_allocations), Decimal(0)
             )
             if total_weight != Decimal(1):
@@ -336,6 +316,17 @@ def lower_strategy_ir_to_lean_plan(
                 sleeve_ids=tuple(sleeve.id for sleeve in lowered.sleeves),
                 snapshot_allocations=lowered.snapshot_allocations,
                 exit_state_ids=tuple(sorted(set(lowered.exit_state_ids))),
+                predicate=(
+                    LeanTrailingReturnPredicate(
+                        component_id=target.provenance.component_id,
+                        asset=target.asset,
+                        lookback_bars=target.lookback_bars,
+                        operator=target.operator,
+                        threshold=target.threshold,
+                    )
+                    if isinstance(target, PredicateRebalanceOp)
+                    else None
+                ),
             )
             actions["rebalance"].append(target.id)
         else:

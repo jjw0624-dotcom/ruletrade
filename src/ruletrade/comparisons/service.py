@@ -43,6 +43,7 @@ _PHASE_ORDER = {
     "state_mutation": 4,
 }
 _KIND_ORDER = {
+    "predicate": 0,
     "filter": 0,
     "random_selection": 1,
     "selection": 1,
@@ -141,9 +142,7 @@ class ComparisonService:
             created_at=self._clock(),
             diagnostics=diagnostics,
         )
-        diagnostics = diagnostics.model_copy(
-            update={"comparison_bytes": serialized_bytes(comparison)}
-        )
+        diagnostics = diagnostics.model_copy(update={"comparison_bytes": serialized_bytes(comparison)})
         comparison = comparison.model_copy(update={"diagnostics": diagnostics})
         persistence_ms = self.repository.create(comparison)
         diagnostics = diagnostics.model_copy(
@@ -182,13 +181,9 @@ class ComparisonService:
     def _events(self, run_id: str) -> tuple[DecisionEventDetail, ...]:
         events = self.runs.list_decision_event_details(run_id)
         if not events:
-            raise ComparisonEvidenceUnsupportedError(
-                "Comparison requires persisted Decision Evidence."
-            )
+            raise ComparisonEvidenceUnsupportedError("Comparison requires persisted Decision Evidence.")
         if any(event.schema_version != 2 for event in events):
-            raise ComparisonEvidenceUnsupportedError(
-                "Behavior Comparison requires Decision Evidence v2."
-            )
+            raise ComparisonEvidenceUnsupportedError("Behavior Comparison requires Decision Evidence v2.")
         return events
 
     @staticmethod
@@ -212,10 +207,7 @@ class ComparisonService:
             raise IncomparableRunsError("Candidate Run source does not match Candidate.")
         if original.run_config != candidate.run_config:
             raise IncomparableRunsError("Run configurations are not exactly equal.")
-        if (
-            original.status != BacktestRunStatus.SUCCEEDED
-            or candidate.status != BacktestRunStatus.SUCCEEDED
-        ):
+        if original.status != BacktestRunStatus.SUCCEEDED or candidate.status != BacktestRunStatus.SUCCEEDED:
             raise IncomparableRunsError("Behavior and Result Comparison requires succeeded Runs.")
         if original.result is None or candidate.result is None:
             raise IncomparableRunsError("Succeeded Runs require normalized Results.")
@@ -271,10 +263,7 @@ def _index_events(
             event.phase,
             event.kind,
             tuple(
-                sorted(
-                    (ref.role, ref.component_id, ref.field_path or "")
-                    for ref in event.source_components
-                )
+                sorted((ref.role, ref.component_id, ref.field_path or "") for ref in event.source_components)
             ),
             _subject(event),
         )
@@ -285,7 +274,7 @@ def _index_events(
 
 def _subject(event: DecisionEventDetail) -> str:
     evidence = event.evidence
-    if evidence.kind in {"fallback", "cooldown", "state_mutation"}:
+    if evidence.kind in {"predicate", "fallback", "cooldown", "state_mutation"}:
         return evidence.asset
     return ""
 
@@ -299,7 +288,10 @@ def _classify(
     if left.kind != right.kind:
         return ("event_presence_changed",)
     kinds: list[BehaviorDifferenceKind] = []
-    if left.kind == "filter" and right.kind == "filter":
+    if left.kind == "predicate" and right.kind == "predicate":
+        if left.outcome != right.outcome or left.branch != right.branch:
+            kinds.append("predicate_branch_changed")
+    elif left.kind == "filter" and right.kind == "filter":
         left_pass = {item.asset: item.passed for item in left.evaluations}
         right_pass = {item.asset: item.passed for item in right.evaluations}
         if left_pass != right_pass or left.decision_universe != right.decision_universe:
@@ -339,8 +331,11 @@ def _classify(
     elif left.kind == "state_mutation" and right.kind == "state_mutation":
         if left != right:
             kinds.append("state_mutation_changed")
-    elif left.kind == "final_targets" and right.kind == "final_targets":
-        if left.selected != right.selected or left.targets != right.targets:
+    elif (
+        left.kind == "final_targets"
+        and right.kind == "final_targets"
+        and (left.selected != right.selected or left.targets != right.targets)
+    ):
             kinds.append("final_target_changed")
     return tuple(kinds)
 
@@ -350,6 +345,7 @@ def _presence_change_kinds(
 ) -> tuple[BehaviorDifferenceKind, ...]:
     assert event is not None
     semantic_kind: dict[str, BehaviorDifferenceKind] = {
+        "predicate": "predicate_branch_changed",
         "filter": "qualification_changed",
         "selection": "primary_selection_changed",
         "random_selection": "primary_selection_changed",
@@ -363,11 +359,7 @@ def _presence_change_kinds(
         "final_targets": "final_target_changed",
     }
     classified = semantic_kind.get(event.kind)
-    return (
-        ("event_presence_changed",)
-        if classified is None
-        else ("event_presence_changed", classified)
-    )
+    return ("event_presence_changed",) if classified is None else ("event_presence_changed", classified)
 
 
 def _result_diff(original: BacktestRunRecord, candidate: BacktestRunRecord) -> ResultDiff:

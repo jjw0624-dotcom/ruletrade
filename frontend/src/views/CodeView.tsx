@@ -12,7 +12,7 @@ export function CodeView() {
     <pre className="code-metadata">{JSON.stringify({ api_version: state.canonical.api_version, metadata: state.canonical.metadata, definitions: state.canonical.definitions, entrypoints: state.canonical.entrypoints }, null, 2)}</pre>
     <h2>Components</h2>{state.canonical.graph.components.map((item) => <section key={item.id} ref={selected === item.id ? focused : undefined} className={`code-component${selected === item.id ? " selected" : ""}`} data-component-id={item.id}>
       <button className="rule-select" onClick={() => dispatch({ type: "select_semantic", selection: { role: "rule", componentId: item.id, fieldPath: state.editor.selection?.componentId === item.id ? state.editor.selection.fieldPath : null, groupId: null } })}>{item.id} · {item.primitive}</button>
-      <pre>{JSON.stringify(item.config, null, 2)}</pre>
+      <pre>{JSON.stringify({ config: item.config, condition: item.condition, actions: item.actions, else_actions: item.else_actions ?? [] }, null, 2)}</pre>
     </section>)}
     <h2>Connections</h2><pre className="code-metadata">{JSON.stringify(state.canonical.graph.connections, null, 2)}</pre>
   </div>;

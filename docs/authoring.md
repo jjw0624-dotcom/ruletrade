@@ -57,6 +57,12 @@ Typed operations cover:
 - fallback choice among existing single-asset definitions;
 - duration of an existing Cooldown in completed trading days.
 
+Predicate v1 adds `add_predicate` for an eligible Rebalance,
+`update_predicate` for its asset/lookback/operator/threshold, and
+`remove_predicate` as its unambiguous inverse. Capabilities return exact add and
+remove targets. These operations preserve the guarded component ID and use the
+same atomic validation/Canonical replacement lifecycle as every other view.
+
 Operations preserve surviving Canonical component IDs. A change that cannot
 produce a valid supported Canonical is rejected without partial mutation.
 
@@ -78,6 +84,7 @@ Blocky now consumes the backend Semantic Composition Projection as a decision
 program (`Context -> Script -> Trigger -> Statements`). User-level Selection
 aggregates its Canonical Universe/Measure/Eligibility/Rank provenance, while
 fallback and Cooldown retain their selection-modifier and Constraint meaning.
-Unfinished generic IF/Otherwise structure is Blocky-local `LogicDraft`; it
-blocks Save/Test and never enters Canonical. See
+One restricted IF is executable through Predicate v1. Generic IF/Otherwise,
+nested control, or unsupported statements remain Blocky-local `LogicDraft`;
+they block Save/Test and never enter Canonical. See
 [Blocky Program Composer v1](blocky-program-composer-v1.md).

@@ -2,7 +2,7 @@ import type { DecisionEventSummary } from "../decisionEvidenceApi";
 import type { BacktestResult } from "./backtest";
 import { groupDecisionSessions } from "./decisionPresentation";
 
-export type ResultEventCategory = "selection" | "fallback" | "eligibility" | "portfolio";
+export type ResultEventCategory = "selection" | "fallback" | "condition" | "eligibility" | "portfolio";
 export type ResultEventFilter = "all" | ResultEventCategory;
 
 export interface ResultEventPresentation {
@@ -39,12 +39,13 @@ export function resultEventsOnSeries(events: ResultEventPresentation[], series: 
   return events.filter((event) => times.has(event.sessionId));
 }
 
-const categoryPriority: ResultEventCategory[] = ["fallback", "eligibility", "selection", "portfolio"];
+const categoryPriority: ResultEventCategory[] = ["condition", "fallback", "eligibility", "selection", "portfolio"];
 
 function categoryFor(items: DecisionEventSummary[]): ResultEventCategory {
   const kinds = new Set(items.map((item) => item.kind));
   if (kinds.has("fallback")) return "fallback";
   if (kinds.has("cooldown")) return "eligibility";
+  if (kinds.has("predicate")) return "condition";
   if (kinds.has("filter") || kinds.has("selection") || kinds.has("random_selection") || kinds.has("final_selection")) return "selection";
   return "portfolio";
 }
@@ -52,6 +53,7 @@ function categoryFor(items: DecisionEventSummary[]): ResultEventCategory {
 function representative(items: DecisionEventSummary[], category: ResultEventCategory): DecisionEventSummary {
   const preferred: Record<ResultEventCategory, DecisionEventSummary["kind"][]> = {
     fallback: ["fallback", "final_selection"],
+    condition: ["predicate"],
     eligibility: ["cooldown"],
     selection: ["selection", "random_selection", "filter", "final_selection"],
     portfolio: ["final_targets", "sleeve_contribution", "snapshot_usage", "snapshot_refresh", "state_mutation"],

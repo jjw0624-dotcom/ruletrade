@@ -12,6 +12,7 @@ export interface SelectionAssetOutcome {
 export type DecisionPhase = "evaluation" | "selection" | "snapshot_commit" | "portfolio_execution" | "state_mutation";
 
 type SharedDecisionEvidence =
+  | { kind: "predicate"; asset: string; measure: "trailing_return"; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; observed: string | null; threshold: string; outcome: boolean; branch: "then" | "otherwise" }
   | { kind: "fallback"; asset: string; activated: boolean }
   | { kind: "final_selection"; selected: string[]; source: "primary" | "fallback" }
   | { kind: "state_mutation"; asset: string; state: "last_exit"; old_value: string | null; new_value: string; cause: "target_exit" }

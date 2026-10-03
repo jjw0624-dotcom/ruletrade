@@ -5,7 +5,7 @@ import { availableResultEventFilters, chartResultEvents, projectResultChartSerie
 
 function money(value: string): string { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value)); }
 function percentage(value: string): string { return new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2 }).format(Number(value)); }
-function markerColor(kind: ResultEventPresentation["category"]): string { return kind === "fallback" ? "#b87518" : kind === "eligibility" ? "#8a4d79" : kind === "portfolio" ? "#52778c" : "#286448"; }
+function markerColor(kind: ResultEventPresentation["category"]): string { return kind === "fallback" ? "#b87518" : kind === "condition" ? "#6652a3" : kind === "eligibility" ? "#8a4d79" : kind === "portfolio" ? "#52778c" : "#286448"; }
 function markerShape(kind: ResultEventPresentation["category"]): "circle" | "square" | "arrowUp" | "arrowDown" { return kind === "fallback" ? "square" : kind === "portfolio" ? "arrowUp" : kind === "eligibility" ? "arrowDown" : "circle"; }
 
 function LightweightEquityChart({ result, events, selectedDecisionId, onSelectDecision }: { result: BacktestResult; events: ResultEventPresentation[]; selectedDecisionId?: string | null; onSelectDecision?: (event: ResultEventPresentation) => void }) {
@@ -68,7 +68,7 @@ function LightweightEquityChart({ result, events, selectedDecisionId, onSelectDe
   </>;
 }
 
-const filterLabel: Record<ResultEventFilter, string> = { all: "All", selection: "Selections", fallback: "Fallback", eligibility: "Eligibility", portfolio: "Portfolio" };
+const filterLabel: Record<ResultEventFilter, string> = { all: "All", selection: "Selections", fallback: "Fallback", condition: "Conditions", eligibility: "Eligibility", portfolio: "Portfolio" };
 
 export function BacktestResultPanel({ result, selectedDecisionId, allEvents = [], events = [], filter = "all", onFilter, onSelectDecision }: { result: BacktestResult; selectedDecisionId?: string | null; allEvents?: ResultEventPresentation[]; events?: ResultEventPresentation[]; filter?: ResultEventFilter; onFilter?: (filter: ResultEventFilter) => void; onSelectDecision?: (event: ResultEventPresentation) => void }) {
   const selected = events.find((event) => event.decisionId === selectedDecisionId);

@@ -9,6 +9,7 @@ from ruletrade.ir.strategy import (
     ElapsedSessionsGateOp,
     FilterOp,
     MonthlyScheduleOp,
+    PredicateRebalanceOp,
     QuarterlyScheduleOp,
     RandomNOp,
     RankOp,
@@ -124,6 +125,16 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
                         observation_count=operation.lookback_bars + 1,
                     )
                 )
+        elif isinstance(operation, PredicateRebalanceOp):
+            assets.add(operation.asset)
+            daily_history.append(
+                DailyHistoryRequirement(
+                    source_component_id=operation.provenance.component_id,
+                    symbols=(operation.asset,),
+                    lookback_bars=operation.lookback_bars,
+                    observation_count=operation.lookback_bars + 1,
+                )
+            )
     user_state = tuple(
         UserStateRequirement(
             state_id=state.id,
@@ -143,12 +154,8 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
         assets=tuple(sorted(assets)),
         schedules=tuple(sorted(schedules, key=lambda item: item.source_component_id)),
         operations=tuple(sorted(operations)),
-        random_selections=tuple(
-            sorted(random_selections, key=lambda item: item.source_component_id)
-        ),
+        random_selections=tuple(sorted(random_selections, key=lambda item: item.source_component_id)),
         daily_history=tuple(sorted(daily_history, key=lambda item: item.source_component_id)),
         user_state=tuple(sorted(user_state, key=lambda item: item.state_id)),
-        trading_calendars=tuple(
-            sorted(trading_calendars, key=lambda item: item.source_component_id)
-        ),
+        trading_calendars=tuple(sorted(trading_calendars, key=lambda item: item.source_component_id)),
     )

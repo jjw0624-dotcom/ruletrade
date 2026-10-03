@@ -53,6 +53,7 @@ export interface ConceptualFlowProjection {
   rebalanceScheduleComponentId?: string;
   portfolioComponentId?: string;
   unsupportedReason?: string;
+  predicate?: { componentId: string; asset: string; lookbackBars: number; operator: string; threshold: string; label: string };
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
@@ -61,6 +62,25 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
   if (!result.supported) return { kind: "single", title: strategy.metadata.name, groups: [], sourceComponentIds: [], unsupportedReason: result.reason };
   const semantic = result.projection;
   const groups = semantic.groups.map(conceptualGroup);
+  const rule = strategy.graph.components.find((item) => item.primitive === "rule@1");
+  const condition = rule?.condition && typeof rule.condition === "object" && !Array.isArray(rule.condition)
+    ? rule.condition as Record<string, unknown> : null;
+  const left = condition?.left && typeof condition.left === "object" && !Array.isArray(condition.left)
+    ? condition.left as Record<string, unknown> : null;
+  const asset = left?.asset && typeof left.asset === "object" && !Array.isArray(left.asset)
+    ? left.asset as Record<string, unknown> : null;
+  const parameters = left?.parameters && typeof left.parameters === "object" && !Array.isArray(left.parameters)
+    ? left.parameters as Record<string, unknown> : null;
+  const right = condition?.right && typeof condition.right === "object" && !Array.isArray(condition.right)
+    ? condition.right as Record<string, unknown> : null;
+  const operator = String(condition?.operator ?? "gt");
+  const operatorLabel: Record<string, string> = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
+  const predicate = rule && left?.indicator_id === "trailing_return_indicator@1" ? {
+    componentId: rule.id, asset: String(asset?.value ?? ""),
+    lookbackBars: Number(parameters?.lookback_bars ?? 0), operator,
+    threshold: String(right?.value ?? "0"),
+    label: `${String(asset?.value ?? "Asset")} ${Number(parameters?.lookback_bars ?? 0)}-day return ${operatorLabel[operator] ?? operator} ${Number(right?.value ?? 0) * 100}%`,
+  } : undefined;
   return {
     kind: semantic.kind, title: semantic.title, groups,
     rebalance: semantic.rebalanceSchedule,
@@ -68,6 +88,7 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
     portfolioComponentId: semantic.portfolioComponentId,
     sourceComponentIds: [semantic.portfolioComponentId, ...semantic.groups.flatMap((group) => [group.sleeveComponentId, ...groupSourceIds(group)])].filter((id): id is string => Boolean(id)),
     split: semantic.portfolioComponentId ? { groups: semantic.groups.map((group) => ({ id: group.id, label: group.name, componentId: group.sleeveComponentId!, allocation: group.allocation })) } : undefined,
+    predicate,
   };
 }
 

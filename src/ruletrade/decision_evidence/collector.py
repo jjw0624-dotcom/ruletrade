@@ -13,6 +13,7 @@ from ruletrade.decision_evidence.models import (
     FilterEvidence,
     FinalSelectionEvidence,
     FinalTargetsEvidence,
+    PredicateEvidence,
     RandomSelectionEvidence,
     SelectionAssetOutcome,
     SelectionEvidence,
@@ -54,9 +55,7 @@ def collect_decision_evidence(log_text: str) -> tuple[CollectedDecisionEvent, ..
             f"Decision evidence sequence must be contiguous from 1; observed {actual}."
         )
     if len({item.schema_version for item in records}) > 1:
-        raise DecisionEvidenceError(
-            "One Backtest Run cannot mix Decision Evidence schema versions."
-        )
+        raise DecisionEvidenceError("One Backtest Run cannot mix Decision Evidence schema versions.")
     return tuple(records)
 
 
@@ -82,9 +81,7 @@ def _record(fields: dict[str, str], schema_version: int) -> CollectedDecisionEve
         sources = _sources(fields)
         evidence = _payload(kind, fields, schema_version)
         if fields:
-            raise DecisionEvidenceError(
-                f"Unexpected {kind} evidence fields: {', '.join(sorted(fields))}."
-            )
+            raise DecisionEvidenceError(f"Unexpected {kind} evidence fields: {', '.join(sorted(fields))}.")
         return CollectedDecisionEvent(
             schema_version=schema_version,
             sequence=sequence,
@@ -119,19 +116,27 @@ def _sources(fields: dict[str, str]) -> tuple[SourceComponentRef, ...]:
 
 
 def _payload(kind: str, fields: dict[str, str], schema_version: int):
+    if kind == "predicate":
+        observed = fields.pop("observed")
+        return PredicateEvidence(
+            asset=fields.pop("asset"),
+            measure=fields.pop("measure"),
+            lookback_bars=int(fields.pop("lookback_bars")),
+            operator=fields.pop("operator"),
+            observed=Decimal(observed) if observed else None,
+            threshold=Decimal(fields.pop("threshold")),
+            outcome=_bool(fields.pop("outcome")),
+            branch=fields.pop("branch"),
+        )
     if kind == "filter":
         scores = _decimal_map(fields.pop("scores"))
         eligible = set(_symbols(fields.pop("eligible")))
         rejected = set(_symbols(fields.pop("rejected")))
         if eligible | rejected != set(scores) or eligible & rejected:
             raise DecisionEvidenceError("Filter evidence does not partition observations.")
-        decision_universe = (
-            _symbols(fields.pop("decision_universe")) if schema_version >= 2 else None
-        )
+        decision_universe = _symbols(fields.pop("decision_universe")) if schema_version >= 2 else None
         if decision_universe is not None and not set(scores) <= set(decision_universe):
-            raise DecisionEvidenceError(
-                "Filter evaluations must belong to the decision universe."
-            )
+            raise DecisionEvidenceError("Filter evaluations must belong to the decision universe.")
         return FilterEvidence(
             operator=fields.pop("operator"),
             threshold=Decimal(fields.pop("threshold")),
@@ -140,20 +145,14 @@ def _payload(kind: str, fields: dict[str, str], schema_version: int):
                     asset=asset,
                     observed=value,
                     passed=asset in eligible,
-                    stopping_stage=(
-                        "filter"
-                        if schema_version >= 2 and asset in rejected
-                        else None
-                    ),
+                    stopping_stage=("filter" if schema_version >= 2 and asset in rejected else None),
                 )
                 for asset, value in scores.items()
             ),
             decision_universe=decision_universe,
         )
     if kind == "selection":
-        required_count = (
-            int(fields.pop("required_count")) if schema_version >= 2 else None
-        )
+        required_count = int(fields.pop("required_count")) if schema_version >= 2 else None
         outcomes = None
         if schema_version >= 2:
             evaluated = _symbols(fields.pop("evaluated"))
@@ -164,18 +163,13 @@ def _payload(kind: str, fields: dict[str, str], schema_version: int):
             ranked = _symbols(fields["ranked"])
             candidates = _symbols(fields["candidates"])
             if present | absent != set(evaluated) or present & absent:
-                raise DecisionEvidenceError(
-                    "Selection signal outcomes must partition evaluated assets."
-                )
+                raise DecisionEvidenceError("Selection signal outcomes must partition evaluated assets.")
             if set(ranks) != set(evaluated) or not set(stops) <= set(evaluated):
-                raise DecisionEvidenceError(
-                    "Selection ranks/stops must refer to evaluated assets."
-                )
+                raise DecisionEvidenceError("Selection ranks/stops must refer to evaluated assets.")
             if (
                 evaluated != ranked
                 or present != set(candidates)
-                or [ranks[asset] for asset in evaluated]
-                != list(range(1, len(evaluated) + 1))
+                or [ranks[asset] for asset in evaluated] != list(range(1, len(evaluated) + 1))
             ):
                 raise DecisionEvidenceError(
                     "Selection outcomes must match ranked candidates and exact ranks."
@@ -209,27 +203,17 @@ def _payload(kind: str, fields: dict[str, str], schema_version: int):
             universe=_symbols(fields.pop("universe")),
             selected=_symbols(fields.pop("selected")),
             resample=fields.pop("resample"),
-            required_count=(
-                int(fields.pop("required_count")) if schema_version >= 2 else None
-            ),
+            required_count=(int(fields.pop("required_count")) if schema_version >= 2 else None),
         )
     if kind == "fallback":
-        return FallbackEvidence(
-            asset=fields.pop("asset"), activated=_bool(fields.pop("activated"))
-        )
+        return FallbackEvidence(asset=fields.pop("asset"), activated=_bool(fields.pop("activated")))
     if kind == "final_selection":
-        return FinalSelectionEvidence(
-            selected=_symbols(fields.pop("selected")), source=fields.pop("source")
-        )
+        return FinalSelectionEvidence(selected=_symbols(fields.pop("selected")), source=fields.pop("source"))
     if kind == "cooldown":
         eligible = _bool(fields.pop("eligible"))
-        stopping_stage = (
-            fields.pop("stopping_stage") or None if schema_version >= 2 else None
-        )
+        stopping_stage = fields.pop("stopping_stage") or None if schema_version >= 2 else None
         if schema_version >= 2 and (stopping_stage == "cooldown") == eligible:
-            raise DecisionEvidenceError(
-                "Cooldown stopping stage must exactly match a blocked decision."
-            )
+            raise DecisionEvidenceError("Cooldown stopping stage must exactly match a blocked decision.")
         return CooldownEvidence(
             asset=fields.pop("asset"),
             signal_candidate=_bool(fields.pop("signal_candidate")),
@@ -279,12 +263,7 @@ def _symbols(value: str) -> tuple[str, ...]:
 
 
 def _decimal_map(value: str) -> dict[str, Decimal]:
-    return {
-        key: Decimal(raw)
-        for item in value.split(",")
-        if item
-        for key, raw in (item.split("=", 1),)
-    }
+    return {key: Decimal(raw) for item in value.split(",") if item for key, raw in (item.split("=", 1),)}
 
 
 def _date_map(value: str) -> dict[str, date]:
@@ -297,21 +276,11 @@ def _date_map(value: str) -> dict[str, date]:
 
 
 def _int_map(value: str) -> dict[str, int]:
-    return {
-        key: int(raw)
-        for item in value.split(",")
-        if item
-        for key, raw in (item.split("=", 1),)
-    }
+    return {key: int(raw) for item in value.split(",") if item for key, raw in (item.split("=", 1),)}
 
 
 def _string_map(value: str) -> dict[str, str]:
-    return {
-        key: raw
-        for item in value.split(",")
-        if item
-        for key, raw in (item.split("=", 1),)
-    }
+    return {key: raw for item in value.split(",") if item for key, raw in (item.split("=", 1),)}
 
 
 def _bool(value: str) -> bool:

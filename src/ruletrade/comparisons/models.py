@@ -12,6 +12,7 @@ COMPARISON_SCHEMA_VERSION = 1
 
 BehaviorDifferenceKind = Literal[
     "event_presence_changed",
+    "predicate_branch_changed",
     "qualification_changed",
     "rank_changed",
     "candidate_membership_changed",
