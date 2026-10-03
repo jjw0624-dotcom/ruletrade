@@ -6,6 +6,7 @@ export interface ConditionComposerProps {
   role: "predicate" | "eligibility";
   expression: ConditionExpression;
   disabled?: boolean;
+  defaultLookback?: number;
   onChange: (expression: ConditionExpression) => void;
 }
 
@@ -22,7 +23,7 @@ function clauses(expression: ConditionExpression): ConditionExpression[] {
   return expression.kind === "boolean" && expression.operator === "and" ? expression.operands : [expression];
 }
 
-export function ConditionComposer({ role, expression, disabled, onChange }: ConditionComposerProps) {
+export function ConditionComposer({ role, expression, disabled, defaultLookback = 126, onChange }: ConditionComposerProps) {
   const items = clauses(expression);
   const update = (index: number, next: ConditionExpression) => {
     const result = items.map((item, current) => current === index ? next : item);
@@ -38,9 +39,14 @@ export function ConditionComposer({ role, expression, disabled, onChange }: Cond
       const right = item.right;
       const parameters = left.parameters;
       return <div key={index} className="condition-clause">
+        {role === "predicate" && left.asset.kind === "literal" &&
+          <label>Asset<input aria-label="Condition asset" value={String(left.asset.value)}
+            onChange={(event) => update(index, { ...item, left: { ...left, asset: { ...left.asset, value: event.target.value.toUpperCase() } } })} /></label>}
         <span>{role === "predicate" ? "Asset" : "Candidate"} trailing return</span>
-        <input aria-label="Lookback days" type="number" min="1" value={Number(parameters.lookback_bars ?? 126)}
-          onChange={(event) => update(index, { ...item, left: { ...left, parameters: { ...parameters, lookback_bars: Number(event.target.value) } } })} />
+        {role === "predicate"
+          ? <input aria-label="Lookback days" type="number" min="1" value={Number(parameters.lookback_bars ?? defaultLookback)}
+              onChange={(event) => update(index, { ...item, left: { ...left, parameters: { ...parameters, lookback_bars: Number(event.target.value) } } })} />
+          : <span className="fixed-setting">{Number(parameters.lookback_bars ?? defaultLookback)} trading days</span>}
         <select aria-label="Comparison operator" value={item.operator}
           onChange={(event) => update(index, { ...item, operator: event.target.value as Operator })}>
           <option value="gt">greater than</option><option value="gte">at least</option>
@@ -54,9 +60,9 @@ export function ConditionComposer({ role, expression, disabled, onChange }: Cond
         }}>Remove</button>}
       </div>;
     })}
-    <button type="button" onClick={() => {
+    {role === "eligibility" && <button type="button" onClick={() => {
       const asset: ValueExpression = role === "eligibility" ? { kind: "candidate" } : { kind: "literal", value_type: "asset", value: "SPY" };
-      onChange({ kind: "boolean", operator: "and", operands: [...items, clause(asset)] });
-    }}>Add ALL clause</button>
+      onChange({ kind: "boolean", operator: "and", operands: [...items, clause(asset, defaultLookback)] });
+    }}>Add ALL clause</button>}
   </fieldset>;
 }
