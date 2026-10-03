@@ -10,6 +10,7 @@ from ruletrade.compiler.lean.plan import (
     LeanPlan,
     LeanQuarterlyEvent,
     LeanRandomSelection,
+    LeanSnapshotAllocation,
     normalize_lean_plan,
 )
 
@@ -643,6 +644,7 @@ def generate_csharp(
         lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
+            predicate_outcome: str | None = None
             if rebalance.predicate is not None:
                 predicate = rebalance.predicate
                 predicate_window = f"predicateWindow{event_index}_{rebalance_index}"
@@ -662,414 +664,444 @@ def generate_csharp(
                         f'            "operator", "{predicate.operator}", "observed", {predicate_observed}.HasValue ? {predicate_observed}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
                         f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "outcome", {predicate_outcome} ? "true" : "false",',
                         f'            "branch", {predicate_outcome} ? "then" : "otherwise");',
-                        f"        if (!{predicate_outcome}) return;",
                     )
                 )
-            targets_variable = f"targets{event_index}_{rebalance_index}"
-            selected_variable = f"selectedTickers{event_index}_{rebalance_index}"
-            lines.extend(
-                (
-                    f"        var {targets_variable} = new Dictionary<Symbol, decimal>();",
-                    f"        var {selected_variable} = new List<string>();",
-                )
-            )
-            if rebalance.snapshot_allocations:
-                missing = " || ".join(
-                    f"_targetSnapshot{snapshot_indexes[item.snapshot_id]} == null"
-                    for item in rebalance.snapshot_allocations
-                )
-                snapshot_times = ", ".join(
-                    (
-                        f'{_csharp_string(item.source_sleeve_component_id)} + "=" + '
-                        f"_targetSnapshotTimestamp{snapshot_indexes[item.snapshot_id]}"
-                    )
-                    for item in rebalance.snapshot_allocations
-                )
+                if not rebalance.otherwise_sleeve_ids and not rebalance.otherwise_snapshot_allocations:
+                    lines.append(f"        if (!{predicate_outcome}) return;")
+            def emit_branch(
+                branch_sleeve_ids: tuple[str, ...],
+                branch_snapshot_allocations: tuple[LeanSnapshotAllocation, ...],
+                branch_exit_state_ids: tuple[str, ...],
+            ) -> None:
+                targets_variable = f"targets{event_index}_{rebalance_index}"
+                selected_variable = f"selectedTickers{event_index}_{rebalance_index}"
                 lines.extend(
                     (
-                        f"        if ({missing})",
-                        "        {",
-                        '            Debug("RULETRADE_PORTFOLIO_EVENT|" + eventIdentity',
-                        f'                + "|schedule={event_schedule}|snapshots=|decision=skipped");',
-                        f'            EmitDecisionEvidence(eventIdentity, "portfolio_execution", "snapshot_usage", "schedule_component", {_csharp_string(event.id)}, "schedule", "{event_schedule}", "snapshots", "", "executed", "false");',
-                        "            return;",
-                        "        }",
-                        '        Debug("RULETRADE_PORTFOLIO_EVENT|" + eventIdentity',
-                        f'            + "|schedule={event_schedule}|snapshots=" + string.Join(",", new[] {{ {snapshot_times} }})',
-                        '            + "|decision=executed");',
-                        '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "snapshot_usage",',
-                        f'            "schedule_component", {_csharp_string(event.id)}, "schedule", "{event_schedule}",',
-                        f'            "snapshots", string.Join(",", new[] {{ {snapshot_times} }}), "executed", "true");',
+                        f"        var {targets_variable} = new Dictionary<Symbol, decimal>();",
+                        f"        var {selected_variable} = new List<string>();",
                     )
                 )
-                for allocation in rebalance.snapshot_allocations:
-                    snapshot_index = snapshot_indexes[allocation.snapshot_id]
-                    factor = _decimal_literal(allocation.factor)
-                    sleeve_component = _csharp_string(allocation.source_sleeve_component_id)
+                if branch_snapshot_allocations:
+                    missing = " || ".join(
+                        f"_targetSnapshot{snapshot_indexes[item.snapshot_id]} == null"
+                        for item in branch_snapshot_allocations
+                    )
+                    snapshot_times = ", ".join(
+                        (
+                            f'{_csharp_string(item.source_sleeve_component_id)} + "=" + '
+                            f"_targetSnapshotTimestamp{snapshot_indexes[item.snapshot_id]}"
+                        )
+                        for item in branch_snapshot_allocations
+                    )
                     lines.extend(
                         (
-                            f"        foreach (var item in _targetSnapshot{snapshot_index})",
+                            f"        if ({missing})",
                             "        {",
-                            "            var symbol = _symbols[item.Key];",
-                            f"            var contribution = item.Value * {factor};",
-                            f"            {targets_variable}[symbol] = {targets_variable}.ContainsKey(symbol)",
-                            f"                ? {targets_variable}[symbol] + contribution : contribution;",
+                            '            Debug("RULETRADE_PORTFOLIO_EVENT|" + eventIdentity',
+                            f'                + "|schedule={event_schedule}|snapshots=|decision=skipped");',
+                            f'            EmitDecisionEvidence(eventIdentity, "portfolio_execution", "snapshot_usage", "schedule_component", {_csharp_string(event.id)}, "schedule", "{event_schedule}", "snapshots", "", "executed", "false");',
+                            "            return;",
                             "        }",
-                            f'        Debug("RULETRADE_SLEEVE|" + eventIdentity + "|sleeve=" + {sleeve_component}',
-                            f'            + "|local_selected=" + string.Join(",", _targetSnapshot{snapshot_index}.Keys.OrderBy(item => item))',
-                            f'            + "|local_weights=" + string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key)',
-                            '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
-                            f'            + "|allocation=" + {factor}.ToString("G29", CultureInfo.InvariantCulture)',
-                            f'            + "|scaled=" + string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key)',
-                            f'                .Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
-                            '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution",',
-                            f'            "sleeve_component", {sleeve_component}, "allocation_component", {_csharp_string(sleeve.id)},',
-                            f'            "local_selected", string.Join(",", _targetSnapshot{snapshot_index}.Keys.OrderBy(item => item)),',
-                            f'            "local_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
-                            f'            "allocation", {factor}.ToString("G29", CultureInfo.InvariantCulture),',
-                            f'            "scaled_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
+                            '        Debug("RULETRADE_PORTFOLIO_EVENT|" + eventIdentity',
+                            f'            + "|schedule={event_schedule}|snapshots=" + string.Join(",", new[] {{ {snapshot_times} }})',
+                            '            + "|decision=executed");',
+                            '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "snapshot_usage",',
+                            f'            "schedule_component", {_csharp_string(event.id)}, "schedule", "{event_schedule}",',
+                            f'            "snapshots", string.Join(",", new[] {{ {snapshot_times} }}), "executed", "true");',
                         )
                     )
-            for sleeve_index, sleeve_id in enumerate(rebalance.sleeve_ids):
-                sleeve = sleeves[sleeve_id]
-                variable = f"sleeve{event_index}_{rebalance_index}_{sleeve_index}"
-                weight_variable = f"weight{event_index}_{rebalance_index}_{sleeve_index}"
-                if sleeve.selection_id is None:
-                    symbols = ", ".join(_csharp_string(item) for item in sleeve.symbols)
-                    lines.append(f"        var {variable} = new[] {{ {symbols} }};")
-                else:
-                    if sleeve.selection_id in selections:
-                        selection = selections[sleeve.selection_id]
-                        symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
-                        lines.append(
-                            f"        var {variable} = RuleTradeRandom.Sample("
-                            f"new[] {{ {symbols} }}, {selection.count}, {_seed_expression(plan, selection)});"
-                        )
+                    for allocation in branch_snapshot_allocations:
+                        snapshot_index = snapshot_indexes[allocation.snapshot_id]
+                        factor = _decimal_literal(allocation.factor)
+                        sleeve_component = _csharp_string(allocation.source_sleeve_component_id)
                         lines.extend(
                             (
-                                '        EmitDecisionEvidence(eventIdentity, "selection", "random_selection",',
-                                f'            "selection_component", {_csharp_string(selection.component_id)}, "selection_field", "config.count",',
-                                f'            "universe", string.Join(",", new[] {{ {symbols} }}),',
-                                f'            "selected", string.Join(",", {variable}), "resample", "{selection.resample}",',
-                                f'            "required_count", "{selection.count}");',
-                            )
-                        )
-                    else:
-                        selection = momentum_selections[sleeve.selection_id]
-                        symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
-                        scores_variable = f"scores{event_index}_{rebalance_index}_{sleeve_index}"
-                        ranked_variable = f"ranked{event_index}_{rebalance_index}_{sleeve_index}"
-                        lines.extend(
-                            (
-                                f"        var {scores_variable} = new Dictionary<string, decimal>();",
-                                f"        foreach (var ticker in new[] {{ {symbols} }})",
+                                f"        foreach (var item in _targetSnapshot{snapshot_index})",
                                 "        {",
-                                "            var window = _dailyCloses[ticker];",
-                                f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
-                                "            {",
-                                f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
-                                "            }",
+                                "            var symbol = _symbols[item.Key];",
+                                f"            var contribution = item.Value * {factor};",
+                                f"            {targets_variable}[symbol] = {targets_variable}.ContainsKey(symbol)",
+                                f"                ? {targets_variable}[symbol] + contribution : contribution;",
                                 "        }",
+                                f'        Debug("RULETRADE_SLEEVE|" + eventIdentity + "|sleeve=" + {sleeve_component}',
+                                f'            + "|local_selected=" + string.Join(",", _targetSnapshot{snapshot_index}.Keys.OrderBy(item => item))',
+                                f'            + "|local_weights=" + string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key)',
+                                '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                f'            + "|allocation=" + {factor}.ToString("G29", CultureInfo.InvariantCulture)',
+                                f'            + "|scaled=" + string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key)',
+                                f'                .Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
+                                '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution",',
+                                f'            "sleeve_component", {sleeve_component}, "allocation_component", {sleeve_component},',
+                                f'            "local_selected", string.Join(",", _targetSnapshot{snapshot_index}.Keys.OrderBy(item => item)),',
+                                f'            "local_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+                                f'            "allocation", {factor}.ToString("G29", CultureInfo.InvariantCulture),',
+                                f'            "scaled_targets", string.Join(",", _targetSnapshot{snapshot_index}.OrderBy(item => item.Key).Select(item => item.Key + "=" + (item.Value * {factor}).ToString("G29", CultureInfo.InvariantCulture))));',
                             )
                         )
-                        ranking_input = scores_variable
-                        if selection.filter_threshold is not None:
-                            eligible_variable = (
-                                f"eligibleScores{event_index}_{rebalance_index}_{sleeve_index}"
+                for sleeve_index, sleeve_id in enumerate(branch_sleeve_ids):
+                    sleeve = sleeves[sleeve_id]
+                    variable = f"sleeve{event_index}_{rebalance_index}_{sleeve_index}"
+                    weight_variable = f"weight{event_index}_{rebalance_index}_{sleeve_index}"
+                    if sleeve.selection_id is None:
+                        symbols = ", ".join(_csharp_string(item) for item in sleeve.symbols)
+                        lines.append(f"        var {variable} = new[] {{ {symbols} }};")
+                    else:
+                        if sleeve.selection_id in selections:
+                            selection = selections[sleeve.selection_id]
+                            symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+                            lines.append(
+                                f"        var {variable} = RuleTradeRandom.Sample("
+                                f"new[] {{ {symbols} }}, {selection.count}, {_seed_expression(plan, selection)});"
                             )
-                            threshold = _decimal_literal(selection.filter_threshold)
                             lines.extend(
                                 (
-                                    f"        var {eligible_variable} = {scores_variable}",
-                                    f"            .Where(item => item.Value > {threshold})",
-                                    "            .ToDictionary(item => item.Key, item => item.Value);",
-                                    f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
-                                    f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
-                                    f'            + "|rejected=" + string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
-                                    '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
-                                    f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "config.threshold", "operator", "gt",',
-                                    f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture),',
-                                    f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
-                                    f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
-                                    f'            "eligible", string.Join(",", {eligible_variable}.Keys.OrderBy(item => item)),',
-                                    f'            "rejected", string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
+                                    '        EmitDecisionEvidence(eventIdentity, "selection", "random_selection",',
+                                    f'            "selection_component", {_csharp_string(selection.component_id)}, "selection_field", "config.count",',
+                                    f'            "universe", string.Join(",", new[] {{ {symbols} }}),',
+                                    f'            "selected", string.Join(",", {variable}), "resample", "{selection.resample}",',
+                                    f'            "required_count", "{selection.count}");',
                                 )
                             )
-                            ranking_input = eligible_variable
-                        lines.extend(
-                            (
-                                f"        var {ranked_variable} = {ranking_input}",
-                                "            .OrderByDescending(item => item.Value)",
-                                "            .ThenBy(item => item.Key, StringComparer.Ordinal)",
-                                "            .ToList();",
-                                f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
-                            )
-                        )
-                        if selection.cooldown_state_id is not None:
-                            state = next(
-                                item
-                                for item in plan.cooldown_states
-                                if item.id == selection.cooldown_state_id
-                            )
-                            state_index = cooldown_indexes[state.id]
-                            candidate_variable = (
-                                f"signalCandidate{event_index}_{rebalance_index}_{sleeve_index}"
-                            )
-                            cooldown_eligible = (
-                                f"cooldownEligible{event_index}_{rebalance_index}_{sleeve_index}"
-                            )
-                            component_id = _csharp_string(state.component_id)
+                        else:
+                            selection = momentum_selections[sleeve.selection_id]
+                            symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+                            scores_variable = f"scores{event_index}_{rebalance_index}_{sleeve_index}"
+                            ranked_variable = f"ranked{event_index}_{rebalance_index}_{sleeve_index}"
                             lines.extend(
                                 (
-                                    f"        var {candidate_variable} = {variable}.ToList();",
-                                    '        Debug("RULETRADE_SIGNAL|" + eventIdentity',
-                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
-                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
-                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
-                                    f'            + "|candidate=" + string.Join(",", {candidate_variable}));',
-                                    '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                    f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
-                                    f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
-                                    f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
-                                    f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
-                                    f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "candidates", string.Join(",", {candidate_variable}), "primary_selected", "",',
-                                    f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "signal_present", string.Join(",", {candidate_variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({candidate_variable})),',
-                                    f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {candidate_variable}, true, false),',
-                                    f'            "decision", "signal");',
-                                    f"        var {cooldown_eligible} = new List<string>();",
-                                    f"        foreach (var ticker in {candidate_variable})",
+                                    f"        var {scores_variable} = new Dictionary<string, decimal>();",
+                                    f"        foreach (var ticker in new[] {{ {symbols} }})",
                                     "        {",
-                                    f"            var hasLastExit = _lastExitSession{state_index}.TryGetValue(ticker, out var lastExitSession);",
-                                    "            var elapsed = hasLastExit ? _tradingSessionIndex - lastExitSession : -1;",
-                                    f"            var allowed = !hasLastExit || elapsed >= {state.required_completed_sessions};",
-                                    f"            if (allowed) {cooldown_eligible}.Add(ticker);",
-                                    f'            Debug("RULETRADE_COOLDOWN|" + eventIdentity + "|component=" + {component_id}',
-                                    '                + "|asset=" + ticker + "|candidate=true|last_exit="',
-                                    f'                + (hasLastExit ? _lastExitDate{state_index}[ticker] : "none")',
-                                    '                + "|elapsed_trading_days=" + (hasLastExit ? elapsed.ToString(CultureInfo.InvariantCulture) : "none")',
-                                    f'                + "|required={state.required_completed_sessions}|decision=" + (allowed ? "eligible" : "blocked"));',
-                                    '            EmitDecisionEvidence(eventIdentity, "selection", "cooldown",',
-                                    f'                "cooldown_component", {component_id}, "cooldown_field", "config.duration", "asset", ticker, "signal_candidate", "true",',
-                                    f'                "last_exit", (hasLastExit ? _lastExitDate{state_index}[ticker] : "none"),',
-                                    '                "elapsed_sessions", (hasLastExit ? elapsed.ToString(CultureInfo.InvariantCulture) : "none"),',
-                                    f'                "required_sessions", "{state.required_completed_sessions}", "eligible", (allowed ? "true" : "false"),',
-                                    '                "stopping_stage", (allowed ? "" : "cooldown"));',
-                                    "        }",
-                                    f"        {variable} = {cooldown_eligible};",
-                                    '        EmitDecisionEvidence(eventIdentity, "selection", "final_selection",',
-                                    f'            "selection_component", {component_id}, "selected", string.Join(",", {variable}), "source", "primary");',
-                                )
-                            )
-                        eligible_count_variable = (
-                            ranking_input if selection.filter_threshold is not None else variable
-                        )
-                        if selection.filter_threshold is not None:
-                            insufficient_decision = "insufficient" if sleeve.fallback_symbols else "skipped"
-                            lines.extend(
-                                (
-                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
-                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
-                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
-                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
-                                    f'            + "|candidate=" + string.Join(",", {variable})',
-                                    f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
-                                    f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
-                                    '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                    f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
-                                    f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
-                                    f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
-                                    f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
-                                    f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "candidates", string.Join(",", {variable}),',
-                                    f'            "primary_selected", ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : ""),',
-                                    f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({variable})),',
-                                    f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, {variable}.Count == {selection.count}, {str(bool(sleeve.fallback_symbols)).lower()}),',
-                                    f'            "decision", ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
-                                )
-                            )
-                        if sleeve.fallback_symbols:
-                            fallback_symbol = _csharp_string(sleeve.fallback_symbols[0])
-                            fallback_component = _csharp_string(sleeve.fallback_component_id or "")
-                            fallback_activated = (
-                                f"fallbackActivated{event_index}_{rebalance_index}_{sleeve_index}"
-                            )
-                            lines.extend(
-                                (
-                                    f"        var {fallback_activated} = {variable}.Count < {selection.count};",
-                                    f"        if ({fallback_activated})",
-                                    "        {",
-                                    f"            {variable} = new List<string> {{ {fallback_symbol} }};",
-                                    f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=activated");',
-                                    f'            EmitDecisionEvidence(eventIdentity, "selection", "fallback", "fallback_component", {fallback_component}, "asset", {fallback_symbol}, "activated", "true");',
-                                    "        }",
-                                    "        else",
-                                    "        {",
-                                    f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=not_activated");',
-                                    f'            EmitDecisionEvidence(eventIdentity, "selection", "fallback", "fallback_component", {fallback_component}, "asset", {fallback_symbol}, "activated", "false");',
-                                    "        }",
-                                    f'        Debug("RULETRADE_FINAL|" + eventIdentity + "|selected=" + string.Join(",", {variable})',
-                                    f'            + "|decision=executed|source=" + ({fallback_activated} ? "fallback" : "primary"));',
-                                    '        EmitDecisionEvidence(eventIdentity, "selection", "final_selection",',
-                                    f'            "selection_component", ({fallback_activated} ? {fallback_component} : {_csharp_string(selection.selection_component_id)}),',
-                                    f'            "selected", string.Join(",", {variable}), "source", ({fallback_activated} ? "fallback" : "primary"));',
-                                )
-                            )
-                        elif selection.cooldown_state_id is None:
-                            lines.extend(
-                                (
-                                    f"        if ({variable}.Count < {selection.count})",
-                                    "        {",
-                                    f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
-                                    "            return;",
+                                    "            var window = _dailyCloses[ticker];",
+                                    f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                                    "            {",
+                                    f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                                    "            }",
                                     "        }",
                                 )
                             )
-                        if selection.filter_threshold is None and selection.cooldown_state_id is None:
+                            ranking_input = scores_variable
+                            if selection.filter_threshold is not None:
+                                eligible_variable = (
+                                    f"eligibleScores{event_index}_{rebalance_index}_{sleeve_index}"
+                                )
+                                threshold = _decimal_literal(selection.filter_threshold)
+                                lines.extend(
+                                    (
+                                        f"        var {eligible_variable} = {scores_variable}",
+                                        f"            .Where(item => item.Value > {threshold})",
+                                        "            .ToDictionary(item => item.Key, item => item.Value);",
+                                        f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
+                                        f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
+                                        f'            + "|rejected=" + string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
+                                        '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
+                                        f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "config.threshold", "operator", "gt",',
+                                        f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture),',
+                                        f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
+                                        f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+                                        f'            "eligible", string.Join(",", {eligible_variable}.Keys.OrderBy(item => item)),',
+                                        f'            "rejected", string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
+                                    )
+                                )
+                                ranking_input = eligible_variable
                             lines.extend(
                                 (
-                                    '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
-                                    f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
-                                    '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
-                                    f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
-                                    f'            + "|selected=" + string.Join(",", {variable}));',
-                                    '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                    f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
-                                    f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
-                                    f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
-                                    f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
-                                    f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "candidates", string.Join(",", {variable}), "primary_selected", string.Join(",", {variable}),',
-                                    f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
-                                    f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({variable})),',
-                                    f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, true, false),',
-                                    f'            "decision", "executed");',
+                                    f"        var {ranked_variable} = {ranking_input}",
+                                    "            .OrderByDescending(item => item.Value)",
+                                    "            .ThenBy(item => item.Key, StringComparer.Ordinal)",
+                                    "            .ToList();",
+                                    f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
                                 )
                             )
-                    lines.append(f"        {selected_variable}.AddRange({variable});")
-                weight = _decimal_literal(sleeve.total_weight)
-                cooldown_selection = (
-                    momentum_selections.get(sleeve.selection_id) if sleeve.selection_id is not None else None
-                )
-                has_cooldown = (
-                    cooldown_selection is not None and cooldown_selection.cooldown_state_id is not None
-                )
-                if has_cooldown:
-                    lines.extend((f"        if ({variable}.Count > 0)", "        {"))
-                indent = "    " if has_cooldown else ""
-                lines.extend(
-                    (
-                        f"{indent}        var {weight_variable} = {weight} / {variable}.Count();",
-                        f"{indent}        foreach (var ticker in {variable})",
-                        f"{indent}        {{",
-                        f"{indent}            var symbol = _symbols[ticker];",
-                        (
-                            f"{indent}            {targets_variable}[symbol] = "
-                            f"{targets_variable}.ContainsKey(symbol) ? "
-                            f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
-                        ),
-                        f"{indent}        }}",
+                            if selection.cooldown_state_id is not None:
+                                state = next(
+                                    item
+                                    for item in plan.cooldown_states
+                                    if item.id == selection.cooldown_state_id
+                                )
+                                state_index = cooldown_indexes[state.id]
+                                candidate_variable = (
+                                    f"signalCandidate{event_index}_{rebalance_index}_{sleeve_index}"
+                                )
+                                cooldown_eligible = (
+                                    f"cooldownEligible{event_index}_{rebalance_index}_{sleeve_index}"
+                                )
+                                component_id = _csharp_string(state.component_id)
+                                lines.extend(
+                                    (
+                                        f"        var {candidate_variable} = {variable}.ToList();",
+                                        '        Debug("RULETRADE_SIGNAL|" + eventIdentity',
+                                        f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                        '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                        f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                        f'            + "|candidate=" + string.Join(",", {candidate_variable}));',
+                                        '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
+                                        f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
+                                        f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+                                        f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "candidates", string.Join(",", {candidate_variable}), "primary_selected", "",',
+                                        f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "signal_present", string.Join(",", {candidate_variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({candidate_variable})),',
+                                        f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {candidate_variable}, true, false),',
+                                        f'            "decision", "signal");',
+                                        f"        var {cooldown_eligible} = new List<string>();",
+                                        f"        foreach (var ticker in {candidate_variable})",
+                                        "        {",
+                                        f"            var hasLastExit = _lastExitSession{state_index}.TryGetValue(ticker, out var lastExitSession);",
+                                        "            var elapsed = hasLastExit ? _tradingSessionIndex - lastExitSession : -1;",
+                                        f"            var allowed = !hasLastExit || elapsed >= {state.required_completed_sessions};",
+                                        f"            if (allowed) {cooldown_eligible}.Add(ticker);",
+                                        f'            Debug("RULETRADE_COOLDOWN|" + eventIdentity + "|component=" + {component_id}',
+                                        '                + "|asset=" + ticker + "|candidate=true|last_exit="',
+                                        f'                + (hasLastExit ? _lastExitDate{state_index}[ticker] : "none")',
+                                        '                + "|elapsed_trading_days=" + (hasLastExit ? elapsed.ToString(CultureInfo.InvariantCulture) : "none")',
+                                        f'                + "|required={state.required_completed_sessions}|decision=" + (allowed ? "eligible" : "blocked"));',
+                                        '            EmitDecisionEvidence(eventIdentity, "selection", "cooldown",',
+                                        f'                "cooldown_component", {component_id}, "cooldown_field", "config.duration", "asset", ticker, "signal_candidate", "true",',
+                                        f'                "last_exit", (hasLastExit ? _lastExitDate{state_index}[ticker] : "none"),',
+                                        '                "elapsed_sessions", (hasLastExit ? elapsed.ToString(CultureInfo.InvariantCulture) : "none"),',
+                                        f'                "required_sessions", "{state.required_completed_sessions}", "eligible", (allowed ? "true" : "false"),',
+                                        '                "stopping_stage", (allowed ? "" : "cooldown"));',
+                                        "        }",
+                                        f"        {variable} = {cooldown_eligible};",
+                                        '        EmitDecisionEvidence(eventIdentity, "selection", "final_selection",',
+                                        f'            "selection_component", {component_id}, "selected", string.Join(",", {variable}), "source", "primary");',
+                                    )
+                                )
+                            eligible_count_variable = (
+                                ranking_input if selection.filter_threshold is not None else variable
+                            )
+                            if selection.filter_threshold is not None:
+                                insufficient_decision = "insufficient" if sleeve.fallback_symbols else "skipped"
+                                lines.extend(
+                                    (
+                                        '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                        f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                        '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                        f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                        f'            + "|candidate=" + string.Join(",", {variable})',
+                                        f'            + "|selected=" + ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : "")',
+                                        f'            + "|decision=" + ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
+                                        '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
+                                        f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
+                                        f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+                                        f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "candidates", string.Join(",", {variable}),',
+                                        f'            "primary_selected", ({variable}.Count == {selection.count} ? string.Join(",", {variable}) : ""),',
+                                        f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({variable})),',
+                                        f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, {variable}.Count == {selection.count}, {str(bool(sleeve.fallback_symbols)).lower()}),',
+                                        f'            "decision", ({variable}.Count == {selection.count} ? "executed" : "{insufficient_decision}"));',
+                                    )
+                                )
+                            if sleeve.fallback_symbols:
+                                fallback_symbol = _csharp_string(sleeve.fallback_symbols[0])
+                                fallback_component = _csharp_string(sleeve.fallback_component_id or "")
+                                fallback_activated = (
+                                    f"fallbackActivated{event_index}_{rebalance_index}_{sleeve_index}"
+                                )
+                                lines.extend(
+                                    (
+                                        f"        var {fallback_activated} = {variable}.Count < {selection.count};",
+                                        f"        if ({fallback_activated})",
+                                        "        {",
+                                        f"            {variable} = new List<string> {{ {fallback_symbol} }};",
+                                        f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=activated");',
+                                        f'            EmitDecisionEvidence(eventIdentity, "selection", "fallback", "fallback_component", {fallback_component}, "asset", {fallback_symbol}, "activated", "true");',
+                                        "        }",
+                                        "        else",
+                                        "        {",
+                                        f'            Debug("RULETRADE_FALLBACK|" + eventIdentity + "|component=" + {fallback_component} + "|asset=" + {fallback_symbol} + "|decision=not_activated");',
+                                        f'            EmitDecisionEvidence(eventIdentity, "selection", "fallback", "fallback_component", {fallback_component}, "asset", {fallback_symbol}, "activated", "false");',
+                                        "        }",
+                                        f'        Debug("RULETRADE_FINAL|" + eventIdentity + "|selected=" + string.Join(",", {variable})',
+                                        f'            + "|decision=executed|source=" + ({fallback_activated} ? "fallback" : "primary"));',
+                                        '        EmitDecisionEvidence(eventIdentity, "selection", "final_selection",',
+                                        f'            "selection_component", ({fallback_activated} ? {fallback_component} : {_csharp_string(selection.selection_component_id)}),',
+                                        f'            "selected", string.Join(",", {variable}), "source", ({fallback_activated} ? "fallback" : "primary"));',
+                                    )
+                                )
+                            elif selection.cooldown_state_id is None:
+                                lines.extend(
+                                    (
+                                        f"        if ({variable}.Count < {selection.count})",
+                                        "        {",
+                                        f'            Debug("RULETRADE_MOMENTUM_SKIPPED|" + eventIdentity + "|eligible=" + {eligible_count_variable}.Count + "|required={selection.count}");',
+                                        "            return;",
+                                        "        }",
+                                    )
+                                )
+                            if selection.filter_threshold is None and selection.cooldown_state_id is None:
+                                lines.extend(
+                                    (
+                                        '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
+                                        f'            + "|scores=" + string.Join(",", {scores_variable}.OrderBy(item => item.Key)',
+                                        '                .Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture)))',
+                                        f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
+                                        f'            + "|selected=" + string.Join(",", {variable}));',
+                                        '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
+                                        f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
+                                        f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+                                        f'            "ranked", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "candidates", string.Join(",", {variable}), "primary_selected", string.Join(",", {variable}),',
+                                        f'            "required_count", "{selection.count}", "evaluated", string.Join(",", {ranked_variable}.Select(item => item.Key)),',
+                                        f'            "signal_present", string.Join(",", {variable}), "signal_absent", string.Join(",", {ranked_variable}.Select(item => item.Key).Except({variable})),',
+                                        f'            "ranks", EvidenceRanks({ranked_variable}.Select(item => item.Key)), "stops", EvidenceSelectionStops({ranked_variable}.Select(item => item.Key), {variable}, true, false),',
+                                        f'            "decision", "executed");',
+                                    )
+                                )
+                        lines.append(f"        {selected_variable}.AddRange({variable});")
+                    weight = _decimal_literal(sleeve.total_weight)
+                    cooldown_selection = (
+                        momentum_selections.get(sleeve.selection_id) if sleeve.selection_id is not None else None
                     )
-                )
-                if has_cooldown:
-                    lines.append("        }")
-                if sleeve.source_sleeve_component_id is not None:
+                    has_cooldown = (
+                        cooldown_selection is not None and cooldown_selection.cooldown_state_id is not None
+                    )
                     if has_cooldown:
-                        raise ValueError("cooldown v0 does not support portfolio sleeves")
-                    local_total = _decimal_literal(sleeve.local_total_weight or Decimal(1))
-                    allocation = _decimal_literal(sleeve.source_allocation or Decimal(1))
-                    local_weight_variable = f"localWeight{event_index}_{rebalance_index}_{sleeve_index}"
-                    sleeve_component = _csharp_string(sleeve.source_sleeve_component_id)
+                        lines.extend((f"        if ({variable}.Count > 0)", "        {"))
+                    indent = "    " if has_cooldown else ""
                     lines.extend(
                         (
-                            f"        var {local_weight_variable} = {local_total} / {variable}.Count();",
-                            f'        Debug("RULETRADE_SLEEVE|" + eventIdentity + "|sleeve=" + {sleeve_component}',
-                            f'            + "|local_selected=" + string.Join(",", {variable}.OrderBy(item => item))',
-                            f'            + "|local_weights=" + string.Join(",", {variable}.OrderBy(item => item)',
-                            f'                .Select(item => item + "=" + {local_weight_variable}.ToString("G29", CultureInfo.InvariantCulture)))',
-                            f'            + "|allocation=" + {allocation}.ToString("G29", CultureInfo.InvariantCulture)',
-                            f'            + "|scaled=" + string.Join(",", {variable}.OrderBy(item => item)',
-                            f'                .Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
-                            '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution",',
-                            f'            "sleeve_component", {sleeve_component}, "allocation_component", {_csharp_string(sleeve.id)},',
-                            f'            "local_selected", string.Join(",", {variable}.OrderBy(item => item)),',
-                            f'            "local_targets", string.Join(",", {variable}.OrderBy(item => item).Select(item => item + "=" + {local_weight_variable}.ToString("G29", CultureInfo.InvariantCulture))),',
-                            f'            "allocation", {allocation}.ToString("G29", CultureInfo.InvariantCulture),',
-                            f'            "scaled_targets", string.Join(",", {variable}.OrderBy(item => item).Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
+                            f"{indent}        var {weight_variable} = {weight} / {variable}.Count();",
+                            f"{indent}        foreach (var ticker in {variable})",
+                            f"{indent}        {{",
+                            f"{indent}            var symbol = _symbols[ticker];",
+                            (
+                                f"{indent}            {targets_variable}[symbol] = "
+                                f"{targets_variable}.ContainsKey(symbol) ? "
+                                f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
+                            ),
+                            f"{indent}        }}",
                         )
                     )
-            for state_id in rebalance.exit_state_ids:
-                state = next(item for item in plan.cooldown_states if item.id == state_id)
-                state_index = cooldown_indexes[state_id]
-                state_symbols = ", ".join(_csharp_string(item) for item in state.symbols)
-                component_id = _csharp_string(state.component_id)
+                    if has_cooldown:
+                        lines.append("        }")
+                    if sleeve.source_sleeve_component_id is not None:
+                        if has_cooldown:
+                            raise ValueError("cooldown v0 does not support portfolio sleeves")
+                        local_total = _decimal_literal(sleeve.local_total_weight or Decimal(1))
+                        allocation = _decimal_literal(sleeve.source_allocation or Decimal(1))
+                        local_weight_variable = f"localWeight{event_index}_{rebalance_index}_{sleeve_index}"
+                        sleeve_component = _csharp_string(sleeve.source_sleeve_component_id)
+                        lines.extend(
+                            (
+                                f"        var {local_weight_variable} = {local_total} / {variable}.Count();",
+                                f'        Debug("RULETRADE_SLEEVE|" + eventIdentity + "|sleeve=" + {sleeve_component}',
+                                f'            + "|local_selected=" + string.Join(",", {variable}.OrderBy(item => item))',
+                                f'            + "|local_weights=" + string.Join(",", {variable}.OrderBy(item => item)',
+                                f'                .Select(item => item + "=" + {local_weight_variable}.ToString("G29", CultureInfo.InvariantCulture)))',
+                                f'            + "|allocation=" + {allocation}.ToString("G29", CultureInfo.InvariantCulture)',
+                                f'            + "|scaled=" + string.Join(",", {variable}.OrderBy(item => item)',
+                                f'                .Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
+                                '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "sleeve_contribution",',
+                                f'            "sleeve_component", {sleeve_component}, "allocation_component", {_csharp_string(sleeve.id)},',
+                                f'            "local_selected", string.Join(",", {variable}.OrderBy(item => item)),',
+                                f'            "local_targets", string.Join(",", {variable}.OrderBy(item => item).Select(item => item + "=" + {local_weight_variable}.ToString("G29", CultureInfo.InvariantCulture))),',
+                                f'            "allocation", {allocation}.ToString("G29", CultureInfo.InvariantCulture),',
+                                f'            "scaled_targets", string.Join(",", {variable}.OrderBy(item => item).Select(item => item + "=" + {weight_variable}.ToString("G29", CultureInfo.InvariantCulture))));',
+                            )
+                        )
+                for state_id in branch_exit_state_ids:
+                    state = next(item for item in plan.cooldown_states if item.id == state_id)
+                    state_index = cooldown_indexes[state_id]
+                    state_symbols = ", ".join(_csharp_string(item) for item in state.symbols)
+                    component_id = _csharp_string(state.component_id)
+                    lines.extend(
+                        (
+                            f"        foreach (var ticker in new[] {{ {state_symbols} }})",
+                            "        {",
+                            f"            var hadTarget = _previousTargets{state_index}.TryGetValue(ticker, out var oldTarget) && oldTarget > 0m;",
+                            f"            var hasTarget = {targets_variable}.TryGetValue(_symbols[ticker], out var newTarget) && newTarget > 0m;",
+                            "            if (hadTarget && !hasTarget)",
+                            "            {",
+                            f'                var oldExit = _lastExitDate{state_index}.TryGetValue(ticker, out var priorExit) ? priorExit : "none";',
+                            f"                _lastExitSession{state_index}[ticker] = _tradingSessionIndex;",
+                            f"                _lastExitDate{state_index}[ticker] = eventIdentity;",
+                            f'                Debug("RULETRADE_STATE|" + eventIdentity + "|component=" + {component_id}',
+                            '                    + "|asset=" + ticker + "|state=last_exit|old=" + oldExit',
+                            '                    + "|new=" + eventIdentity + "|cause=target_exit");',
+                            '                EmitDecisionEvidence(eventIdentity, "state_mutation", "state_mutation",',
+                            f'                    "state_component", {component_id}, "asset", ticker, "state", "last_exit",',
+                            '                    "old_value", oldExit, "new_value", eventIdentity, "cause", "target_exit");',
+                            "            }",
+                            f"            _previousTargets{state_index}[ticker] = hasTarget ? newTarget : 0m;",
+                            "        }",
+                        )
+                    )
+                final_selected_expression = (
+                    f"{targets_variable}.Where(item => item.Value != 0m).Select(item => item.Key.Value)"
+                    if has_source_sleeves
+                    else selected_variable
+                )
                 lines.extend(
                     (
-                        f"        foreach (var ticker in new[] {{ {state_symbols} }})",
+                        "        foreach (var holding in Portfolio.Values.Where(item => item.Invested))",
                         "        {",
-                        f"            var hadTarget = _previousTargets{state_index}.TryGetValue(ticker, out var oldTarget) && oldTarget > 0m;",
-                        f"            var hasTarget = {targets_variable}.TryGetValue(_symbols[ticker], out var newTarget) && newTarget > 0m;",
-                        "            if (hadTarget && !hasTarget)",
-                        "            {",
-                        f'                var oldExit = _lastExitDate{state_index}.TryGetValue(ticker, out var priorExit) ? priorExit : "none";',
-                        f"                _lastExitSession{state_index}[ticker] = _tradingSessionIndex;",
-                        f"                _lastExitDate{state_index}[ticker] = eventIdentity;",
-                        f'                Debug("RULETRADE_STATE|" + eventIdentity + "|component=" + {component_id}',
-                        '                    + "|asset=" + ticker + "|state=last_exit|old=" + oldExit',
-                        '                    + "|new=" + eventIdentity + "|cause=target_exit");',
-                        '                EmitDecisionEvidence(eventIdentity, "state_mutation", "state_mutation",',
-                        f'                    "state_component", {component_id}, "asset", ticker, "state", "last_exit",',
-                        '                    "old_value", oldExit, "new_value", eventIdentity, "cause", "target_exit");',
-                        "            }",
-                        f"            _previousTargets{state_index}[ticker] = hasTarget ? newTarget : 0m;",
+                        (
+                            f"            if (!{targets_variable}.ContainsKey(holding.Symbol)) "
+                            "Liquidate(holding.Symbol);"
+                        ),
                         "        }",
+                        (
+                            f"        foreach (var target in {targets_variable}) "
+                            "SetHoldings(target.Key, target.Value);"
+                        ),
+                        ('        Debug("RULETRADE_TARGETS|" + eventIdentity'),
+                        (
+                            f'            + "|selected=" + string.Join(",", '
+                            + (
+                                f"{targets_variable}.Where(item => item.Value != 0m)"
+                                ".Select(item => item.Key.Value)"
+                                if has_source_sleeves
+                                else selected_variable
+                            )
+                            + ".OrderBy(item => item, StringComparer.Ordinal))"
+                        ),
+                        (
+                            f'            + "|weights=" + string.Join(",", {targets_variable}'
+                            ".OrderBy(item => item.Key.Value)"
+                        ),
+                        (
+                            '                .Select(item => item.Key.Value + "=" + '
+                            "item.Value.ToString(CultureInfo.InvariantCulture))));"
+                        ),
+                        '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",',
+                        f'            "rebalance_component", {_csharp_string(rebalance.id)},',
+                        f'            "selected", string.Join(",", {final_selected_expression}.OrderBy(item => item, StringComparer.Ordinal)),',
+                        f'            "targets", string.Join(",", {targets_variable}.OrderBy(item => item.Key.Value).Select(item => item.Key.Value + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
                     )
                 )
-            final_selected_expression = (
-                f"{targets_variable}.Where(item => item.Value != 0m).Select(item => item.Key.Value)"
-                if has_source_sleeves
-                else selected_variable
+
+            has_otherwise_branch = bool(
+                rebalance.otherwise_sleeve_ids or rebalance.otherwise_snapshot_allocations
             )
-            lines.extend(
-                (
-                    "        foreach (var holding in Portfolio.Values.Where(item => item.Invested))",
-                    "        {",
-                    (
-                        f"            if (!{targets_variable}.ContainsKey(holding.Symbol)) "
-                        "Liquidate(holding.Symbol);"
-                    ),
-                    "        }",
-                    (
-                        f"        foreach (var target in {targets_variable}) "
-                        "SetHoldings(target.Key, target.Value);"
-                    ),
-                    ('        Debug("RULETRADE_TARGETS|" + eventIdentity'),
-                    (
-                        f'            + "|selected=" + string.Join(",", '
-                        + (
-                            f"{targets_variable}.Where(item => item.Value != 0m)"
-                            ".Select(item => item.Key.Value)"
-                            if has_source_sleeves
-                            else selected_variable
-                        )
-                        + ".OrderBy(item => item, StringComparer.Ordinal))"
-                    ),
-                    (
-                        f'            + "|weights=" + string.Join(",", {targets_variable}'
-                        ".OrderBy(item => item.Key.Value)"
-                    ),
-                    (
-                        '                .Select(item => item.Key.Value + "=" + '
-                        "item.Value.ToString(CultureInfo.InvariantCulture))));"
-                    ),
-                    '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",',
-                    f'            "rebalance_component", {_csharp_string(rebalance.id)},',
-                    f'            "selected", string.Join(",", {final_selected_expression}.OrderBy(item => item, StringComparer.Ordinal)),',
-                    f'            "targets", string.Join(",", {targets_variable}.OrderBy(item => item.Key.Value).Select(item => item.Key.Value + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
+            if predicate_outcome is not None and has_otherwise_branch:
+                lines.extend((f"        if ({predicate_outcome})", "        {"))
+                emit_branch(
+                    rebalance.sleeve_ids,
+                    rebalance.snapshot_allocations,
+                    rebalance.exit_state_ids,
                 )
-            )
+                lines.extend(("        }", "        else", "        {"))
+                emit_branch(
+                    rebalance.otherwise_sleeve_ids,
+                    rebalance.otherwise_snapshot_allocations,
+                    rebalance.otherwise_exit_state_ids,
+                )
+                lines.append("        }")
+            else:
+                emit_branch(
+                    rebalance.sleeve_ids,
+                    rebalance.snapshot_allocations,
+                    rebalance.exit_state_ids,
+                )
         lines.extend(("    }", ""))
 
     lines.append("}")

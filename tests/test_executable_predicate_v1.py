@@ -13,6 +13,7 @@ from ruletrade.compiler.lean.codegen import generate_csharp
 from ruletrade.decision_evidence import collect_decision_evidence
 from ruletrade.strategy.v1.authoring import (
     AddPredicateOperation,
+    CommitPredicateBranchesOperation,
     RemovePredicateOperation,
     StructuralAuthoringError,
     UpdatePredicateOperation,
@@ -96,7 +97,10 @@ def test_predicate_projects_as_control_with_nested_action() -> None:
         if statement.family == "control"
     )
     assert control.label == "IF SPY 126-bar return > 0"
-    assert control.then_statement_ids == ("statement:action:rebalance:0",)
+    assert control.then_statement_ids == (
+        "statement:allocation:action:rebalance:0",
+        "statement:action:rebalance:0",
+    )
     assert control.else_statement_ids == ()
 
 
@@ -189,3 +193,148 @@ def test_predicate_authoring_saves_and_reopens_through_fastapi_sqlite(tmp_path: 
             assert reopened.json()["current_revision"]["canonical_strategy"] == predicate_source
     finally:
         app.dependency_overrides.clear()
+
+
+
+def two_branch_predicate_strategy() -> CanonicalStrategyV1:
+    payload = one_investment_strategy().model_dump(mode="json")
+    payload["definitions"]["asset_sets"].append(
+        {"id": "defensive", "assets": ["TLT"]}
+    )
+    payload["graph"]["components"].extend(
+        (
+            {
+                "id": "defensive_assets",
+                "primitive": "asset_set@1",
+                "config": {"asset_set_ref": "defensive"},
+            },
+            {
+                "id": "defensive_weights",
+                "primitive": "equal_weight@1",
+                "config": {"total": "1.0"},
+            },
+        )
+    )
+    payload["graph"]["connections"].append(
+        {
+            "source": {"component_id": "defensive_assets", "port": "assets"},
+            "target": {"component_id": "defensive_weights", "port": "assets"},
+        }
+    )
+    strategy = CanonicalStrategyV1.model_validate(payload)
+    return apply_structural_operation(
+        strategy,
+        CommitPredicateBranchesOperation(
+            component_id="rebalance",
+            then_target_component_id="weights",
+            otherwise_target_component_id="defensive_weights",
+            asset="SPY",
+            lookback_bars=126,
+            operator="gt",
+            threshold=Decimal("0"),
+        ),
+    )
+
+
+def test_typed_control_branches_are_atomic_and_project_independently() -> None:
+    strategy = two_branch_predicate_strategy()
+    rule = next(item for item in strategy.graph.components if item.id == "rebalance")
+    assert rule.actions[0].targets.component_id == "weights"
+    assert rule.else_actions[0].targets.component_id == "defensive_weights"
+
+    control = next(
+        statement
+        for script in project_semantic_composition(strategy).logic.scripts
+        for statement in script.statements
+        if statement.family == "control"
+    )
+    assert control.kind == "if_otherwise"
+    assert control.then_statement_ids == (
+        "statement:allocation:action:rebalance:0",
+        "statement:action:rebalance:0",
+    )
+    assert control.else_statement_ids == (
+        "statement:allocation:action:rebalance:otherwise:0",
+        "statement:action:rebalance:otherwise:0",
+    )
+
+
+def _csharp_block(source: str, marker: str, start: int = 0) -> tuple[str, int]:
+    marker_index = source.index(marker, start)
+    brace_index = source.index("{", marker_index)
+    depth = 0
+    for index in range(brace_index, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[brace_index + 1 : index], index + 1
+    raise AssertionError(f"unclosed C# block after {marker!r}")
+
+
+def test_typed_control_compiler_emits_real_conditional_branch_execution() -> None:
+    plan = compile_strategy_to_lean_plan(two_branch_predicate_strategy())
+    rebalance = plan.rebalances[0]
+    assert rebalance.predicate is not None
+    assert rebalance.sleeve_ids
+    assert rebalance.otherwise_sleeve_ids
+    assert rebalance.sleeve_ids != rebalance.otherwise_sleeve_ids
+
+    source = generate_csharp(plan)
+    then_body, then_end = _csharp_block(source, "if (predicateOutcome0_0)")
+    otherwise_body, _ = _csharp_block(source, "else", then_end)
+
+    assert 'var sleeve0_0_0 = new[] { "QQQ" };' in then_body
+    assert 'var sleeve0_0_0 = new[] { "TLT" };' not in then_body
+    assert 'var sleeve0_0_0 = new[] { "TLT" };' in otherwise_body
+    assert 'var sleeve0_0_0 = new[] { "QQQ" };' not in otherwise_body
+    assert "predicateOutcome0_0 ? 1m : 0m" not in source
+    assert "!predicateOutcome0_0 ? 1m : 0m" not in source
+    assert '"branch", predicateOutcome0_0 ? "then" : "otherwise"' in source
+
+
+@pytest.mark.parametrize(
+    ("predicate_outcome", "executed_asset", "unselected_asset"),
+    ((True, "QQQ", "TLT"), (False, "TLT", "QQQ")),
+)
+def test_only_selected_branch_contains_pipeline_and_branch_local_evidence(
+    predicate_outcome: bool,
+    executed_asset: str,
+    unselected_asset: str,
+) -> None:
+    source = generate_csharp(compile_strategy_to_lean_plan(two_branch_predicate_strategy()))
+    then_body, then_end = _csharp_block(source, "if (predicateOutcome0_0)")
+    otherwise_body, _ = _csharp_block(source, "else", then_end)
+    executed_body = then_body if predicate_outcome else otherwise_body
+
+    assert f'new[] {{ "{executed_asset}" }}' in executed_body
+    assert f'new[] {{ "{unselected_asset}" }}' not in executed_body
+    assert executed_body.count(
+        'EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",'
+    ) == 1
+
+
+def test_no_else_false_returns_before_any_branch_local_evaluation_or_mutation() -> None:
+    source = generate_csharp(compile_strategy_to_lean_plan(predicate_strategy()))
+    guard = source.index("if (!predicateOutcome0_0) return;")
+    branch_program = source.index('var sleeve0_0_0 = new[] { "QQQ" };')
+    portfolio_mutation = source.index("SetHoldings")
+
+    assert guard < branch_program < portfolio_mutation
+    assert "if (predicateOutcome0_0)" not in source
+    assert source[guard:branch_program].count("EmitDecisionEvidence") == 0
+
+
+def test_invalid_branch_target_rejection_is_atomic() -> None:
+    original = one_investment_strategy()
+    with pytest.raises(StructuralAuthoringError, match="does not produce portfolio targets"):
+        apply_structural_operation(
+            original,
+            CommitPredicateBranchesOperation(
+                component_id="rebalance",
+                then_target_component_id="monthly",
+                asset="SPY",
+            ),
+        )
+    assert original == one_investment_strategy()

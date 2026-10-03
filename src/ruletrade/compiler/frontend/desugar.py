@@ -308,16 +308,28 @@ def desugar_strategy(
                 or not isinstance(condition.right, LiteralExpression)
                 or condition.right.value_type.value not in {"percentage", "decimal"}
                 or len(component.actions) != 1
-                or component.else_actions
+                or len(component.else_actions) > 1
                 or not isinstance(component.actions[0], RebalanceAction)
                 or not isinstance(component.actions[0].targets, ComponentOutputExpression)
+                or (
+                    component.else_actions
+                    and (
+                        not isinstance(component.else_actions[0], RebalanceAction)
+                        or not isinstance(component.else_actions[0].targets, ComponentOutputExpression)
+                    )
+                )
             ):
                 raise StrategyDesugaringError(
                     "predicate v1 requires trailing-return comparison and one THEN rebalance"
                 )
             target_ref = component.actions[0].targets
-            if target_ref.port != "targets":
-                raise StrategyDesugaringError("predicate rebalance must reference a targets output")
+            otherwise_ref = (
+                component.else_actions[0].targets if component.else_actions else None
+            )
+            if target_ref.port != "targets" or (
+                otherwise_ref is not None and otherwise_ref.port != "targets"
+            ):
+                raise StrategyDesugaringError("predicate rebalance must reference targets outputs")
             operation = strategy_ir.PredicateRebalanceOp(
                 id=component.id,
                 asset=str(condition.left.asset.value),
@@ -326,6 +338,7 @@ def desugar_strategy(
                 threshold=Decimal(str(condition.right.value)),
                 targets=target_ref.component_id,
                 provenance=provenance,
+                otherwise_targets=otherwise_ref.component_id if otherwise_ref is not None else None,
             )
         else:  # guarded by SUPPORTED_SOURCE_IMPLEMENTATIONS
             raise StrategyDesugaringError(f"unsupported source operation: {implementation}")

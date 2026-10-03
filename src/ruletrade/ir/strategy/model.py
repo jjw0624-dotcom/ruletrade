@@ -195,6 +195,7 @@ class PredicateRebalanceOp:
     threshold: Decimal
     targets: str
     provenance: SourceProvenance
+    otherwise_targets: str | None = None
     operation: Literal["control.predicate_rebalance"] = "control.predicate_rebalance"
 
 

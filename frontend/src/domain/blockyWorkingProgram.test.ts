@@ -1,7 +1,7 @@
 import * as Blockly from "blockly";
 import { describe, expect, it } from "vitest";
 
-import { classifyWorkingProgram } from "./logicDraft";
+import { classifyWorkingProgram, controlCommitIntent } from "./logicDraft";
 import { projectWorkingProgram, registerBlockyProgramBlocks } from "../views/BlockyView";
 
 function semanticData(workingId: string, source: "canonical" | "draft" = "canonical") {
@@ -104,4 +104,49 @@ describe("Blocky native working program", () => {
     ] }, baseline)).toBe("valid_but_unsupported");
   });
 
+});
+
+
+describe("typed control branch readiness", () => {
+  const item = (
+    workingId: string,
+    blockType: string,
+    componentId: string | null,
+    parentWorkingId: string | null,
+    inputName: string | null,
+    nextWorkingId: string | null,
+    source: "canonical" | "draft" = "canonical",
+    summary: string | null = null,
+  ) => ({ workingId, blockType, source, componentId, parentWorkingId, inputName, nextWorkingId, summary });
+
+  it("classifies complete THEN and OTHERWISE programs as commit-ready", () => {
+    const program = { blocks: [
+      item("trigger", "rt_trigger", "monthly", null, null, null),
+      item("control", "rt_draft_if_else", null, null, null, null, "draft", "SPY 126-bar return > 0%"),
+      item("then-allocation", "rt_allocation", "weights", "control", "THEN", "then-action"),
+      item("then-action", "rt_action", "rebalance", "then-allocation", "NEXT", null),
+      item("else-allocation", "rt_allocation", "defensive_weights", "control", "ELSE", "else-action"),
+      item("else-action", "rt_action", "rebalance", "else-allocation", "NEXT", null),
+    ] };
+    expect(classifyWorkingProgram(program, { blocks: [program.blocks[0]] })).toBe("commit_ready");
+    expect(controlCommitIntent(program)).toMatchObject({
+      component_id: "rebalance",
+      then_target_component_id: "weights",
+      otherwise_target_component_id: "defensive_weights",
+      asset: "SPY",
+      lookback_bars: 126,
+      operator: "gt",
+      threshold: "0",
+    });
+  });
+
+  it("keeps Timing and nested Control topologies unsupported", () => {
+    const base = [
+      item("action", "rt_action", "rebalance", null, null, null),
+      item("control", "rt_draft_if", null, null, null, null, "draft", "SPY 126-bar return > 0%"),
+    ];
+    const timing = { blocks: [...base, item("timing", "rt_trigger", "monthly", "control", "THEN", null)] };
+    expect(classifyWorkingProgram(timing, { blocks: [base[0]] })).toBe("valid_but_unsupported");
+    expect(controlCommitIntent(timing)).toBeNull();
+  });
 });

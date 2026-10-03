@@ -100,7 +100,12 @@ def _operands(operation: StrategyIROperation) -> tuple[tuple[str, str, IRType], 
         )
     if isinstance(operation, ObserveTargetExitsOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
-    if isinstance(operation, (RebalanceOp, PredicateRebalanceOp)):
+    if isinstance(operation, PredicateRebalanceOp):
+        operands = [("targets", operation.targets, IRType.PORTFOLIO_TARGETS)]
+        if operation.otherwise_targets is not None:
+            operands.append(("otherwise_targets", operation.otherwise_targets, IRType.PORTFOLIO_TARGETS))
+        return tuple(operands)
+    if isinstance(operation, RebalanceOp):
         return (("targets", operation.targets, IRType.PORTFOLIO_TARGETS),)
     return ()
 
