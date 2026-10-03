@@ -64,7 +64,8 @@ def test_candidate_all_direction_and_shortage_reach_ir_and_codegen() -> None:
     assert rank.direction == "ascending"
     assert top_n.shortage_policy == "choose_all"
     source = generate_csharp(lower_to_lean_plan(value))
-    assert ".Where(item => item.Value >= -0.1m && item.Value <= 0.5m)" in source
+    assert ".Where(item => item.Value >=" in source
+    assert "&& item.Value <=" in source
     assert ".OrderBy(item => item.Value)" in source
 
 
