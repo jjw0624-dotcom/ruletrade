@@ -40,7 +40,7 @@ class FilterEvidence(EvidenceModel):
     kind: Literal["filter"] = "filter"
     operator: Literal["gt", "gte", "lt", "lte"]
     threshold: Decimal
-    clauses: tuple[FilterClauseEvidence, ...] = ()
+    clauses: tuple[FilterClauseEvidence, ...] = Field(default=(), exclude_if=lambda value: not value)
     evaluations: tuple[AssetPredicate, ...]
     decision_universe: tuple[str, ...] | None = None
 
