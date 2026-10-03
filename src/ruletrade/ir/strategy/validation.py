@@ -196,14 +196,12 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         if isinstance(operation, TrailingReturnOp) and operation.lookback_bars < 1:
             issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
         if isinstance(operation, FilterOp):
-            if operation.operator != "gt":
-                issues.append(
-                    IRValidationIssue(f"{path}.operator", "only strict gt filter is supported")
-                )
-            if not isinstance(operation.threshold, Decimal) or not operation.threshold.is_finite():
-                issues.append(
-                    IRValidationIssue(f"{path}.threshold", "filter threshold must be finite decimal")
-                )
+            if operation.operator not in {"gt", "gte", "lt", "lte"}:
+                issues.append(IRValidationIssue(f"{path}.operator", "unsupported filter operator"))
+            filter_clauses = operation.clauses or ()
+            thresholds = (operation.threshold, *(item.threshold for item in filter_clauses))
+            if any(not isinstance(value, Decimal) or not value.is_finite() for value in thresholds):
+                issues.append(IRValidationIssue(f"{path}.threshold", "filter thresholds must be finite decimals"))
         if isinstance(operation, PredicateRebalanceOp):
             if operation.lookback_bars < 1:
                 issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
@@ -211,10 +209,13 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 issues.append(IRValidationIssue(f"{path}.operator", "unsupported predicate operator"))
             if not operation.threshold.is_finite():
                 issues.append(IRValidationIssue(f"{path}.threshold", "predicate threshold must be finite"))
-        if isinstance(operation, RankOp) and operation.direction != "descending":
-            issues.append(IRValidationIssue(f"{path}.direction", "only descending rank is supported"))
-        if isinstance(operation, TopNOp) and operation.count < 1:
-            issues.append(IRValidationIssue(f"{path}.count", "Top N count must be positive"))
+        if isinstance(operation, RankOp) and operation.direction not in {"descending", "ascending"}:
+            issues.append(IRValidationIssue(f"{path}.direction", "unsupported rank direction"))
+        if isinstance(operation, TopNOp):
+            if operation.count < 1:
+                issues.append(IRValidationIssue(f"{path}.count", "Top N count must be positive"))
+            if operation.shortage_policy not in {"require_full", "choose_all"}:
+                issues.append(IRValidationIssue(f"{path}.shortage_policy", "unsupported shortage policy"))
         if isinstance(operation, ElapsedSessionsGateOp):
             if operation.minimum_completed_sessions < 1:
                 issues.append(

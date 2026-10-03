@@ -284,7 +284,7 @@ class Component(FrozenModel):
     ]
     config: dict[str, Any] = Field(default_factory=dict)
     condition: Expression | None = None
-    value_expression: Expression | None = None
+    value_expression: Expression | None = Field(default=None, exclude_if=lambda value: value is None)
     actions: tuple[Action, ...] = ()
     else_actions: tuple[Action, ...] = Field(default=(), exclude_if=lambda value: not value)
 
