@@ -209,7 +209,10 @@
         "fields": [
           {
             "choices": [
-              "gt"
+              "gt",
+              "gte",
+              "lt",
+              "lte"
             ],
             "default": "gt",
             "exclusive_minimum": false,
@@ -514,7 +517,8 @@
         "fields": [
           {
             "choices": [
-              "descending"
+              "descending",
+              "ascending"
             ],
             "default": "descending",
             "exclusive_minimum": false,
@@ -608,6 +612,20 @@
             "reference": null,
             "required": true,
             "value_type": "integer"
+          },
+          {
+            "choices": [
+              "require_full",
+              "choose_all"
+            ],
+            "default": "require_full",
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "shortage_policy",
+            "reference": null,
+            "required": false,
+            "value_type": "string"
           }
         ],
         "id": "top_n@1",
