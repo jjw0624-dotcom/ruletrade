@@ -7,6 +7,7 @@ from ruletrade.compiler.analysis import StrategyRequirements
 from ruletrade.compiler.lean.plan import (
     LeanCooldownState,
     LeanDailyEvent,
+    LeanFilterClause,
     LeanMomentumSelection,
     LeanMonthlyEvent,
     LeanOnDataExecution,
@@ -117,6 +118,15 @@ def lower_strategy_ir_to_lean_plan(
             ),
             filter_operator=(filter_operation.operator if filter_operation is not None else None),
             filter_threshold=(filter_operation.threshold if filter_operation is not None else None),
+            filter_clauses=(
+                tuple(
+                    LeanFilterClause(operator=item.operator, threshold=item.threshold)
+                    for item in filter_operation.clauses
+                )
+                if filter_operation is not None
+                else ()
+            ),
+            shortage_policy=top_n.shortage_policy,
             cooldown_state_id=cooldown_state_id,
         )
         return asset_set.symbols

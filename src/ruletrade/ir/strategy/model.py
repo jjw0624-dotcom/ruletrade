@@ -84,12 +84,19 @@ class TrailingReturnOp:
 
 
 @dataclass(frozen=True)
+class FilterClause:
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
+
+
+@dataclass(frozen=True)
 class FilterOp:
     id: str
     scores: str
-    operator: Literal["gt"]
+    operator: Literal["gt", "gte", "lt", "lte"]
     threshold: Decimal
     provenance: SourceProvenance
+    clauses: tuple[FilterClause, ...] = ()
     operation: Literal["selection.filter"] = "selection.filter"
 
 
@@ -97,7 +104,7 @@ class FilterOp:
 class RankOp:
     id: str
     scores: str
-    direction: Literal["descending"]
+    direction: Literal["descending", "ascending"]
     provenance: SourceProvenance
     operation: Literal["selection.rank"] = "selection.rank"
 
@@ -108,6 +115,7 @@ class TopNOp:
     ranked: str
     count: int
     provenance: SourceProvenance
+    shortage_policy: Literal["require_full", "choose_all"] = "require_full"
     operation: Literal["selection.top_n"] = "selection.top_n"
 
 

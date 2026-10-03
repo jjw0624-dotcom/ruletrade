@@ -162,11 +162,11 @@ def test_filter_lowers_to_one_score_calculation_then_filter_rank_and_top_n() -> 
 def test_invalid_filter_ir_is_rejected() -> None:
     strategy_ir = lower_strategy_model_to_ir(filter_screening_strategy())
     operations = tuple(
-        replace(item, operator="gte") if isinstance(item, FilterOp) else item
+        replace(item, operator="unsupported") if isinstance(item, FilterOp) else item
         for item in strategy_ir.operations
     )
 
-    with pytest.raises(IRValidationError, match="only strict gt filter is supported"):
+    with pytest.raises(IRValidationError, match="unsupported filter operator"):
         validate_strategy_ir(replace(strategy_ir, operations=operations))
 
 

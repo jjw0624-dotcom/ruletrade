@@ -24,6 +24,12 @@ class LeanRandomSelection:
 
 
 @dataclass(frozen=True)
+class LeanFilterClause:
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
+
+
+@dataclass(frozen=True)
 class LeanMomentumSelection:
     id: str
     score_component_id: str
@@ -32,11 +38,13 @@ class LeanMomentumSelection:
     symbols: tuple[str, ...]
     lookback_bars: int
     count: int
-    direction: Literal["descending"] = "descending"
+    direction: Literal["descending", "ascending"] = "descending"
     price_field: Literal["adjusted_close"] = "adjusted_close"
     filter_component_id: str | None = None
-    filter_operator: Literal["gt"] | None = None
+    filter_operator: Literal["gt", "gte", "lt", "lte"] | None = None
     filter_threshold: Decimal | None = None
+    filter_clauses: tuple[LeanFilterClause, ...] = ()
+    shortage_policy: Literal["require_full", "choose_all"] = "require_full"
     cooldown_state_id: str | None = None
 
 

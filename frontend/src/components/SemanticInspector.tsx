@@ -1,5 +1,7 @@
-import type { FormEvent, ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
+import type { ConditionExpression } from "../domain/canonical";
 import type { ConceptualFlowProjection, ConceptualGroup } from "../domain/conceptualFlow";
 import { semanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -9,6 +11,8 @@ import {
   FallbackTransformationControl,
 } from "./ShapeTransformationControls";
 import { GroupRenameControl } from "./StructuralAuthoringControls";
+import { ConditionComposer } from "./ConditionComposer";
+import { SelectionComposer } from "./SelectionComposer";
 
 function groupFor(
   projection: ConceptualFlowProjection,
@@ -20,48 +24,75 @@ function groupFor(
     || group.choose?.sourceComponentIds.includes(componentId ?? ""));
 }
 
-function predicateFields(component: { condition: unknown } | undefined) {
-  const condition = component?.condition;
-  if (!condition || typeof condition !== "object" || Array.isArray(condition)) return null;
-  const value = condition as Record<string, unknown>;
-  const left = value.left as Record<string, unknown> | undefined;
-  const asset = left?.asset as Record<string, unknown> | undefined;
-  const parameters = left?.parameters as Record<string, unknown> | undefined;
-  const right = value.right as Record<string, unknown> | undefined;
-  if (value.kind !== "comparison" || left?.kind !== "indicator" || asset?.kind !== "literal" || right?.kind !== "literal") return null;
+function legacyEligibility(lookback: number, threshold: number): ConditionExpression {
   return {
-    asset: String(asset.value ?? "SPY"), lookback: Number(parameters?.lookback_bars ?? 126),
-    operator: String(value.operator ?? "gt") as "gt" | "gte" | "lt" | "lte",
-    threshold: String(right.value ?? "0"),
+    kind: "comparison",
+    operator: "gt",
+    left: {
+      kind: "indicator",
+      indicator_id: "trailing_return_indicator@1",
+      asset: { kind: "candidate" },
+      parameters: { lookback_bars: lookback },
+    },
+    right: { kind: "literal", value_type: "percentage", value: threshold },
   };
+}
+
+function ConditionInspectorControl({
+  componentId,
+  role,
+  initial,
+  lookback,
+  structural,
+  removable,
+  returnSelection,
+}: {
+  componentId: string;
+  role: "predicate" | "eligibility";
+  initial: ConditionExpression;
+  lookback: number;
+  structural: StructuralAuthoringController;
+  removable?: boolean;
+  returnSelection?: ReturnType<typeof semanticSelection>;
+}) {
+  const [draft, setDraft] = useState(initial);
+  useEffect(() => setDraft(initial), [componentId, initial]);
+  const apply = () => void structural.apply(
+    { kind: "update_condition_expression", component_id: componentId, role, condition: draft },
+    semanticSelection(role === "predicate" ? "rule" : "qualification", componentId, { fieldPath: "condition" }),
+  );
+  return <div className="predicate-inspector">
+    <ConditionComposer
+      role={role}
+      expression={draft}
+      defaultLookback={lookback}
+      disabled={structural.status === "applying"}
+      onChange={setDraft}
+    />
+    <button type="button" className="secondary-button" disabled={structural.status === "applying"} onClick={apply}>Apply condition</button>
+    {removable && <button type="button" className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply(
+      role === "predicate"
+        ? { kind: "remove_predicate", component_id: componentId }
+        : { kind: "remove_qualification_condition", condition_component_id: componentId },
+      returnSelection ?? semanticSelection("rule", componentId),
+    )}>Remove condition</button>}
+  </div>;
 }
 
 function PredicateInspectorControl({ componentId, structural }: { componentId: string; structural: StructuralAuthoringController }) {
   const { state } = useStrategyEditor();
   const component = state.canonical.graph.components.find((item) => item.id === componentId);
-  const fields = predicateFields(component);
-  if (!fields) return <p className="fixed-setting">This control predicate is not editable in Predicate v1.</p>;
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    void structural.apply({
-      kind: "update_predicate", component_id: componentId,
-      asset: String(data.get("asset") ?? fields.asset),
-      lookback_bars: Number(data.get("lookback") ?? fields.lookback),
-      operator: String(data.get("operator") ?? fields.operator) as "gt" | "gte" | "lt" | "lte",
-      threshold: String(Number(data.get("threshold") ?? Number(fields.threshold)) / 100),
-    }, semanticSelection("rule", componentId, { fieldPath: "condition" }));
-  };
-  return <form onSubmit={submit} className="predicate-inspector">
-    <h2>Market condition</h2>
-    <label>Asset<input name="asset" defaultValue={fields.asset} required pattern="[A-Za-z0-9._:-]+" /></label>
-    <label>Measure<span className="fixed-setting">Trailing return</span></label>
-    <label>Period (trading days)<input name="lookback" type="number" min="1" step="1" defaultValue={fields.lookback} required /></label>
-    <label>Operator<select name="operator" defaultValue={fields.operator}><option value="gt">greater than</option><option value="gte">at least</option><option value="lt">less than</option><option value="lte">at most</option></select></label>
-    <label>Value (%)<input name="threshold" type="number" step="0.1" defaultValue={Number(fields.threshold) * 100} required /></label>
-    <button className="secondary-button" disabled={structural.status === "applying"}>Apply condition</button>
-    <button type="button" className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply({ kind: "remove_predicate", component_id: componentId }, semanticSelection("rule", componentId))}>Remove condition</button>
-  </form>;
+  if (!component?.condition) return <p className="fixed-setting">This control predicate is not editable in Predicate v1.</p>;
+  const left = component.condition.kind === "comparison" && component.condition.left.kind === "indicator"
+    ? component.condition.left : null;
+  return <ConditionInspectorControl
+    componentId={componentId}
+    role="predicate"
+    initial={component.condition}
+    lookback={Number(left?.parameters.lookback_bars ?? 126)}
+    structural={structural}
+    removable
+  />;
 }
 
 export function SemanticInspector({
@@ -130,14 +161,31 @@ export function SemanticInspector({
       ? group.allocationComponentId : null;
     const countCapability = structural.capabilities?.selection_count_targets.find((item) => item.component_id === choose.selectionComponentId);
     const resampleCapability = structural.capabilities?.selection_resample_targets.find((item) => item.component_id === choose.selectionComponentId);
+    const rankComponent = choose.rankComponentId
+      ? state.canonical.graph.components.find((item) => item.id === choose.rankComponentId) : undefined;
+    const selectionComponent = state.canonical.graph.components.find((item) => item.id === choose.selectionComponentId);
     content = <>
       <h2>{choose.label}</h2>
       {group.assetSetId && <AssetMembershipEditor authoring={structural} question="Candidate universe" assetSetId={group.assetSetId} assets={group.assets} />}
       {choose.lookbackComponentId && <LookbackControl authoring={structural} id="inspector-lookback" componentId={choose.lookbackComponentId} value={choose.lookbackBars!} />}
-      {choose.selectionMode === "ranked"
-        ? <p className="fixed-setting">Strongest return first</p>
+      {choose.selectionMode === "ranked" && rankComponent && selectionComponent && countCapability
+        ? <SelectionComposer
+            direction={(rankComponent.config.direction ?? "descending") as "descending" | "ascending"}
+            count={Number(selectionComponent.config.count ?? choose.topN ?? 1)}
+            shortagePolicy={(selectionComponent.config.shortage_policy ?? "require_full") as "require_full" | "choose_all"}
+            disabled={busy}
+            onChange={(value) => void structural.apply({
+              kind: "update_selection_semantics",
+              rank_component_id: rankComponent.id,
+              selection_component_id: selectionComponent.id,
+              direction: value.direction,
+              count: value.count,
+              shortage_policy: value.shortagePolicy,
+              value_expression: rankComponent.value_expression ?? null,
+            }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
+          />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
-      {countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
+      {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
       {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "config.threshold", groupId: group.id }) })}>Eligibility: return &gt; {Number(choose.threshold) * 100}%</button>}
       {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}
       {choose.cooldownComponentId && choose.cooldownDuration && <CooldownControl authoring={structural} componentId={choose.cooldownComponentId} value={choose.cooldownDuration} />}
@@ -146,13 +194,22 @@ export function SemanticInspector({
     </>;
   } else if (role === "qualification" && choose?.filterComponentId && group) {
     const removable = structural.capabilities?.qualification_remove_targets.includes(choose.filterComponentId);
-    const thresholdCapability = structural.capabilities?.qualification_threshold_targets.find((item) => item.component_id === choose.filterComponentId);
+    const filterComponent = state.canonical.graph.components.find((item) => item.id === choose.filterComponentId);
+    const initial = filterComponent?.condition ?? legacyEligibility(
+      choose.lookbackBars ?? 126,
+      Number(filterComponent?.config.threshold ?? choose.threshold ?? 0),
+    );
     content = <>
       <h2>Qualification</h2>
-      <p className="fixed-setting">Return is greater than</p>
-      {thresholdCapability && <label>Threshold<span className="percent-field"><AuthoringNumberInput ariaLabel="Return threshold percent" value={Number(choose.threshold) * 100} step={0.1} disabled={busy} onCommit={(threshold) => void structural.apply({ kind: "update_qualification_threshold", component_id: choose.filterComponentId!, threshold: String(threshold / 100) })} />%</span></label>}
-      {choose.lookbackComponentId && <LookbackControl authoring={structural} id="qualification-lookback" componentId={choose.lookbackComponentId} value={choose.lookbackBars!} />}
-      {removable && <button className="text-button danger" disabled={busy} onClick={() => void structural.apply({ kind: "remove_qualification_condition", condition_component_id: choose.filterComponentId! }, semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }))}>Remove qualification</button>}
+      <ConditionInspectorControl
+        componentId={choose.filterComponentId}
+        role="eligibility"
+        initial={initial}
+        lookback={choose.lookbackBars ?? 126}
+        structural={structural}
+        removable={removable}
+        returnSelection={semanticSelection("selection", choose.selectionComponentId, { groupId: group.id })}
+      />
     </>;
   } else if (role === "fallback" && choose?.fallbackComponentId && group) {
     const removable = structural.capabilities?.fallback_remove_targets.includes(choose.fallbackComponentId);

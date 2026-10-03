@@ -10,6 +10,7 @@ from ruletrade.decision_evidence.models import (
     CollectedDecisionEvent,
     CooldownEvidence,
     FallbackEvidence,
+    FilterClauseEvidence,
     FilterEvidence,
     FinalSelectionEvidence,
     FinalTargetsEvidence,
@@ -137,9 +138,16 @@ def _payload(kind: str, fields: dict[str, str], schema_version: int):
         decision_universe = _symbols(fields.pop("decision_universe")) if schema_version >= 2 else None
         if decision_universe is not None and not set(scores) <= set(decision_universe):
             raise DecisionEvidenceError("Filter evaluations must belong to the decision universe.")
+        clause_text = fields.pop("clauses", "")
+        clauses = tuple(
+            FilterClauseEvidence(operator=operator, threshold=Decimal(threshold))
+            for item in clause_text.split(",") if item
+            for operator, threshold in (item.split(":", 1),)
+        )
         return FilterEvidence(
             operator=fields.pop("operator"),
             threshold=Decimal(fields.pop("threshold")),
+            clauses=clauses,
             evaluations=tuple(
                 AssetPredicate(
                     asset=asset,

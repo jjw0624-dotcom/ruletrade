@@ -19,6 +19,7 @@ from ruletrade.strategy.v1.models import (
     ComparisonExpression,
     Connection,
     FrozenModel,
+    Expression,
     Identifier,
     IndicatorExpression,
     LiteralExpression,
@@ -171,6 +172,25 @@ class RemovePredicateOperation(FrozenModel):
     component_id: Identifier
 
 
+class UpdateConditionExpressionOperation(FrozenModel):
+    """Update a role-specific condition without conflating Predicate and Eligibility."""
+
+    kind: Literal["update_condition_expression"] = "update_condition_expression"
+    component_id: Identifier
+    role: Literal["predicate", "eligibility"]
+    condition: Expression
+
+
+class UpdateSelectionSemanticsOperation(FrozenModel):
+    kind: Literal["update_selection_semantics"] = "update_selection_semantics"
+    rank_component_id: Identifier
+    selection_component_id: Identifier
+    direction: Literal["descending", "ascending"]
+    count: Annotated[int, Field(ge=1)]
+    shortage_policy: Literal["require_full", "choose_all"]
+    value_expression: Expression | None = None
+
+
 class CommitPredicateBranchesOperation(FrozenModel):
     """Commit a complete Blocky control topology using Canonical component identity."""
 
@@ -207,6 +227,8 @@ StructuralAuthoringOperation = Annotated[
     | AddPredicateOperation
     | UpdatePredicateOperation
     | RemovePredicateOperation
+    | UpdateConditionExpressionOperation
+    | UpdateSelectionSemanticsOperation
     | CommitPredicateBranchesOperation,
     Field(discriminator="kind"),
 ]
@@ -1395,6 +1417,43 @@ def apply_structural_operation(
     elif isinstance(operation, UpdateCooldownDurationOperation):
         component = _require_primitive(strategy, operation.component_id, {"cooldown@1"}, "Cooldown editing")
         candidate = _update_config(strategy, component, "duration", operation.duration)
+    elif isinstance(operation, UpdateConditionExpressionOperation):
+        expected = {"predicate": {"rule@1"}, "eligibility": {"filter@1"}}[operation.role]
+        component = _require_primitive(strategy, operation.component_id, expected, "Condition editing")
+        candidate = _replace_component(
+            strategy, component.model_copy(update={"condition": operation.condition})
+        )
+    elif isinstance(operation, UpdateSelectionSemanticsOperation):
+        rank = _require_primitive(
+            strategy, operation.rank_component_id, {"rank@1"}, "Selection editing"
+        )
+        selection = _require_primitive(
+            strategy, operation.selection_component_id, {"top_n@1"}, "Selection editing"
+        )
+        candidate = _replace_component(
+            strategy,
+            rank.model_copy(
+                update={
+                    "config": {**rank.config, "direction": operation.direction},
+                    "value_expression": operation.value_expression,
+                }
+            ),
+        )
+        selection = next(
+            item for item in candidate.graph.components if item.id == selection.id
+        )
+        candidate = _replace_component(
+            candidate,
+            selection.model_copy(
+                update={
+                    "config": {
+                        **selection.config,
+                        "count": operation.count,
+                        "shortage_policy": operation.shortage_policy,
+                    }
+                }
+            ),
+        )
     elif isinstance(operation, AddPredicateOperation):
         candidate = _add_predicate(strategy, operation)
     elif isinstance(operation, UpdatePredicateOperation):
