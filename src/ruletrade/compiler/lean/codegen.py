@@ -27,6 +27,19 @@ def _csharp_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=True)
 
 
+def _filter_condition(selection: LeanMomentumSelection, value: str) -> str:
+    clauses = selection.filter_clauses
+    if not clauses and selection.filter_operator is not None and selection.filter_threshold is not None:
+        from ruletrade.compiler.lean.plan import LeanFilterClause
+        clauses = (LeanFilterClause(selection.filter_operator, selection.filter_threshold),)
+    operators = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+    return " && ".join(f"{value} {operators[item.operator]} {_decimal_literal(item.threshold)}" for item in clauses) or "true"
+
+
+def _ranking_method(selection: LeanMomentumSelection) -> str:
+    return "OrderByDescending" if selection.direction == "descending" else "OrderBy"
+
+
 def _decimal_literal(value: Decimal) -> str:
     literal = f"{format(value.normalize(), 'f')}m"
     # Member access binds before unary minus in C#. Parenthesize negative literals
@@ -538,7 +551,7 @@ def generate_csharp(
                     f"                scores[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
                     "            }",
                     "        }",
-                    f"        var eligible = scores.Where(item => item.Value > {threshold})",
+                    f"        var eligible = scores.Where(item => {_filter_condition(selection, 'item.Value')})",
                     "            .ToDictionary(item => item.Key, item => item.Value);",
                     f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
                     '            + "|eligible=" + string.Join(",", eligible.Keys.OrderBy(item => item))',
@@ -550,7 +563,7 @@ def generate_csharp(
                     '            "scores", string.Join(",", scores.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
                     '            "eligible", string.Join(",", eligible.Keys.OrderBy(item => item)),',
                     '            "rejected", string.Join(",", scores.Keys.Except(eligible.Keys).OrderBy(item => item)));',
-                    "        var ranked = eligible.OrderByDescending(item => item.Value)",
+                    f"        var ranked = eligible.{_ranking_method(selection)}(item => item.Value)",
                     "            .ThenBy(item => item.Key, StringComparer.Ordinal).ToList();",
                     f"        var {variable} = ranked.Take({selection.count}).Select(item => item.Key).ToList();",
                     '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',
@@ -789,7 +802,7 @@ def generate_csharp(
                                 lines.extend(
                                     (
                                         f"        var {eligible_variable} = {scores_variable}",
-                                        f"            .Where(item => item.Value > {threshold})",
+                                        f"            .Where(item => {_filter_condition(selection, 'item.Value')})",
                                         "            .ToDictionary(item => item.Key, item => item.Value);",
                                         f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
                                         f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
@@ -807,7 +820,7 @@ def generate_csharp(
                             lines.extend(
                                 (
                                     f"        var {ranked_variable} = {ranking_input}",
-                                    "            .OrderByDescending(item => item.Value)",
+                                    f"            .{_ranking_method(selection)}(item => item.Value)",
                                     "            .ThenBy(item => item.Key, StringComparer.Ordinal)",
                                     "            .ToList();",
                                     f"        var {variable} = {ranked_variable}.Take({selection.count}).Select(item => item.Key).ToList();",
@@ -925,7 +938,7 @@ def generate_csharp(
                                         f'            "selected", string.Join(",", {variable}), "source", ({fallback_activated} ? "fallback" : "primary"));',
                                     )
                                 )
-                            elif selection.cooldown_state_id is None:
+                            elif selection.cooldown_state_id is None and selection.shortage_policy == "require_full":
                                 lines.extend(
                                     (
                                         f"        if ({variable}.Count < {selection.count})",
