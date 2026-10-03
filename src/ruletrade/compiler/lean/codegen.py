@@ -44,6 +44,10 @@ def _filter_operator(selection: LeanMomentumSelection) -> str:
     return selection.filter_clauses[0].operator if selection.filter_clauses else (selection.filter_operator or "gt")
 
 
+def _filter_field(selection: LeanMomentumSelection) -> str:
+    return "condition" if selection.filter_clauses else "config.threshold"
+
+
 def _filter_clause_evidence(selection: LeanMomentumSelection) -> str:
     clauses = selection.filter_clauses
     if not clauses and selection.filter_operator is not None and selection.filter_threshold is not None:
@@ -573,7 +577,7 @@ def generate_csharp(
                     '            + "|eligible=" + string.Join(",", eligible.Keys.OrderBy(item => item))',
                     '            + "|rejected=" + string.Join(",", scores.Keys.Except(eligible.Keys).OrderBy(item => item)));',
                     '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
-                    f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "condition", "operator", {_csharp_string(_filter_operator(selection))},',
+                    f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", {_csharp_string(_filter_field(selection))}, "operator", {_csharp_string(_filter_operator(selection))},',
                     f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "clauses", {_csharp_string(_filter_clause_evidence(selection))},',
                     f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
                     '            "scores", string.Join(",", scores.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
@@ -824,7 +828,7 @@ def generate_csharp(
                                         f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',
                                         f'            + "|rejected=" + string.Join(",", {scores_variable}.Keys.Except({eligible_variable}.Keys).OrderBy(item => item)));',
                                         '        EmitDecisionEvidence(eventIdentity, "evaluation", "filter",',
-                                        f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", "condition", "operator", {_csharp_string(_filter_operator(selection))},',
+                                        f'            "filter_component", {_csharp_string(selection.filter_component_id or "")}, "filter_field", {_csharp_string(_filter_field(selection))}, "operator", {_csharp_string(_filter_operator(selection))},',
                                         f'            "threshold", {threshold}.ToString("G29", CultureInfo.InvariantCulture), "clauses", {_csharp_string(_filter_clause_evidence(selection))},',
                                         f'            "decision_universe", string.Join(",", new[] {{ {symbols} }}),',
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
