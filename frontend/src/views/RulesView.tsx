@@ -25,7 +25,7 @@ export function RulesView({ structural }: { structural: StructuralAuthoringContr
   const busy = structural.status === "applying";
   const caps = structural.capabilities;
   return <div className="rules-representation" onClick={(event) => { if (isBlankWorkspaceTarget(event.target)) dispatch({ type: "select_semantic", selection: null }); }}><header className="representation-intro"><span className="eyebrow">Rules</span><h1>In plain language</h1><p>Each editable value belongs to the selected Strategy component. Changes are checked by the backend.</p></header>
-    {projection.predicate && <Rule selection={semanticSelection("rule", projection.predicate.componentId, { fieldPath: "condition" })}><p>If {projection.predicate.label}, execute the scheduled rebalance. Otherwise retain the current portfolio.</p></Rule>}
+    {projection.predicate && <Rule selection={semanticSelection("rule", projection.predicate.componentId, { fieldPath: "condition" })}><p>If {projection.predicate.label}, execute the THEN program{projection.predicate.thenTarget ? ` targeting ${projection.predicate.thenTarget}` : ""}. {projection.predicate.otherwiseTarget ? `Otherwise execute the OTHERWISE program targeting ${projection.predicate.otherwiseTarget}.` : "Otherwise retain the current portfolio."}</p></Rule>}
     {projection.groups.map((group) => {
       const choose = group.choose, groupId = group.id;
       const chooseTarget = !choose && group.allocationComponentId && caps?.choose_pipeline_targets.includes(group.allocationComponentId) ? group.allocationComponentId : null;

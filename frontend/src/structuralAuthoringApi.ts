@@ -85,7 +85,17 @@ export type StructuralAuthoringOperation =
   | { kind: "update_fallback_asset_set"; component_id: string; asset_set_id: string }
   | { kind: "add_predicate"; rebalance_component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
   | { kind: "update_predicate"; component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
-  | { kind: "remove_predicate"; component_id: string };
+  | { kind: "remove_predicate"; component_id: string }
+  | {
+      kind: "commit_predicate_branches";
+      component_id: string;
+      then_target_component_id: string;
+      otherwise_target_component_id?: string | null;
+      asset: string;
+      lookback_bars: number;
+      operator: "gt" | "gte" | "lt" | "lte";
+      threshold: string;
+    };
 
 export interface StructuralAuthoringErrorDetail {
   code: string;

@@ -306,11 +306,23 @@ def lower_strategy_ir_to_lean_plan(
             actions["refresh"].append(target.id)
         elif isinstance(target, (RebalanceOp, PredicateRebalanceOp)):
             lowered = lower_targets(target.targets)
-            total_weight = sum((sleeve.total_weight for sleeve in lowered.sleeves), Decimal(0)) + sum(
-                (item.factor for item in lowered.snapshot_allocations), Decimal(0)
+            otherwise_lowered = (
+                lower_targets(target.otherwise_targets)
+                if isinstance(target, PredicateRebalanceOp)
+                and target.otherwise_targets is not None
+                else _LoweredTargets()
             )
-            if total_weight != Decimal(1):
-                raise LeanLoweringError("target sleeve weights must sum to 1")
+
+            def require_complete_branch(branch: _LoweredTargets, label: str) -> None:
+                total_weight = sum(
+                    (sleeve.total_weight for sleeve in branch.sleeves), Decimal(0)
+                ) + sum((item.factor for item in branch.snapshot_allocations), Decimal(0))
+                if total_weight != Decimal(1):
+                    raise LeanLoweringError(f"{label} target sleeve weights must sum to 1")
+
+            require_complete_branch(lowered, "THEN")
+            if isinstance(target, PredicateRebalanceOp) and target.otherwise_targets is not None:
+                require_complete_branch(otherwise_lowered, "OTHERWISE")
             rebalances[target.id] = LeanRebalance(
                 id=target.id,
                 sleeve_ids=tuple(sleeve.id for sleeve in lowered.sleeves),
@@ -326,6 +338,13 @@ def lower_strategy_ir_to_lean_plan(
                     )
                     if isinstance(target, PredicateRebalanceOp)
                     else None
+                ),
+                otherwise_sleeve_ids=tuple(
+                    sleeve.id for sleeve in otherwise_lowered.sleeves
+                ),
+                otherwise_snapshot_allocations=otherwise_lowered.snapshot_allocations,
+                otherwise_exit_state_ids=tuple(
+                    sorted(set(otherwise_lowered.exit_state_ids))
                 ),
             )
             actions["rebalance"].append(target.id)

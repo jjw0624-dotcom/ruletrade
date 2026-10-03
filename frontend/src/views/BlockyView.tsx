@@ -10,7 +10,7 @@ import { useStrategyEditor } from "../store/editorStore";
 import { semanticCompositionApi, type SemanticCompositionProjection } from "../semanticCompositionApi";
 import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
 import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
-import { classifyWorkingProgram, hasUnresolvedLogicDraft, logicWorkingProgramSignature, type LogicWorkingProgram } from "../domain/logicDraft";
+import { classifyWorkingProgram, controlCommitIntent, hasUnresolvedLogicDraft, logicWorkingProgramSignature, type LogicWorkingProgram } from "../domain/logicDraft";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
@@ -305,12 +305,26 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     if (ok) setPendingOption(null);
     return ok;
   };
+  const applyLogicDraft = async () => {
+    const program = state.editor.logicDraft.workingProgram;
+    if (!program || busy.current) return;
+    const intent = controlCommitIntent(program);
+    if (!intent) { setNotice("This Blocky topology is not commit-ready."); return; }
+    busy.current = true;
+    try {
+      const ok = await structural.apply({ kind: "commit_predicate_branches", ...intent }, semanticSelection("rule", intent.component_id, { fieldPath: "condition" }));
+      if (ok) {
+        setNotice(null);
+        dispatch({ type: "restore_logic_program" });
+      }
+    } finally { busy.current = false; }
+  };
 
   return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control") || event.dataTransfer.types.includes("application/x-ruletrade-predicate")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />
-    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" data-workspace-status="overlay" role="status"><span>Unfinished Blocky changes · Save/Test disabled</span><button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
+    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" data-workspace-status="overlay" role="status"><span>{state.editor.logicDraft.status === "commit_ready" ? "Blocky changes ready to apply" : "Unfinished Blocky changes · Save/Test disabled"}</span>{state.editor.logicDraft.status === "commit_ready" && <button className="secondary-button" onClick={() => void applyLogicDraft()}>Apply Blocky changes</button>}<button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
     {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
       {pendingOption?.kind === "metric" && <MetricConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={async (lookback, count) => { const operation = composeRankedSelectionPipeline(state.canonical, pendingOption.targetComponentId, lookback, count); if (!operation) return false; const ok = await structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId: pendingOption.groupId })); if (ok) setPendingOption(null); return ok; }} />}
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}

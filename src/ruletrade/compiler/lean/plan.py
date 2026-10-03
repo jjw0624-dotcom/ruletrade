@@ -69,6 +69,9 @@ class LeanRebalance:
     snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
     exit_state_ids: tuple[str, ...] = ()
     predicate: "LeanTrailingReturnPredicate | None" = None
+    otherwise_sleeve_ids: tuple[str, ...] = ()
+    otherwise_snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
+    otherwise_exit_state_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
