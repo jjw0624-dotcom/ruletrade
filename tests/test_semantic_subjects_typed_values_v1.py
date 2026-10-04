@@ -306,7 +306,7 @@ def test_asset_current_price_predicate_is_real_control_flow() -> None:
     assert 'CurrentPrice("SPY")' in source
     assert '"scope", "predicate"' in source
     assert source.index("CompareValues") < source.index("SetHoldings")
-    assert "if (!conditionOutcome" in source
+    assert "if (!predicateOutcome0_0) return;" in source
 
 
 def test_non_executable_volume_edit_is_rejected_atomically() -> None:

@@ -118,6 +118,45 @@ def _ranking_value(selection) -> LeanValue:
     )
 
 
+def _uses_legacy_trailing_return(selection: LeanMomentumSelection) -> bool:
+    value = _ranking_value(selection)
+    return (
+        value.kind == "trailing_return"
+        and value.subject == "candidate"
+        and value.observations == selection.lookback_bars
+    )
+
+
+def _eligibility_condition(selection: LeanMomentumSelection, comparison) -> str:
+    operators = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+    if (
+        comparison.left == _ranking_value(selection)
+        and comparison.right.kind == "literal"
+        and comparison.right.literal is not None
+    ):
+        return (
+            f"item.Value {operators[comparison.operator]} "
+            f"{_decimal_literal(comparison.right.literal)}"
+        )
+    return _comparison_csharp(comparison, "item.Key")
+
+
+def _uses_legacy_predicate(rebalance) -> bool:
+    if rebalance.predicate is None or len(rebalance.condition) != 1:
+        return False
+    comparison = rebalance.condition[0]
+    left, right, predicate = comparison.left, comparison.right, rebalance.predicate
+    return (
+        left.kind == "trailing_return"
+        and left.subject == "asset"
+        and left.asset == predicate.asset
+        and left.observations == predicate.lookback_bars
+        and right.kind == "literal"
+        and right.literal == predicate.threshold
+        and comparison.operator == predicate.operator
+    )
+
+
 def _value_json(value: LeanValue) -> str:
     return json.dumps(asdict(value), default=str, separators=(",", ":"), sort_keys=True)
 
@@ -369,8 +408,7 @@ def generate_csharp(
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
     ]
-    if needs_history:
-        lines.append("using QuantConnect.Indicators;")
+    lines.append("using QuantConnect.Indicators;")
     if plan.random_selections:
         lines[4:4] = [
             "using System.Security.Cryptography;",
@@ -386,16 +424,16 @@ def generate_csharp(
             "    private int _decisionEvidenceSequence;",
         ]
     )
+    lines.append(
+        "    private readonly Dictionary<string, RollingWindow<decimal>> "
+        "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
+    )
     if needs_history:
         history_capacity = max(
             [item.lookback_bars + 1 for item in plan.momentum_selections]
             + [item.lookback_bars + 1 for item in predicates]
             + [_value_observations(value) for value in (*condition_values, *selection_values)]
             + [1]
-        )
-        lines.append(
-            "    private readonly Dictionary<string, RollingWindow<decimal>> "
-            "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
         )
     for index in range(len(scheduled_events)):
         lines.append(f"    private string _pendingEvent{index};")
@@ -690,7 +728,7 @@ def generate_csharp(
             threshold = _decimal_literal(selection.filter_threshold or Decimal(0))
             ranking_expression = _value_csharp(_ranking_value(selection), "ticker")
             eligibility_expression = (
-                " && ".join(_comparison_csharp(item, "item.Key") for item in selection.eligibility)
+                " && ".join(_eligibility_condition(selection, item) for item in selection.eligibility)
                 or _filter_condition(selection, "item.Value")
             )
             lines.extend(
@@ -698,11 +736,23 @@ def generate_csharp(
                     "        var scores = new Dictionary<string, decimal>();",
                     f"        foreach (var ticker in new[] {{ {symbols} }})",
                     "        {",
-                    f"            var observed = {ranking_expression};",
-                    "            if (observed.HasValue)",
-                    "            {",
-                    "                scores[ticker] = observed.Value;",
-                    "            }",
+                    *(
+                        (
+                            "            var window = _dailyCloses[ticker];",
+                            f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                            "            {",
+                            f"                scores[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                            "            }",
+                        )
+                        if _uses_legacy_trailing_return(selection)
+                        else (
+                            f"            var observed = {ranking_expression};",
+                            "            if (observed.HasValue)",
+                            "            {",
+                            "                scores[ticker] = observed.Value;",
+                            "            }",
+                        )
+                    ),
                     "        }",
                     *_condition_evidence_lines(
                         selection.eligibility,
@@ -817,7 +867,7 @@ def generate_csharp(
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
             predicate_outcome: str | None = None
-            if rebalance.condition:
+            if rebalance.condition and not _uses_legacy_predicate(rebalance):
                 predicate_outcome = f"predicateOutcome{event_index}_{rebalance_index}"
                 clause_outcomes: list[str] = []
                 for clause_index, comparison in enumerate(rebalance.condition):
@@ -969,11 +1019,23 @@ def generate_csharp(
                                     f"        var {scores_variable} = new Dictionary<string, decimal>();",
                                     f"        foreach (var ticker in new[] {{ {symbols} }})",
                                     "        {",
-                                    f"            var observed = {ranking_expression};",
-                                    "            if (observed.HasValue)",
-                                    "            {",
-                                    f"                {scores_variable}[ticker] = observed.Value;",
-                                    "            }",
+                                    *(
+                                        (
+                                            "            var window = _dailyCloses[ticker];",
+                                            f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                                            "            {",
+                                            f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                                            "            }",
+                                        )
+                                        if _uses_legacy_trailing_return(selection)
+                                        else (
+                                            f"            var observed = {ranking_expression};",
+                                            "            if (observed.HasValue)",
+                                            "            {",
+                                            f"                {scores_variable}[ticker] = observed.Value;",
+                                            "            }",
+                                        )
+                                    ),
                                     "        }",
                                 )
                             )
@@ -991,7 +1053,7 @@ def generate_csharp(
                                 threshold = _decimal_literal(selection.filter_threshold)
                                 eligibility_expression = (
                                     " && ".join(
-                                        _comparison_csharp(item, "item.Key")
+                                        _eligibility_condition(selection, item)
                                         for item in selection.eligibility
                                     )
                                     or _filter_condition(selection, "item.Value")
