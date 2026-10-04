@@ -12,8 +12,10 @@ describe("composable language inspector controls", () => {
       right: { kind: "literal", value_type: "percentage", value: 0 },
     }} onChange={vi.fn()} />);
     expect(html).toContain("Candidate eligibility (ALL)");
-    expect(html).toContain("20 trading days");
-    expect(html).toContain("Add ALL clause");
+    expect(html).toContain("Candidate trailing return · 20 completed observations");
+    expect(html).toContain("Add ALL comparison");
+    expect(html).toContain("Left value");
+    expect(html).toContain("Right value");
   });
 
   it("renders direction, count, and shortage controls together", () => {
@@ -22,5 +24,23 @@ describe("composable language inspector controls", () => {
     expect(html).toContain("Lowest first");
     expect(html).toContain("Choose all eligible");
     expect(html).toContain('value="3"');
+    expect(html).toContain("Where");
+  });
+
+  it("renders executable current and rolling price value choices", () => {
+    const strategy = {
+      api_version: "ruletrade.dev/strategy/v1", metadata: { name: "Values", description: "", tags: [] }, random_seed: 0,
+      definitions: { asset_sets: [{ id: "assets", assets: ["SPY", "QQQ"] }], parameters: [], state: [] },
+      graph: { components: [], connections: [] }, entrypoints: [],
+    } as never;
+    const html = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy} expression={{
+      kind: "comparison", operator: "gt",
+      left: { kind: "current", series: { kind: "market_series", field: "price", subject: { kind: "literal", value_type: "asset", value: "SPY" } } },
+      right: { kind: "literal", value_type: "money_per_share", value: 100 },
+    }} onChange={vi.fn()} />);
+    expect(html).toContain("Current adjusted price");
+    expect(html).toContain("Rolling adjusted price");
+    expect(html).toContain("Constant");
+    expect(html).toContain("SPY price · current");
   });
 });

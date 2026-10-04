@@ -30,6 +30,26 @@ class LeanFilterClause:
 
 
 @dataclass(frozen=True)
+class LeanValue:
+    kind: Literal["literal", "trailing_return", "current_price", "rolling_price", "scale"]
+    value_type: Literal["decimal", "percentage", "money_per_share"]
+    subject: Literal["asset", "candidate"] | None = None
+    asset: str | None = None
+    literal: Decimal | None = None
+    observations: int | None = None
+    aggregate: Literal["mean", "median", "min", "max"] | None = None
+    operand: "LeanValue | None" = None
+    factor: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class LeanComparison:
+    operator: Literal["gt", "gte", "lt", "lte"]
+    left: LeanValue
+    right: LeanValue
+
+
+@dataclass(frozen=True)
 class LeanMomentumSelection:
     id: str
     score_component_id: str
@@ -46,6 +66,8 @@ class LeanMomentumSelection:
     filter_clauses: tuple[LeanFilterClause, ...] = ()
     shortage_policy: Literal["require_full", "choose_all"] = "require_full"
     cooldown_state_id: str | None = None
+    ranking_value: LeanValue | None = None
+    eligibility: tuple[LeanComparison, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -77,6 +99,7 @@ class LeanRebalance:
     snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
     exit_state_ids: tuple[str, ...] = ()
     predicate: "LeanTrailingReturnPredicate | None" = None
+    condition: tuple[LeanComparison, ...] = ()
     otherwise_sleeve_ids: tuple[str, ...] = ()
     otherwise_snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
     otherwise_exit_state_ids: tuple[str, ...] = ()

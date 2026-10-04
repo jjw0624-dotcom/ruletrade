@@ -464,6 +464,33 @@ def filter_screening_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(FILTER_SCREENING_PAYLOAD)
 
 
+def strategy_values_composer_strategy() -> CanonicalStrategyV1:
+    """Maintained executable proof for Candidate price eligibility and ranking values."""
+
+    payload = deepcopy(FILTER_SCREENING_PAYLOAD)
+    components = {item["id"]: item for item in payload["graph"]["components"]}
+    components["positive_return"]["condition"] = {
+        "kind": "comparison",
+        "operator": "gte",
+        "left": {
+            "kind": "current",
+            "series": {"kind": "market_series", "field": "price", "subject": {"kind": "candidate"}},
+        },
+        "right": {"kind": "literal", "value_type": "money_per_share", "value": "5"},
+    }
+    components["momentum_rank"]["value_expression"] = {
+        "kind": "rolling_aggregate",
+        "operator": "mean",
+        "window_observations": 20,
+        "series": {"kind": "market_series", "field": "price", "subject": {"kind": "candidate"}},
+    }
+    payload["metadata"] = {
+        "name": "Price-qualified rolling-price Top 2",
+        "description": "Executable Strategy Value Composer proof using completed adjusted-price observations.",
+    }
+    return CanonicalStrategyV1.model_validate(payload)
+
+
 def fallback_momentum_strategy() -> CanonicalStrategyV1:
     return CanonicalStrategyV1.model_validate(FALLBACK_MOMENTUM_PAYLOAD)
 

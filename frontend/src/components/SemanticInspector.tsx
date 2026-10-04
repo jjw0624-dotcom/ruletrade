@@ -56,6 +56,7 @@ function ConditionInspectorControl({
   removable?: boolean;
   returnSelection?: ReturnType<typeof semanticSelection>;
 }) {
+  const { state } = useStrategyEditor();
   const [draft, setDraft] = useState(initial);
   useEffect(() => setDraft(initial), [componentId, initial]);
   const apply = () => void structural.apply(
@@ -66,6 +67,8 @@ function ConditionInspectorControl({
     <ConditionComposer
       role={role}
       expression={draft}
+      strategy={state.canonical}
+      capabilities={structural.capabilities?.value_capabilities}
       defaultLookback={lookback}
       disabled={structural.status === "applying"}
       onChange={setDraft}
@@ -167,6 +170,15 @@ export function SemanticInspector({
     const rankComponent = choose.rankComponentId
       ? state.canonical.graph.components.find((item) => item.id === choose.rankComponentId) : undefined;
     const selectionComponent = state.canonical.graph.components.find((item) => item.id === choose.selectionComponentId);
+    const universeCapability = structural.capabilities?.universe_targets?.find((item) => item.component_id === group.universeComponentId);
+    const eligibilityComponent = choose.filterComponentId
+      ? state.canonical.graph.components.find((item) => item.id === choose.filterComponentId) : undefined;
+    const rankingValue = rankComponent?.value_expression ?? (choose.lookbackBars ? {
+      kind: "indicator" as const,
+      indicator_id: "trailing_return_indicator@1",
+      asset: { kind: "candidate" as const },
+      parameters: { lookback_bars: choose.lookbackBars },
+    } : undefined);
     content = <>
       <h2>{choose.label}</h2>
       {group.assetSetId && <AssetMembershipEditor authoring={structural} question="Candidate universe" assetSetId={group.assetSetId} assets={group.assets} />}
@@ -176,7 +188,15 @@ export function SemanticInspector({
             direction={(rankComponent.config.direction ?? "descending") as "descending" | "ascending"}
             count={Number(selectionComponent.config.count ?? choose.topN ?? 1)}
             shortagePolicy={(selectionComponent.config.shortage_policy ?? "require_full") as "require_full" | "choose_all"}
+            valueExpression={rankingValue}
+            strategy={state.canonical}
+            capabilities={structural.capabilities?.value_capabilities}
+            universeComponentId={group.universeComponentId}
+            universeId={universeCapability?.value}
+            universeChoices={universeCapability?.choices}
+            eligibilitySummary={eligibilityComponent?.condition ? describeValueExpression(eligibilityComponent.condition.kind === "comparison" ? eligibilityComponent.condition.left : rankingValue!) : "All candidates qualify"}
             disabled={busy}
+            onUniverseChange={universeCapability ? (universeId) => void structural.apply({ kind: "update_universe_reference", component_id: universeCapability.component_id, universe_id: universeId }, semanticSelection("selection", selectionComponent.id, { groupId: group.id })) : undefined}
             onChange={(value) => void structural.apply({
               kind: "update_selection_semantics",
               rank_component_id: rankComponent.id,
@@ -184,13 +204,17 @@ export function SemanticInspector({
               direction: value.direction,
               count: value.count,
               shortage_policy: value.shortagePolicy,
-              value_expression: rankComponent.value_expression ?? null,
+              value_expression: value.valueExpression ?? rankComponent.value_expression ?? null,
             }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
       {rankComponent?.value_expression && <p className="fixed-setting">Order by: {describeValueExpression(rankComponent.value_expression)}</p>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
-      {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "config.threshold", groupId: group.id }) })}>Eligibility: return &gt; {Number(choose.threshold) * 100}%</button>}
+      {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Eligibility: {eligibilityComponent?.condition
+        ? (eligibilityComponent.condition.kind === "comparison"
+          ? describeValueExpression(eligibilityComponent.condition.left)
+          : "ALL value conditions")
+        : `return > ${Number(choose.threshold) * 100}%`}</button>}
       {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}
       {choose.cooldownComponentId && choose.cooldownDuration && <CooldownControl authoring={structural} componentId={choose.cooldownComponentId} value={choose.cooldownDuration} />}
       {qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "config.threshold", groupId: group.id }))}>+ Add qualification</button>}

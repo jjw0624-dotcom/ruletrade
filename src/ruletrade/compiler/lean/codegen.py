@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from decimal import Decimal
 
 from ruletrade.compiler.lean.plan import (
     LeanDailyEvent,
+    LeanMomentumSelection,
     LeanPlan,
     LeanQuarterlyEvent,
     LeanRandomSelection,
     LeanSnapshotAllocation,
+    LeanValue,
     normalize_lean_plan,
 )
 
@@ -65,6 +67,84 @@ def _decimal_literal(value: Decimal) -> str:
     # Member access binds before unary minus in C#. Parenthesize negative literals
     # so both arithmetic use and generated ``literal.ToString(...)`` remain numeric.
     return f"({literal})" if value < 0 else literal
+
+
+def _value_observations(value: LeanValue | None) -> int:
+    if value is None or value.kind == "literal":
+        return 0
+    if value.kind == "current_price":
+        return 1
+    if value.kind == "trailing_return":
+        return int(value.observations or 0) + 1
+    if value.kind == "rolling_price":
+        return int(value.observations or 0)
+    return _value_observations(value.operand)
+
+
+def _value_assets(value: LeanValue | None) -> set[str]:
+    if value is None:
+        return set()
+    assets = {value.asset} if value.subject == "asset" and value.asset else set()
+    assets.update(_value_assets(value.operand))
+    return assets
+
+
+def _value_csharp(value: LeanValue, candidate: str) -> str:
+    ticker = candidate if value.subject == "candidate" else _csharp_string(value.asset or "")
+    if value.kind == "literal":
+        return f"(decimal?){_decimal_literal(value.literal or Decimal(0))}"
+    if value.kind == "current_price":
+        return f"CurrentPrice({ticker})"
+    if value.kind == "trailing_return":
+        return f"TrailingReturn({ticker}, {value.observations})"
+    if value.kind == "rolling_price":
+        return f"RollingPrice({ticker}, {value.observations}, {_csharp_string(value.aggregate or 'mean')})"
+    if value.kind == "scale" and value.operand is not None:
+        return f"ScaleValue({_value_csharp(value.operand, candidate)}, {_decimal_literal(value.factor or Decimal(0))})"
+    raise ValueError(f"unsupported LEAN value: {value.kind}")
+
+
+def _comparison_csharp(comparison, candidate: str) -> str:
+    operators = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+    left = _value_csharp(comparison.left, candidate)
+    right = _value_csharp(comparison.right, candidate)
+    return f"CompareValues({left}, {right}, {_csharp_string(operators[comparison.operator])})"
+
+
+def _ranking_value(selection) -> LeanValue:
+    return selection.ranking_value or LeanValue(
+        kind="trailing_return", value_type="percentage", subject="candidate",
+        observations=selection.lookback_bars,
+    )
+
+
+def _value_json(value: LeanValue) -> str:
+    return json.dumps(asdict(value), default=str, separators=(",", ":"), sort_keys=True)
+
+
+def _condition_evidence_lines(comparisons, component_id: str, symbols: str, prefix: str) -> tuple[str, ...]:
+    if not comparisons:
+        return ()
+    result = [f"        foreach (var evidenceTicker in new[] {{ {symbols} }})", "        {"]
+    for index, comparison in enumerate(comparisons):
+        left = f"{prefix}Left{index}"
+        right = f"{prefix}Right{index}"
+        outcome = f"{prefix}Outcome{index}"
+        result.extend((
+            f"            var {left} = {_value_csharp(comparison.left, 'evidenceTicker')};",
+            f"            var {right} = {_value_csharp(comparison.right, 'evidenceTicker')};",
+            f"            var {outcome} = CompareValues({left}, {right}, {_csharp_string({'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}[comparison.operator])});",
+            '            EmitDecisionEvidence(eventIdentity, "evaluation", "value_condition",',
+            f'                "eligibility_component", {_csharp_string(component_id)}, "eligibility_field", "condition",',
+            f'                "subject", evidenceTicker, "operator", {_csharp_string(comparison.operator)},',
+            f'                "left_definition", {_csharp_string(_value_json(comparison.left))}, "left_type", {_csharp_string(comparison.left.value_type)},',
+            f'                "left_observed", {left}.HasValue ? {left}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+            f'                "right_definition", {_csharp_string(_value_json(comparison.right))}, "right_type", {_csharp_string(comparison.right.value_type)},',
+            f'                "right_observed", {right}.HasValue ? {right}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+            f'                "outcome", {outcome} ? "true" : "false", "scope", "eligibility");',
+        ))
+    result.append("        }")
+    return tuple(result)
 
 
 def _seed_expression(plan: LeanPlan, selection: LeanRandomSelection) -> str:
@@ -246,6 +326,20 @@ def generate_csharp(
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
     predicates = tuple(item.predicate for item in plan.rebalances if item.predicate is not None)
+    condition_values = tuple(
+        value
+        for rebalance in plan.rebalances
+        for comparison in rebalance.condition
+        for value in (comparison.left, comparison.right)
+    )
+    selection_values = tuple(
+        value
+        for selection in plan.momentum_selections
+        for value in (
+            _ranking_value(selection),
+            *(operand for comparison in selection.eligibility for operand in (comparison.left, comparison.right)),
+        )
+    )
     snapshot_indexes = {snapshot.id: index for index, snapshot in enumerate(plan.target_snapshots)}
     cooldown_indexes = {state.id: index for index, state in enumerate(plan.cooldown_states)}
     scheduled_events = tuple(
@@ -259,7 +353,9 @@ def generate_csharp(
     )
     history_symbols = frozenset(
         symbol for selection in plan.momentum_selections for symbol in selection.symbols
-    ) | frozenset(item.asset for item in predicates)
+    ) | frozenset(item.asset for item in predicates if item.asset) | frozenset(
+        symbol for value in (*condition_values, *selection_values) for symbol in _value_assets(value)
+    )
     needs_history = bool(history_symbols)
     has_subscription_only_assets = history_symbols != frozenset(
         subscription.symbol for subscription in plan.subscriptions
@@ -291,12 +387,11 @@ def generate_csharp(
         ]
     )
     if needs_history:
-        history_capacity = (
-            max(
-                [item.lookback_bars for item in plan.momentum_selections]
-                + [item.lookback_bars for item in predicates]
-            )
-            + 1
+        history_capacity = max(
+            [item.lookback_bars + 1 for item in plan.momentum_selections]
+            + [item.lookback_bars + 1 for item in predicates]
+            + [_value_observations(value) for value in (*condition_values, *selection_values)]
+            + [1]
         )
         lines.append(
             "    private readonly Dictionary<string, RollingWindow<decimal>> "
@@ -360,10 +455,7 @@ def generate_csharp(
         else:
             lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
     if needs_history:
-        warm_up_bars = max(
-            [item.lookback_bars for item in plan.momentum_selections]
-            + [item.lookback_bars for item in predicates]
-        )
+        warm_up_bars = max(1, history_capacity - 1)
         lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
     for index, event in enumerate(scheduled_events):
         anchor = _csharp_string(event.anchor_symbol)
@@ -412,6 +504,42 @@ def generate_csharp(
             '            if (!primaryComplete) return asset + (fallbackConfigured ? "=fallback_replacement" : "=primary_selection_incomplete");',
             "            return null;",
             "        }).Where(item => item != null));",
+            "    }",
+            "",
+            "    private decimal? CurrentPrice(string ticker)",
+            "    {",
+            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < 1) return null;",
+            "        return window[0];",
+            "    }",
+            "",
+            "    private decimal? TrailingReturn(string ticker, int observations)",
+            "    {",
+            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations + 1 || window[observations] == 0m) return null;",
+            "        return window[0] / window[observations] - 1m;",
+            "    }",
+            "",
+            "    private decimal? RollingPrice(string ticker, int observations, string aggregate)",
+            "    {",
+            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations || observations < 1) return null;",
+            "        var values = Enumerable.Range(0, observations).Select(index => window[index]).OrderBy(value => value).ToArray();",
+            '        if (aggregate == "min") return values[0];',
+            '        if (aggregate == "max") return values[values.Length - 1];',
+            '        if (aggregate == "median") return values.Length % 2 == 1 ? values[values.Length / 2] : (values[values.Length / 2 - 1] + values[values.Length / 2]) / 2m;',
+            "        return values.Average();",
+            "    }",
+            "",
+            "    private static decimal? ScaleValue(decimal? value, decimal factor)",
+            "    {",
+            "        return value.HasValue ? value.Value * factor : (decimal?)null;",
+            "    }",
+            "",
+            "    private static bool CompareValues(decimal? left, decimal? right, string operation)",
+            "    {",
+            "        if (!left.HasValue || !right.HasValue) return false;",
+            '        if (operation == ">") return left.Value > right.Value;',
+            '        if (operation == ">=") return left.Value >= right.Value;',
+            '        if (operation == "<") return left.Value < right.Value;',
+            "        return left.Value <= right.Value;",
             "    }",
             "",
         )
@@ -560,18 +688,29 @@ def generate_csharp(
                 raise ValueError("retained target snapshot v0 requires Momentum Top N")
             symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
             threshold = _decimal_literal(selection.filter_threshold or Decimal(0))
+            ranking_expression = _value_csharp(_ranking_value(selection), "ticker")
+            eligibility_expression = (
+                " && ".join(_comparison_csharp(item, "item.Key") for item in selection.eligibility)
+                or _filter_condition(selection, "item.Value")
+            )
             lines.extend(
                 (
                     "        var scores = new Dictionary<string, decimal>();",
                     f"        foreach (var ticker in new[] {{ {symbols} }})",
                     "        {",
-                    "            var window = _dailyCloses[ticker];",
-                    f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                    f"            var observed = {ranking_expression};",
+                    "            if (observed.HasValue)",
                     "            {",
-                    f"                scores[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                    "                scores[ticker] = observed.Value;",
                     "            }",
                     "        }",
-                    f"        var eligible = scores.Where(item => {_filter_condition(selection, 'item.Value')})",
+                    *_condition_evidence_lines(
+                        selection.eligibility,
+                        selection.filter_component_id or "",
+                        symbols,
+                        f"snapshot{snapshot_index}Condition",
+                    ),
+                    f"        var eligible = scores.Where(item => {eligibility_expression})",
                     "            .ToDictionary(item => item.Key, item => item.Value);",
                     f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
                     '            + "|eligible=" + string.Join(",", eligible.Keys.OrderBy(item => item))',
@@ -678,7 +817,31 @@ def generate_csharp(
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
             predicate_outcome: str | None = None
-            if rebalance.predicate is not None:
+            if rebalance.condition:
+                predicate_outcome = f"predicateOutcome{event_index}_{rebalance_index}"
+                clause_outcomes: list[str] = []
+                for clause_index, comparison in enumerate(rebalance.condition):
+                    left_name = f"predicateLeft{event_index}_{rebalance_index}_{clause_index}"
+                    right_name = f"predicateRight{event_index}_{rebalance_index}_{clause_index}"
+                    outcome_name = f"predicateClause{event_index}_{rebalance_index}_{clause_index}"
+                    clause_outcomes.append(outcome_name)
+                    lines.extend((
+                        f"        var {left_name} = {_value_csharp(comparison.left, _csharp_string(''))};",
+                        f"        var {right_name} = {_value_csharp(comparison.right, _csharp_string(''))};",
+                        f"        var {outcome_name} = CompareValues({left_name}, {right_name}, {_csharp_string({'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}[comparison.operator])});",
+                        '        EmitDecisionEvidence(eventIdentity, "evaluation", "value_condition",',
+                        f'            "predicate_component", {_csharp_string(rebalance.predicate.component_id if rebalance.predicate else rebalance.id)}, "predicate_field", "condition",',
+                        f'            "subject", {_csharp_string(comparison.left.asset or comparison.right.asset or "")}, "operator", {_csharp_string(comparison.operator)},',
+                        f'            "left_definition", {_csharp_string(_value_json(comparison.left))}, "left_type", {_csharp_string(comparison.left.value_type)},',
+                        f'            "left_observed", {left_name}.HasValue ? {left_name}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+                        f'            "right_definition", {_csharp_string(_value_json(comparison.right))}, "right_type", {_csharp_string(comparison.right.value_type)},',
+                        f'            "right_observed", {right_name}.HasValue ? {right_name}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+                        f'            "outcome", {outcome_name} ? "true" : "false", "scope", "predicate");',
+                    ))
+                lines.append(f"        var {predicate_outcome} = {' && '.join(clause_outcomes)};")
+                if not rebalance.otherwise_sleeve_ids and not rebalance.otherwise_snapshot_allocations:
+                    lines.append(f"        if (!{predicate_outcome}) return;")
+            elif rebalance.predicate is not None:
                 predicate = rebalance.predicate
                 predicate_window = f"predicateWindow{event_index}_{rebalance_index}"
                 predicate_observed = f"predicateObserved{event_index}_{rebalance_index}"
@@ -800,29 +963,43 @@ def generate_csharp(
                             symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
                             scores_variable = f"scores{event_index}_{rebalance_index}_{sleeve_index}"
                             ranked_variable = f"ranked{event_index}_{rebalance_index}_{sleeve_index}"
+                            ranking_expression = _value_csharp(_ranking_value(selection), "ticker")
                             lines.extend(
                                 (
                                     f"        var {scores_variable} = new Dictionary<string, decimal>();",
                                     f"        foreach (var ticker in new[] {{ {symbols} }})",
                                     "        {",
-                                    "            var window = _dailyCloses[ticker];",
-                                    f"            if (window.Count >= {selection.lookback_bars + 1} && window[{selection.lookback_bars}] != 0m)",
+                                    f"            var observed = {ranking_expression};",
+                                    "            if (observed.HasValue)",
                                     "            {",
-                                    f"                {scores_variable}[ticker] = window[0] / window[{selection.lookback_bars}] - 1m;",
+                                    f"                {scores_variable}[ticker] = observed.Value;",
                                     "            }",
                                     "        }",
                                 )
                             )
+                            lines.extend(_condition_evidence_lines(
+                                selection.eligibility,
+                                selection.filter_component_id or "",
+                                symbols,
+                                f"selection{event_index}_{rebalance_index}_{sleeve_index}Condition",
+                            ))
                             ranking_input = scores_variable
                             if selection.filter_threshold is not None:
                                 eligible_variable = (
                                     f"eligibleScores{event_index}_{rebalance_index}_{sleeve_index}"
                                 )
                                 threshold = _decimal_literal(selection.filter_threshold)
+                                eligibility_expression = (
+                                    " && ".join(
+                                        _comparison_csharp(item, "item.Key")
+                                        for item in selection.eligibility
+                                    )
+                                    or _filter_condition(selection, "item.Value")
+                                )
                                 lines.extend(
                                     (
                                         f"        var {eligible_variable} = {scores_variable}",
-                                        f"            .Where(item => {_filter_condition(selection, 'item.Value')})",
+                                        f"            .Where(item => {eligibility_expression})",
                                         "            .ToDictionary(item => item.Key, item => item.Value);",
                                         f'        Debug("RULETRADE_FILTER|" + eventIdentity + "|threshold=" + {threshold}.ToString("G29", CultureInfo.InvariantCulture)',
                                         f'            + "|eligible=" + string.Join(",", {eligible_variable}.Keys.OrderBy(item => item))',

@@ -19,7 +19,7 @@ function sessionLabel(events: DecisionEventSummary[]): string {
   // Decision detail carries the authoritative activated value.
   if (kinds.has("fallback")) return "Fallback evaluated";
   if (kinds.has("cooldown")) return "Asset still waiting";
-  if (kinds.has("predicate")) return "Market condition evaluated";
+  if (kinds.has("predicate") || kinds.has("value_condition")) return "Value condition evaluated";
   if (kinds.has("final_targets") || kinds.has("sleeve_contribution") || kinds.has("snapshot_usage")) return "Portfolio updated";
   if (kinds.has("state_mutation")) return "Waiting period updated";
   if (kinds.has("filter") || kinds.has("selection")) return "Assets evaluated";
@@ -28,6 +28,10 @@ function sessionLabel(events: DecisionEventSummary[]): string {
 }
 
 export function happenedText(details: DecisionEventDetail[]): string {
+  const valueCondition = details.find((item) => item.evidence.kind === "value_condition")?.evidence;
+  if (valueCondition?.kind === "value_condition") return valueCondition.outcome
+    ? `${valueCondition.subject} passed the ${valueCondition.scope} value condition.`
+    : `${valueCondition.subject} did not pass the ${valueCondition.scope} value condition.`;
   const predicate = details.find((item) => item.evidence.kind === "predicate")?.evidence;
   if (predicate?.kind === "predicate") return predicate.outcome
     ? `The market condition passed and the strategy took its THEN branch.`
@@ -46,6 +50,7 @@ export function happenedText(details: DecisionEventDetail[]): string {
 export function relevantAssets(details: DecisionEventDetail[]): string[] {
   const assets = new Set<string>();
   for (const { evidence } of details) {
+    if (evidence.kind === "value_condition" && evidence.subject !== "strategy") assets.add(evidence.subject);
     if (evidence.kind === "predicate") assets.add(evidence.asset);
     if (evidence.kind === "filter") {
       evidence.evaluations.forEach((item) => assets.add(item.asset));
@@ -92,6 +97,19 @@ function sourceFor(details: DecisionEventDetail[], kind: DecisionEventDetail["ki
 
 export function assetPath(asset: string, details: DecisionEventDetail[]): AssetPathStep[] {
   const steps: AssetPathStep[] = [];
+  const valueConditionEvent = details.find((item) => item.evidence.kind === "value_condition" && item.evidence.subject === asset);
+  const valueCondition = valueConditionEvent?.evidence;
+  if (valueCondition?.kind === "value_condition") {
+    const source = valueConditionEvent.source_components[0];
+    steps.push({
+      id: `value-${valueCondition.scope}`,
+      label: valueCondition.scope === "predicate" ? "Value condition" : "Eligibility",
+      detail: `${formatValue(valueCondition.left_observed, valueCondition.left_type)} ${valueCondition.operator} ${formatValue(valueCondition.right_observed, valueCondition.right_type)}`,
+      status: valueCondition.outcome ? "passed" : "failed",
+      sourceComponentId: source?.component_id,
+      sourceFieldPath: source?.field_path,
+    });
+  }
   const predicate = details.find((item) => item.evidence.kind === "predicate" && item.evidence.asset === asset)?.evidence;
   const predicateSource = sourceFor(details, "predicate", "predicate");
   if (predicate?.kind === "predicate") steps.push({
@@ -126,3 +144,12 @@ export function assetPath(asset: string, details: DecisionEventDetail[]): AssetP
 }
 
 function formatScore(value: string): string { return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value)); }
+
+function formatValue(value: string | null, valueType: string): string {
+  if (value === null) return "Not enough completed data";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  if (valueType === "percentage") return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(numeric);
+  if (valueType === "money_per_share") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(numeric);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(numeric);
+}

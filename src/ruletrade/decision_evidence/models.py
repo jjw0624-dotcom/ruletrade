@@ -57,6 +57,22 @@ class PredicateEvidence(EvidenceModel):
     branch: Literal["then", "otherwise"]
 
 
+class ValueConditionEvidence(EvidenceModel):
+    """Observed typed operands; Canonical definitions, never UI labels, are authority."""
+
+    kind: Literal["value_condition"] = "value_condition"
+    scope: Literal["predicate", "eligibility"]
+    subject: str
+    operator: Literal["gt", "gte", "lt", "lte"]
+    left_definition: dict[str, object]
+    left_type: str
+    left_observed: Decimal | None
+    right_definition: dict[str, object]
+    right_type: str
+    right_observed: Decimal | None
+    outcome: bool
+
+
 class SelectionAssetOutcome(EvidenceModel):
     asset: str
     evaluated: Literal[True] = True
@@ -152,6 +168,7 @@ class FinalTargetsEvidence(EvidenceModel):
 DecisionEvidence = Annotated[
     FilterEvidence
     | PredicateEvidence
+    | ValueConditionEvidence
     | SelectionEvidence
     | RandomSelectionEvidence
     | FallbackEvidence
@@ -197,6 +214,7 @@ class DecisionEventSummary(EvidenceModel):
     kind: Literal[
         "filter",
         "predicate",
+        "value_condition",
         "selection",
         "random_selection",
         "fallback",

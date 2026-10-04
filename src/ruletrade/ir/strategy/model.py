@@ -96,9 +96,32 @@ class TrailingReturnOp:
 
 
 @dataclass(frozen=True)
+class ExecutableValue:
+    """Small, typed scalar vocabulary supported by every maintained runtime."""
+
+    kind: Literal["literal", "trailing_return", "current_price", "rolling_price", "scale"]
+    value_type: Literal["decimal", "percentage", "money_per_share"]
+    subject: Literal["asset", "candidate"] | None = None
+    asset: str | None = None
+    literal: Decimal | None = None
+    observations: int | None = None
+    aggregate: Literal["mean", "median", "min", "max"] | None = None
+    operand: "ExecutableValue | None" = None
+    factor: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class ExecutableComparison:
+    operator: Literal["gt", "gte", "lt", "lte"]
+    left: ExecutableValue
+    right: ExecutableValue
+
+
+@dataclass(frozen=True)
 class FilterClause:
     operator: Literal["gt", "gte", "lt", "lte"]
     threshold: Decimal
+    comparison: ExecutableComparison | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +141,7 @@ class RankOp:
     scores: str
     direction: Literal["descending", "ascending"]
     provenance: SourceProvenance
+    value: ExecutableValue | None = None
     operation: Literal["selection.rank"] = "selection.rank"
 
 
@@ -216,6 +240,7 @@ class PredicateRebalanceOp:
     targets: str
     provenance: SourceProvenance
     otherwise_targets: str | None = None
+    comparisons: tuple[ExecutableComparison, ...] = ()
     operation: Literal["control.predicate_rebalance"] = "control.predicate_rebalance"
 
 

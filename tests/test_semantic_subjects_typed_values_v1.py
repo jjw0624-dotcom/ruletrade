@@ -29,6 +29,15 @@ from ruletrade.strategy.v1.models import (
     StrategyMetadata,
     UniverseDefinition,
 )
+from ruletrade.strategy.v1.authoring import (
+    AddPredicateOperation,
+    StructuralAuthoringError,
+    UpdateConditionExpressionOperation,
+    UpdateSelectionSemanticsOperation,
+    apply_structural_operation,
+)
+from ruletrade.strategy.v1.fixtures import one_investment_strategy
+from ruletrade.decision_evidence import collect_decision_evidence
 from ruletrade.strategy.v1.validation import collect_semantic_issues, validate_strategy_v1
 from ruletrade.strategy.v1.semantics import project_semantic_composition
 from ruletrade.strategy.v1.value_semantics import (
@@ -218,11 +227,13 @@ def test_capabilities_separate_model_provider_and_compiler_support() -> None:
     capabilities = {item.id: item for item in value_capabilities()}
     assert capabilities["market.trailing_return"].strategy_compiler_supported
     assert capabilities["market.price.current"].dataset_evaluation_supported
-    assert not capabilities["market.price.current"].strategy_compiler_supported
+    assert capabilities["market.price.current"].strategy_compiler_supported
+    assert capabilities["aggregate.rolling"].strategy_compiler_supported
+    assert capabilities["arithmetic.scale"].strategy_compiler_supported
     assert not capabilities["market.volume.current"].dataset_evaluation_supported
 
 
-def test_typed_price_ranking_fails_honestly_until_compiler_support() -> None:
+def test_typed_price_ranking_reaches_executable_lean_plan() -> None:
     strategy = universe_strategy()
     rank = next(item for item in strategy.graph.components if item.id == "rank")
     rank = rank.model_copy(update={"value_expression": CurrentExpression(
@@ -232,5 +243,100 @@ def test_typed_price_ranking_fails_honestly_until_compiler_support() -> None:
         "components": tuple(rank if item.id == "rank" else item for item in strategy.graph.components)
     })})
     validate_strategy_v1(strategy)
-    with pytest.raises(ValueError, match="evaluation-only"):
-        desugar_strategy(strategy)
+    source = generate_csharp(lower_to_lean_plan(strategy))
+    assert "CurrentPrice(ticker)" in source
+    assert "OrderByDescending" in source
+
+
+def test_candidate_eligibility_and_rolling_price_ranking_compile_with_semantic_evidence() -> None:
+    strategy = universe_strategy()
+    components = []
+    for component in strategy.graph.components:
+        if component.id == "eligible":
+            component = component.model_copy(update={"condition": ComparisonExpression(
+                operator="gte",
+                left=CurrentExpression(series=MarketSeriesExpression(
+                    field="price", subject=CandidateExpression(),
+                )),
+                right=LiteralExpression(value_type="money_per_share", value=Decimal("5")),
+            )})
+        elif component.id == "rank":
+            component = component.model_copy(update={"value_expression": RollingAggregateExpression(
+                operator="mean",
+                window_observations=20,
+                series=MarketSeriesExpression(field="price", subject=CandidateExpression()),
+            )})
+        components.append(component)
+    strategy = strategy.model_copy(update={"graph": strategy.graph.model_copy(update={
+        "components": tuple(components),
+    })})
+
+    ir = desugar_strategy(strategy)
+    rank = next(item for item in ir.operations if item.id == "rank")
+    eligible = next(item for item in ir.operations if item.id == "eligible")
+    assert rank.value is not None and rank.value.kind == "rolling_price"
+    assert eligible.clauses[0].comparison is not None
+    source = generate_csharp(lower_to_lean_plan(strategy))
+    assert 'RollingPrice(ticker, 20, "mean")' in source
+    assert "CurrentPrice(item.Key)" in source
+    assert '"value_condition"' in source
+    assert '"scope", "eligibility"' in source
+
+
+def test_asset_current_price_predicate_is_real_control_flow() -> None:
+    strategy = apply_structural_operation(
+        one_investment_strategy(),
+        AddPredicateOperation(rebalance_component_id="rebalance", asset="SPY"),
+    )
+    condition = ComparisonExpression(
+        operator="gt",
+        left=CurrentExpression(series=MarketSeriesExpression(
+            field="price",
+            subject=LiteralExpression(value_type="asset", value="SPY"),
+        )),
+        right=LiteralExpression(value_type="money_per_share", value=Decimal("100")),
+    )
+    strategy = apply_structural_operation(
+        strategy,
+        UpdateConditionExpressionOperation(
+            component_id="rebalance", role="predicate", condition=condition,
+        ),
+    )
+    source = generate_csharp(lower_to_lean_plan(strategy))
+    assert 'CurrentPrice("SPY")' in source
+    assert '"scope", "predicate"' in source
+    assert source.index("CompareValues") < source.index("SetHoldings")
+    assert "if (!conditionOutcome" in source
+
+
+def test_non_executable_volume_edit_is_rejected_atomically() -> None:
+    original = universe_strategy()
+    operation = UpdateSelectionSemanticsOperation(
+        rank_component_id="rank",
+        selection_component_id="take",
+        direction="descending",
+        count=1,
+        shortage_policy="choose_all",
+        value_expression=CurrentExpression(series=MarketSeriesExpression(
+            field="volume", subject=CandidateExpression(),
+        )),
+    )
+    with pytest.raises(StructuralAuthoringError, match="not executable"):
+        apply_structural_operation(original, operation)
+    assert original == universe_strategy()
+
+
+def test_typed_value_condition_evidence_round_trips_exact_definitions() -> None:
+    record = (
+        'RULETRADE_EVIDENCE_V2|sequence=1|session=2025-03-03|phase=evaluation|'
+        'kind=value_condition|eligibility_component=eligible|eligibility_field=condition|'
+        'scope=eligibility|subject=QQQ|operator=gte|'
+        'left_definition={"kind":"current_price","subject":"candidate"}|left_type=money_per_share|'
+        'left_observed=101.25|right_definition={"kind":"literal","literal":"5"}|'
+        'right_type=money_per_share|right_observed=5|outcome=true'
+    )
+    event = collect_decision_evidence(record)[0]
+    assert event.source_components[0].component_id == "eligible"
+    assert event.evidence.kind == "value_condition"
+    assert event.evidence.left_observed == Decimal("101.25")
+    assert event.evidence.left_definition["kind"] == "current_price"

@@ -253,7 +253,7 @@ class ComparisonExpression(FrozenModel):
 class BooleanExpression(FrozenModel):
     kind: Literal["boolean"] = "boolean"
     operator: Literal["and", "or"]
-    operands: Annotated[list["Expression"], Field(min_length=2)]
+    operands: Annotated[list["Expression"], Field(min_length=2, max_length=5)]
 
 
 class NotExpression(FrozenModel):

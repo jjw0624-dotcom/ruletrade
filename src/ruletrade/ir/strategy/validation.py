@@ -8,6 +8,8 @@ from ruletrade.ir.strategy.model import (
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
+    ExecutableComparison,
+    ExecutableValue,
     FilterOp,
     FirstNonEmptyTargetsOp,
     IRType,
@@ -27,6 +29,43 @@ from ruletrade.ir.strategy.model import (
     TrailingReturnOp,
     UniverseOp,
 )
+
+
+def _validate_value(path: str, value: ExecutableValue) -> tuple[IRValidationIssue, ...]:
+    issues: list[IRValidationIssue] = []
+    if value.kind == "literal":
+        if value.literal is None or not value.literal.is_finite():
+            issues.append(IRValidationIssue(f"{path}.literal", "literal must be a finite decimal"))
+    elif value.kind in {"trailing_return", "rolling_price"}:
+        if value.observations is None or not 1 <= value.observations <= 1000:
+            issues.append(IRValidationIssue(f"{path}.observations", "window must be between 1 and 1000"))
+    if value.kind == "rolling_price" and value.aggregate not in {"mean", "median", "min", "max"}:
+        issues.append(IRValidationIssue(f"{path}.aggregate", "unsupported rolling aggregate"))
+    if value.kind in {"trailing_return", "current_price", "rolling_price"}:
+        if value.subject not in {"asset", "candidate"}:
+            issues.append(IRValidationIssue(f"{path}.subject", "market value requires a subject"))
+        if value.subject == "asset" and not value.asset:
+            issues.append(IRValidationIssue(f"{path}.asset", "explicit asset subject requires a symbol"))
+        if value.subject == "candidate" and value.asset is not None:
+            issues.append(IRValidationIssue(f"{path}.asset", "candidate subject cannot fix an asset"))
+    if value.kind == "scale":
+        if value.operand is None:
+            issues.append(IRValidationIssue(f"{path}.operand", "scale requires an operand"))
+        else:
+            issues.extend(_validate_value(f"{path}.operand", value.operand))
+        if value.factor is None or not value.factor.is_finite():
+            issues.append(IRValidationIssue(f"{path}.factor", "scale factor must be finite"))
+    return tuple(issues)
+
+
+def _validate_comparison(path: str, comparison: ExecutableComparison) -> tuple[IRValidationIssue, ...]:
+    issues = [
+        *_validate_value(f"{path}.left", comparison.left),
+        *_validate_value(f"{path}.right", comparison.right),
+    ]
+    if comparison.left.value_type != comparison.right.value_type:
+        issues.append(IRValidationIssue(path, "comparison operands must have the same value type"))
+    return tuple(issues)
 
 
 @dataclass(frozen=True)
@@ -204,6 +243,9 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
             thresholds = (operation.threshold, *(item.threshold for item in filter_clauses))
             if any(not isinstance(value, Decimal) or not value.is_finite() for value in thresholds):
                 issues.append(IRValidationIssue(f"{path}.threshold", "filter thresholds must be finite decimals"))
+            for clause_index, clause in enumerate(filter_clauses):
+                if clause.comparison is not None:
+                    issues.extend(_validate_comparison(f"{path}.clauses[{clause_index}].comparison", clause.comparison))
         if isinstance(operation, PredicateRebalanceOp):
             if operation.lookback_bars < 1:
                 issues.append(IRValidationIssue(f"{path}.lookback_bars", "lookback must be positive"))
@@ -211,8 +253,12 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 issues.append(IRValidationIssue(f"{path}.operator", "unsupported predicate operator"))
             if not operation.threshold.is_finite():
                 issues.append(IRValidationIssue(f"{path}.threshold", "predicate threshold must be finite"))
+            for comparison_index, comparison in enumerate(operation.comparisons):
+                issues.extend(_validate_comparison(f"{path}.comparisons[{comparison_index}]", comparison))
         if isinstance(operation, RankOp) and operation.direction not in {"descending", "ascending"}:
             issues.append(IRValidationIssue(f"{path}.direction", "unsupported rank direction"))
+        if isinstance(operation, RankOp) and operation.value is not None:
+            issues.extend(_validate_value(f"{path}.value", operation.value))
         if isinstance(operation, TopNOp):
             if operation.count < 1:
                 issues.append(IRValidationIssue(f"{path}.count", "Top N count must be positive"))

@@ -26,15 +26,21 @@ from ruletrade.strategy.v1.composition import (
     SetComponentFieldMutation,
 )
 from ruletrade.strategy.v1.models import (
+    ArithmeticExpression,
+    BooleanExpression,
+    CandidateExpression,
     CanonicalStrategyV1,
     Component,
     ComponentOutputExpression,
     ComparisonExpression,
+    CurrentExpression,
     FrozenModel,
     Identifier,
     IndicatorExpression,
     LiteralExpression,
+    MarketSeriesExpression,
     RebalanceAction,
+    RollingAggregateExpression,
     Symbol,
 )
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY
@@ -200,6 +206,38 @@ def _resolved(component: Component, field: str) -> Any:
     return BUILTIN_REGISTRY.resolve_config(component.primitive, component.config).get(field)
 
 
+def _describe_value(expression) -> str:
+    if isinstance(expression, CandidateExpression):
+        return "Candidate"
+    if isinstance(expression, LiteralExpression):
+        if expression.value_type.value == "asset":
+            return str(expression.value)
+        suffix = "%" if expression.value_type.value == "percentage" else ""
+        return f"{expression.value}{suffix}"
+    if isinstance(expression, IndicatorExpression):
+        if expression.indicator_id == "trailing_return_indicator@1":
+            return f"{_describe_value(expression.asset)} {expression.parameters.get('lookback_bars')}-observation return"
+        return f"{_describe_value(expression.asset)} {expression.indicator_id}"
+    if isinstance(expression, MarketSeriesExpression):
+        return f"{_describe_value(expression.subject)} {expression.field}"
+    if isinstance(expression, CurrentExpression):
+        return f"{_describe_value(expression.series)} current"
+    if isinstance(expression, RollingAggregateExpression):
+        return f"{_describe_value(expression.series)} {expression.operator} over {expression.window_observations} observations"
+    if isinstance(expression, ArithmeticExpression) and expression.operator == "multiply":
+        return f"{_describe_value(expression.left)} × {_describe_value(expression.right)}"
+    return "typed value"
+
+
+def _describe_condition(expression) -> str:
+    if isinstance(expression, ComparisonExpression):
+        operator = {"gt": ">", "gte": "≥", "lt": "<", "lte": "≤", "eq": "=", "neq": "≠"}[expression.operator]
+        return f"{_describe_value(expression.left)} {operator} {_describe_value(expression.right)}"
+    if isinstance(expression, BooleanExpression) and expression.operator == "and":
+        return "ALL: " + "; ".join(_describe_condition(item) for item in expression.operands)
+    return "committed condition"
+
+
 def _ref(
     primary: Component, category: SemanticCategory, *related: Component, field: str | None = None
 ) -> SemanticProjectionRef:
@@ -240,6 +278,12 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                     "eligibility_threshold": str(_resolved(eligibility, "threshold"))
                     if eligibility
                     else None,
+                    "ranking_value": (
+                        _describe_value(rank.value_expression)
+                        if rank and rank.value_expression is not None
+                        else f"Candidate {int(_resolved(measure, 'lookback_bars'))}-observation return"
+                        if measure else None
+                    ),
                 }
             )
         facts.append(
@@ -247,7 +291,10 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                 id=f"selection:{component.id}",
                 category=SemanticCategory.SELECTION,
                 kind="ranked_selection" if rank else "random_selection",
-                label=f"Choose {detail['count']} {'strongest' if rank else 'random'}",
+                label=(
+                    f"Choose {detail['count']} · {detail.get('ranking_value')} · {detail.get('ordering')}"
+                    if rank else f"Choose {detail['count']} random"
+                ),
                 ref=_ref(component, SemanticCategory.SELECTION, *related, field="config.count"),
                 detail=detail,
             )
@@ -310,7 +357,10 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                     id=f"eligibility:{component.id}",
                     category=SemanticCategory.ELIGIBILITY,
                     kind="candidate_score_threshold",
-                    label="Candidate return is above threshold",
+                    label=(
+                        _describe_condition(component.condition)
+                        if component.condition is not None else "Candidate return is above threshold"
+                    ),
                     ref=_ref(component, SemanticCategory.ELIGIBILITY, field="config.threshold"),
                     detail={
                         "operator": _resolved(component, "operator"),
@@ -392,7 +442,7 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
             )
         elif primitive == "rule@1":
             if component.condition is not None:
-                label = "Rule predicate"
+                label = f"IF {_describe_condition(component.condition)}"
                 detail = {"expression": component.condition.model_dump(mode="json")}
                 if (
                     isinstance(component.condition, ComparisonExpression)
@@ -943,3 +993,4 @@ def apply_semantic_intent(
             )
         return candidate
     return apply_structural_operation(strategy, resolve_semantic_intent(intent))
+    CurrentExpression,

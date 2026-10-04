@@ -13,6 +13,7 @@ export type DecisionPhase = "evaluation" | "selection" | "snapshot_commit" | "po
 
 type SharedDecisionEvidence =
   | { kind: "predicate"; asset: string; measure: "trailing_return"; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; observed: string | null; threshold: string; outcome: boolean; branch: "then" | "otherwise" }
+  | { kind: "value_condition"; scope: "predicate" | "eligibility"; subject: string; operator: "gt" | "gte" | "lt" | "lte"; left_definition: Record<string, unknown>; left_type: string; left_observed: string | null; right_definition: Record<string, unknown>; right_type: string; right_observed: string | null; outcome: boolean }
   | { kind: "fallback"; asset: string; activated: boolean }
   | { kind: "final_selection"; selected: string[]; source: "primary" | "fallback" }
   | { kind: "state_mutation"; asset: string; state: "last_exit"; old_value: string | null; new_value: string; cause: "target_exit" }

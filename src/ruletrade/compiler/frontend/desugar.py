@@ -7,15 +7,19 @@ from decimal import Decimal
 from ruletrade.hashing import strategy_hash
 from ruletrade.ir import strategy as strategy_ir
 from ruletrade.strategy.v1.models import (
+    ArithmeticExpression,
     BooleanExpression,
     CandidateExpression,
     CanonicalStrategyV1,
     ComparisonExpression,
     Component,
     ComponentOutputExpression,
+    CurrentExpression,
     IndicatorExpression,
     LiteralExpression,
+    MarketSeriesExpression,
     RebalanceAction,
+    RollingAggregateExpression,
 )
 from ruletrade.strategy.v1.randomness import canonical_parameter_bindings_json
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveRegistry
@@ -48,6 +52,77 @@ class StrategyDesugaringError(ValueError):
     pass
 
 
+def _compile_value(expression: object, *, candidate_allowed: bool) -> strategy_ir.ExecutableValue:
+    if isinstance(expression, LiteralExpression) and expression.value_type.value in {
+        "decimal", "percentage", "money_per_share"
+    }:
+        return strategy_ir.ExecutableValue(
+            kind="literal", value_type=typing.cast(typing.Any, expression.value_type.value),
+            literal=Decimal(str(expression.value)),
+        )
+    if isinstance(expression, IndicatorExpression) and expression.indicator_id == "trailing_return_indicator@1":
+        subject = expression.asset
+        if isinstance(subject, CandidateExpression) and candidate_allowed:
+            subject_kind, asset = "candidate", None
+        elif isinstance(subject, LiteralExpression) and subject.value_type.value == "asset":
+            subject_kind, asset = "asset", str(subject.value)
+        else:
+            raise StrategyDesugaringError("executable trailing return requires an Asset or in-scope Candidate")
+        return strategy_ir.ExecutableValue(
+            kind="trailing_return", value_type="percentage", subject=subject_kind,
+            asset=asset, observations=int(expression.parameters["lookback_bars"]),
+        )
+    if isinstance(expression, CurrentExpression) and isinstance(expression.series, MarketSeriesExpression):
+        if expression.series.field != "price":
+            raise StrategyDesugaringError("current Volume is not executable with the maintained data contract")
+        subject = expression.series.subject
+        if isinstance(subject, CandidateExpression) and candidate_allowed:
+            subject_kind, asset = "candidate", None
+        elif isinstance(subject, LiteralExpression) and subject.value_type.value == "asset":
+            subject_kind, asset = "asset", str(subject.value)
+        else:
+            raise StrategyDesugaringError("executable current price requires an Asset or in-scope Candidate")
+        return strategy_ir.ExecutableValue(
+            kind="current_price", value_type="money_per_share", subject=subject_kind, asset=asset,
+        )
+    if isinstance(expression, RollingAggregateExpression) and isinstance(expression.series, MarketSeriesExpression):
+        if expression.series.field != "price":
+            raise StrategyDesugaringError("rolling Volume is not executable with the maintained data contract")
+        subject = expression.series.subject
+        if isinstance(subject, CandidateExpression) and candidate_allowed:
+            subject_kind, asset = "candidate", None
+        elif isinstance(subject, LiteralExpression) and subject.value_type.value == "asset":
+            subject_kind, asset = "asset", str(subject.value)
+        else:
+            raise StrategyDesugaringError("executable rolling price requires an Asset or in-scope Candidate")
+        return strategy_ir.ExecutableValue(
+            kind="rolling_price", value_type="money_per_share", subject=subject_kind,
+            asset=asset, observations=expression.window_observations, aggregate=expression.operator,
+        )
+    if isinstance(expression, ArithmeticExpression) and expression.operator == "multiply":
+        operands = ((expression.left, expression.right), (expression.right, expression.left))
+        for value_expression, factor_expression in operands:
+            if isinstance(factor_expression, LiteralExpression) and factor_expression.value_type.value == "decimal":
+                operand = _compile_value(value_expression, candidate_allowed=candidate_allowed)
+                return strategy_ir.ExecutableValue(
+                    kind="scale", value_type=operand.value_type, operand=operand,
+                    factor=Decimal(str(factor_expression.value)),
+                )
+    raise StrategyDesugaringError(
+        "Strategy execution supports trailing return, current price, rolling price aggregate, literal, and scalar scale"
+    )
+
+
+def _compile_comparison(expression: object, *, candidate_allowed: bool) -> strategy_ir.ExecutableComparison:
+    if not isinstance(expression, ComparisonExpression) or expression.operator not in {"gt", "gte", "lt", "lte"}:
+        raise StrategyDesugaringError("executable conditions require ordered value comparisons")
+    return strategy_ir.ExecutableComparison(
+        operator=typing.cast(typing.Literal["gt", "gte", "lt", "lte"], expression.operator),
+        left=_compile_value(expression.left, candidate_allowed=candidate_allowed),
+        right=_compile_value(expression.right, candidate_allowed=candidate_allowed),
+    )
+
+
 def _eligibility_clauses(component: Component) -> tuple[strategy_ir.FilterClause, ...]:
     expression = component.condition
     if expression is None:
@@ -55,11 +130,11 @@ def _eligibility_clauses(component: Component) -> tuple[strategy_ir.FilterClause
     operands = expression.operands if isinstance(expression, BooleanExpression) and expression.operator == "and" else [expression]
     clauses: list[strategy_ir.FilterClause] = []
     for operand in operands:
-        if not isinstance(operand, ComparisonExpression) or operand.operator not in {"gt", "gte", "lt", "lte"}:
-            raise StrategyDesugaringError("Eligibility v1 supports comparisons joined by ALL")
-        if not isinstance(operand.left, IndicatorExpression) or operand.left.indicator_id != "trailing_return_indicator@1" or not isinstance(operand.left.asset, CandidateExpression) or not isinstance(operand.right, LiteralExpression):
-            raise StrategyDesugaringError("executable Eligibility v1 requires Candidate trailing return compared with a literal")
-        clauses.append(strategy_ir.FilterClause(operator=typing.cast(typing.Literal["gt", "gte", "lt", "lte"], operand.operator), threshold=Decimal(str(operand.right.value))))
+        comparison = _compile_comparison(operand, candidate_allowed=True)
+        if comparison.left.subject != "candidate" and comparison.right.subject != "candidate":
+            raise StrategyDesugaringError("Eligibility values must reference the current Candidate")
+        threshold = comparison.right.literal if comparison.right.kind == "literal" else Decimal(0)
+        clauses.append(strategy_ir.FilterClause(operator=comparison.operator, threshold=threshold, comparison=comparison))
     return tuple(clauses)
 
 
@@ -206,17 +281,15 @@ def desugar_strategy(
                 provenance=provenance, clauses=clauses,
             )
         elif implementation == "selection.rank":
-            if component.value_expression is not None and not _candidate_trailing_return(
-                component.value_expression
-            ):
-                raise StrategyDesugaringError(
-                    "strategy compiler currently supports Candidate trailing return as ranking value; other typed values remain semantic/evaluation-only"
-                )
             operation = strategy_ir.RankOp(
                 id=component.id,
                 scores=input_id(component, "scores"),
                 direction=typing.cast(typing.Literal["descending", "ascending"], resolved["direction"]),
                 provenance=provenance,
+                value=(
+                    _compile_value(component.value_expression, candidate_allowed=True)
+                    if component.value_expression is not None else None
+                ),
             )
         elif implementation == "selection.top_n":
             operation = strategy_ir.TopNOp(
@@ -354,15 +427,15 @@ def desugar_strategy(
             )
         elif implementation == "rule.condition_actions":
             condition = component.condition
+            operands = condition.operands if isinstance(condition, BooleanExpression) and condition.operator == "and" else [condition]
+            try:
+                comparisons = tuple(
+                    _compile_comparison(item, candidate_allowed=False) for item in operands
+                )
+            except StrategyDesugaringError:
+                comparisons = ()
             if (
-                not isinstance(condition, ComparisonExpression)
-                or condition.operator not in {"gt", "gte", "lt", "lte"}
-                or not isinstance(condition.left, IndicatorExpression)
-                or condition.left.indicator_id != "trailing_return_indicator@1"
-                or not isinstance(condition.left.asset, LiteralExpression)
-                or condition.left.asset.value_type.value != "asset"
-                or not isinstance(condition.right, LiteralExpression)
-                or condition.right.value_type.value not in {"percentage", "decimal"}
+                not comparisons
                 or len(component.actions) != 1
                 or len(component.else_actions) > 1
                 or not isinstance(component.actions[0], RebalanceAction)
@@ -376,7 +449,7 @@ def desugar_strategy(
                 )
             ):
                 raise StrategyDesugaringError(
-                    "predicate v1 requires trailing-return comparison and one THEN rebalance"
+                    "Predicate execution requires ALL-composed executable comparisons and one THEN rebalance"
                 )
             target_ref = component.actions[0].targets
             otherwise_ref = (
@@ -388,13 +461,14 @@ def desugar_strategy(
                 raise StrategyDesugaringError("predicate rebalance must reference targets outputs")
             operation = strategy_ir.PredicateRebalanceOp(
                 id=component.id,
-                asset=str(condition.left.asset.value),
-                lookback_bars=int(condition.left.parameters["lookback_bars"]),
-                operator=typing.cast(typing.Literal["gt", "gte", "lt", "lte"], condition.operator),
-                threshold=Decimal(str(condition.right.value)),
+                asset=comparisons[0].left.asset or comparisons[0].right.asset or "",
+                lookback_bars=comparisons[0].left.observations or comparisons[0].right.observations or 1,
+                operator=comparisons[0].operator,
+                threshold=comparisons[0].right.literal or Decimal(0),
                 targets=target_ref.component_id,
                 provenance=provenance,
                 otherwise_targets=otherwise_ref.component_id if otherwise_ref is not None else None,
+                comparisons=comparisons,
             )
         else:  # guarded by SUPPORTED_SOURCE_IMPLEMENTATIONS
             raise StrategyDesugaringError(f"unsupported source operation: {implementation}")

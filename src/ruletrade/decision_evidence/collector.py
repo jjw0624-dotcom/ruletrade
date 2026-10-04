@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from urllib.parse import unquote
@@ -23,6 +24,7 @@ from ruletrade.decision_evidence.models import (
     SnapshotUsageEvidence,
     SourceComponentRef,
     StateMutationEvidence,
+    ValueConditionEvidence,
 )
 
 PREFIXES = {
@@ -117,6 +119,21 @@ def _sources(fields: dict[str, str]) -> tuple[SourceComponentRef, ...]:
 
 
 def _payload(kind: str, fields: dict[str, str], schema_version: int):
+    if kind == "value_condition":
+        left_observed = fields.pop("left_observed")
+        right_observed = fields.pop("right_observed")
+        return ValueConditionEvidence(
+            scope=fields.pop("scope"),
+            subject=fields.pop("subject"),
+            operator=fields.pop("operator"),
+            left_definition=json.loads(fields.pop("left_definition")),
+            left_type=fields.pop("left_type"),
+            left_observed=Decimal(left_observed) if left_observed else None,
+            right_definition=json.loads(fields.pop("right_definition")),
+            right_type=fields.pop("right_type"),
+            right_observed=Decimal(right_observed) if right_observed else None,
+            outcome=_bool(fields.pop("outcome")),
+        )
     if kind == "predicate":
         observed = fields.pop("observed")
         return PredicateEvidence(

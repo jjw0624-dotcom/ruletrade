@@ -41,11 +41,11 @@ export function registerBlockyProgramBlocks() {
   Blockly.defineBlocksWithJsonArray([
     { type: "rt_context", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Context" }], colour: 255 },
     { type: "rt_trigger", message0: "Every %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "month" }], nextStatement: null, colour: 285 },
-    { type: "rt_selection", message0: "Choose %1 strongest assets", args0: [{ type: "field_number", name: "COUNT", value: 1, min: 1, precision: 1 }], message1: "%1", args1: [{ type: "input_value", name: "ELIGIBILITY", check: "RuleTradeEligibility" }], message2: "%1", args2: [{ type: "input_value", name: "CONSTRAINT", check: "RuleTradeConstraint" }], message3: "if selection is incomplete %1", args3: [{ type: "input_statement", name: "FALLBACK", check: "RuleTradeFallback" }], previousStatement: null, nextStatement: null, colour: 210 },
+    { type: "rt_selection", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Choose assets" }], message1: "%1", args1: [{ type: "input_value", name: "ELIGIBILITY", check: "RuleTradeEligibility" }], message2: "%1", args2: [{ type: "input_value", name: "CONSTRAINT", check: "RuleTradeConstraint" }], message3: "%1", args3: [{ type: "input_value", name: "FALLBACK", check: "RuleTradeFallback" }], previousStatement: null, nextStatement: null, colour: 210 },
     { type: "rt_random_selection", message0: "Choose %1 assets", args0: [{ type: "field_number", name: "COUNT", value: 1, min: 1, precision: 1 }], previousStatement: null, nextStatement: null, colour: 210 },
-    { type: "rt_eligibility", message0: "eligible when return > %1 %%", args0: [{ type: "field_number", name: "VALUE", value: 0 }], output: "RuleTradeEligibility", colour: 155 },
+    { type: "rt_eligibility", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Eligibility" }], output: "RuleTradeEligibility", colour: 155 },
     { type: "rt_constraint", message0: "Cooldown %1 trading days", args0: [{ type: "field_number", name: "VALUE", value: 1, min: 1, precision: 1 }], output: "RuleTradeConstraint", colour: 35 },
-    { type: "rt_fallback", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Allocate to fallback" }], previousStatement: "RuleTradeFallback", nextStatement: "RuleTradeFallback", colour: 65 },
+    { type: "rt_fallback", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Fallback" }], output: "RuleTradeFallback", colour: 65 },
     { type: "rt_allocation", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Allocate capital" }], previousStatement: null, nextStatement: null, colour: 120 },
     { type: "rt_action", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Rebalance" }], previousStatement: null, nextStatement: null, colour: 20 },
     { type: "rt_control", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 300 },
@@ -342,12 +342,12 @@ function createModifierBlock(canvas: Blockly.WorkspaceSvg, modifier: ProgramModi
   const block = canvas.newBlock(type) as Blockly.BlockSvg;
   setData(block, { workingId: `modifier:${modifier.kind}:${modifier.selection.componentId ?? modifier.ref.primary_component_id}`, source: "canonical", kind: modifier.kind, selection: modifier.selection, relatedComponentIds: modifier.ref.related_component_ids });
   block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
-  if (modifier.kind === "fallback") block.setFieldValue(modifier.label, "LABEL");
-  else if (modifier.value !== undefined) editableNumber(block, "VALUE", modifier.kind === "eligibility" ? modifier.value * 100 : modifier.value, async (next) => {
+  if (modifier.kind === "eligibility" || modifier.kind === "fallback") block.setFieldValue(modifier.label, "LABEL");
+  else if (modifier.value !== undefined) editableNumber(block, "VALUE", modifier.value, async (next) => {
     const id = modifier.selection.componentId;
     if (!id) return false;
     return modifier.kind === "eligibility"
-      ? structural.apply({ kind: "update_qualification_threshold", component_id: id, threshold: String(next / 100) }, modifier.selection)
+      ? structural.apply({ kind: "update_qualification_threshold", component_id: id, threshold: String(next) }, modifier.selection)
       : structural.apply({ kind: "update_cooldown_duration", component_id: id, duration: next }, modifier.selection);
   }, busy, rejected);
   block.initSvg(); block.render();
@@ -361,17 +361,13 @@ function createStatementBlock(canvas: Blockly.WorkspaceSvg, statement: ProgramSt
   const block = canvas.newBlock(type) as Blockly.BlockSvg;
   setData(block, { workingId: statement.id, source: "canonical", kind: statement.kind, selection: statement.selection, relatedComponentIds: statement.ref.related_component_ids });
   block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
-  if (statement.kind === "selection" && statement.count !== undefined) editableNumber(block, "COUNT", statement.count, async (count) => {
-    const id = statement.selection.componentId;
-    return id ? structural.apply({ kind: "update_selection_count", component_id: id, count }, statement.selection) : false;
-  }, busy, rejected);
-  else if (statement.kind !== "control") block.setFieldValue(statement.label, "LABEL");
+  if (statement.kind !== "control") block.setFieldValue(statement.label, "LABEL");
   block.initSvg(); block.render();
   for (const modifier of statement.modifiers) {
     const child = createModifierBlock(canvas, modifier, structural, busy, rejected);
     if (modifier.kind === "eligibility") connectValue(block, "ELIGIBILITY", child);
     else if (modifier.kind === "constraint") connectValue(block, "CONSTRAINT", child);
-    else if (block.getInput("FALLBACK")?.connection && child.previousConnection) block.getInput("FALLBACK")!.connection!.connect(child.previousConnection);
+    else connectValue(block, "FALLBACK", child);
   }
   if (statement.kind === "control") {
     block.setFieldValue(statement.label, "LABEL");
