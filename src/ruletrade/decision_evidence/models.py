@@ -31,10 +31,16 @@ class AssetPredicate(EvidenceModel):
     stopping_stage: Literal["filter"] | None = None
 
 
+class FilterClauseEvidence(EvidenceModel):
+    operator: Literal["gt", "gte", "lt", "lte"]
+    threshold: Decimal
+
+
 class FilterEvidence(EvidenceModel):
     kind: Literal["filter"] = "filter"
-    operator: Literal["gt"]
+    operator: Literal["gt", "gte", "lt", "lte"]
     threshold: Decimal
+    clauses: tuple[FilterClauseEvidence, ...] = Field(default=(), exclude_if=lambda value: not value)
     evaluations: tuple[AssetPredicate, ...]
     decision_universe: tuple[str, ...] | None = None
 

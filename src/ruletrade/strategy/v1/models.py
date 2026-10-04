@@ -141,6 +141,12 @@ class StateRefExpression(FrozenModel):
     state_id: Identifier
 
 
+class CandidateExpression(FrozenModel):
+    """The current member of a Selection candidate set."""
+
+    kind: Literal["candidate"] = "candidate"
+
+
 class PriceExpression(FrozenModel):
     kind: Literal["price"] = "price"
     asset: "Expression"
@@ -198,6 +204,7 @@ Expression = Annotated[
     LiteralExpression
     | ParameterRefExpression
     | StateRefExpression
+    | CandidateExpression
     | PriceExpression
     | AverageCostExpression
     | IndicatorExpression
@@ -277,6 +284,7 @@ class Component(FrozenModel):
     ]
     config: dict[str, Any] = Field(default_factory=dict)
     condition: Expression | None = None
+    value_expression: Expression | None = Field(default=None, exclude_if=lambda value: value is None)
     actions: tuple[Action, ...] = ()
     else_actions: tuple[Action, ...] = Field(default=(), exclude_if=lambda value: not value)
 

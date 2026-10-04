@@ -10,6 +10,7 @@ from ruletrade.strategy.v1.models import (
     BooleanExpression,
     BuyAction,
     CanonicalStrategyV1,
+    CandidateExpression,
     ComparisonExpression,
     ComponentOutputExpression,
     EmitSignalAction,
@@ -131,6 +132,8 @@ class _TypeChecker:
             return self._lookup(self.parameters, expression.parameter_id, path, "parameter")
         if isinstance(expression, StateRefExpression):
             return self._lookup(self.state, expression.state_id, path, "state")
+        if isinstance(expression, CandidateExpression):
+            return ValueType.ASSET
         if isinstance(expression, (PriceExpression, AverageCostExpression)):
             self.require(expression.asset, ValueType.ASSET, f"{path}.asset")
             return ValueType.MONEY_PER_SHARE
@@ -307,8 +310,13 @@ def collect_semantic_issues(
                 issues.append(SemanticIssue(f"{path}.condition", "rule condition is required"))
             if not component.actions:
                 issues.append(SemanticIssue(f"{path}.actions", "rule must contain at least one action"))
+        elif primitive.implementation_id == "selection.filter":
+            if component.actions or component.else_actions:
+                issues.append(SemanticIssue(path, "actions are only valid on rule components"))
         elif component.condition is not None or component.actions or component.else_actions:
             issues.append(SemanticIssue(path, "condition/actions are only valid on rule components"))
+        if component.value_expression is not None and primitive.implementation_id != "selection.rank":
+            issues.append(SemanticIssue(f"{path}.value_expression", "value expression is only valid on rank components"))
 
     inbound: set[tuple[str, str]] = set()
     input_sources: dict[tuple[str, str], str] = {}
@@ -540,6 +548,13 @@ def collect_semantic_issues(
                 )
             except StrategySemanticError as exc:
                 issues.extend(exc.issues)
+        if component.value_expression is not None:
+            try:
+                checker.expression_type(component.value_expression, f"graph.components[{component.id}].value_expression")
+            except StrategySemanticError as exc:
+                issues.extend(exc.issues)
+        if component.primitive == "rule@1" and component.condition is not None and '"kind":"candidate"' in component.condition.model_dump_json():
+            issues.append(SemanticIssue(f"graph.components[{component.id}].condition", "Predicate cannot reference the Selection candidate"))
         for index, action in enumerate(component.actions):
             try:
                 checker.validate_action(

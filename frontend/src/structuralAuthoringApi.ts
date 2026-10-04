@@ -1,4 +1,4 @@
-import type { CanonicalStrategyV1 } from "./domain/canonical";
+import type { CanonicalStrategyV1, ConditionExpression, ValueExpression } from "./domain/canonical";
 
 export interface StructuralAuthoringCapabilities {
   composition?: {
@@ -86,6 +86,16 @@ export type StructuralAuthoringOperation =
   | { kind: "add_predicate"; rebalance_component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
   | { kind: "update_predicate"; component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
   | { kind: "remove_predicate"; component_id: string }
+  | { kind: "update_condition_expression"; component_id: string; role: "predicate" | "eligibility"; condition: ConditionExpression }
+  | {
+      kind: "update_selection_semantics";
+      rank_component_id: string;
+      selection_component_id: string;
+      direction: "descending" | "ascending";
+      count: number;
+      shortage_policy: "require_full" | "choose_all";
+      value_expression?: ValueExpression | null;
+    }
   | {
       kind: "commit_predicate_branches";
       component_id: string;

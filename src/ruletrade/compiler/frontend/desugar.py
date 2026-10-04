@@ -7,6 +7,8 @@ from decimal import Decimal
 from ruletrade.hashing import strategy_hash
 from ruletrade.ir import strategy as strategy_ir
 from ruletrade.strategy.v1.models import (
+    BooleanExpression,
+    CandidateExpression,
     CanonicalStrategyV1,
     ComparisonExpression,
     Component,
@@ -43,6 +45,21 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
 
 class StrategyDesugaringError(ValueError):
     pass
+
+
+def _eligibility_clauses(component: Component) -> tuple[strategy_ir.FilterClause, ...]:
+    expression = component.condition
+    if expression is None:
+        return ()
+    operands = expression.operands if isinstance(expression, BooleanExpression) and expression.operator == "and" else [expression]
+    clauses: list[strategy_ir.FilterClause] = []
+    for operand in operands:
+        if not isinstance(operand, ComparisonExpression) or operand.operator not in {"gt", "gte", "lt", "lte"}:
+            raise StrategyDesugaringError("Eligibility v1 supports comparisons joined by ALL")
+        if not isinstance(operand.left, IndicatorExpression) or operand.left.indicator_id != "trailing_return_indicator@1" or not isinstance(operand.left.asset, CandidateExpression) or not isinstance(operand.right, LiteralExpression):
+            raise StrategyDesugaringError("executable Eligibility v1 requires Candidate trailing return compared with a literal")
+        clauses.append(strategy_ir.FilterClause(operator=typing.cast(typing.Literal["gt", "gte", "lt", "lte"], operand.operator), threshold=Decimal(str(operand.right.value))))
+    return tuple(clauses)
 
 
 def desugar_strategy(
@@ -149,18 +166,20 @@ def desugar_strategy(
                 provenance=provenance,
             )
         elif implementation == "selection.filter":
+            clauses = _eligibility_clauses(component)
+            legacy_operator = typing.cast(typing.Literal["gt", "gte", "lt", "lte"], resolved["operator"])
+            legacy_threshold = Decimal(str(resolved["threshold"]))
             operation = strategy_ir.FilterOp(
-                id=component.id,
-                scores=input_id(component, "scores"),
-                operator=typing.cast(typing.Literal["gt"], resolved["operator"]),
-                threshold=Decimal(str(resolved["threshold"])),
-                provenance=provenance,
+                id=component.id, scores=input_id(component, "scores"),
+                operator=clauses[0].operator if clauses else legacy_operator,
+                threshold=clauses[0].threshold if clauses else legacy_threshold,
+                provenance=provenance, clauses=clauses,
             )
         elif implementation == "selection.rank":
             operation = strategy_ir.RankOp(
                 id=component.id,
                 scores=input_id(component, "scores"),
-                direction=typing.cast(typing.Literal["descending"], resolved["direction"]),
+                direction=typing.cast(typing.Literal["descending", "ascending"], resolved["direction"]),
                 provenance=provenance,
             )
         elif implementation == "selection.top_n":
@@ -169,6 +188,7 @@ def desugar_strategy(
                 ranked=input_id(component, "ranked"),
                 count=int(resolved["count"]),
                 provenance=provenance,
+                shortage_policy=typing.cast(typing.Literal["require_full", "choose_all"], resolved["shortage_policy"]),
             )
         elif implementation == "selection.cooldown":
             state_id = f"{component.id}$last_exit"
