@@ -408,7 +408,8 @@ def generate_csharp(
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
     ]
-    lines.append("using QuantConnect.Indicators;")
+    if needs_history:
+        lines.append("using QuantConnect.Indicators;")
     if plan.random_selections:
         lines[4:4] = [
             "using System.Security.Cryptography;",
@@ -424,11 +425,11 @@ def generate_csharp(
             "    private int _decisionEvidenceSequence;",
         ]
     )
-    lines.append(
-        "    private readonly Dictionary<string, RollingWindow<decimal>> "
-        "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
-    )
     if needs_history:
+        lines.append(
+            "    private readonly Dictionary<string, RollingWindow<decimal>> "
+            "_dailyCloses = new Dictionary<string, RollingWindow<decimal>>();"
+        )
         history_capacity = max(
             [item.lookback_bars + 1 for item in plan.momentum_selections]
             + [item.lookback_bars + 1 for item in predicates]
@@ -544,28 +545,37 @@ def generate_csharp(
             "        }).Where(item => item != null));",
             "    }",
             "",
-            "    private decimal? CurrentPrice(string ticker)",
-            "    {",
-            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < 1) return null;",
-            "        return window[0];",
-            "    }",
-            "",
-            "    private decimal? TrailingReturn(string ticker, int observations)",
-            "    {",
-            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations + 1 || window[observations] == 0m) return null;",
-            "        return window[0] / window[observations] - 1m;",
-            "    }",
-            "",
-            "    private decimal? RollingPrice(string ticker, int observations, string aggregate)",
-            "    {",
-            "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations || observations < 1) return null;",
-            "        var values = Enumerable.Range(0, observations).Select(index => window[index]).OrderBy(value => value).ToArray();",
-            '        if (aggregate == "min") return values[0];',
-            '        if (aggregate == "max") return values[values.Length - 1];',
-            '        if (aggregate == "median") return values.Length % 2 == 1 ? values[values.Length / 2] : (values[values.Length / 2 - 1] + values[values.Length / 2]) / 2m;',
-            "        return values.Average();",
-            "    }",
-            "",
+        )
+    )
+    if needs_history:
+        lines.extend(
+            (
+                "    private decimal? CurrentPrice(string ticker)",
+                "    {",
+                "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < 1) return null;",
+                "        return window[0];",
+                "    }",
+                "",
+                "    private decimal? TrailingReturn(string ticker, int observations)",
+                "    {",
+                "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations + 1 || window[observations] == 0m) return null;",
+                "        return window[0] / window[observations] - 1m;",
+                "    }",
+                "",
+                "    private decimal? RollingPrice(string ticker, int observations, string aggregate)",
+                "    {",
+                "        if (!_dailyCloses.TryGetValue(ticker, out var window) || window.Count < observations || observations < 1) return null;",
+                "        var values = Enumerable.Range(0, observations).Select(index => window[index]).OrderBy(value => value).ToArray();",
+                '        if (aggregate == "min") return values[0];',
+                '        if (aggregate == "max") return values[values.Length - 1];',
+                '        if (aggregate == "median") return values.Length % 2 == 1 ? values[values.Length / 2] : (values[values.Length / 2 - 1] + values[values.Length / 2]) / 2m;',
+                "        return values.Average();",
+                "    }",
+                "",
+            )
+        )
+    lines.extend(
+        (
             "    private static decimal? ScaleValue(decimal? value, decimal factor)",
             "    {",
             "        return value.HasValue ? value.Value * factor : (decimal?)null;",
