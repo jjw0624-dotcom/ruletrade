@@ -1015,4 +1015,3 @@ def apply_semantic_intent(
             )
         return candidate
     return apply_structural_operation(strategy, resolve_semantic_intent(intent))
-    CurrentExpression,
