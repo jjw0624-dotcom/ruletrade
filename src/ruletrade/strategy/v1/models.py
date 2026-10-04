@@ -44,6 +44,38 @@ class AssetSetDefinition(FrozenModel):
         return normalized
 
 
+class GroupDefinition(FrozenModel):
+    """A stable, named semantic collection; never a persisted Selection result."""
+
+    id: Identifier
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    asset_set_ref: Identifier
+    description: Annotated[str, Field(max_length=1000)] = ""
+
+
+class UniverseDefinition(FrozenModel):
+    """The candidate domain consumed by Selection."""
+
+    id: Identifier
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    source: Literal["asset_set", "group", "provider"]
+    asset_set_ref: Identifier | None = None
+    group_ref: Identifier | None = None
+    provider_id: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+    query: Annotated[str, Field(min_length=1, max_length=500)] | None = None
+
+    @model_validator(mode="after")
+    def validate_source(self) -> "UniverseDefinition":
+        supplied = {
+            "asset_set": self.asset_set_ref is not None,
+            "group": self.group_ref is not None,
+            "provider": self.provider_id is not None and self.query is not None,
+        }
+        if not supplied[self.source] or sum(supplied.values()) != 1:
+            raise ValueError("universe source fields must match source exactly")
+        return self
+
+
 class ParameterDefinition(FrozenModel):
     id: Identifier
     value_type: ValueType
@@ -92,6 +124,8 @@ class StateDefinition(FrozenModel):
 
 class StrategyDefinitions(FrozenModel):
     asset_sets: tuple[AssetSetDefinition, ...] = ()
+    groups: tuple[GroupDefinition, ...] = ()
+    universes: tuple[UniverseDefinition, ...] = ()
     parameters: tuple[ParameterDefinition, ...] = ()
     state: tuple[StateDefinition, ...] = ()
 
@@ -99,6 +133,8 @@ class StrategyDefinitions(FrozenModel):
     def validate_unique_ids(self) -> "StrategyDefinitions":
         for label, items in (
             ("asset set", self.asset_sets),
+            ("group", self.groups),
+            ("universe", self.universes),
             ("parameter", self.parameters),
             ("state", self.state),
         ):
@@ -145,6 +181,31 @@ class CandidateExpression(FrozenModel):
     """The current member of a Selection candidate set."""
 
     kind: Literal["candidate"] = "candidate"
+
+
+class GroupRefExpression(FrozenModel):
+    """A Group identity, not an implied NAV or member aggregate."""
+
+    kind: Literal["group_ref"] = "group_ref"
+    group_id: Identifier
+
+
+class MarketSeriesExpression(FrozenModel):
+    kind: Literal["market_series"] = "market_series"
+    field: Literal["price", "volume"]
+    subject: "Expression"
+
+
+class CurrentExpression(FrozenModel):
+    kind: Literal["current"] = "current"
+    series: "Expression"
+
+
+class RollingAggregateExpression(FrozenModel):
+    kind: Literal["rolling_aggregate"] = "rolling_aggregate"
+    operator: Literal["mean", "median", "min", "max"]
+    series: "Expression"
+    window_observations: Annotated[int, Field(ge=1, le=1000)]
 
 
 class PriceExpression(FrozenModel):
@@ -205,6 +266,10 @@ Expression = Annotated[
     | ParameterRefExpression
     | StateRefExpression
     | CandidateExpression
+    | GroupRefExpression
+    | MarketSeriesExpression
+    | CurrentExpression
+    | RollingAggregateExpression
     | PriceExpression
     | AverageCostExpression
     | IndicatorExpression
@@ -327,6 +392,9 @@ class CanonicalStrategyV1(FrozenModel):
 
 _expression_namespace = {"Expression": Expression}
 for _model in (
+    MarketSeriesExpression,
+    CurrentExpression,
+    RollingAggregateExpression,
     PriceExpression,
     AverageCostExpression,
     IndicatorExpression,

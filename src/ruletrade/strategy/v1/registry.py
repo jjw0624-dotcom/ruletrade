@@ -26,6 +26,8 @@ class BackendCapability(StrEnum):
 
 class DefinitionReference(StrEnum):
     ASSET_SET = "asset_set"
+    GROUP = "group"
+    UNIVERSE = "universe"
 
 
 @dataclass(frozen=True)
@@ -159,6 +161,21 @@ def build_builtin_registry() -> PrimitiveRegistry:
                 authoring_views=COMMON_VIEWS,
                 backend_capability=BackendCapability.NATIVE,
                 implementation_id="asset_set.named",
+            ),
+            PrimitiveSpec(
+                id="universe@1",
+                category=PrimitiveCategory.TRANSFORM,
+                outputs=(asset_set_port,),
+                fields=(
+                    PrimitiveFieldSpec(
+                        "universe_ref",
+                        ValueType.STRING,
+                        reference=DefinitionReference.UNIVERSE,
+                    ),
+                ),
+                authoring_views=COMMON_VIEWS,
+                backend_capability=BackendCapability.COMPOSITE,
+                implementation_id="universe.named",
             ),
             PrimitiveSpec(
                 id="random_select@1",

@@ -25,3 +25,24 @@ The stress case is not silently translated into trailing return. It exposes thre
 ## Coverage conclusion
 
 The reusable grammar covers value construction and condition composition, while compiler support is deliberately narrower. Each unsupported row remains explicit rather than being mapped to a convenient but false primitive.
+
+## Semantic Subjects and Typed Values v1 update
+
+| Corpus gap | New status | Boundary |
+|---|---|---|
+| finite explicit candidates | executable semantic Universe | `universe@1` resolves explicit asset set or static Group |
+| stable Growth collection | persisted static Group | never overwritten by a daily Selection result |
+| current price | dataset-evaluable typed value | strategy compiler remains deferred |
+| rolling price aggregate | dataset-evaluable typed value | completed observations, bounded window, no lookahead |
+| current/average volume | semantically representable | price-only CSV cannot evaluate; compiler deferred |
+| Group breadth/NAV | deferred | membership does not imply NAV or across-member aggregation |
+
+The complex stress strategy is now decomposed honestly:
+
+- all stocks: semantically representable as provider-backed Universe, not executable without
+  point-in-time provider membership;
+- multi-condition Candidate eligibility, ranking, Top N, choose-all, and equal allocation:
+  executable today only for the Candidate trailing-return subset;
+- `2.5 ×` average volume: typed series/aggregate/arithmetic shape is representable, but volume
+  evaluation and compiler support remain deferred;
+- monthly $1,000 Contribution: still a distinct deferred cash-flow family.

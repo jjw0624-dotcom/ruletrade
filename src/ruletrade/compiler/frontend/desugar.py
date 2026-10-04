@@ -26,6 +26,7 @@ SUPPORTED_SOURCE_IMPLEMENTATIONS = frozenset(
         "event.monthly",
         "event.quarterly",
         "asset_set.named",
+        "universe.named",
         "selection.random_n_v1",
         "market.trailing_return",
         "selection.filter",
@@ -62,6 +63,14 @@ def _eligibility_clauses(component: Component) -> tuple[strategy_ir.FilterClause
     return tuple(clauses)
 
 
+def _candidate_trailing_return(expression: object) -> bool:
+    return (
+        isinstance(expression, IndicatorExpression)
+        and expression.indicator_id == "trailing_return_indicator@1"
+        and isinstance(expression.asset, CandidateExpression)
+    )
+
+
 def desugar_strategy(
     strategy: CanonicalStrategyV1,
     registry: PrimitiveRegistry = BUILTIN_REGISTRY,
@@ -71,6 +80,8 @@ def desugar_strategy(
     """Lower the validated Strategy Model into the small Strategy IR kernel."""
 
     asset_sets = {definition.id: tuple(definition.assets) for definition in strategy.definitions.asset_sets}
+    groups = {definition.id: definition.asset_set_ref for definition in strategy.definitions.groups}
+    universes = {definition.id: definition for definition in strategy.definitions.universes}
     inputs: dict[tuple[str, str], list[str]] = {}
     for connection in strategy.graph.connections:
         inputs.setdefault((connection.target.component_id, connection.target.port), []).append(
@@ -146,6 +157,25 @@ def desugar_strategy(
                 symbols=asset_sets[str(resolved["asset_set_ref"])],
                 provenance=provenance,
             )
+        elif implementation == "universe.named":
+            universe_id = str(resolved["universe_ref"])
+            universe = universes[universe_id]
+            if universe.source == "provider":
+                raise StrategyDesugaringError(
+                    f"provider-backed universe {universe_id} is semantic-only until a provider resolves membership point-in-time"
+                )
+            asset_set_id = (
+                universe.asset_set_ref
+                if universe.source == "asset_set"
+                else groups[str(universe.group_ref)]
+            )
+            operation = strategy_ir.UniverseOp(
+                id=component.id,
+                universe_id=universe_id,
+                source_kind=typing.cast(typing.Literal["asset_set", "group"], universe.source),
+                symbols=asset_sets[str(asset_set_id)],
+                provenance=provenance,
+            )
         elif implementation == "selection.random_n_v1":
             operation = strategy_ir.RandomNOp(
                 id=component.id,
@@ -176,6 +206,12 @@ def desugar_strategy(
                 provenance=provenance, clauses=clauses,
             )
         elif implementation == "selection.rank":
+            if component.value_expression is not None and not _candidate_trailing_return(
+                component.value_expression
+            ):
+                raise StrategyDesugaringError(
+                    "strategy compiler currently supports Candidate trailing return as ranking value; other typed values remain semantic/evaluation-only"
+                )
             operation = strategy_ir.RankOp(
                 id=component.id,
                 scores=input_id(component, "scores"),

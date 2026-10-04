@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { ConditionExpression } from "../domain/canonical";
 import type { ConceptualFlowProjection, ConceptualGroup } from "../domain/conceptualFlow";
 import { semanticSelection } from "../domain/semanticSelection";
+import { describeUniverse, describeValueExpression } from "../domain/valueSemantics";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
 import { AssetMembershipEditor, AuthoringNumberInput, CooldownControl, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "./AuthoringControls";
@@ -151,7 +152,9 @@ export function SemanticInspector({
       <p>{group.allocation ? `${group.allocation} of the portfolio` : "The current investment path"}</p>
     </>;
   } else if (role === "universe" && group?.assetSetId) {
-    content = <><h2>{group.label} assets</h2><AssetMembershipEditor authoring={structural} question="What can it invest in?" assetSetId={group.assetSetId} assets={group.assets} /></>;
+    const semanticUniverse = group.universeComponentId
+      ? describeUniverse(state.canonical, group.universeComponentId) : null;
+    content = <><h2>{group.label} assets</h2>{semanticUniverse && <p className="fixed-setting">{semanticUniverse}</p>}<AssetMembershipEditor authoring={structural} question="What can it invest in?" assetSetId={group.assetSetId} assets={group.assets} /></>;
   } else if (role === "selection" && choose && group) {
     const qualificationTarget = choose.rankComponentId
       && structural.capabilities?.qualification_add_targets.includes(choose.rankComponentId)
@@ -185,6 +188,7 @@ export function SemanticInspector({
             }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
+      {rankComponent?.value_expression && <p className="fixed-setting">Order by: {describeValueExpression(rankComponent.value_expression)}</p>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
       {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "config.threshold", groupId: group.id }) })}>Eligibility: return &gt; {Number(choose.threshold) * 100}%</button>}
       {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}

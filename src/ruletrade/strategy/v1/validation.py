@@ -13,20 +13,24 @@ from ruletrade.strategy.v1.models import (
     CandidateExpression,
     ComparisonExpression,
     ComponentOutputExpression,
+    CurrentExpression,
     EmitSignalAction,
     Expression,
     IncrementStateAction,
     IndicatorExpression,
+    GroupRefExpression,
     LiquidateAction,
     LiteralExpression,
     NotExpression,
     ParameterRefExpression,
     PriceExpression,
+    MarketSeriesExpression,
     RebalanceAction,
     SellAction,
     SetStateAction,
     SetTargetAction,
     StateRefExpression,
+    RollingAggregateExpression,
 )
 from ruletrade.strategy.v1.registry import (
     BUILTIN_REGISTRY,
@@ -60,6 +64,8 @@ DefinitionIds = dict[DefinitionReference, set[str]]
 def _definition_ids(strategy: CanonicalStrategyV1) -> DefinitionIds:
     return {
         DefinitionReference.ASSET_SET: {definition.id for definition in strategy.definitions.asset_sets},
+        DefinitionReference.GROUP: {definition.id for definition in strategy.definitions.groups},
+        DefinitionReference.UNIVERSE: {definition.id for definition in strategy.definitions.universes},
     }
 
 
@@ -134,6 +140,25 @@ class _TypeChecker:
             return self._lookup(self.state, expression.state_id, path, "state")
         if isinstance(expression, CandidateExpression):
             return ValueType.ASSET
+        if isinstance(expression, GroupRefExpression):
+            if expression.group_id not in self.definition_ids[DefinitionReference.GROUP]:
+                raise StrategySemanticError(
+                    [SemanticIssue(f"{path}.group_id", f"unknown group: {expression.group_id}")]
+                )
+            return ValueType.GROUP
+        if isinstance(expression, MarketSeriesExpression):
+            self.require(expression.subject, ValueType.ASSET, f"{path}.subject")
+            return (
+                ValueType.PRICE_SERIES
+                if expression.field == "price"
+                else ValueType.VOLUME_SERIES
+            )
+        if isinstance(expression, CurrentExpression):
+            series_type = self.expression_type(expression.series, f"{path}.series")
+            return self._series_scalar_type(series_type, path)
+        if isinstance(expression, RollingAggregateExpression):
+            series_type = self.expression_type(expression.series, f"{path}.series")
+            return self._series_scalar_type(series_type, path)
         if isinstance(expression, (PriceExpression, AverageCostExpression)):
             self.require(expression.asset, ValueType.ASSET, f"{path}.asset")
             return ValueType.MONEY_PER_SHARE
@@ -194,6 +219,16 @@ class _TypeChecker:
             self.require(expression.operand, ValueType.BOOLEAN, f"{path}.operand")
             return ValueType.BOOLEAN
         raise StrategySemanticError([SemanticIssue(path, "unsupported expression")])
+
+    @staticmethod
+    def _series_scalar_type(series_type: ValueType, path: str) -> ValueType:
+        if series_type == ValueType.PRICE_SERIES:
+            return ValueType.MONEY_PER_SHARE
+        if series_type in {ValueType.VOLUME_SERIES, ValueType.NUMERIC_SERIES}:
+            return ValueType.DECIMAL
+        raise StrategySemanticError(
+            [SemanticIssue(path, f"expected a market series, got {series_type}")]
+        )
 
     def validate_action(self, action: Action, path: str) -> None:
         if isinstance(action, (BuyAction, SellAction)):
@@ -286,8 +321,33 @@ def collect_semantic_issues(
     issues: list[SemanticIssue] = []
     components = {component.id: component for component in strategy.graph.components}
     asset_sets = {definition.id: definition for definition in strategy.definitions.asset_sets}
+    groups = {definition.id: definition for definition in strategy.definitions.groups}
     definition_ids = _definition_ids(strategy)
     primitive_specs: dict[str, PrimitiveSpec] = {}
+
+    for index, group in enumerate(strategy.definitions.groups):
+        if group.asset_set_ref not in asset_sets:
+            issues.append(
+                SemanticIssue(
+                    f"definitions.groups[{index}].asset_set_ref",
+                    f"unknown asset set: {group.asset_set_ref}",
+                )
+            )
+    for index, universe in enumerate(strategy.definitions.universes):
+        if universe.source == "asset_set" and universe.asset_set_ref not in asset_sets:
+            issues.append(
+                SemanticIssue(
+                    f"definitions.universes[{index}].asset_set_ref",
+                    f"unknown asset set: {universe.asset_set_ref}",
+                )
+            )
+        if universe.source == "group" and universe.group_ref not in groups:
+            issues.append(
+                SemanticIssue(
+                    f"definitions.universes[{index}].group_ref",
+                    f"unknown group: {universe.group_ref}",
+                )
+            )
 
     for component in strategy.graph.components:
         path = f"graph.components[{component.id}]"

@@ -5,6 +5,7 @@ from typing import Literal
 
 from ruletrade.ir.strategy import (
     AssetSetOp,
+    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     FilterOp,
@@ -81,7 +82,7 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
 
     def asset_symbols(operation_id: str) -> tuple[str, ...]:
         operation = operations_by_id.get(operation_id)
-        if isinstance(operation, AssetSetOp):
+        if isinstance(operation, (AssetSetOp, UniverseOp)):
             return operation.symbols
         if isinstance(operation, ElapsedSessionsGateOp):
             return asset_symbols(operation.candidates)
@@ -97,7 +98,7 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
 
     for operation in strategy_ir.operations:
         operations.add(operation.operation)
-        if isinstance(operation, AssetSetOp):
+        if isinstance(operation, (AssetSetOp, UniverseOp)):
             assets.update(operation.symbols)
         elif isinstance(operation, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
             schedules.append(
@@ -116,7 +117,7 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
             )
         elif isinstance(operation, TrailingReturnOp):
             asset_set = operations_by_id.get(operation.assets)
-            if isinstance(asset_set, AssetSetOp):
+            if isinstance(asset_set, (AssetSetOp, UniverseOp)):
                 daily_history.append(
                     DailyHistoryRequirement(
                         source_component_id=operation.provenance.component_id,

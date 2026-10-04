@@ -24,6 +24,7 @@ from ruletrade.compiler.lean.plan import (
 )
 from ruletrade.ir.strategy import (
     AssetSetOp,
+    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
@@ -97,7 +98,7 @@ def lower_strategy_ir_to_lean_plan(
         if (
             not isinstance(rank, RankOp)
             or not isinstance(score, TrailingReturnOp)
-            or not isinstance(asset_set, AssetSetOp)
+            or not isinstance(asset_set, (AssetSetOp, UniverseOp))
         ):
             raise LeanLoweringError("Top N must consume ranked trailing returns over an asset set")
         history = history_requirements.get(score.provenance.component_id)
@@ -139,7 +140,7 @@ def lower_strategy_ir_to_lean_plan(
         selection_id: str | None = None
         if isinstance(upstream, RandomNOp):
             asset_set = operations.get(upstream.assets)
-            if not isinstance(asset_set, AssetSetOp):
+            if not isinstance(asset_set, (AssetSetOp, UniverseOp)):
                 raise LeanLoweringError("random selection input must be a market asset set")
             symbols = asset_set.symbols
             selection_id = upstream.id
@@ -174,7 +175,7 @@ def lower_strategy_ir_to_lean_plan(
                 required_completed_sessions=upstream.minimum_completed_sessions,
                 calendar_symbol=calendar.symbols[0],
             )
-        elif isinstance(upstream, AssetSetOp):
+        elif isinstance(upstream, (AssetSetOp, UniverseOp)):
             symbols = upstream.symbols
         else:
             raise LeanLoweringError("equal-weight input must be a market asset set or RandomN selection")
@@ -243,7 +244,7 @@ def lower_strategy_ir_to_lean_plan(
             fallback_assets = operations.get(fallback.assets) if isinstance(fallback, EqualWeightOp) else None
             if not isinstance(primary, EqualWeightOp) or not isinstance(fallback, EqualWeightOp):
                 raise LeanLoweringError("first-non-empty targets require equal-weight primary and fallback")
-            if not isinstance(fallback_assets, AssetSetOp) or len(fallback_assets.symbols) != 1:
+            if not isinstance(fallback_assets, (AssetSetOp, UniverseOp)) or len(fallback_assets.symbols) != 1:
                 raise LeanLoweringError("LEAN fallback v0 requires one fallback asset")
             if primary.total_weight != fallback.total_weight:
                 raise LeanLoweringError("fallback allocation must match the primary allocation")

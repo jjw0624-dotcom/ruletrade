@@ -1,5 +1,6 @@
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
+    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
@@ -35,6 +36,7 @@ from ruletrade.ir.strategy.validation import (
 
 __all__ = [
     "AssetSetOp",
+    "UniverseOp",
     "DailyScheduleOp",
     "ElapsedSessionsGateOp",
     "EqualWeightOp",

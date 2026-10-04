@@ -719,6 +719,42 @@
         "inputs": [],
         "outputs": [],
         "result_type": "percentage"
+      },
+      {
+        "authoring_views": [
+          "blocks",
+          "code",
+          "flow",
+          "guided",
+          "rules"
+        ],
+        "backend_capability": "composite",
+        "category": "transform",
+        "fields": [
+          {
+            "choices": [],
+            "default": null,
+            "exclusive_minimum": false,
+            "maximum": null,
+            "minimum": null,
+            "name": "universe_ref",
+            "reference": "universe",
+            "required": true,
+            "value_type": "string"
+          }
+        ],
+        "id": "universe@1",
+        "implementation_id": "universe.named",
+        "inputs": [],
+        "outputs": [
+          {
+            "multiple": false,
+            "name": "assets",
+            "required": true,
+            "value_type": "asset_set"
+          }
+        ],
+        "result_type": null
       }
     ]
   },
@@ -749,6 +785,8 @@
           "id": "defensive"
         }
       ],
+      "groups": [],
+      "universes": [],
       "parameters": [],
       "state": []
     },
