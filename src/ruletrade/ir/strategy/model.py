@@ -64,6 +64,18 @@ class AssetSetOp:
 
 
 @dataclass(frozen=True)
+class UniverseOp:
+    """A stable semantic candidate domain resolved at compile time."""
+
+    id: str
+    universe_id: str
+    source_kind: Literal["asset_set", "group"]
+    symbols: tuple[str, ...]
+    provenance: SourceProvenance
+    operation: Literal["market.universe"] = "market.universe"
+
+
+@dataclass(frozen=True)
 class RandomNOp:
     id: str
     assets: str
@@ -212,6 +224,7 @@ StrategyIROperation: TypeAlias = (
     | MonthlyScheduleOp
     | QuarterlyScheduleOp
     | AssetSetOp
+    | UniverseOp
     | RandomNOp
     | TrailingReturnOp
     | FilterOp

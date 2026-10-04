@@ -25,6 +25,7 @@ from ruletrade.ir.strategy.model import (
     StrategyIROperation,
     TopNOp,
     TrailingReturnOp,
+    UniverseOp,
 )
 
 
@@ -46,7 +47,7 @@ class IRValidationError(ValueError):
 def _result_type(operation: StrategyIROperation) -> IRType:
     if isinstance(operation, (DailyScheduleOp, MonthlyScheduleOp, QuarterlyScheduleOp)):
         return IRType.EVENT
-    if isinstance(operation, (AssetSetOp, RandomNOp, TopNOp, ElapsedSessionsGateOp)):
+    if isinstance(operation, (AssetSetOp, UniverseOp, RandomNOp, TopNOp, ElapsedSessionsGateOp)):
         return IRType.ASSET_SET
     if isinstance(operation, (TrailingReturnOp, FilterOp)):
         return IRType.ASSET_SCORES
@@ -142,6 +143,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
         MonthlyScheduleOp,
         QuarterlyScheduleOp,
         AssetSetOp,
+        UniverseOp,
         RandomNOp,
         TrailingReturnOp,
         FilterOp,
@@ -182,7 +184,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
             issues.append(IRValidationIssue(f"{path}.day", "monthly day must be between 1 and 31"))
         if isinstance(operation, QuarterlyScheduleOp) and not 1 <= operation.day <= 31:
             issues.append(IRValidationIssue(f"{path}.day", "quarterly day must be between 1 and 31"))
-        if isinstance(operation, AssetSetOp) and (
+        if isinstance(operation, (AssetSetOp, UniverseOp)) and (
             not operation.symbols or len(set(operation.symbols)) != len(operation.symbols)
         ):
             issues.append(
@@ -282,7 +284,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
                 )
         if isinstance(operation, RandomNOp):
             source = operations.get(operation.assets)
-            if isinstance(source, AssetSetOp) and operation.count > len(source.symbols):
+            if isinstance(source, (AssetSetOp, UniverseOp)) and operation.count > len(source.symbols):
                 issues.append(
                     IRValidationIssue(
                         f"operations[{operation_id}].count",
@@ -295,7 +297,7 @@ def collect_ir_validation_issues(strategy_ir: StrategyIR) -> tuple[IRValidationI
             if isinstance(scores, FilterOp):
                 scores = operations.get(scores.scores)
             source = operations.get(scores.assets) if isinstance(scores, TrailingReturnOp) else None
-            if isinstance(source, AssetSetOp) and operation.count > len(source.symbols):
+            if isinstance(source, (AssetSetOp, UniverseOp)) and operation.count > len(source.symbols):
                 issues.append(
                     IRValidationIssue(
                         f"operations[{operation_id}].count",

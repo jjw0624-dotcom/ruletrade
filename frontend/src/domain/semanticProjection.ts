@@ -134,7 +134,20 @@ function scheduleForTarget(graph: ProjectionGraph, targetId: string) {
 }
 
 function assetsFor(strategy: CanonicalStrategyV1, component: CanonicalComponent): { id: string; assets: string[] } {
-  const reference = component.config.asset_set_ref;
+  let reference: unknown = component.config.asset_set_ref;
+  if (component.primitive === "universe@1") {
+    const universeRef = component.config.universe_ref;
+    const universe = strategy.definitions.universes?.find((item) => item.id === universeRef);
+    if (!universe) throw new Error(`Missing semantic universe ${String(universeRef)}`);
+    if (universe.source === "provider") return { id: "", assets: [] };
+    if (universe.source === "group") {
+      const group = strategy.definitions.groups?.find((item) => item.id === universe.group_ref);
+      if (!group) throw new Error(`Missing static Group ${String(universe.group_ref)}`);
+      reference = group.asset_set_ref;
+    } else {
+      reference = universe.asset_set_ref ?? undefined;
+    }
+  }
   if (typeof reference !== "string") throw new Error(`Missing asset set reference on ${component.id}`);
   const definition = strategy.definitions.asset_sets.find((item) => item.id === reference);
   if (!definition) throw new Error(`Missing asset set ${reference}`);
@@ -149,7 +162,10 @@ function projectPipeline(
   const upstream = graph.ancestors(targetId);
   upstream.add(targetId);
   const weighting = graph.uniquePrimitive("equal_weight@1", upstream);
-  const universe = graph.uniquePrimitive("asset_set@1", upstream);
+  const semanticUniverse = graph.uniquePrimitive("universe@1", upstream);
+  const legacyUniverse = graph.uniquePrimitive("asset_set@1", upstream);
+  if (semanticUniverse && legacyUniverse) throw new Error(`Selection path for ${targetId} has two universes`);
+  const universe = semanticUniverse ?? legacyUniverse;
   if (!weighting || !universe) throw new Error(`Selection path for ${targetId} needs one universe and weighting`);
   const assetSet = assetsFor(graph.strategy, universe);
   const ranked = graph.uniquePrimitive("top_n@1", upstream);

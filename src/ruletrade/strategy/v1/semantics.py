@@ -213,6 +213,8 @@ def _ref(
 
 def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[SemanticFact]:
     definitions = {item.id: item for item in strategy.definitions.asset_sets}
+    groups = {item.id: item for item in strategy.definitions.groups}
+    universes = {item.id: item for item in strategy.definitions.universes}
     facts: list[SemanticFact] = []
     selection_members: set[str] = set()
     for component in strategy.graph.components:
@@ -221,7 +223,9 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
         measure = graph.upstream(component.id, "trailing_return@1")
         eligibility = graph.upstream(component.id, "filter@1")
         rank = graph.upstream(component.id, "rank@1")
-        universe = graph.upstream(component.id, "asset_set@1")
+        universe = graph.upstream(component.id, "universe@1") or graph.upstream(
+            component.id, "asset_set@1"
+        )
         related = tuple(item for item in (universe, measure, eligibility, rank) if item)
         selection_members.update(item.id for item in related)
         detail = {"count": int(_resolved(component, "count"))}
@@ -261,6 +265,32 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                     label=", ".join(definition.assets),
                     ref=_ref(component, SemanticCategory.UNIVERSE),
                     detail={"asset_set_id": definition.id, "assets": tuple(definition.assets)},
+                )
+            )
+        elif primitive == "universe@1":
+            universe_id = str(_resolved(component, "universe_ref"))
+            universe = universes[universe_id]
+            group = groups.get(str(universe.group_ref)) if universe.source == "group" else None
+            asset_set_id = universe.asset_set_ref if universe.source == "asset_set" else (
+                group.asset_set_ref if group else None
+            )
+            assets = tuple(definitions[str(asset_set_id)].assets) if asset_set_id else ()
+            facts.append(
+                SemanticFact(
+                    id=f"universe:{component.id}",
+                    category=SemanticCategory.UNIVERSE,
+                    kind="semantic_universe",
+                    label=universe.name,
+                    ref=_ref(component, SemanticCategory.UNIVERSE),
+                    detail={
+                        "universe_id": universe.id,
+                        "source": universe.source,
+                        "group_id": universe.group_ref,
+                        "asset_set_id": asset_set_id,
+                        "assets": assets,
+                        "provider_id": universe.provider_id,
+                        "query": universe.query,
+                    },
                 )
             )
         elif primitive == "trailing_return@1":

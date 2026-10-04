@@ -130,6 +130,14 @@ from ruletrade.strategy.v1.semantics import (
     project_semantic_composition,
 )
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategy.v1.value_semantics import (
+    DatasetValueEvaluator,
+    SemanticValueEvidence,
+    ValueCapability,
+    ValueEvaluationError,
+    ValueEvaluationRequest,
+    value_capabilities,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -437,6 +445,29 @@ def resolve_core_strategy(
 @app.get("/v1/canonical/strategies/schema")
 def canonical_strategy_v1_schema() -> dict[str, object]:
     return CanonicalStrategyV1.model_json_schema()
+
+
+@app.get(
+    "/v1/canonical/value-capabilities",
+    response_model=tuple[ValueCapability, ...],
+)
+def canonical_value_capabilities() -> tuple[ValueCapability, ...]:
+    return value_capabilities()
+
+
+@app.post(
+    "/v1/canonical/values/evaluate",
+    response_model=SemanticValueEvidence,
+)
+def evaluate_canonical_value(request: ValueEvaluationRequest) -> SemanticValueEvidence:
+    try:
+        return DatasetValueEvaluator(registry).evaluate(request)
+    except (ValueEvaluationError, DatasetError) as exc:
+        code = exc.code if isinstance(exc, ValueEvaluationError) else "dataset_error"
+        raise HTTPException(
+            status_code=422,
+            detail={"code": code, "message": str(exc)},
+        ) from exc
 
 
 def _registry_value(value: object) -> object:

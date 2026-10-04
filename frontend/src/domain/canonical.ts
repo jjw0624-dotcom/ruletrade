@@ -12,8 +12,27 @@ export interface AssetSetDefinition {
   assets: string[];
 }
 
+export interface GroupDefinition {
+  id: string;
+  name: string;
+  asset_set_ref: string;
+  description: string;
+}
+
+export interface UniverseDefinition {
+  id: string;
+  name: string;
+  source: "asset_set" | "group" | "provider";
+  asset_set_ref?: string | null;
+  group_ref?: string | null;
+  provider_id?: string | null;
+  query?: string | null;
+}
+
 export interface StrategyDefinitions {
   asset_sets: AssetSetDefinition[];
+  groups?: GroupDefinition[];
+  universes?: UniverseDefinition[];
   parameters: JsonValue[];
   state: JsonValue[];
 }
@@ -23,6 +42,10 @@ export type ValueExpression =
   | { kind: "parameter_ref"; parameter_id: string }
   | { kind: "state_ref"; state_id: string }
   | { kind: "candidate" }
+  | { kind: "group_ref"; group_id: string }
+  | { kind: "market_series"; field: "price" | "volume"; subject: ValueExpression }
+  | { kind: "current"; series: ValueExpression }
+  | { kind: "rolling_aggregate"; operator: "mean" | "median" | "min" | "max"; series: ValueExpression; window_observations: number }
   | { kind: "price" | "average_cost"; asset: ValueExpression }
   | { kind: "indicator"; indicator_id: string; asset: ValueExpression; parameters: Record<string, JsonValue> }
   | { kind: "component_output"; component_id: string; port: string }

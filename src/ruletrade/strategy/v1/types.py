@@ -15,7 +15,11 @@ class ValueType(StrEnum):
     PERCENTAGE = "percentage"
     STRING = "string"
     ASSET = "asset"
+    GROUP = "group"
     ASSET_SET = "asset_set"
+    PRICE_SERIES = "price_series"
+    VOLUME_SERIES = "volume_series"
+    NUMERIC_SERIES = "numeric_series"
     ASSET_SCORES = "asset_scores"
     RANKED_ASSETS = "ranked_assets"
     SHARES = "shares"
@@ -57,7 +61,7 @@ def value_matches_type(value: Any, value_type: ValueType) -> bool:
         except (InvalidOperation, TypeError, ValueError):
             return False
         return number.is_finite()
-    if value_type in {ValueType.STRING, ValueType.ASSET}:
+    if value_type in {ValueType.STRING, ValueType.ASSET, ValueType.GROUP}:
         return isinstance(value, str) and bool(value.strip())
     if value_type == ValueType.ASSET_SET:
         return (
