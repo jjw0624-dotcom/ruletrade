@@ -35,7 +35,7 @@ export function ConditionComposer({ role, expression, strategy = fallbackStrateg
   const commit = (next: ConditionExpression[]) => onChange(next.length === 1 ? next[0] : { kind: "boolean", operator: "and", operands: next });
   const update = (index: number, next: ConditionExpression) => commit(items.map((item, current) => current === index ? next : item));
   return <fieldset disabled={disabled} className="condition-composer">
-    <legend>{role === "predicate" ? "Condition · ALL" : "Candidate eligibility · ALL"}</legend>
+    <legend>{role === "predicate" ? "Condition (ALL)" : "Candidate eligibility (ALL)"}</legend>
     {items.map((item, index) => {
       if (item.kind !== "comparison") return <p key={index}>This condition is preserved canonically but is outside the executable ALL subset.</p>;
       return <article key={index} className="condition-clause">
@@ -54,4 +54,3 @@ export function ConditionComposer({ role, expression, strategy = fallbackStrateg
     <p className="fixed-setting">Up to five comparisons. ANY and nested boolean trees remain unavailable for Strategy execution.</p>
   </fieldset>;
 }
-

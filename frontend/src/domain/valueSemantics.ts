@@ -13,7 +13,7 @@ export function describeValueExpression(expression: ValueExpression): string {
   if (expression.kind === "indicator") {
     const lookback = Number(expression.parameters.lookback_bars ?? 0);
     return expression.indicator_id === "trailing_return_indicator@1"
-      ? `${describeValueExpression(expression.asset)} · ${lookback}-observation return`
+      ? `${describeValueExpression(expression.asset)} trailing return · ${lookback} completed observations`
       : `${describeValueExpression(expression.asset)} ${expression.indicator_id}`;
   }
   if (expression.kind === "price") return `${describeValueExpression(expression.asset)} current price`;
