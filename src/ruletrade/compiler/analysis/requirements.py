@@ -5,7 +5,6 @@ from typing import Literal
 
 from ruletrade.ir.strategy import (
     AssetSetOp,
-    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     FilterOp,
@@ -17,6 +16,7 @@ from ruletrade.ir.strategy import (
     StrategyIR,
     TopNOp,
     TrailingReturnOp,
+    UniverseOp,
 )
 
 

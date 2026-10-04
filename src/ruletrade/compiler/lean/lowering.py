@@ -24,7 +24,6 @@ from ruletrade.compiler.lean.plan import (
 )
 from ruletrade.ir.strategy import (
     AssetSetOp,
-    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
@@ -43,6 +42,7 @@ from ruletrade.ir.strategy import (
     StrategyIR,
     TopNOp,
     TrailingReturnOp,
+    UniverseOp,
 )
 
 

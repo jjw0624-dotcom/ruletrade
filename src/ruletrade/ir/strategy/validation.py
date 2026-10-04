@@ -5,7 +5,6 @@ from decimal import Decimal
 
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
-    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
@@ -26,6 +25,7 @@ from ruletrade.ir.strategy.model import (
     StrategyIROperation,
     TopNOp,
     TrailingReturnOp,
+    UniverseOp,
 )
 
 

@@ -133,9 +133,9 @@ from ruletrade.strategy.v1.validation import collect_semantic_issues
 from ruletrade.strategy.v1.value_semantics import (
     DatasetValueEvaluator,
     SemanticValueEvidence,
+    ValueCapability,
     ValueEvaluationError,
     ValueEvaluationRequest,
-    ValueCapability,
     value_capabilities,
 )
 

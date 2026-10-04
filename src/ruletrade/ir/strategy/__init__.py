@@ -1,6 +1,5 @@
 from ruletrade.ir.strategy.model import (
     AssetSetOp,
-    UniverseOp,
     DailyScheduleOp,
     ElapsedSessionsGateOp,
     EqualWeightOp,
@@ -25,6 +24,7 @@ from ruletrade.ir.strategy.model import (
     StrategyIROperation,
     TopNOp,
     TrailingReturnOp,
+    UniverseOp,
 )
 from ruletrade.ir.strategy.normalize import normalize_strategy_ir
 from ruletrade.ir.strategy.validation import (
@@ -36,7 +36,6 @@ from ruletrade.ir.strategy.validation import (
 
 __all__ = [
     "AssetSetOp",
-    "UniverseOp",
     "DailyScheduleOp",
     "ElapsedSessionsGateOp",
     "EqualWeightOp",
@@ -63,6 +62,7 @@ __all__ = [
     "StrategyIROperation",
     "TopNOp",
     "TrailingReturnOp",
+    "UniverseOp",
     "collect_ir_validation_issues",
     "normalize_strategy_ir",
     "validate_strategy_ir",
