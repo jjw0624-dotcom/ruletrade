@@ -16,7 +16,7 @@ function resolvedConfigValue(
 
 export interface SemanticSelectionPipeline {
   assets: string[];
-  assetSetId?: string;
+  assetSetId: string;
   assetComponentId: string;
   allocationComponentId: string;
   selectionMode: "ranked" | "random";
@@ -133,19 +133,19 @@ function scheduleForTarget(graph: ProjectionGraph, targetId: string) {
   return { componentId: component.id, label };
 }
 
-function assetsFor(strategy: CanonicalStrategyV1, component: CanonicalComponent): { id?: string; assets: string[] } {
-  let reference = component.config.asset_set_ref;
+function assetsFor(strategy: CanonicalStrategyV1, component: CanonicalComponent): { id: string; assets: string[] } {
+  let reference: unknown = component.config.asset_set_ref;
   if (component.primitive === "universe@1") {
     const universeRef = component.config.universe_ref;
     const universe = strategy.definitions.universes?.find((item) => item.id === universeRef);
     if (!universe) throw new Error(`Missing semantic universe ${String(universeRef)}`);
-    if (universe.source === "provider") return { assets: [] };
+    if (universe.source === "provider") return { id: "", assets: [] };
     if (universe.source === "group") {
       const group = strategy.definitions.groups?.find((item) => item.id === universe.group_ref);
       if (!group) throw new Error(`Missing static Group ${String(universe.group_ref)}`);
       reference = group.asset_set_ref;
     } else {
-      reference = universe.asset_set_ref;
+      reference = universe.asset_set_ref ?? undefined;
     }
   }
   if (typeof reference !== "string") throw new Error(`Missing asset set reference on ${component.id}`);

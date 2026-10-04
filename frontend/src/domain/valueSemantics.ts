@@ -21,7 +21,8 @@ export function describeValueExpression(expression: ValueExpression): string {
   if (expression.kind === "arithmetic") return `${describeValueExpression(expression.left)} ${expression.operator} ${describeValueExpression(expression.right)}`;
   if (expression.kind === "parameter_ref") return `Parameter ${expression.parameter_id}`;
   if (expression.kind === "state_ref") return `State ${expression.state_id}`;
-  return `Output ${expression.component_id}.${expression.port}`;
+  if (expression.kind === "component_output") return `Output ${expression.component_id}.${expression.port}`;
+  return "Value";
 }
 
 export function describeUniverse(strategy: CanonicalStrategyV1, componentId: string): string | null {
