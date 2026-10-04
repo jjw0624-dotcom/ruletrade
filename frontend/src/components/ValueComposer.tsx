@@ -63,6 +63,8 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
   };
 
   const updateBase = (base: ValueExpression) => onChange(unwrapped.factor === null ? base : { kind: "arithmetic", operator: "multiply", left: base, right: { kind: "literal", value_type: "decimal", value: unwrapped.factor } });
+  const indicator = unwrapped.base.kind === "indicator" ? unwrapped.base : null;
+  const rolling = unwrapped.base.kind === "rolling_aggregate" ? unwrapped.base : null;
   const assetOptions = Array.from(new Set(strategy.definitions.asset_sets.flatMap((item) => item.assets)));
   return <div className="value-composer">
     <strong className="value-summary">{describeValueExpression(expression)}</strong>
@@ -77,8 +79,8 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
         {executable(capabilities, "aggregate.rolling") && <option value="rolling_price">Rolling adjusted price</option>}
         {allowLiteral && <option value="literal">Constant</option>}
       </select></label>
-      {unwrapped.base.kind === "indicator" && <label>Lookback observations<input disabled={disabled} type="number" min="1" max="1000" value={Number(unwrapped.base.parameters.lookback_bars ?? 126)} onChange={(event) => updateBase({ ...unwrapped.base, parameters: { ...unwrapped.base.parameters, lookback_bars: Number(event.target.value) } })} /></label>}
-      {unwrapped.base.kind === "rolling_aggregate" && <><label>Aggregate<select disabled={disabled} value={unwrapped.base.operator} onChange={(event) => updateBase({ ...unwrapped.base, operator: event.target.value as "mean" | "median" | "min" | "max" })}><option value="mean">Mean</option><option value="median">Median</option><option value="min">Minimum</option><option value="max">Maximum</option></select></label><label>Window observations<input disabled={disabled} type="number" min="1" max="1000" value={unwrapped.base.window_observations} onChange={(event) => updateBase({ ...unwrapped.base, window_observations: Number(event.target.value) })} /></label></>}
+      {indicator && <label>Lookback observations<input disabled={disabled} type="number" min="1" max="1000" value={Number(indicator.parameters.lookback_bars ?? 126)} onChange={(event) => updateBase({ ...indicator, parameters: { ...indicator.parameters, lookback_bars: Number(event.target.value) } })} /></label>}
+      {rolling && <><label>Aggregate<select disabled={disabled} value={rolling.operator} onChange={(event) => updateBase({ ...rolling, operator: event.target.value as "mean" | "median" | "min" | "max" })}><option value="mean">Mean</option><option value="median">Median</option><option value="min">Minimum</option><option value="max">Maximum</option></select></label><label>Window observations<input disabled={disabled} type="number" min="1" max="1000" value={rolling.window_observations} onChange={(event) => updateBase({ ...rolling, window_observations: Number(event.target.value) })} /></label></>}
       {measure === "literal" && expression.kind === "literal" && <label>Constant<input disabled={disabled} type="number" step="any" value={Number(expression.value)} onChange={(event) => onChange({ ...expression, value: Number(event.target.value) })} /></label>}
       {measure !== "literal" && executable(capabilities, "arithmetic.scale") && <label>Scale<input disabled={disabled} type="number" step="0.1" value={unwrapped.factor ?? 1} onChange={(event) => emit(measure, subject, Number(event.target.value) === 1 ? null : Number(event.target.value))} /></label>}
     </div>

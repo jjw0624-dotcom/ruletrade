@@ -100,7 +100,7 @@ export function assetPath(asset: string, details: DecisionEventDetail[]): AssetP
   const valueConditionEvent = details.find((item) => item.evidence.kind === "value_condition" && item.evidence.subject === asset);
   const valueCondition = valueConditionEvent?.evidence;
   if (valueCondition?.kind === "value_condition") {
-    const source = valueConditionEvent.source_components[0];
+    const source = valueConditionEvent?.source_components[0];
     steps.push({
       id: `value-${valueCondition.scope}`,
       label: valueCondition.scope === "predicate" ? "Value condition" : "Eligibility",
