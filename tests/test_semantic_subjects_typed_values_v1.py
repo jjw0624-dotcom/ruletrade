@@ -31,6 +31,7 @@ from ruletrade.strategy.v1.models import (
 )
 from ruletrade.strategy.v1.authoring import (
     AddPredicateOperation,
+    CommitPredicateBranchesOperation,
     StructuralAuthoringError,
     UpdateConditionExpressionOperation,
     UpdateSelectionSemanticsOperation,
@@ -271,6 +272,13 @@ def test_candidate_eligibility_and_rolling_price_ranking_compile_with_semantic_e
         "components": tuple(components),
     })})
 
+    eligibility_fact = next(
+        item for item in project_semantic_composition(strategy).facts
+        if item.id == "eligibility:eligible"
+    )
+    assert eligibility_fact.label == "Candidate price · current ≥ 5"
+    assert eligibility_fact.ref.field_path == "condition"
+
     ir = desugar_strategy(strategy)
     rank = next(item for item in ir.operations if item.id == "rank")
     eligible = next(item for item in ir.operations if item.id == "eligible")
@@ -307,6 +315,66 @@ def test_asset_current_price_predicate_is_real_control_flow() -> None:
     assert '"scope", "predicate"' in source
     assert source.index("CompareValues") < source.index("SetHoldings")
     assert "if (!predicateOutcome0_0) return;" in source
+
+
+def test_control_commit_requires_and_preserves_explicit_typed_predicate() -> None:
+    condition = ComparisonExpression(
+        operator="gt",
+        left=CurrentExpression(series=MarketSeriesExpression(
+            field="price",
+            subject=LiteralExpression(value_type="asset", value="SPY"),
+        )),
+        right=LiteralExpression(value_type="money_per_share", value=Decimal("100")),
+    )
+    committed = apply_structural_operation(
+        one_investment_strategy(),
+        CommitPredicateBranchesOperation(
+            component_id="rebalance",
+            then_target_component_id="weights",
+            condition=condition,
+        ),
+    )
+    rule = next(item for item in committed.graph.components if item.id == "rebalance")
+    assert rule.condition == condition
+    reopened = CanonicalStrategyV1.model_validate(committed.model_dump(mode="json"))
+    assert next(item for item in reopened.graph.components if item.id == "rebalance").condition == condition
+
+    with pytest.raises(StructuralAuthoringError, match="explicit Predicate"):
+        apply_structural_operation(
+            one_investment_strategy(),
+            CommitPredicateBranchesOperation(
+                component_id="rebalance",
+                then_target_component_id="weights",
+            ),
+        )
+
+
+def test_selection_semantics_survive_save_and_reopen_as_one_typed_model() -> None:
+    ranking = RollingAggregateExpression(
+        operator="median",
+        window_observations=20,
+        series=MarketSeriesExpression(field="price", subject=CandidateExpression()),
+    )
+    updated = apply_structural_operation(
+        universe_strategy(),
+        UpdateSelectionSemanticsOperation(
+            rank_component_id="rank",
+            selection_component_id="take",
+            direction="ascending",
+            count=1,
+            shortage_policy="choose_all",
+            value_expression=ranking,
+        ),
+    )
+    reopened = CanonicalStrategyV1.model_validate(updated.model_dump(mode="json"))
+    rank = next(item for item in reopened.graph.components if item.id == "rank")
+    eligibility = next(item for item in reopened.graph.components if item.id == "eligible")
+    selection = next(item for item in reopened.graph.components if item.id == "take")
+    assert rank.value_expression == ranking
+    assert eligibility.condition == next(
+        item for item in universe_strategy().graph.components if item.id == "eligible"
+    ).condition
+    assert selection.config["shortage_policy"] == "choose_all"
 
 
 def test_non_executable_volume_edit_is_rejected_atomically() -> None:

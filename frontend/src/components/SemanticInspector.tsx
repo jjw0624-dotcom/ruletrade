@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import type { ConditionExpression } from "../domain/canonical";
 import type { ConceptualFlowProjection, ConceptualGroup } from "../domain/conceptualFlow";
 import { semanticSelection } from "../domain/semanticSelection";
-import { describeUniverse, describeValueExpression } from "../domain/valueSemantics";
+import { describeConditionExpression, describeUniverse } from "../domain/valueSemantics";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "../store/editorStore";
-import { AssetMembershipEditor, AuthoringNumberInput, CooldownControl, LookbackControl, ScheduleControl, SleeveAllocationEditor } from "./AuthoringControls";
+import { AssetMembershipEditor, AuthoringNumberInput, CooldownControl, ScheduleControl, SleeveAllocationEditor } from "./AuthoringControls";
 import {
   FallbackTransformationControl,
 } from "./ShapeTransformationControls";
@@ -25,17 +25,17 @@ function groupFor(
     || group.choose?.sourceComponentIds.includes(componentId ?? ""));
 }
 
-function legacyEligibility(lookback: number, threshold: number): ConditionExpression {
+function predicateStarter(): ConditionExpression {
   return {
     kind: "comparison",
     operator: "gt",
     left: {
       kind: "indicator",
       indicator_id: "trailing_return_indicator@1",
-      asset: { kind: "candidate" },
-      parameters: { lookback_bars: lookback },
+      asset: { kind: "literal", value_type: "asset", value: "SPY" },
+      parameters: { lookback_bars: 126 },
     },
-    right: { kind: "literal", value_type: "percentage", value: threshold },
+    right: { kind: "literal", value_type: "percentage", value: 0 },
   };
 }
 
@@ -111,16 +111,23 @@ export function SemanticInspector({
   const { state, dispatch } = useStrategyEditor();
   const selection = state.editor.selection;
   const selectedDraftId = state.editor.logicDraft.selectedDraftId;
+  const selectedDraft = state.editor.logicDraft.workingProgram?.blocks.find((item) => item.workingId === selectedDraftId);
+  const [draftCondition, setDraftCondition] = useState<ConditionExpression | null>(null);
+  useEffect(() => setDraftCondition(selectedDraft?.condition ?? null), [selectedDraftId, selectedDraft?.condition]);
   if (!selection && !selectedDraftId) return null;
   if (!selection && selectedDraftId) {
-    const draft = state.editor.logicDraft.workingProgram?.blocks.find((item) => item.workingId === selectedDraftId);
-    const label = draft?.blockType === "rt_draft_if_else" ? "If / Otherwise" : "If";
+    const label = selectedDraft?.blockType === "rt_draft_if_else" ? "If / Otherwise" : "If";
     return <aside className="semantic-inspector" aria-label="Semantic Inspector">
       <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={() => dispatch({ type: "select_logic_draft", draftId: null })}>×</button></header>
       <div className="semantic-inspector-content">
         <h2>{label}</h2>
         <p className="fixed-setting">Unfinished control structure in this Blocky working program.</p>
-        {draft?.summary && <p>Predicate: {draft.summary}</p>}
+        {!draftCondition && <p role="status"><strong>Predicate missing</strong> · set a condition before this Control can be committed.</p>}
+        {draftCondition && <ConditionComposer role="predicate" expression={draftCondition} strategy={state.canonical} capabilities={structural.capabilities?.value_capabilities} disabled={structural.status === "applying"} onChange={setDraftCondition} />}
+        {!draftCondition
+          ? <button className="secondary-button" disabled={!selectedDraft} onClick={() => setDraftCondition(predicateStarter())}>Configure condition</button>
+          : <button className="secondary-button" onClick={() => dispatch({ type: "set_logic_draft_condition", draftId: selectedDraftId, condition: draftCondition })}>{selectedDraft?.condition ? "Update condition" : "Use condition"}</button>}
+        {selectedDraft?.condition && <p className="fixed-setting">Draft Predicate: {describeConditionExpression(selectedDraft.condition)}</p>}
         <button className="text-button danger" onClick={() => dispatch({ type: "request_remove_logic_draft", draftId: selectedDraftId })}>Discard unfinished control</button>
       </div>
     </aside>;
@@ -171,18 +178,9 @@ export function SemanticInspector({
       ? state.canonical.graph.components.find((item) => item.id === choose.rankComponentId) : undefined;
     const selectionComponent = state.canonical.graph.components.find((item) => item.id === choose.selectionComponentId);
     const universeCapability = structural.capabilities?.universe_targets?.find((item) => item.component_id === group.universeComponentId);
-    const eligibilityComponent = choose.filterComponentId
-      ? state.canonical.graph.components.find((item) => item.id === choose.filterComponentId) : undefined;
-    const rankingValue = rankComponent?.value_expression ?? (choose.lookbackBars ? {
-      kind: "indicator" as const,
-      indicator_id: "trailing_return_indicator@1",
-      asset: { kind: "candidate" as const },
-      parameters: { lookback_bars: choose.lookbackBars },
-    } : undefined);
+    const rankingValue = choose.rankingValue;
     content = <>
       <h2>{choose.label}</h2>
-      {group.assetSetId && <AssetMembershipEditor authoring={structural} question="Candidate universe" assetSetId={group.assetSetId} assets={group.assets} />}
-      {choose.lookbackComponentId && <LookbackControl authoring={structural} id="inspector-lookback" componentId={choose.lookbackComponentId} value={choose.lookbackBars!} />}
       {choose.selectionMode === "ranked" && rankComponent && selectionComponent && countCapability
         ? <SelectionComposer
             direction={(rankComponent.config.direction ?? "descending") as "descending" | "ascending"}
@@ -194,7 +192,11 @@ export function SemanticInspector({
             universeComponentId={group.universeComponentId}
             universeId={universeCapability?.value}
             universeChoices={universeCapability?.choices}
-            eligibilitySummary={eligibilityComponent?.condition ? describeValueExpression(eligibilityComponent.condition.kind === "comparison" ? eligibilityComponent.condition.left : rankingValue!) : "All candidates qualify"}
+            eligibilitySummary={choose.condition ?? "All candidates qualify"}
+            eligibilityEditor={choose.filterComponentId
+              ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Edit eligibility</button>
+              : qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "condition", groupId: group.id }))}>+ Add eligibility</button>}
+            universeMembersEditor={group.assetSetId ? <AssetMembershipEditor authoring={structural} question="Universe members" assetSetId={group.assetSetId} assets={group.assets} /> : undefined}
             disabled={busy}
             onUniverseChange={universeCapability ? (universeId) => void structural.apply({ kind: "update_universe_reference", component_id: universeCapability.component_id, universe_id: universeId }, semanticSelection("selection", selectionComponent.id, { groupId: group.id })) : undefined}
             onChange={(value) => void structural.apply({
@@ -204,29 +206,19 @@ export function SemanticInspector({
               direction: value.direction,
               count: value.count,
               shortage_policy: value.shortagePolicy,
-              value_expression: value.valueExpression ?? rankComponent.value_expression ?? null,
+              value_expression: value.valueExpression ?? rankingValue ?? null,
             }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
-      {rankComponent?.value_expression && <p className="fixed-setting">Order by: {describeValueExpression(rankComponent.value_expression)}</p>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
-      {choose.filterComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Eligibility: {eligibilityComponent?.condition
-        ? (eligibilityComponent.condition.kind === "comparison"
-          ? describeValueExpression(eligibilityComponent.condition.left)
-          : "ALL value conditions")
-        : `return > ${Number(choose.threshold) * 100}%`}</button>}
       {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}
       {choose.cooldownComponentId && choose.cooldownDuration && <CooldownControl authoring={structural} componentId={choose.cooldownComponentId} value={choose.cooldownDuration} />}
-      {qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "config.threshold", groupId: group.id }))}>+ Add qualification</button>}
       {fallbackTarget && <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({ kind: "add_fallback_selection", weight_component_id: fallbackTarget, fallback_asset: asset }, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id }))} />}
     </>;
   } else if (role === "qualification" && choose?.filterComponentId && group) {
     const removable = structural.capabilities?.qualification_remove_targets.includes(choose.filterComponentId);
-    const filterComponent = state.canonical.graph.components.find((item) => item.id === choose.filterComponentId);
-    const initial = filterComponent?.condition ?? legacyEligibility(
-      choose.lookbackBars ?? 126,
-      Number(filterComponent?.config.threshold ?? choose.threshold ?? 0),
-    );
+    const initial = choose.eligibilityCondition;
+    if (!initial) return null;
     content = <>
       <h2>Qualification</h2>
       <ConditionInspectorControl

@@ -1,12 +1,15 @@
-import type { CanonicalStrategyV1, RegistryPayload } from "./canonical";
+import type { CanonicalStrategyV1, ConditionExpression, RegistryPayload, ValueExpression } from "./canonical";
 import { tryProjectSemanticStrategy, type SemanticGroup } from "./semanticProjection";
+import { describeConditionExpression, describeValueExpression } from "./valueSemantics";
 
 export interface ConceptualChoose {
   kind: "choose";
   label: string;
   from: string[];
   condition?: string;
+  eligibilityCondition?: ConditionExpression;
   ranking?: string;
+  rankingValue?: ValueExpression;
   otherwise?: string;
   cooldown?: string;
   timing?: string;
@@ -53,7 +56,7 @@ export interface ConceptualFlowProjection {
   rebalanceScheduleComponentId?: string;
   portfolioComponentId?: string;
   unsupportedReason?: string;
-  predicate?: { componentId: string; asset: string; lookbackBars: number; operator: string; threshold: string; label: string; thenTarget?: string; otherwiseTarget?: string };
+  predicate?: { componentId: string; label: string; thenTarget?: string; otherwiseTarget?: string };
 }
 
 const percentage = (value: string) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(Number(value));
@@ -61,20 +64,8 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
   const result = tryProjectSemanticStrategy(strategy, registry);
   if (!result.supported) return { kind: "single", title: strategy.metadata.name, groups: [], sourceComponentIds: [], unsupportedReason: result.reason };
   const semantic = result.projection;
-  const groups = semantic.groups.map(conceptualGroup);
+  const groups = semantic.groups.map((group) => conceptualGroup(group, strategy));
   const rule = strategy.graph.components.find((item) => item.primitive === "rule@1");
-  const condition = rule?.condition && typeof rule.condition === "object" && !Array.isArray(rule.condition)
-    ? rule.condition as Record<string, unknown> : null;
-  const left = condition?.left && typeof condition.left === "object" && !Array.isArray(condition.left)
-    ? condition.left as Record<string, unknown> : null;
-  const asset = left?.asset && typeof left.asset === "object" && !Array.isArray(left.asset)
-    ? left.asset as Record<string, unknown> : null;
-  const parameters = left?.parameters && typeof left.parameters === "object" && !Array.isArray(left.parameters)
-    ? left.parameters as Record<string, unknown> : null;
-  const right = condition?.right && typeof condition.right === "object" && !Array.isArray(condition.right)
-    ? condition.right as Record<string, unknown> : null;
-  const operator = String(condition?.operator ?? "gt");
-  const operatorLabel: Record<string, string> = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
   const actionTarget = (action: unknown) => {
     if (!action || typeof action !== "object" || Array.isArray(action)) return undefined;
     const targets = (action as Record<string, unknown>).targets;
@@ -82,11 +73,9 @@ export function projectConceptualFlow(strategy: CanonicalStrategyV1, registry: R
     const componentId = (targets as Record<string, unknown>).component_id;
     return typeof componentId === "string" ? componentId : undefined;
   };
-  const predicate = rule && left?.indicator_id === "trailing_return_indicator@1" ? {
-    componentId: rule.id, asset: String(asset?.value ?? ""),
-    lookbackBars: Number(parameters?.lookback_bars ?? 0), operator,
-    threshold: String(right?.value ?? "0"),
-    label: `${String(asset?.value ?? "Asset")} ${Number(parameters?.lookback_bars ?? 0)}-day return ${operatorLabel[operator] ?? operator} ${Number(right?.value ?? 0) * 100}%`,
+  const predicate = rule?.condition ? {
+    componentId: rule.id,
+    label: describeConditionExpression(rule.condition),
     thenTarget: actionTarget(rule.actions[0]),
     otherwiseTarget: actionTarget(rule.else_actions?.[0]),
   } : undefined;
@@ -108,7 +97,7 @@ function groupSourceIds(group: SemanticGroup): string[] {
     pipeline.fallbackComponentId, pipeline.cooldownComponentId].filter((id): id is string => Boolean(id));
 }
 
-function conceptualGroup(group: SemanticGroup): ConceptualGroup {
+function conceptualGroup(group: SemanticGroup, strategy: CanonicalStrategyV1): ConceptualGroup {
   const pipeline = group.pipeline;
   return {
     id: group.id, label: group.name, allocation: percentage(group.allocation), assets: pipeline.assets,
@@ -116,23 +105,45 @@ function conceptualGroup(group: SemanticGroup): ConceptualGroup {
     assetSetId: pipeline.assetSetId, universeComponentId: pipeline.assetComponentId,
     allocationComponentId: pipeline.allocationComponentId, sleeveComponentId: group.sleeveComponentId,
     allocationValue: group.allocation, scheduleComponentId: group.refreshScheduleComponentId,
-    choose: pipeline.selectionComponentId ? chooseFrom(group) : undefined,
+    choose: pipeline.selectionComponentId ? chooseFrom(group, strategy) : undefined,
   };
 }
 
-function chooseFrom(group: SemanticGroup): ConceptualChoose {
+function chooseFrom(group: SemanticGroup, strategy: CanonicalStrategyV1): ConceptualChoose {
   const value = group.pipeline;
   if (value.selectionMode === "random") return {
     kind: "choose", label: `Choose ${value.randomCount}`, from: value.assets, ranking: "Choose randomly",
     selectionMode: "random", resample: value.resample, sourceComponentIds: [value.selectionComponentId!],
     selectionComponentId: value.selectionComponentId!, fallbackOptions: [], topN: value.randomCount,
   };
-  const months = Math.max(1, Math.round(value.lookbackBars! / 21));
+  const filter = value.filterComponentId
+    ? strategy.graph.components.find((item) => item.id === value.filterComponentId) : undefined;
+  const eligibilityCondition = filter?.condition ?? (filter && value.lookbackBars ? {
+    kind: "comparison" as const,
+    operator: "gt" as const,
+    left: {
+      kind: "indicator" as const,
+      indicator_id: "trailing_return_indicator@1",
+      asset: { kind: "candidate" as const },
+      parameters: { lookback_bars: value.lookbackBars },
+    },
+    right: { kind: "literal" as const, value_type: "percentage", value: Number(value.threshold ?? 0) },
+  } : undefined);
+  const rank = value.rankComponentId
+    ? strategy.graph.components.find((item) => item.id === value.rankComponentId) : undefined;
+  const rankingValue = rank?.value_expression ?? (value.lookbackBars ? {
+    kind: "indicator" as const,
+    indicator_id: "trailing_return_indicator@1",
+    asset: { kind: "candidate" as const },
+    parameters: { lookback_bars: value.lookbackBars },
+  } : undefined);
   return {
     kind: "choose", label: `Choose ${value.topN}`, from: value.assets,
     selectionMode:"ranked",
-    condition: value.threshold === undefined ? undefined : `${months}M return > ${percentage(value.threshold)}`,
-    ranking: value.rankDirection === "descending" || value.rankDirection === "desc" ? "Strongest first" : "Weakest first",
+    condition: eligibilityCondition ? describeConditionExpression(eligibilityCondition) : undefined,
+    eligibilityCondition,
+    ranking: rankingValue ? describeValueExpression(rankingValue) : undefined,
+    rankingValue,
     otherwise: value.fallbackAsset ? `Otherwise → ${value.fallbackAsset}` : undefined,
     cooldown: value.cooldownDuration ? `After selling, wait ${value.cooldownDuration} trading days` : undefined,
     timing: value.schedule, sourceComponentIds: groupSourceIds(group),

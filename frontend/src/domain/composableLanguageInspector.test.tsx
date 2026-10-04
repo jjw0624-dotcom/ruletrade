@@ -25,6 +25,31 @@ describe("composable language inspector controls", () => {
     expect(html).toContain("Choose all eligible");
     expect(html).toContain('value="3"');
     expect(html).toContain("Where");
+    expect(html).toContain("All candidates qualify");
+    expect(html).not.toContain("Return period");
+    expect(html).not.toContain("About 6 months");
+  });
+
+  it("keeps universe membership and exact Eligibility inside FROM and WHERE", () => {
+    const strategy = {
+      api_version: "ruletrade.dev/strategy/v1", metadata: { name: "Values", description: "", tags: [] }, random_seed: 0,
+      definitions: { asset_sets: [{ id: "assets", assets: ["SPY", "QQQ"] }], parameters: [], state: [] },
+      graph: { components: [{ id: "universe", primitive: "asset_set@1", config: { asset_set_ref: "assets" } }], connections: [] }, entrypoints: [],
+    } as never;
+    const html = renderToStaticMarkup(<SelectionComposer
+      direction="descending" count={2} shortagePolicy="choose_all"
+      strategy={strategy} universeComponentId="universe"
+      valueExpression={{ kind: "indicator", indicator_id: "trailing_return_indicator@1", asset: { kind: "candidate" }, parameters: { lookback_bars: 63 } }}
+      universeMembersEditor={<button>Edit SPY, QQQ</button>}
+      eligibilitySummary="Candidate price · current ≥ 5"
+      eligibilityEditor={<button>Edit eligibility</button>}
+      onChange={vi.fn()}
+    />);
+    expect(html.indexOf("From")).toBeLessThan(html.indexOf("Edit SPY, QQQ"));
+    expect(html).toContain("Candidate price · current ≥ 5");
+    expect(html).toContain("Edit eligibility");
+    expect(html).toContain("63 completed observations");
+    expect(html).not.toContain("Return period");
   });
 
   it("renders executable current and rolling price value choices", () => {

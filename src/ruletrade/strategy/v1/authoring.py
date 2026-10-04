@@ -205,7 +205,8 @@ class CommitPredicateBranchesOperation(FrozenModel):
     component_id: Identifier
     then_target_component_id: Identifier
     otherwise_target_component_id: Identifier | None = None
-    asset: Symbol
+    condition: Expression | None = None
+    asset: Symbol | None = None
     lookback_bars: Annotated[int, Field(ge=1)] = 126
     operator: Literal["gt", "gte", "lt", "lte"] = "gt"
     threshold: Decimal = Decimal(0)
@@ -491,12 +492,21 @@ def _commit_predicate_branches(
         else ()
     )
     inbound = _connections_to(strategy, control.id, "targets") if control.primitive == "rebalance@1" else ()
+    condition = operation.condition
+    if condition is None:
+        if operation.asset is None:
+            raise StructuralAuthoringError(
+                "predicate_required",
+                f"graph.components[{control.id}].condition",
+                "Control composition requires an explicit Predicate condition.",
+            )
+        condition = _predicate_condition(
+            operation.asset, operation.lookback_bars, operation.operator, operation.threshold
+        )
     rule = control.model_copy(
         update={
             "primitive": "rule@1",
-            "condition": _predicate_condition(
-                operation.asset, operation.lookback_bars, operation.operator, operation.threshold
-            ),
+            "condition": condition,
             "actions": (then_action,),
             "else_actions": else_actions,
         }

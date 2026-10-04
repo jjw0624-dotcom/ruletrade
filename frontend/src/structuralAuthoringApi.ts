@@ -118,10 +118,7 @@ export type StructuralAuthoringOperation =
       component_id: string;
       then_target_component_id: string;
       otherwise_target_component_id?: string | null;
-      asset: string;
-      lookback_bars: number;
-      operator: "gt" | "gte" | "lt" | "lte";
-      threshold: string;
+      condition: ConditionExpression;
     };
 
 export interface StructuralAuthoringErrorDetail {

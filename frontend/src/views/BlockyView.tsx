@@ -11,6 +11,8 @@ import { semanticCompositionApi, type SemanticCompositionProjection } from "../s
 import { ChooseTransformationControl, CooldownConstructionControl, FallbackTransformationControl, MetricConstructionControl } from "../components/ShapeTransformationControls";
 import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
 import { classifyWorkingProgram, controlCommitIntent, hasUnresolvedLogicDraft, logicWorkingProgramSignature, type LogicWorkingProgram } from "../domain/logicDraft";
+import type { ConditionExpression } from "../domain/canonical";
+import { describeConditionExpression } from "../domain/valueSemantics";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
@@ -24,6 +26,7 @@ interface BlockSemanticData {
   kind: string;
   selection?: SemanticSelection;
   relatedComponentIds?: string[];
+  condition?: ConditionExpression | null;
 }
 
 export type BlockyClickIntent = { kind: "select"; blockId: string } | { kind: "clear" } | null;
@@ -49,8 +52,8 @@ export function registerBlockyProgramBlocks() {
     { type: "rt_allocation", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Allocate capital" }], previousStatement: null, nextStatement: null, colour: 120 },
     { type: "rt_action", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Rebalance" }], previousStatement: null, nextStatement: null, colour: 20 },
     { type: "rt_control", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 300 },
-    { type: "rt_draft_if", message0: "DRAFT IF %1", args0: [{ type: "field_input", name: "PREDICATE", text: "set condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], previousStatement: null, nextStatement: null, colour: 330 },
-    { type: "rt_draft_if_else", message0: "DRAFT IF %1", args0: [{ type: "field_input", name: "PREDICATE", text: "set condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if", message0: "DRAFT IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if_else", message0: "DRAFT IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
   ]);
 }
 
@@ -78,6 +81,7 @@ export function projectWorkingProgram(canvas: Blockly.Workspace): LogicWorkingPr
       inputName: input,
       nextWorkingId: next ? parseData(next)?.workingId ?? null : null,
       summary: data.source === "draft" ? String(block.getFieldValue("PREDICATE") ?? "") : null,
+      condition: data.source === "draft" ? data.condition ?? null : null,
     }];
   });
   return { blocks };
@@ -228,7 +232,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
         continue;
       }
       const block = canvas.newBlock(request.kind === "if" ? "rt_draft_if" : "rt_draft_if_else") as Blockly.BlockSvg;
-      setData(block, { workingId: request.draftId, source: "draft", kind: request.kind });
+      setData(block, { workingId: request.draftId, source: "draft", kind: request.kind, condition: null });
       block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
       block.initSvg(); block.render();
       const metrics = canvas.getMetrics();
@@ -238,6 +242,23 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     }
     queueMicrotask(() => publishWorkingProgram(canvas));
   }, [state.editor.logicDraft.pendingControls, dispatch]);
+
+  useEffect(() => {
+    const canvas = workspace.current;
+    const program = state.editor.logicDraft.workingProgram;
+    if (!canvas || !program) return;
+    let changed = false;
+    for (const item of program.blocks.filter((block) => block.source === "draft")) {
+      const block = canvas.getAllBlocks(false).find((candidate) => parseData(candidate)?.workingId === item.workingId);
+      if (!block) continue;
+      const data = parseData(block);
+      if (!data || JSON.stringify(data.condition ?? null) === JSON.stringify(item.condition ?? null)) continue;
+      setData(block, { ...data, condition: item.condition });
+      block.setFieldValue(item.condition ? describeConditionExpression(item.condition) : "[set condition]", "PREDICATE");
+      changed = true;
+    }
+    if (changed) queueMicrotask(() => publishWorkingProgram(canvas));
+  }, [state.editor.logicDraft.workingProgram]);
 
   useEffect(() => {
     const canvas = workspace.current;
@@ -274,14 +295,6 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   };
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const predicateTarget = event.dataTransfer.getData("application/x-ruletrade-predicate");
-    if (predicateTarget) {
-      void structural.apply({
-        kind: "add_predicate", rebalance_component_id: predicateTarget, asset: "SPY",
-        lookback_bars: 126, operator: "gt", threshold: "0",
-      }, semanticSelection("rule", predicateTarget, { fieldPath: "condition" }));
-      return;
-    }
     const control = event.dataTransfer.getData("application/x-ruletrade-blocky-control");
     if (control) {
       try {
@@ -320,7 +333,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     } finally { busy.current = false; }
   };
 
-  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control") || event.dataTransfer.types.includes("application/x-ruletrade-predicate")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
+  return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />

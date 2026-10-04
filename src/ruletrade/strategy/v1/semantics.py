@@ -216,14 +216,20 @@ def _describe_value(expression) -> str:
         return f"{expression.value}{suffix}"
     if isinstance(expression, IndicatorExpression):
         if expression.indicator_id == "trailing_return_indicator@1":
-            return f"{_describe_value(expression.asset)} {expression.parameters.get('lookback_bars')}-observation return"
+            return (
+                f"{_describe_value(expression.asset)} trailing return · "
+                f"{expression.parameters.get('lookback_bars')} completed observations"
+            )
         return f"{_describe_value(expression.asset)} {expression.indicator_id}"
     if isinstance(expression, MarketSeriesExpression):
         return f"{_describe_value(expression.subject)} {expression.field}"
     if isinstance(expression, CurrentExpression):
-        return f"{_describe_value(expression.series)} current"
+        return f"{_describe_value(expression.series)} · current"
     if isinstance(expression, RollingAggregateExpression):
-        return f"{_describe_value(expression.series)} {expression.operator} over {expression.window_observations} observations"
+        return (
+            f"{_describe_value(expression.series)} · {expression.operator} over "
+            f"{expression.window_observations} completed observations"
+        )
     if isinstance(expression, ArithmeticExpression) and expression.operator == "multiply":
         return f"{_describe_value(expression.left)} × {_describe_value(expression.right)}"
     return "typed value"
@@ -352,6 +358,18 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                 )
             )
         elif primitive == "filter@1":
+            measure = graph.upstream(component.id, "trailing_return@1")
+            operator = str(_resolved(component, "operator"))
+            symbol = {"gt": ">", "gte": "≥", "lt": "<", "lte": "≤"}.get(
+                operator, operator
+            )
+            threshold = str(_resolved(component, "threshold"))
+            compatibility_label = (
+                f"Candidate trailing return · {int(_resolved(measure, 'lookback_bars'))} "
+                f"completed observations {symbol} {threshold}"
+                if measure
+                else f"Candidate score {symbol} {threshold}"
+            )
             facts.append(
                 SemanticFact(
                     id=f"eligibility:{component.id}",
@@ -359,12 +377,16 @@ def _component_facts(strategy: CanonicalStrategyV1, graph: _Graph) -> list[Seman
                     kind="candidate_score_threshold",
                     label=(
                         _describe_condition(component.condition)
-                        if component.condition is not None else "Candidate return is above threshold"
+                        if component.condition is not None else compatibility_label
                     ),
-                    ref=_ref(component, SemanticCategory.ELIGIBILITY, field="config.threshold"),
+                    ref=_ref(
+                        component,
+                        SemanticCategory.ELIGIBILITY,
+                        field="condition" if component.condition is not None else "config.threshold",
+                    ),
                     detail={
-                        "operator": _resolved(component, "operator"),
-                        "threshold": str(_resolved(component, "threshold")),
+                        "operator": operator,
+                        "threshold": threshold,
                     },
                 )
             )

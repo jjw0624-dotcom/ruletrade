@@ -1,4 +1,4 @@
-import type { CanonicalStrategyV1, ValueExpression } from "./canonical";
+import type { CanonicalStrategyV1, ConditionExpression, ValueExpression } from "./canonical";
 
 export function describeValueExpression(expression: ValueExpression): string {
   if (expression.kind === "candidate") return "Candidate";
@@ -25,6 +25,18 @@ export function describeValueExpression(expression: ValueExpression): string {
   if (expression.kind === "state_ref") return `State ${expression.state_id}`;
   if (expression.kind === "component_output") return `Output ${expression.component_id}.${expression.port}`;
   return "Value";
+}
+
+export function describeConditionExpression(expression: ConditionExpression): string {
+  if (expression.kind === "comparison") {
+    const operator = { gt: ">", gte: "≥", lt: "<", lte: "≤", eq: "=", neq: "≠" }[expression.operator];
+    return `${describeValueExpression(expression.left)} ${operator} ${describeValueExpression(expression.right)}`;
+  }
+  if (expression.kind === "boolean") {
+    const joiner = expression.operator === "and" ? " AND " : " OR ";
+    return expression.operands.map(describeConditionExpression).join(joiner);
+  }
+  return "Committed condition";
 }
 
 export function valueExpressionType(expression: ValueExpression): string {

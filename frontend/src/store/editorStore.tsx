@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useReducer, type Dispatch, type Rea
 
 import type {
   CanonicalStrategyV1,
+  ConditionExpression,
   EditorBootstrap,
   RegistryPayload,
   ValidationIssue,
@@ -37,6 +38,7 @@ export type StrategyEditorAction =
   | { type: "request_logic_control"; kind: DraftControlKind; position?: { x: number; y: number } }
   | { type: "ack_logic_control"; draftId: string }
   | { type: "set_logic_working_program"; program: LogicWorkingProgram | null; status: LogicDraftStatus }
+  | { type: "set_logic_draft_condition"; draftId: string; condition: ConditionExpression }
   | { type: "select_logic_draft"; draftId: string | null }
   | { type: "request_remove_logic_draft"; draftId: string }
   | { type: "ack_remove_logic_draft" }
@@ -98,6 +100,7 @@ export function editorReducer(
         ...state.editor.logicDraft,
         nextId: state.editor.logicDraft.nextId + 1,
         pendingControls: [...state.editor.logicDraft.pendingControls, { draftId, kind: action.kind, position: action.position }],
+        selectedDraftId: draftId,
       } } };
     }
     case "ack_logic_control":
@@ -112,6 +115,15 @@ export function editorReducer(
         status: action.status,
         selectedDraftId: action.status === "clean" ? null : state.editor.logicDraft.selectedDraftId,
       } } };
+    case "set_logic_draft_condition": {
+      const program = state.editor.logicDraft.workingProgram;
+      if (!program) return state;
+      return { ...state, editor: { ...state.editor, logicDraft: {
+        ...state.editor.logicDraft,
+        workingProgram: { blocks: program.blocks.map((item) => item.workingId === action.draftId ? { ...item, condition: action.condition } : item) },
+        status: "incomplete",
+      } } };
+    }
     case "select_logic_draft":
       return { ...state, editor: { ...state.editor, selection: action.draftId ? null : state.editor.selection, logicDraft: { ...state.editor.logicDraft, selectedDraftId: action.draftId } } };
     case "request_remove_logic_draft":
