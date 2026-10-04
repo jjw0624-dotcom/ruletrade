@@ -106,7 +106,7 @@ class ExecutableValue:
     literal: Decimal | None = None
     observations: int | None = None
     aggregate: Literal["mean", "median", "min", "max"] | None = None
-    operand: "ExecutableValue | None" = None
+    operand: ExecutableValue | None = None
     factor: Decimal | None = None
 
 

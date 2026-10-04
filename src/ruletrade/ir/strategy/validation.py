@@ -36,9 +36,10 @@ def _validate_value(path: str, value: ExecutableValue) -> tuple[IRValidationIssu
     if value.kind == "literal":
         if value.literal is None or not value.literal.is_finite():
             issues.append(IRValidationIssue(f"{path}.literal", "literal must be a finite decimal"))
-    elif value.kind in {"trailing_return", "rolling_price"}:
-        if value.observations is None or not 1 <= value.observations <= 1000:
-            issues.append(IRValidationIssue(f"{path}.observations", "window must be between 1 and 1000"))
+    elif value.kind in {"trailing_return", "rolling_price"} and (
+        value.observations is None or not 1 <= value.observations <= 1000
+    ):
+        issues.append(IRValidationIssue(f"{path}.observations", "window must be between 1 and 1000"))
     if value.kind == "rolling_price" and value.aggregate not in {"mean", "median", "min", "max"}:
         issues.append(IRValidationIssue(f"{path}.aggregate", "unsupported rolling aggregate"))
     if value.kind in {"trailing_return", "current_price", "rolling_price"}:
