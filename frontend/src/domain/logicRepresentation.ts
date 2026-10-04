@@ -27,7 +27,7 @@ export function projectLogicRepresentation(strategy: CanonicalStrategyV1, regist
       if (choose.selectionMode === "ranked") {
         if (!choose.lookbackComponentId || !choose.rankComponentId || !choose.lookbackBars || choose.topN === undefined) return { id: groupId, steps: [] };
         steps.push({ kind: "score", text: `Trailing return · ${choose.lookbackBars} observations`, value: choose.lookbackBars, unit: "integer", selection: semanticSelection("rule", choose.lookbackComponentId, { fieldPath: "config.lookback_bars", groupId }) });
-        if (choose.filterComponentId) steps.push({ kind: "condition", text: choose.condition ?? "All candidates qualify", value: Number(choose.threshold ?? "0") * 100, unit: "percent", selection: semanticSelection("qualification", choose.filterComponentId, { fieldPath: choose.eligibilityCondition ? "condition" : "config.threshold", groupId }) });
+        if (choose.filterComponentId) steps.push({ kind: "condition", text: choose.condition ?? "All candidates qualify", value: Number(choose.threshold ?? "0") * 100, unit: "percent", selection: semanticSelection("qualification", choose.filterComponentId, { fieldPath: choose.eligibilityFieldPath ?? "config.threshold", groupId }) });
         steps.push({ kind: "rank", text: choose.ranking ?? "Rank assets", selection: semanticSelection("rule", choose.rankComponentId, { groupId }) });
       }
       steps.push({ kind: "choose", text: choose.selectionMode === "random" ? `Choose ${choose.topN} randomly` : `Take strongest ${choose.topN}`,

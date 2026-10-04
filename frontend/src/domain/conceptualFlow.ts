@@ -8,6 +8,7 @@ export interface ConceptualChoose {
   from: string[];
   condition?: string;
   eligibilityCondition?: ConditionExpression;
+  eligibilityFieldPath?: "condition" | "config.threshold";
   ranking?: string;
   rankingValue?: ValueExpression;
   otherwise?: string;
@@ -142,6 +143,7 @@ function chooseFrom(group: SemanticGroup, strategy: CanonicalStrategyV1): Concep
     selectionMode:"ranked",
     condition: eligibilityCondition ? describeConditionExpression(eligibilityCondition) : undefined,
     eligibilityCondition,
+    eligibilityFieldPath: filter?.condition ? "condition" : filter ? "config.threshold" : undefined,
     ranking: rankingValue ? describeValueExpression(rankingValue) : undefined,
     rankingValue,
     otherwise: value.fallbackAsset ? `Otherwise → ${value.fallbackAsset}` : undefined,

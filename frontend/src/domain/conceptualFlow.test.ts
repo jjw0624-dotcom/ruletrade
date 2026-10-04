@@ -44,8 +44,8 @@ describe("Conceptual Flow v2 projection", () => {
     const flow = projectConceptualFlow(fallbackBootstrap.strategy, fallbackBootstrap.registry);
     const choose = flow.groups[0].choose!;
     expect(choose.label).toBe("Choose 2");
-    expect(choose.condition).toBe("6M return > 0%");
-    expect(choose.ranking).toBe("Strongest first");
+    expect(choose.condition).toBe("Candidate trailing return · 126 completed observations > 0");
+    expect(choose.ranking).toBe("Candidate trailing return · 126 completed observations");
     expect(choose.otherwise).toBe("Otherwise → TLT");
     expect(choose.sourceComponentIds).toEqual(expect.arrayContaining(["momentum", "positive_return", "top_n", "fallback"]));
   });

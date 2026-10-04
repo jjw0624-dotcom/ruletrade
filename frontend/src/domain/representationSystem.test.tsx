@@ -91,7 +91,7 @@ describe("one Canonical, distinct editable perspectives", () => {
     const bootstrap = { ...filterBootstrap, strategy: state.canonical };
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
     expect(rules).toContain("ORDER BY Candidate trailing return · 63 completed observations");
-    expect(rules).toContain("WHERE Candidate trailing return · 63 completed observations > 0");
+    expect(rules).toContain("WHERE Candidate trailing return · 63 completed observations &gt; 0.05");
     expect(rules).not.toContain("Return lookback observations");
     expect(rules).not.toContain("Qualification threshold percent");
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="guided"><GuidedView /></StrategyEditorProvider>)).toContain("63 trading observations");
