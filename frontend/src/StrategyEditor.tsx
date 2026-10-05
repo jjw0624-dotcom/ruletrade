@@ -3,6 +3,8 @@ import { BacktestErrorPanel } from "./components/BacktestErrorPanel";
 import { BacktestSetup } from "./components/BacktestSetup";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
+import { AssetWorkspace } from "./components/AssetWorkspace";
+import type { ValueExpression } from "./domain/canonical";
 import { RuleEvidenceHistory } from "./components/RuleEvidenceHistory";
 import { WorkspaceActivity } from "./components/WorkspaceDashboard";
 import type { BacktestConfig } from "./domain/backtest";
@@ -107,6 +109,30 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
       setActiveRun(null);
       setResearchLoad("error");
     }
+  }
+
+  function openAsset(symbol = "SPY", historical?: { runId: string; eventId: string; revisionId: string; asOf: string }) {
+    researchDispatch({ type: "open_asset", symbol, historical });
+  }
+
+  async function addAssetToStrategy(symbol: string) {
+    const target = structural.capabilities?.asset_set_targets.find((item) => !item.assets.includes(symbol));
+    if (!target) { setSaveMessage(`${symbol} is already present, or this Strategy has no editable explicit universe.`); return; }
+    await structural.apply({ kind: "update_asset_set", asset_set_id: target.asset_set_id, assets: [...target.assets, symbol] }, semanticSelection("universe", target.asset_set_id));
+    setSaveStatus("saved"); setSaveMessage(`${symbol} was added through backend-authoritative Strategy authoring.`);
+  }
+
+  async function useAssetValue(value: ValueExpression) {
+    const selectedId = state.editor.selection?.componentId;
+    const component = state.canonical.graph.components.find((item) => item.id === selectedId && item.condition)
+      ?? state.canonical.graph.components.find((item) => item.condition);
+    if (!component?.condition || component.condition.kind !== "comparison") {
+      setSaveStatus("error"); setSaveMessage("Select a committed Predicate or Eligibility condition before using this Value.");
+      return;
+    }
+    const role = component.primitive === "filter@1" ? "eligibility" : "predicate";
+    await structural.apply({ kind: "update_condition_expression", component_id: component.id, role, condition: { ...component.condition, left: value } }, semanticSelection(role === "predicate" ? "rule" : "qualification", component.id, { fieldPath: "condition" }));
+    setSaveStatus("saved"); setSaveMessage("The selected condition now uses the researched Value.");
   }
 
   function focusRule(
@@ -254,11 +280,13 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
       ? <div className="research-state" role="status"><span className="loading-spinner" /><h2>Opening saved result…</h2><p>No backtest is being rerun.</p></div>
       : researchLoad === "error" || !activeRun
         ? <div className="research-state error-state" role="alert"><h2>We couldn't open this saved result</h2><p>Your Strategy is unchanged.</p></div>
-        : <ResultWorkspace key={activeRun.id} run={activeRun} strategyName={strategy?.name ?? "Historical backtest"} onBack={() => researchDispatch({ type: "close_research" })} researchContext={research.context?.runId === activeRun.id ? research.context : null} onResearchContextChange={(context) => researchDispatch({ type: "set_context", context })} onShowInStrategy={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, false)} onViewInFlow={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, true)} onComparisonReady={(comparison, context) => researchDispatch({ type: "open_comparison", comparisonId: comparison.id, context })} />;
+        : <ResultWorkspace key={activeRun.id} run={activeRun} strategyName={strategy?.name ?? "Historical backtest"} onBack={() => researchDispatch({ type: "close_research" })} researchContext={research.context?.runId === activeRun.id ? research.context : null} onResearchContextChange={(context) => researchDispatch({ type: "set_context", context })} onShowInStrategy={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, false)} onViewInFlow={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, true)} onComparisonReady={(comparison, context) => researchDispatch({ type: "open_comparison", comparisonId: comparison.id, context })} onViewAsset={(symbol,eventId,asOf)=>openAsset(symbol,{runId:activeRun.id,eventId,revisionId:activeRun.revision_id,asOf})} />;
+  } else if (research.destination?.kind === "asset") {
+    researchContent = <AssetWorkspace initialSymbol={research.destination.symbol} historical={research.destination.historical} strategyId={strategy?.id} revisionId={base?.id} strategy={state.canonical} capabilities={structural.capabilities?.value_capabilities} onAddToUniverse={(symbol) => addAssetToStrategy(symbol)} onUseValue={(value) => useAssetValue(value)} onViewRule={(componentId, fieldPath) => { const exists=state.canonical.graph.components.some((item)=>item.id===componentId); if(exists){ dispatch({ type: "select_semantic", selection: semanticSelection("rule",componentId,{fieldPath}) }); researchDispatch({type:"close_research"}); } }} />;
   } else if (research.destination?.kind === "comparison") {
     researchContent = <ComparisonWorkspace comparisonId={research.destination.comparisonId} initialContext={research.context} onContextChange={(context) => researchDispatch({ type: "set_context", context })} onOpenRun={(runId, context) => void openRun(runId, context ?? null)} onViewRule={(revisionId, componentId, fieldPath, context) => focusRule(revisionId, componentId, fieldPath, context, false)} onAdopted={(response) => void acceptAdoption(response)} onOpenLatest={() => void openLatest()} />;
   }
-  return <><StrategyBuilderWorkspace name={strategy?.name ?? state.canonical.metadata.name} dirty={dirty} saving={saveStatus === "saving"} persisted={Boolean(strategy)} revisionId={base?.id ?? null} researchContext={research.context} projection={projectConceptualFlow(state.canonical,state.registry)} structural={structural} inspectorEvidence={evidence} notices={notices} validation={validationPanel} research={strategy ? { activityOpen: research.activityOpen, researchOpen: research.researchOpen, canOpenResearch: Boolean(research.destination), size: research.size, title: researchTitle(research.destination), hasActivity: runs.length > 0, content: researchContent, activity: activityContent, onToggleActivity: () => researchDispatch({ type: "toggle_activity" }), onToggleResearch: () => researchDispatch(research.researchOpen ? { type: "close_research" } : { type: "reopen_research" }), onResize: (size) => researchDispatch({ type: "set_size", size }) } : undefined} onHome={onHome} onRename={()=>void rename()} onSave={()=>void save()} onTest={openTestSetup}/>
+  return <><StrategyBuilderWorkspace name={strategy?.name ?? state.canonical.metadata.name} dirty={dirty} saving={saveStatus === "saving"} persisted={Boolean(strategy)} revisionId={base?.id ?? null} researchContext={research.context} projection={projectConceptualFlow(state.canonical,state.registry)} structural={structural} inspectorEvidence={evidence} notices={notices} validation={validationPanel} onOpenAssets={() => openAsset(research.context?.asset ?? "SPY")} research={strategy ? { activityOpen: research.activityOpen, researchOpen: research.researchOpen, canOpenResearch: Boolean(research.destination), size: research.size, title: researchTitle(research.destination), hasActivity: runs.length > 0, content: researchContent, activity: activityContent, onToggleActivity: () => researchDispatch({ type: "toggle_activity" }), onToggleResearch: () => researchDispatch(research.researchOpen ? { type: "close_research" } : { type: "reopen_research" }), onResize: (size) => researchDispatch({ type: "set_size", size }) } : undefined} onHome={onHome} onRename={()=>void rename()} onSave={()=>void save()} onTest={openTestSetup}/>
     {showSetup && <BacktestSetup config={config} onChange={setConfig} onClose={() => setShowSetup(false)} onRun={() => void runCurrent()} onCheckData={() => void checkDataReadiness()} readiness={readiness} exampleDatasetId={example.backtestDefaults.dataset_id} persistence={strategy && base && !dirty ? "historical" : "temporary"} />}
     {(backtest.state.status === "running" || persistentRunning) && <div className="run-overlay" role="status"><span className="loading-spinner" /><h2>Testing your strategy…</h2><p>{persistentRunning ? "Creating a saved backtest result." : "Testing unsaved changes temporarily."}</p></div>}
     {backtest.state.status === "error" && <BacktestErrorPanel error={backtest.state.error} />}

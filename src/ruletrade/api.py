@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -397,15 +398,11 @@ def read_research_asset(
             raise HTTPException(status_code=422, detail={"code": "historical_context_incomplete", "message": "run_id and event_id are required together."})
         run = get_lean_backtest_service().get_run(run_id)
         event = get_lean_backtest_service().get_decision_event(run_id, event_id)
-        evidence = tuple(
-            item.model_dump(mode="json")
-            for item in event
-            if symbol.upper() in item.model_dump_json().upper()
-        )
+        evidence = (event.model_dump(mode="json"),) if symbol.upper() in event.model_dump_json().upper() else ()
         historical = HistoricalAssetContext(
             run_id=run_id,
             event_id=event_id,
-            session_id=event[0].session_id if event else as_of,
+            session_id=event.session_id,
             revision_id=run.revision_id,
             evidence=evidence,
         )

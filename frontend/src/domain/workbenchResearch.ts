@@ -3,7 +3,8 @@ import type { ResearchContext } from "./researchContext";
 export type ResearchDestination =
   | { kind: "temporary_result" }
   | { kind: "run"; runId: string }
-  | { kind: "comparison"; comparisonId: string };
+  | { kind: "comparison"; comparisonId: string }
+  | { kind: "asset"; symbol: string; historical?: { runId: string; eventId: string; revisionId: string; asOf: string } };
 
 export interface WorkbenchResearchState {
   activityOpen: boolean;
@@ -27,6 +28,7 @@ export type WorkbenchResearchAction =
   | { type: "open_temporary_result" }
   | { type: "open_run"; runId: string; context?: ResearchContext | null }
   | { type: "open_comparison"; comparisonId: string; context?: ResearchContext | null }
+  | { type: "open_asset"; symbol: string; historical?: { runId: string; eventId: string; revisionId: string; asOf: string } }
   | { type: "set_context"; context: ResearchContext | null }
   | { type: "set_size"; size: number }
   | { type: "reopen_research" }
@@ -60,6 +62,8 @@ export function workbenchResearchReducer(
         destination: { kind: "run", runId: action.runId },
         context: action.context ?? null,
       };
+    case "open_asset":
+      return { ...state, activityOpen: false, researchOpen: true, size: Math.max(state.size, RESEARCH_COMPARISON_SIZE), destination: { kind: "asset", symbol: action.symbol, historical: action.historical }, context: state.context };
     case "open_comparison":
       return {
         ...state,
@@ -89,6 +93,7 @@ export function workbenchResearchReducer(
 export function researchTitle(destination: ResearchDestination | null): string {
   if (!destination) return "Research";
   if (destination.kind === "comparison") return "Comparison";
+  if (destination.kind === "asset") return `${destination.symbol} · Asset research`;
   if (destination.kind === "temporary_result") return "Temporary result";
   return "Saved result";
 }
