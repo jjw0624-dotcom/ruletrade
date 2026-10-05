@@ -13,7 +13,7 @@ import {
   readinessFromResult,
   type DataReadiness,
 } from "./domain/marketDataReadiness";
-import { hasUnresolvedLogicDraft, logicDraftMessage } from "./domain/logicDraft";
+import { logicDraftMessage } from "./domain/logicDraft";
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
@@ -161,9 +161,15 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     }
   }
 
+  function unresolvedAuthoringMessage() {
+    return logicDraftMessage(state.editor.logicDraft)
+      ?? ((structural.semanticEdit?.status ?? "idle") === "idle" ? null : structural.semanticEdit?.message ?? "Finish the semantic edit before saving or testing.");
+  }
+
   function openTestSetup() {
-    if (hasUnresolvedLogicDraft(state.editor.logicDraft)) {
-      setRunError(logicDraftMessage(state.editor.logicDraft));
+    const unresolved = unresolvedAuthoringMessage();
+    if (unresolved) {
+      setRunError(unresolved);
       return;
     }
     setShowSetup(true);
@@ -201,9 +207,10 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
   }
 
   async function save() {
-    if (hasUnresolvedLogicDraft(state.editor.logicDraft)) {
+    const unresolved = unresolvedAuthoringMessage();
+    if (unresolved) {
       setSaveStatus("error");
-      setSaveMessage(logicDraftMessage(state.editor.logicDraft));
+      setSaveMessage(unresolved);
       return;
     }
     if (!strategy || !base || !dirty) return;

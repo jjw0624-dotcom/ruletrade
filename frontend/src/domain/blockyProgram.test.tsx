@@ -75,8 +75,9 @@ describe("production Blocky program boundary", () => {
     expect(selection.kind).toBe("selection");
     expect(selection.ref.related_component_ids).toEqual(["assets", "momentum", "positive_return", "rank"]);
     expect(selection.modifiers.map((item) => item.kind)).toEqual(["eligibility", "fallback", "constraint"]);
-    expect(selection.modifiers.find((item) => item.kind === "eligibility")?.label).toBe("Candidate trailing return · 126 completed observations > 0");
-    expect(selection.modifiers.find((item) => item.kind === "fallback")?.label).toContain("Selection fallback");
+    expect(selection.label).toBe("Choose 2 assets");
+    expect(selection.modifiers.find((item) => item.kind === "eligibility")?.label).toBe("trailing return · 126 completed observations > 0");
+    expect(selection.modifiers.find((item) => item.kind === "fallback")?.label).toBe("fallback → TLT");
     expect(selection.modifiers.find((item) => item.kind === "constraint")?.value).toBe(10);
     expect(programStatementForSelection(program, semanticSelection("qualification", "positive_return"))).toBe(selection);
   });

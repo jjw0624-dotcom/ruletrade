@@ -78,7 +78,7 @@ function modifier(
   const role = kind === "fallback" ? "fallback" : kind === "constraint" ? "cooldown" : "qualification";
   return {
     kind,
-    label: fact.label,
+    label: compactModifierLabel(fact.label, kind),
     selection: semanticSelection(role, fact.ref.primary_component_id, {
       fieldPath: fact.ref.field_path,
       groupId,
@@ -88,6 +88,12 @@ function modifier(
       ? number(fact.detail, "threshold")
       : kind === "constraint" ? number(fact.detail, "duration") : undefined,
   };
+}
+
+function compactModifierLabel(label: string, kind: ProgramModifier["kind"]): string {
+  if (kind === "fallback") return label.replace(/^Selection fallback (?:to|→) /, "fallback → ");
+  if (kind === "eligibility") return label.replace(/^Candidate(?:['’]s)? /, "");
+  return label;
 }
 
 function statement(
@@ -105,16 +111,20 @@ function statement(
     else if (fact.category === "constraint") modifiers.push(modifier(fact, "constraint", groupId));
   }
   const primaryFact = facts.get(source.fact_ids[0]);
+  const count = primaryFact ? number(primaryFact.detail, "count") : undefined;
+  const label = source.family === "selection" && count !== undefined
+    ? `Choose ${count} assets`
+    : source.family === "control" ? source.label.replace(/^IF\s+/i, "") : source.label;
   return {
     id: source.id,
     kind: source.family === "portfolio_operation" ? "allocation" : source.family,
-    label: source.label,
+    label,
     selection: selectionForRef(source.ref, groupId),
     ref: source.ref,
     modifiers,
     thenStatements: [],
     elseStatements: [],
-    count: primaryFact ? number(primaryFact.detail, "count") : undefined,
+    count,
   };
 }
 

@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import type { CanonicalStrategyV1, ValueExpression } from "../domain/canonical";
 import { describeUniverse } from "../domain/valueSemantics";
 import type { StrategyValueCapability } from "../structuralAuthoringApi";
-import { ValueComposer } from "./ValueComposer";
+import { AuthoringNumberInput } from "./AuthoringControls";
+import { ValueComposer, type ValueWorkingState } from "./ValueComposer";
 
 export interface SelectionComposerProps {
   direction: "descending" | "ascending";
@@ -17,7 +18,10 @@ export interface SelectionComposerProps {
   eligibilitySummary?: string;
   eligibilityEditor?: ReactNode;
   universeMembersEditor?: ReactNode;
+  fallbackSummary?: string;
+  fallbackEditor?: ReactNode;
   disabled?: boolean;
+  onWorkingState?: (state: ValueWorkingState) => void;
   onUniverseChange?: (universeId: string) => void;
   onChange: (value: { direction: "descending" | "ascending"; count: number; shortagePolicy: "require_full" | "choose_all"; valueExpression?: ValueExpression }) => void;
 }
@@ -25,19 +29,22 @@ export interface SelectionComposerProps {
 export function SelectionComposer(props: SelectionComposerProps) {
   const emit = (patch: Partial<Pick<SelectionComposerProps, "direction" | "count" | "shortagePolicy" | "valueExpression">>) =>
     props.onChange({ direction: patch.direction ?? props.direction, count: patch.count ?? props.count, shortagePolicy: patch.shortagePolicy ?? props.shortagePolicy, valueExpression: patch.valueExpression ?? props.valueExpression });
-  return <fieldset disabled={props.disabled} className="selection-composer">
-    <legend>Choose assets</legend>
-    {props.strategy && props.universeComponentId && <section className="selection-section"><span className="eyebrow">From</span>
+  return <section className="selection-composer" aria-label="Selection editor">
+    <header className="semantic-section-header"><div><span className="eyebrow">Selection</span><strong>Choose {props.count}</strong></div><span className="semantic-save-state">Automatic</span></header>
+    {props.strategy && props.universeComponentId && <section className="selection-section"><span className="eyebrow">FROM</span>
       {props.universeChoices && props.universeId && props.onUniverseChange
-        ? <select aria-label="Selection universe" value={props.universeId} onChange={(event) => props.onUniverseChange?.(event.target.value)}>{props.universeChoices.map((id) => <option key={id} value={id}>{props.strategy?.definitions.universes?.find((item) => item.id === id)?.name ?? id}</option>)}</select>
+        ? <select aria-label="Selection universe" value={props.universeId} disabled={props.disabled} onChange={(event) => props.onUniverseChange?.(event.target.value)}>{props.universeChoices.map((id) => <option key={id} value={id}>{props.strategy?.definitions.universes?.find((item) => item.id === id)?.name ?? id}</option>)}</select>
         : <strong>{describeUniverse(props.strategy, props.universeComponentId) ?? "Explicit universe"}</strong>}
-      {props.universeMembersEditor}
+      {props.universeMembersEditor && <details className="semantic-subeditor"><summary>Edit universe members</summary>{props.universeMembersEditor}</details>}
     </section>}
-    <section className="selection-section"><span className="eyebrow">Where</span><strong>{props.eligibilitySummary ?? "All candidates qualify"}</strong>{props.eligibilityEditor}</section>
-    {props.valueExpression && props.strategy && <section className="selection-section"><span className="eyebrow">Order by</span><ValueComposer expression={props.valueExpression} strategy={props.strategy} capabilities={props.capabilities} allowCandidate disabled={props.disabled} onChange={(valueExpression) => emit({ valueExpression })} /></section>}
-    <label>Direction<select value={props.direction} onChange={(event) => emit({ direction: event.target.value as SelectionComposerProps["direction"] })}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></label>
-    <label>Take<input type="number" min="1" value={props.count} onChange={(event) => emit({ count: Number(event.target.value) })} /></label>
-    <label>When fewer qualify<select value={props.shortagePolicy} onChange={(event) => emit({ shortagePolicy: event.target.value as SelectionComposerProps["shortagePolicy"] })}><option value="require_full">Require full count</option><option value="choose_all">Choose all eligible</option></select></label>
-    <p className="fixed-setting">Selection fallback is configured separately from shortage policy and Control OTHERWISE.</p>
-  </fieldset>;
+    <section className="selection-section"><span className="eyebrow">WHERE</span><strong>{props.eligibilitySummary ?? "All candidates qualify"}</strong>{props.eligibilityEditor}</section>
+    {props.valueExpression && props.strategy && <section className="selection-section"><span className="eyebrow">ORDER BY</span>
+      <ValueComposer expression={props.valueExpression} strategy={props.strategy} capabilities={props.capabilities} allowCandidate disabled={props.disabled}
+        onWorkingState={props.onWorkingState} onChange={(valueExpression) => emit({ valueExpression })} />
+    </section>}
+    <section className="selection-section compact-setting"><span className="eyebrow">DIRECTION</span><select aria-label="Ranking direction" value={props.direction} disabled={props.disabled} onChange={(event) => emit({ direction: event.target.value as SelectionComposerProps["direction"] })}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></section>
+    <section className="selection-section compact-setting"><span className="eyebrow">TAKE</span><AuthoringNumberInput ariaLabel="Number of assets to take" value={props.count} minimum={1} disabled={props.disabled} onCommit={(count) => emit({ count })} /></section>
+    <section className="selection-section compact-setting"><span className="eyebrow">WHEN FEWER QUALIFY</span><select aria-label="Shortage policy" value={props.shortagePolicy} disabled={props.disabled} onChange={(event) => emit({ shortagePolicy: event.target.value as SelectionComposerProps["shortagePolicy"] })}><option value="require_full">Require full count</option><option value="choose_all">Choose all eligible</option></select></section>
+    <section className="selection-section"><span className="eyebrow">SELECTION FALLBACK</span><strong>{props.fallbackSummary ?? "None"}</strong>{props.fallbackEditor}</section>
+  </section>;
 }

@@ -84,7 +84,8 @@ export function StrategyBuilderWorkspace({
   researchContext?: { runId: string; sessionId: string; asset: string | null } | null;
 }) {
   const { state, dispatch } = useStrategyEditor();
-  const draftMessage = logicDraftMessage(state.editor.logicDraft);
+  const draftMessage = logicDraftMessage(state.editor.logicDraft)
+    ?? ((structural.semanticEdit?.status ?? "idle") === "idle" ? null : structural.semanticEdit?.message ?? "Finish the semantic edit before saving or testing.");
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
   const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection || state.editor.logicDraft.selectedDraftId), Boolean(research?.researchOpen));
   const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };

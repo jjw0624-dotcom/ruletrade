@@ -43,9 +43,9 @@ describe("Conceptual Flow v2 projection", () => {
   it("compresses selection primitives into one Choose while retaining provenance", () => {
     const flow = projectConceptualFlow(fallbackBootstrap.strategy, fallbackBootstrap.registry);
     const choose = flow.groups[0].choose!;
-    expect(choose.label).toBe("Choose 2");
-    expect(choose.condition).toBe("Candidate trailing return · 126 completed observations > 0");
-    expect(choose.ranking).toBe("Candidate trailing return · 126 completed observations");
+    expect(choose.label).toBe("Choose 2 assets · 1 filter · highest 126-observation return");
+    expect(choose.condition).toBe("Candidate\'s 126-observation return > 0%");
+    expect(choose.ranking).toBe("Candidate\'s 126-observation return");
     expect(choose.otherwise).toBe("Otherwise → TLT");
     expect(choose.sourceComponentIds).toEqual(expect.arrayContaining(["momentum", "positive_return", "top_n", "fallback"]));
   });
@@ -81,7 +81,7 @@ describe("Conceptual Flow v2 projection", () => {
     const initial = createEditorState(fallbackBootstrap);
     const threshold = editorReducer(initial, { type: "replace_canonical_dirty", canonical: authoringResponse(initial.canonical, "positive_return", { threshold: "-0.05" }) });
     const count = editorReducer(threshold, { type: "replace_canonical_dirty", canonical: authoringResponse(threshold.canonical, "top_n", { count: 3 }) });
-    expect(projectConceptualFlow(count.canonical,count.registry).groups[0].choose).toMatchObject({ threshold:"-0.05", topN:3, label:"Choose 3" });
+    expect(projectConceptualFlow(count.canonical,count.registry).groups[0].choose).toMatchObject({ threshold:"-0.05", topN:3, label:"Choose 3 assets · 1 filter · highest 126-observation return" });
   });
 
   it("reprojects a backend-authored asset group", () => {

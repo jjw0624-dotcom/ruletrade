@@ -1,6 +1,6 @@
 import type { CanonicalStrategyV1, ConditionExpression, RegistryPayload, ValueExpression } from "./canonical";
 import { tryProjectSemanticStrategy, type SemanticGroup } from "./semanticProjection";
-import { describeConditionExpression, describeValueExpression } from "./valueSemantics";
+import { describeConditionExpression, describeSelectionSummary, describeValueExpression } from "./valueSemantics";
 
 export interface ConceptualChoose {
   kind: "choose";
@@ -139,7 +139,7 @@ function chooseFrom(group: SemanticGroup, strategy: CanonicalStrategyV1): Concep
     parameters: { lookback_bars: value.lookbackBars },
   } : undefined);
   return {
-    kind: "choose", label: `Choose ${value.topN}`, from: value.assets,
+    kind: "choose", label: describeSelectionSummary(value.topN ?? 1, eligibilityCondition ? 1 : 0, rankingValue, value.rankDirection), from: value.assets,
     selectionMode:"ranked",
     condition: eligibilityCondition ? describeConditionExpression(eligibilityCondition) : undefined,
     eligibilityCondition,
