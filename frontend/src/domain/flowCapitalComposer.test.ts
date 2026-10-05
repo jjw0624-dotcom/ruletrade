@@ -43,7 +43,7 @@ describe("Flow Capital Composer semantic projection", () => {
     expect(fallback.edges.find((item) => item.target.startsWith("fallback:"))?.source).toMatch(/^selection:/);
     const cooldown = canvas(cooldownBootstrap as typeof goldenBootstrap);
     expect(cooldown.nodes.find((item) => item.data.semanticKind === "constraint")?.data.title).toBe("Selection constraint");
-    expect(cooldown.edges.find((item) => item.target.startsWith("constraint:"))?.label).toBe("modifies");
+    expect(cooldown.edges.find((item) => cooldown.nodes.find((node) => node.id === item.target)?.data.semanticKind === "constraint")?.label).toBe("modifies");
   });
 
   it("lays out sleeves in parallel with ownership edges and independent schedules", () => {

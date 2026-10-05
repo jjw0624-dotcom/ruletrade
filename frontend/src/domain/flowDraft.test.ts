@@ -29,7 +29,7 @@ describe("FlowDraft authoring boundary", () => {
       kind: "selection", targetComponentId: "universe", targetLabel: "Growth", groupId: "investment",
     } });
     expect(draft.editor.flowDraft.status).toBe("incomplete");
-    expect(flowDraftMessage(draft.editor.flowDraft)).toContain("Finish or discard");
+    expect(flowDraftMessage(draft.editor.flowDraft)).toContain("Configure selection for Growth");
     const rules = editorReducer(draft, { type: "set_active_view", view: "rules" });
     expect(rules.editor.flowDraft).toEqual(draft.editor.flowDraft);
     expect(rules.canonical).toBe(initial.canonical);

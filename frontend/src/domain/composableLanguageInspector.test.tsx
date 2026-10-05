@@ -40,7 +40,8 @@ describe("semantic expression authoring controls", () => {
     const html = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy} expression={null} initiallyOpen onChange={change} />);
     expect(html).toContain("Set condition");
     expect(html).toContain("ALL of these");
-    expect(html).toContain("Set value");
+    expect(html).toContain("Set left value");
+    expect(html).toContain("Set right value");
     expect(html).toContain("+ Add condition");
     expect(change).not.toHaveBeenCalled();
   });

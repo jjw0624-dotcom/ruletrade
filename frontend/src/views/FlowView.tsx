@@ -128,7 +128,7 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
         edges.push(edge(selectId, id, "if incomplete", "strategy-flow-edge modifier-edge"));
       }
       if (choose.cooldownComponentId) {
-        const id = `constraint:${group.id}`;
+        const id = `cooldown:${group.id}`;
         nodes.push(node(id, x - 235, pipelineY, "Selection constraint", choose.cooldown ?? "Cooldown",
           semanticSelection("cooldown", choose.cooldownComponentId, { fieldPath: "config.duration", groupId: group.id }), "constraint", "constraint"));
         edges.push(edge(selectId, id, "modifies", "strategy-flow-edge modifier-edge"));
@@ -143,7 +143,7 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
     edges.push(edge(pipeline, allocationId, group.choose ? "selected candidates" : "assets"));
 
     const actionId = `action:${group.id}`;
-    nodes.push(node(actionId, x, pipelineY + 135, "Rebalance action", "Apply the portfolio targets",
+    nodes.push(node(actionId, x, pipelineY + 135, "Rebalance", "Action · apply the portfolio targets",
       semanticSelection("rule", projection.predicate?.componentId ?? group.sleeveComponentId ?? group.allocationComponentId ?? null, { groupId: group.id }),
       "action", "action"));
     edges.push(edge(allocationId, actionId, "portfolio targets"));
