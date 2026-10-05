@@ -50,7 +50,6 @@ function NumericDraft({ label, value, step = "any", minimum, maximum, disabled, 
       return;
     }
     onCommit(parse(numeric));
-    onWorkingState?.("complete");
   };
   return <label>{label}<input disabled={disabled} type="number" step={step} min={minimum} max={maximum} value={draft}
     onChange={(event) => { setDraft(event.target.value); onWorkingState?.("incomplete"); }}
@@ -120,10 +119,10 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
   };
   const emitIfComplete = (nextMeasure = measureChoice, nextSubject = chosenSubject()) => {
     const next = build(nextMeasure, nextSubject);
-    if (next) { onChange(next); onWorkingState?.("complete"); }
+    if (next) onChange(next);
     else onWorkingState?.("incomplete");
   };
-  const updateBase = (base: ValueExpression) => { onChange(wrap(base)); onWorkingState?.("complete"); };
+  const updateBase = (base: ValueExpression) => onChange(wrap(base));
   const indicator = unwrapped.base?.kind === "indicator" ? unwrapped.base : null;
   const rolling = unwrapped.base?.kind === "rolling_aggregate" ? unwrapped.base : null;
   const literal = unwrapped.base?.kind === "literal" && unwrapped.base.value_type !== "asset" ? unwrapped.base : null;
@@ -164,13 +163,13 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
         disabled={disabled} onWorkingState={onWorkingState} onCommit={(value) => {
           setLiteralDraft(String(value));
           const next: ValueExpression = { kind: "literal", value_type: literal?.value_type ?? "decimal", value };
-          onChange(next); onWorkingState?.("complete");
+          onChange(next);
         }} />}
       {measureChoice !== "literal" && executable(capabilities, "arithmetic.scale") && <>
         {!addingTransform && unwrapped.factor === null && <button type="button" className="text-button" onClick={() => { setAddingTransform(true); setFactorDraft(""); onWorkingState?.("incomplete"); }}>+ Add transform</button>}
         {(addingTransform || unwrapped.factor !== null) && <div className="value-transform"><NumericDraft label="Multiply by" value={Number(factorDraft || unwrapped.factor || 1)} step="0.1" minimum={0.000001} disabled={disabled} onWorkingState={onWorkingState}
-          onCommit={(factor) => { const base = unwrapped.base; if (base) { setFactorDraft(String(factor)); onChange({ kind: "arithmetic", operator: "multiply", left: base, right: { kind: "literal", value_type: "decimal", value: factor } }); onWorkingState?.("complete"); } }} />
-          <button type="button" className="text-button danger" onClick={() => { setAddingTransform(false); setFactorDraft(""); if (unwrapped.base) onChange(unwrapped.base); onWorkingState?.("complete"); }}>Remove transform</button></div>}
+          onCommit={(factor) => { const base = unwrapped.base; if (base) { setFactorDraft(String(factor)); onChange({ kind: "arithmetic", operator: "multiply", left: base, right: { kind: "literal", value_type: "decimal", value: factor } }); } }} />
+          <button type="button" className="text-button danger" onClick={() => { setAddingTransform(false); setFactorDraft(""); if (unwrapped.base) onChange(unwrapped.base); }}>Remove transform</button></div>}
       </>}
       <p className="value-capability-note">Only executable Strategy values reported by the backend are available.</p>
     </div>}
