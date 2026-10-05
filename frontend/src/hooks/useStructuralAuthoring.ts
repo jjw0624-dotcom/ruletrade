@@ -12,6 +12,14 @@ import { useStrategyEditor } from "../store/editorStore";
 import type { SemanticSelection } from "../domain/semanticSelection";
 
 export type StructuralStatus = "checking" | "ready" | "applying" | "error";
+export type SemanticEditStatus = "idle" | "unfinished" | "updating" | "invalid";
+export interface SemanticEditState { status: SemanticEditStatus; message: string | null }
+
+const IDLE_SEMANTIC_EDIT: SemanticEditState = { status: "idle", message: null };
+
+export function isLatestAuthoringRequest(requestId: number, latestRequestId: number): boolean {
+  return requestId === latestRequestId;
+}
 
 function productMessage(reason: unknown): { message: string; detail?: string } {
   if (!(reason instanceof StructuralAuthoringApiError)) {
@@ -51,6 +59,8 @@ export function useAuthoring() {
   const [capabilities, setCapabilities] = useState<StructuralAuthoringCapabilities | null>(null);
   const [status, setStatus] = useState<StructuralStatus>("checking");
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
+  const [semanticEdit, setSemanticEdit] = useState<SemanticEditState>(IDLE_SEMANTIC_EDIT);
+  const requestSequence = useRef(0);
   latest.current = state.canonical;
 
   useEffect(() => {
@@ -77,13 +87,17 @@ export function useAuthoring() {
     resolveSelection?: (result: AuthoringApplyResult) => SemanticSelection | null | undefined,
   ) => {
     const source = latest.current;
+    const requestId = ++requestSequence.current;
     setStatus("applying");
     setError(null);
+    setSemanticEdit({ status: "updating", message: "Updating…" });
     try {
       const result = await authoringApi.applyWithResult(source, operation);
+      if (!isLatestAuthoringRequest(requestId, requestSequence.current)) return false;
       if (latest.current !== source) {
         setStatus("error");
         setError({ message: "The strategy changed while this update was being applied. Please try again." });
+        setSemanticEdit({ status: "invalid", message: "The committed strategy changed. Review this edit and try again." });
         return false;
       }
       dispatch({
@@ -91,10 +105,15 @@ export function useAuthoring() {
         canonical: result.strategy,
         selection: resolveSelection?.(result),
       });
+      setStatus("ready");
+      setSemanticEdit(IDLE_SEMANTIC_EDIT);
       return true;
     } catch (reason) {
+      if (!isLatestAuthoringRequest(requestId, requestSequence.current)) return false;
+      const product = productMessage(reason);
       setStatus("error");
-      setError(productMessage(reason));
+      setError(product);
+      setSemanticEdit({ status: "invalid", message: product.message });
       return false;
     }
   }, [dispatch]);
@@ -104,8 +123,15 @@ export function useAuthoring() {
   const compose = useCallback((operation: ComposeStrategyOperation, selection?: (result: AuthoringApplyResult) => SemanticSelection | null) =>
     applyResolved(operation, selection), [applyResolved]);
 
-  return { capabilities, status, error, apply, compose };
+  const setSemanticEditStatus = useCallback((next: SemanticEditStatus, message?: string | null) => {
+    setSemanticEdit(next === "idle" ? IDLE_SEMANTIC_EDIT : { status: next, message: message ?? (next === "unfinished" ? "Finish this semantic value before saving or testing." : next === "updating" ? "Updating…" : "This edit is invalid.") });
+  }, []);
+
+  return { capabilities, status, error, semanticEdit, setSemanticEditStatus, apply, compose };
 }
 
 export const useStructuralAuthoring = useAuthoring;
-export type StructuralAuthoringController = ReturnType<typeof useAuthoring>;
+export type StructuralAuthoringController = Omit<ReturnType<typeof useAuthoring>, "semanticEdit" | "setSemanticEditStatus"> & {
+  semanticEdit?: SemanticEditState;
+  setSemanticEditStatus?: (next: SemanticEditStatus, message?: string | null) => void;
+};

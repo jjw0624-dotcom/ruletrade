@@ -25,25 +25,14 @@ function groupFor(
     || group.choose?.sourceComponentIds.includes(componentId ?? ""));
 }
 
-function predicateStarter(): ConditionExpression {
-  return {
-    kind: "comparison",
-    operator: "gt",
-    left: {
-      kind: "indicator",
-      indicator_id: "trailing_return_indicator@1",
-      asset: { kind: "literal", value_type: "asset", value: "SPY" },
-      parameters: { lookback_bars: 126 },
-    },
-    right: { kind: "literal", value_type: "percentage", value: 0 },
-  };
+export function conditionAutoApplyOperation(componentId: string, role: "predicate" | "eligibility", condition: ConditionExpression) {
+  return { kind: "update_condition_expression" as const, component_id: componentId, role, condition };
 }
 
 function ConditionInspectorControl({
   componentId,
   role,
   initial,
-  lookback,
   structural,
   removable,
   returnSelection,
@@ -51,29 +40,33 @@ function ConditionInspectorControl({
   componentId: string;
   role: "predicate" | "eligibility";
   initial: ConditionExpression;
-  lookback: number;
   structural: StructuralAuthoringController;
   removable?: boolean;
   returnSelection?: ReturnType<typeof semanticSelection>;
 }) {
   const { state } = useStrategyEditor();
-  const [draft, setDraft] = useState(initial);
+  const [draft, setDraft] = useState<ConditionExpression>(initial);
   useEffect(() => setDraft(initial), [componentId, initial]);
-  const apply = () => void structural.apply(
-    { kind: "update_condition_expression", component_id: componentId, role, condition: draft },
-    semanticSelection(role === "predicate" ? "rule" : "qualification", componentId, { fieldPath: "condition" }),
-  );
+  const commit = (condition: ConditionExpression) => {
+    setDraft(condition);
+    void structural.apply(
+      conditionAutoApplyOperation(componentId, role, condition),
+      semanticSelection(role === "predicate" ? "rule" : "qualification", componentId, { fieldPath: "condition" }),
+    );
+  };
   return <div className="predicate-inspector">
     <ConditionComposer
       role={role}
       expression={draft}
       strategy={state.canonical}
       capabilities={structural.capabilities?.value_capabilities}
-      defaultLookback={lookback}
-      disabled={structural.status === "applying"}
-      onChange={setDraft}
+      disabled={structural.status === "checking"}
+      onWorkingState={(working) => { if (working === "incomplete") structural.setSemanticEditStatus?.("unfinished"); }}
+      onChange={commit}
     />
-    <button type="button" className="secondary-button" disabled={structural.status === "applying"} onClick={apply}>Apply condition</button>
+    <div className={`semantic-edit-feedback ${(structural.semanticEdit?.status ?? "idle")}`} role="status">
+      {(structural.semanticEdit?.status ?? "idle") === "idle" ? "Saved" : structural.semanticEdit?.message}
+    </div>
     {removable && <button type="button" className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply(
       role === "predicate"
         ? { kind: "remove_predicate", component_id: componentId }
@@ -87,13 +80,10 @@ function PredicateInspectorControl({ componentId, structural }: { componentId: s
   const { state } = useStrategyEditor();
   const component = state.canonical.graph.components.find((item) => item.id === componentId);
   if (!component?.condition) return <p className="fixed-setting">This control predicate is not editable in Predicate v1.</p>;
-  const left = component.condition.kind === "comparison" && component.condition.left.kind === "indicator"
-    ? component.condition.left : null;
   return <ConditionInspectorControl
     componentId={componentId}
     role="predicate"
     initial={component.condition}
-    lookback={Number(left?.parameters.lookback_bars ?? 126)}
     structural={structural}
     removable
   />;
@@ -118,17 +108,21 @@ export function SemanticInspector({
   if (!selection && selectedDraftId) {
     const label = selectedDraft?.blockType === "rt_draft_if_else" ? "If / Otherwise" : "If";
     return <aside className="semantic-inspector" aria-label="Semantic Inspector">
-      <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={() => dispatch({ type: "select_logic_draft", draftId: null })}>×</button></header>
+      <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={() => { structural.setSemanticEditStatus?.("idle"); dispatch({ type: "select_logic_draft", draftId: null }); }}>×</button></header>
       <div className="semantic-inspector-content">
         <h2>{label}</h2>
         <p className="fixed-setting">Unfinished control structure in this Blocky working program.</p>
-        {!draftCondition && <p role="status"><strong>Predicate missing</strong> · set a condition before this Control can be committed.</p>}
-        {draftCondition && <ConditionComposer role="predicate" expression={draftCondition} strategy={state.canonical} capabilities={structural.capabilities?.value_capabilities} disabled={structural.status === "applying"} onChange={setDraftCondition} />}
-        {!draftCondition
-          ? <button className="secondary-button" disabled={!selectedDraft} onClick={() => setDraftCondition(predicateStarter())}>Configure condition</button>
-          : <button className="secondary-button" onClick={() => dispatch({ type: "set_logic_draft_condition", draftId: selectedDraftId, condition: draftCondition })}>{selectedDraft?.condition ? "Update condition" : "Use condition"}</button>}
-        {selectedDraft?.condition && <p className="fixed-setting">Draft Predicate: {describeConditionExpression(selectedDraft.condition)}</p>}
-        <button className="text-button danger" onClick={() => dispatch({ type: "request_remove_logic_draft", draftId: selectedDraftId })}>Discard unfinished control</button>
+        {!draftCondition && <p role="status"><strong>Predicate missing</strong> · compose a complete comparison before this Control can be committed.</p>}
+        <ConditionComposer role="predicate" expression={draftCondition} strategy={state.canonical} capabilities={structural.capabilities?.value_capabilities}
+          disabled={structural.status === "checking"} initiallyOpen
+          onWorkingState={(working) => structural.setSemanticEditStatus?.(working === "incomplete" ? "unfinished" : "idle")}
+          onChange={(condition) => {
+            setDraftCondition(condition);
+            structural.setSemanticEditStatus?.("idle");
+            dispatch({ type: "set_logic_draft_condition", draftId: selectedDraftId, condition });
+          }} />
+        {selectedDraft?.condition && <p className="fixed-setting">Draft Predicate: {describeConditionExpression(selectedDraft.condition)} · commits automatically when branch topology is valid.</p>}
+        <button className="text-button danger" onClick={() => { structural.setSemanticEditStatus?.("idle"); dispatch({ type: "request_remove_logic_draft", draftId: selectedDraftId }); }}>Discard unfinished control</button>
       </div>
     </aside>;
   }
@@ -143,7 +137,7 @@ export function SemanticInspector({
       : selection.role
     : selection.role;
   const busy = structural.status === "applying";
-  const close = () => dispatch({ type: "select_semantic", selection: null });
+  const close = () => { structural.setSemanticEditStatus?.("idle"); dispatch({ type: "select_semantic", selection: null }); };
 
   let content: ReactNode;
   if (role === "portfolio") {
@@ -197,7 +191,12 @@ export function SemanticInspector({
               ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Edit eligibility</button>
               : qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "condition", groupId: group.id }))}>+ Add eligibility</button>}
             universeMembersEditor={group.assetSetId ? <AssetMembershipEditor authoring={structural} question="Universe members" assetSetId={group.assetSetId} assets={group.assets} /> : undefined}
-            disabled={busy}
+            fallbackSummary={choose.fallbackComponentId ? choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "Configured asset" : "None"}
+            fallbackEditor={choose.fallbackComponentId
+              ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Edit fallback</button>
+              : fallbackTarget ? <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({ kind: "add_fallback_selection", weight_component_id: fallbackTarget, fallback_asset: asset }, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id }))} /> : undefined}
+            disabled={structural.status === "checking"}
+            onWorkingState={(working) => { if (working === "incomplete") structural.setSemanticEditStatus?.("unfinished"); }}
             onUniverseChange={universeCapability ? (universeId) => void structural.apply({ kind: "update_universe_reference", component_id: universeCapability.component_id, universe_id: universeId }, semanticSelection("selection", selectionComponent.id, { groupId: group.id })) : undefined}
             onChange={(value) => void structural.apply({
               kind: "update_selection_semantics",
@@ -211,9 +210,8 @@ export function SemanticInspector({
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
-      {choose.fallbackComponentId && <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Selection fallback: {choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "configured asset"}</button>}
+      {(structural.semanticEdit?.status ?? "idle") !== "idle" && <div className={`semantic-edit-feedback ${(structural.semanticEdit?.status ?? "idle")}`} role="status">{structural.semanticEdit?.message}</div>}
       {choose.cooldownComponentId && choose.cooldownDuration && <CooldownControl authoring={structural} componentId={choose.cooldownComponentId} value={choose.cooldownDuration} />}
-      {fallbackTarget && <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({ kind: "add_fallback_selection", weight_component_id: fallbackTarget, fallback_asset: asset }, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id }))} />}
     </>;
   } else if (role === "qualification" && choose?.filterComponentId && group) {
     const removable = structural.capabilities?.qualification_remove_targets.includes(choose.filterComponentId);
@@ -225,7 +223,6 @@ export function SemanticInspector({
         componentId={choose.filterComponentId}
         role="eligibility"
         initial={initial}
-        lookback={choose.lookbackBars ?? 126}
         structural={structural}
         removable={removable}
         returnSelection={semanticSelection("selection", choose.selectionComponentId, { groupId: group.id })}

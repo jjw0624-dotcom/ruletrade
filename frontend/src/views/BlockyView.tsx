@@ -52,8 +52,8 @@ export function registerBlockyProgramBlocks() {
     { type: "rt_allocation", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Allocate capital" }], previousStatement: null, nextStatement: null, colour: 120 },
     { type: "rt_action", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Rebalance" }], previousStatement: null, nextStatement: null, colour: 20 },
     { type: "rt_control", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "condition" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 300 },
-    { type: "rt_draft_if", message0: "DRAFT IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], previousStatement: null, nextStatement: null, colour: 330 },
-    { type: "rt_draft_if_else", message0: "DRAFT IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], previousStatement: null, nextStatement: null, colour: 330 },
+    { type: "rt_draft_if_else", message0: "IF %1", args0: [{ type: "field_label_serializable", name: "PREDICATE", text: "[set condition]" }], message1: "DO %1", args1: [{ type: "input_statement", name: "THEN" }], message2: "OTHERWISE %1", args2: [{ type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 330 },
   ]);
 }
 
@@ -109,6 +109,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
   const host = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const busy = useRef(false);
+  const autoCommitSignature = useRef("");
   const positions = useRef(new Map<string, { x: number; y: number }>());
   const baseline = useRef<LogicWorkingProgram>({ blocks: [] });
   const initializing = useRef(false);
@@ -195,7 +196,7 @@ export function BlockyView({ structural, initialProjection = null }: { structura
       canvas.clear();
       program.contexts.forEach((context, contextIndex) => {
         const contextBlock = canvas.newBlock("rt_context") as Blockly.BlockSvg;
-        contextBlock.setFieldValue(`${context.label} · ${context.kind}`, "LABEL");
+        contextBlock.setFieldValue(context.label, "LABEL");
         setData(contextBlock, { workingId: context.id, source: "canonical", kind: "context", selection: context.selection });
         contextBlock.setDeletable(false); contextBlock.setMovable(true); contextBlock.contextMenu = false;
         contextBlock.initSvg(); contextBlock.render();
@@ -318,26 +319,32 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     if (ok) setPendingOption(null);
     return ok;
   };
-  const applyLogicDraft = async () => {
+  useEffect(() => {
     const program = state.editor.logicDraft.workingProgram;
-    if (!program || busy.current) return;
+    if (state.editor.logicDraft.status !== "commit_ready" || !program || busy.current) return;
+    const signature = logicWorkingProgramSignature(program);
+    if (autoCommitSignature.current === signature) return;
     const intent = controlCommitIntent(program);
-    if (!intent) { setNotice("This Blocky topology is not commit-ready."); return; }
+    if (!intent) return;
+    autoCommitSignature.current = signature;
     busy.current = true;
-    try {
-      const ok = await structural.apply({ kind: "commit_predicate_branches", ...intent }, semanticSelection("rule", intent.component_id, { fieldPath: "condition" }));
-      if (ok) {
-        setNotice(null);
-        dispatch({ type: "restore_logic_program" });
-      }
-    } finally { busy.current = false; }
-  };
+    setNotice("Applying complete Control…");
+    void structural.apply({ kind: "commit_predicate_branches", ...intent }, semanticSelection("rule", intent.component_id, { fieldPath: "condition" }))
+      .then((ok) => {
+        if (ok) {
+          setNotice(null);
+          dispatch({ type: "restore_logic_program" });
+        } else setNotice("The complete Control could not be applied. Your draft is preserved.");
+      })
+      .finally(() => { busy.current = false; });
+  }, [state.editor.logicDraft.status, state.editor.logicDraft.workingProgram, structural, dispatch]);
+
 
   return <div className="blocky-representation" data-program-composer onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept") || event.dataTransfer.types.includes("application/x-ruletrade-blocky-control")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={onDrop}>
     {!projection && !projectionError && <p className="blocky-loading" role="status">Building decision program…</p>}
     {projectionError && <p className="blocky-loading" role="alert">{projectionError}</p>}
     <div className="blocky-canvas" ref={host} hidden={!projection} aria-label="Strategy decision program" />
-    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" data-workspace-status="overlay" role="status"><span>{state.editor.logicDraft.status === "commit_ready" ? "Blocky changes ready to apply" : "Unfinished Blocky changes · Save/Test disabled"}</span>{state.editor.logicDraft.status === "commit_ready" && <button className="secondary-button" onClick={() => void applyLogicDraft()}>Apply Blocky changes</button>}<button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
+    {hasUnresolvedLogicDraft(state.editor.logicDraft) && <div className="blocky-draft-indicator" data-workspace-status="overlay" role="status"><span>{state.editor.logicDraft.status === "commit_ready" ? "Complete Control · applying automatically" : "Unfinished Blocky changes · Save/Test disabled"}</span><button className="text-button" onClick={() => dispatch({ type: "restore_logic_program" })}>Discard changes</button></div>}
     {(pendingOption || removable) && <div className="blocky-actions" aria-label="Contextual block actions">
       {pendingOption?.kind === "metric" && <MetricConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={async (lookback, count) => { const operation = composeRankedSelectionPipeline(state.canonical, pendingOption.targetComponentId, lookback, count); if (!operation) return false; const ok = await structural.compose(operation, (result) => semanticSelection("rule", result.created_component_ids.metric ?? null, { fieldPath: "config.lookback_bars", groupId: pendingOption.groupId })); if (ok) setPendingOption(null); return ok; }} />}
       {pendingOption?.kind === "choose" && <ChooseTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(lookback, count) => finishPending({ kind: "transform_to_choose_assets", weight_component_id: pendingOption.targetComponentId, lookback_observations: lookback, count }, semanticSelection("selection", `${pendingOption.targetComponentId}_top_n`, { groupId: pendingOption.groupId }))} />}

@@ -825,3 +825,48 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .ai-handoff-section{padding:18px;margin:18px 0;background:#fff;border:1px solid #dbe1e9;border-radius:10px}
 .ai-handoff-section textarea{display:block;box-sizing:border-box;width:100%;margin:12px 0;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
 .ai-proposal-preview{margin-top:15px;padding:14px;border:1px solid #a5b4fc;border-radius:8px;background:#eef2ff}
+
+
+/* Semantic Expression Authoring UX v1 */
+.semantic-inspector { width:min(380px,calc(100% - 42px)); overscroll-behavior:contain; }
+.semantic-inspector-content { align-content:start; }
+.semantic-section-header { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; }
+.semantic-section-header > div { display:grid; gap:.25rem; min-width:0; }
+.semantic-section-header strong { overflow-wrap:anywhere; }
+.semantic-value-row { width:100%; display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.72rem .8rem; border:1px solid var(--border); border-radius:10px; background:#fff; color:var(--text); text-align:left; cursor:pointer; }
+.semantic-value-row span { min-width:0; font-weight:700; overflow-wrap:anywhere; }
+.semantic-value-row small { color:var(--accent); font-weight:700; }
+.value-composer { display:grid; gap:.5rem; padding:0; border:0; border-radius:0; background:transparent; }
+.value-editor { display:grid; gap:.65rem; margin-top:.45rem; padding:.75rem; border:1px solid var(--border); border-radius:10px; background:color-mix(in srgb,var(--surface) 94%,var(--accent) 6%); }
+.value-editor fieldset { margin:0; padding:0; border:0; }
+.value-editor legend { margin-bottom:.4rem; color:var(--muted); font-size:12px; font-weight:800; }
+.semantic-choice-row { display:flex; flex-wrap:wrap; gap:.4rem; }
+.semantic-choice-row button { padding:.45rem .6rem; border:1px solid var(--border); border-radius:999px; background:#fff; }
+.semantic-choice-row button[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb,var(--surface) 85%,var(--accent) 15%); color:var(--accent); }
+.value-transform { display:grid; gap:.4rem; padding-top:.55rem; border-top:1px solid var(--border); }
+.value-capability-note { color:var(--muted); font-size:11px; }
+.condition-composer { display:grid; gap:.7rem; }
+.condition-rows { display:grid; gap:.6rem; }
+.condition-all-label { color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.comparison-row { position:relative; display:grid; grid-template-columns:1.3rem minmax(0,1fr) 3.2rem minmax(0,1fr) 1.8rem; align-items:start; gap:.4rem; padding:.55rem 0 .8rem; border-bottom:1px solid var(--border); }
+.comparison-number { padding-top:.72rem; color:var(--muted); font-size:12px; font-weight:800; }
+.comparison-operator select { width:100%; min-height:42px; padding:.45rem .25rem; text-align:center; font-weight:800; }
+.comparison-remove { margin-top:.45rem; border:0; background:transparent; color:var(--danger); font-size:18px; }
+.add-condition { justify-self:start; }
+.selection-composer { display:grid; gap:.7rem; }
+.selection-section { display:grid; gap:.42rem; padding:.65rem 0; border-bottom:1px solid var(--border); }
+.selection-section .value-composer > .semantic-value-row { margin-top:.15rem; }
+.selection-section.compact-setting { grid-template-columns:minmax(0,1fr) minmax(8rem,auto); align-items:center; }
+.semantic-subeditor > summary { cursor:pointer; color:var(--accent); font-weight:700; }
+.semantic-subeditor[open] > summary { margin-bottom:.65rem; }
+.semantic-save-state,.semantic-edit-feedback { color:var(--muted); font-size:11px; font-weight:700; }
+.semantic-edit-feedback.updating { color:var(--accent); }
+.semantic-edit-feedback.invalid,.semantic-edit-feedback.unfinished { color:var(--danger); }
+@media(max-width:520px){
+  .comparison-row { grid-template-columns:1.2rem minmax(0,1fr) 2rem; }
+  .comparison-row > .value-composer:first-of-type { grid-column:2 / 4; }
+  .comparison-operator { grid-column:2; }
+  .comparison-row > .value-composer:last-of-type { grid-column:2 / 4; }
+  .comparison-remove { grid-column:3; grid-row:2; }
+  .selection-section.compact-setting { grid-template-columns:1fr; }
+}

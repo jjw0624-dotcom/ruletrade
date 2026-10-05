@@ -12,7 +12,8 @@ import { FlowView, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { semanticSelection } from "./semanticSelection";
-import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
+import { isLatestAuthoringRequest, type StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
+import { conditionAutoApplyOperation } from "../components/SemanticInspector";
 
 const capabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -295,4 +296,30 @@ describe("Structural Authoring Guide and Flow integration", () => {
     });
     expect(failed.canonical).toBe(initial.canonical);
   });
+  it("auto-applies complete conditions through the backend boundary and ignores stale responses", async () => {
+    const condition = {
+      kind: "comparison", operator: "gt",
+      left: { kind: "indicator", indicator_id: "trailing_return_indicator@1", asset: { kind: "literal", value_type: "asset", value: "SPY" }, parameters: { lookback_bars: 63 } },
+      right: { kind: "literal", value_type: "percentage", value: 0 },
+    } as const;
+    const operation = conditionAutoApplyOperation("risk_on", "predicate", condition);
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ strategy: filterBootstrap.strategy }), { status: 200 }));
+    await structuralAuthoringApi.apply(filterBootstrap.strategy, operation, fetcher);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).operation).toEqual(operation);
+    expect(isLatestAuthoringRequest(1, 2)).toBe(false);
+    expect(isLatestAuthoringRequest(2, 2)).toBe(true);
+  });
+
+  it("preserves committed Canonical when automatic semantic authoring is rejected", async () => {
+    const canonical = structuredClone(filterBootstrap.strategy);
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      detail: { code: "result_invalid", message: "Invalid condition", path: "graph.components" },
+    }), { status: 422, headers: { "content-type": "application/json" } }));
+    await expect(structuralAuthoringApi.apply(canonical, {
+      kind: "update_condition_expression", component_id: "positive_return", role: "eligibility",
+      condition: { kind: "comparison", operator: "gt", left: { kind: "literal", value_type: "decimal", value: 1 }, right: { kind: "literal", value_type: "decimal", value: 0 } },
+    }, fetcher)).rejects.toThrow("Invalid condition");
+    expect(canonical).toEqual(filterBootstrap.strategy);
+  });
+
 });
