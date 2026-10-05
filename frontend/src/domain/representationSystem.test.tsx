@@ -129,7 +129,7 @@ describe("one Canonical, distinct editable perspectives", () => {
       onChange={vi.fn()}
     />);
     expect(inspector).toContain("Candidate&#x27;s current adjusted price ≥ $5");
-    expect(inspector).toContain("20 completed observations");
+    expect(inspector).toContain("20-observation mean adjusted price");
     expect(inspector).not.toContain("Return period");
   });
 
