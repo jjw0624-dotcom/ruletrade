@@ -23,6 +23,7 @@ from ruletrade.backtest_runs.models import (
     CreateBacktestRunRequest,
 )
 from ruletrade.backtest_runs.service import BacktestRunService
+from ruletrade.asset_workspace import AssetCompareRequest, AssetCompareResponse, AssetDetail, AssetResearchService, HistoricalAssetContext
 from ruletrade.backtests.errors import (
     InvalidStrategyError,
     LeanExecutionError,
@@ -363,6 +364,63 @@ def health() -> dict[str, object]:
             "detail": status.detail,
         },
     }
+
+
+@app.get("/v1/assets")
+def list_research_assets(dataset_id: str = "synthetic_prices", query: str = "", limit: int = 20) -> dict[str, object]:
+    try:
+        items = AssetResearchService(registry).list_assets(dataset_id, query, limit)
+    except (DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail={"code": "asset_data_unavailable", "message": str(exc)}) from exc
+    return {"items": [item.model_dump(mode="json") for item in items]}
+
+
+@app.get("/v1/assets/{symbol}", response_model=AssetDetail)
+def read_research_asset(
+    symbol: str,
+    as_of: date,
+    dataset_id: str = "synthetic_prices",
+    strategy_id: str | None = None,
+    revision_id: str | None = None,
+    run_id: str | None = None,
+    event_id: str | None = None,
+) -> AssetDetail:
+    strategy = None
+    historical = None
+    if revision_id:
+        revision = get_strategy_service().get_revision_by_id(revision_id)
+        strategy = revision.canonical_strategy
+    elif strategy_id:
+        strategy = get_strategy_service().get_strategy(strategy_id).current_revision.canonical_strategy
+    if run_id or event_id:
+        if not run_id or not event_id:
+            raise HTTPException(status_code=422, detail={"code": "historical_context_incomplete", "message": "run_id and event_id are required together."})
+        run = get_lean_backtest_service().get_run(run_id)
+        event = get_lean_backtest_service().get_decision_event(run_id, event_id)
+        evidence = tuple(
+            item.model_dump(mode="json")
+            for item in event
+            if symbol.upper() in item.model_dump_json().upper()
+        )
+        historical = HistoricalAssetContext(
+            run_id=run_id,
+            event_id=event_id,
+            session_id=event[0].session_id if event else as_of,
+            revision_id=run.revision_id,
+            evidence=evidence,
+        )
+    try:
+        return AssetResearchService(registry).detail(symbol, dataset_id, as_of, strategy=strategy, historical=historical)
+    except (DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail={"code": "asset_data_unavailable", "message": str(exc)}) from exc
+
+
+@app.post("/v1/assets/compare", response_model=AssetCompareResponse)
+def compare_research_assets(request: AssetCompareRequest) -> AssetCompareResponse:
+    try:
+        return AssetResearchService(registry).compare(request)
+    except (DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail={"code": "asset_compare_invalid", "message": str(exc)}) from exc
 
 
 @app.get("/v1/schema/simple")
