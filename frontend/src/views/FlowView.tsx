@@ -7,7 +7,7 @@ import "@xyflow/react/dist/style.css";
 
 import { constructionOptions, semanticDeleteOperation, type ConstructionOption } from "../domain/builderProjection";
 import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
-import { projectConceptualFlow } from "../domain/conceptualFlow";
+import { projectConceptualFlow, type ConceptualGroup } from "../domain/conceptualFlow";
 import { isCompatibleFlowConnection, type FlowSemanticKind } from "../domain/flowDraft";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -25,20 +25,26 @@ export function shapeTransformationTargets(capabilities: StructuralAuthoringCont
   };
 }
 
+export type FlowVisualRole = "capital" | "routing" | "decision-detail" | "timing" | "constraint" | "action";
+export type FlowRelationshipRole = "capital" | "routing" | "decision-detail" | "timing" | "constraint" | "action";
+
 export type SemanticNodeData = Record<string, unknown> & {
   title: string;
   detail: string;
   tone?: string;
   selection: SemanticSelection;
   semanticKind: FlowSemanticKind;
+  visualRole: FlowVisualRole;
 };
 export type SemanticNode = Node<SemanticNodeData, "semantic">;
+export type SemanticEdge = Edge<{ role: FlowRelationshipRole }>;
 
 function SemanticFlowNode({ data, selected }: NodeProps<SemanticNode>) {
   const hasTarget = data.semanticKind !== "portfolio" && data.semanticKind !== "schedule";
-  const hasSource = !["action", "fallback", "constraint"].includes(data.semanticKind);
-  return <div className={`semantic-flow-node ${data.tone ?? ""}${selected ? " selected" : ""}`}
-    role="button" tabIndex={0} aria-label={`${data.title}: ${data.detail}`} data-semantic-kind={data.semanticKind}>
+  const hasSource = !["action", "constraint"].includes(data.semanticKind);
+  return <div className={`semantic-flow-node flow-role-${data.visualRole} ${data.tone ?? ""}${selected ? " selected" : ""}`}
+    role="button" tabIndex={0} aria-label={`${data.title}: ${data.detail}`}
+    data-semantic-kind={data.semanticKind} data-flow-role={data.visualRole}>
     {hasTarget && <Handle type="target" position={Position.Top} />}
     <strong>{data.title}</strong><span>{data.detail}</span>
     {data.semanticKind === "predicate"
@@ -50,140 +56,274 @@ const nodeTypes = { semantic: SemanticFlowNode };
 
 const node = (
   id: string, x: number, y: number, title: string, detail: string,
-  selection: SemanticSelection, semanticKind: FlowSemanticKind, tone?: string,
-): SemanticNode => ({ id, type: "semantic", position: { x, y }, data: { title, detail, selection, semanticKind, tone } });
+  selection: SemanticSelection, semanticKind: FlowSemanticKind, visualRole: FlowVisualRole, tone?: string,
+): SemanticNode => ({
+  id, type: "semantic", position: { x, y },
+  data: { title, detail, selection, semanticKind, visualRole, tone },
+});
 
 const edge = (
-  source: string, target: string, label?: string, className = "strategy-flow-edge",
-  sourceHandle?: string,
-): Edge => ({
-  id: `${source}-${target}-${sourceHandle ?? ""}-${label ?? ""}`, source, target, sourceHandle,
-  label, type: "smoothstep", markerEnd: className.includes("timing") ? undefined : { type: MarkerType.ArrowClosed },
-  className,
-});
+  source: string, target: string, role: FlowRelationshipRole,
+  label?: string, sourceHandle?: string,
+): SemanticEdge => {
+  const carriesCapital = role === "capital" || role === "routing" || role === "action";
+  return {
+    id: `${source}-${target}-${sourceHandle ?? ""}-${role}-${label ?? ""}`,
+    source, target, sourceHandle, label, type: "smoothstep",
+    markerEnd: carriesCapital ? { type: MarkerType.ArrowClosed } : undefined,
+    className: `strategy-flow-edge flow-edge-${role}`,
+    data: { role },
+  };
+};
 
 export function mergeFlowNodePositions(projected: SemanticNode[], current: SemanticNode[]): SemanticNode[] {
   const positions = new Map(current.map((item) => [item.id, item.position]));
   return projected.map((item) => ({ ...item, position: positions.get(item.id) ?? item.position }));
 }
 
+function groupOwnsTarget(group: ConceptualGroup, target: string | undefined): boolean {
+  if (!target) return false;
+  return group.sourceComponentIds.includes(target)
+    || group.sleeveComponentId === target
+    || group.universeComponentId === target
+    || group.allocationComponentId === target;
+}
+
+function targetDetail(target: string): string {
+  return target.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function projectFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
   const nodes: SemanticNode[] = [];
-  const edges: Edge[] = [];
+  const edges: SemanticEdge[] = [];
   const rootId = "portfolio";
+  const centerX = 520;
+
   if (projection.unsupportedReason) {
-    nodes.push(node(rootId, 360, 20, "Unsupported strategy shape", projection.unsupportedReason, semanticSelection("portfolio", null), "portfolio"));
+    nodes.push(node(rootId, centerX, 30, "Unsupported strategy shape", projection.unsupportedReason,
+      semanticSelection("portfolio", null), "portfolio", "capital"));
     return { nodes, edges };
   }
 
-  nodes.push(node(rootId, 380, 20, projection.title, projection.kind === "portfolio" ? "Portfolio capital" : "Portfolio target", semanticSelection("portfolio", projection.portfolioComponentId ?? null), "portfolio"));
-  let capitalParent = rootId;
-  if (projection.split) {
-    nodes.push(node("split", 380, 145, "Split capital", projection.groups.map((group) => group.allocation).join(" / "), semanticSelection("split", projection.portfolioComponentId ?? null), "allocation", "split"));
-    edges.push(edge(rootId, "split", "capital"));
-    capitalParent = "split";
+  nodes.push(node(rootId, centerX, 30, projection.title,
+    projection.kind === "portfolio" ? "Portfolio capital" : "Portfolio capital · 100%",
+    semanticSelection("portfolio", projection.portfolioComponentId ?? null), "portfolio", "capital", "portfolio"));
+
+  const predicate = projection.predicate;
+  const predicateId = "predicate";
+  if (predicate) {
+    nodes.push(node(predicateId, centerX, 180, "Capital route", predicate.label,
+      semanticSelection("rule", predicate.componentId, { fieldPath: "condition" }), "predicate", "routing", "predicate"));
+    edges.push(edge(rootId, predicateId, "capital"));
   }
 
+  let splitId: string | null = null;
+  if (projection.split && !predicate) {
+    splitId = "split";
+    nodes.push(node(splitId, centerX, 180, "Split capital",
+      projection.groups.map((group) => group.allocation).join(" / "),
+      semanticSelection("split", projection.portfolioComponentId ?? null), "allocation", "routing", "split"));
+    edges.push(edge(rootId, splitId, "capital"));
+  }
+
+  const thenMatch = predicate
+    ? projection.groups.findIndex((group) => groupOwnsTarget(group, predicate.thenTarget))
+    : -1;
+  const otherwiseMatch = predicate?.otherwiseTarget
+    ? projection.groups.findIndex((group) => groupOwnsTarget(group, predicate.otherwiseTarget))
+    : -1;
+  const thenIndex = predicate ? (thenMatch >= 0 ? thenMatch : 0) : -1;
+  const otherwiseIndex = predicate?.otherwiseTarget
+    ? (otherwiseMatch >= 0 ? otherwiseMatch : projection.groups.length > 1 ? 1 : -1)
+    : -1;
+
+  const groupGap = 520;
+  const groupStartX = centerX - ((projection.groups.length - 1) * groupGap) / 2;
+  const groupBaseY = predicate || splitId ? 350 : 200;
+
   projection.groups.forEach((group, index) => {
-    const x = projection.groups.length === 1 ? 380 : 120 + index * 420;
-    const baseY = projection.split ? 285 : 160;
+    const x = groupStartX + index * groupGap;
     const groupId = `group:${group.id}`;
-    nodes.push(node(groupId, x, baseY, group.label, group.allocation ? `${group.allocation} ownership` : "Investment exposure",
-      semanticSelection("group", group.sleeveComponentId ?? group.universeComponentId ?? null, { groupId: group.id }), "group", index ? "defensive" : "growth"));
-    edges.push(edge(capitalParent, groupId, group.allocation ?? "capital"));
+    nodes.push(node(groupId, x, groupBaseY, group.label,
+      group.allocation ? `${group.allocation} capital exposure` : "Investment exposure",
+      semanticSelection("group", group.sleeveComponentId ?? group.universeComponentId ?? null, { groupId: group.id }),
+      "group", "capital", index ? "defensive" : "growth"));
+
+    if (predicate) {
+      if (index === thenIndex) edges.push(edge(predicateId, groupId, "routing", "true", "true"));
+      if (predicate.otherwiseTarget && index === otherwiseIndex) {
+        edges.push(edge(predicateId, groupId, "routing", "false", "false"));
+      }
+    } else {
+      edges.push(edge(splitId ?? rootId, groupId, splitId ? "routing" : "capital", group.allocation ?? "100%"));
+    }
 
     const universeId = `universe:${group.id}`;
-    nodes.push(node(universeId, x, baseY + 135, group.universeLabel ?? "Universe", `${group.assets.length} assets · ${group.assets.join(" · ")}`,
-      semanticSelection("universe", group.universeComponentId ?? null, { groupId: group.id }), "universe"));
-    edges.push(edge(groupId, universeId, "considers"));
+    const choose = group.choose;
 
-    let pipeline = universeId;
-    let pipelineY = baseY + 270;
-    if (group.choose?.filterComponentId) {
-      const id = `qualification:${group.id}`;
-      nodes.push(node(id, x, pipelineY, "Eligible candidates", group.choose.condition ?? "Supported eligibility",
-        semanticSelection("qualification", group.choose.filterComponentId, { fieldPath: group.choose.eligibilityFieldPath ?? "config.threshold", groupId: group.id }),
-        "eligibility", "qualification"));
-      edges.push(edge(pipeline, id, "candidates"));
-      pipeline = id;
-      pipelineY += 135;
-    }
-
-    if (group.choose) {
-      const choose = group.choose;
-      const selectId = `selection:${group.id}`;
-      const modifiers = [
-        choose.ranking,
-        choose.cooldown ? "cooldown attached" : null,
+    if (choose) {
+      const selectionY = groupBaseY + 175;
+      const selectionId = `selection:${group.id}`;
+      const selectionDetail = [
+        `from ${group.assets.length} asset${group.assets.length === 1 ? "" : "s"}`,
+        choose.condition ? "1 eligibility filter" : "no eligibility filter",
+        choose.ranking ? `ranked by ${choose.ranking}` : null,
       ].filter(Boolean).join(" · ");
-      nodes.push(node(selectId, x, pipelineY, choose.label, modifiers || "Selection",
-        semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }), "selection", "selection"));
-      edges.push(edge(pipeline, selectId, group.choose.filterComponentId ? "eligible candidates" : "candidates"));
-      pipeline = selectId;
+      nodes.push(node(selectionId, x, selectionY, choose.label, selectionDetail,
+        semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }),
+        "selection", "routing", "selection"));
+      edges.push(edge(groupId, selectionId, "capital"));
+
+      nodes.push(node(universeId, x - 300, selectionY - 70, "Selection universe",
+        `${group.universeLabel ?? "Explicit universe"} · ${group.assets.join(" · ")}`,
+        semanticSelection("universe", group.universeComponentId ?? null, { groupId: group.id }),
+        "universe", "decision-detail", "universe"));
+      edges.push(edge(universeId, selectionId, "decision-detail", "FROM"));
+
+      if (choose.filterComponentId) {
+        const eligibilityId = `qualification:${group.id}`;
+        nodes.push(node(eligibilityId, x - 300, selectionY + 65, "Eligibility",
+          choose.condition ?? "Supported eligibility",
+          semanticSelection("qualification", choose.filterComponentId, {
+            fieldPath: choose.eligibilityFieldPath ?? "config.threshold", groupId: group.id,
+          }), "eligibility", "decision-detail", "qualification"));
+        edges.push(edge(eligibilityId, selectionId, "decision-detail", "WHERE"));
+      }
+
+      if (choose.cooldownComponentId) {
+        const cooldownId = `cooldown:${group.id}`;
+        nodes.push(node(cooldownId, x + 300, selectionY - 55, "Selection constraint",
+          choose.cooldown ?? "Cooldown",
+          semanticSelection("cooldown", choose.cooldownComponentId, {
+            fieldPath: "config.duration", groupId: group.id,
+          }), "constraint", "constraint", "constraint"));
+        edges.push(edge(cooldownId, selectionId, "constraint"));
+      }
+
+      const selectedX = choose.fallbackComponentId ? x - 120 : x;
+      const selectedId = `selected-target:${group.id}`;
+      const routeY = selectionY + 180;
+      nodes.push(node(selectedId, selectedX, routeY, "Selected target basket",
+        choose.ranking ? choose.ranking : "Selection result exposure",
+        semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }),
+        "exposure", "capital", "selected-target"));
+      edges.push(edge(selectionId, selectedId, "routing", "selection succeeds"));
+
+      const allocationId = `allocation:${group.id}`;
+      nodes.push(node(allocationId, selectedX, routeY + 165, "Equal allocation",
+        "Selected assets receive equal target weights",
+        semanticSelection(projection.split ? "split" : "group",
+          projection.split ? projection.portfolioComponentId ?? null : group.allocationComponentId ?? null,
+          { groupId: group.id }), "allocation", "capital", "allocation"));
+      edges.push(edge(selectedId, allocationId, "capital", "equal weight"));
+
+      const targetId = `portfolio-target:${group.id}`;
+      nodes.push(node(targetId, x, routeY + 330, "Portfolio target",
+        group.allocation ? `${group.allocation} sleeve target` : "Target exposure",
+        semanticSelection("group", group.allocationComponentId ?? group.sleeveComponentId ?? null, { groupId: group.id }),
+        "target", "capital", "target"));
+      edges.push(edge(allocationId, targetId, "capital"));
 
       if (choose.fallbackComponentId) {
-        const id = `fallback:${group.id}`;
-        nodes.push(node(id, x + 235, pipelineY, "Selection fallback", choose.otherwise ?? "Alternative destination",
-          semanticSelection("fallback", choose.fallbackComponentId, { groupId: group.id }), "fallback", "fallback"));
-        edges.push(edge(selectId, id, "if incomplete", "strategy-flow-edge modifier-edge"));
+        const fallbackId = `fallback:${group.id}`;
+        const destination = choose.otherwise?.replace(/^Otherwise\s*→\s*/i, "") ?? "Fallback exposure";
+        nodes.push(node(fallbackId, x + 260, routeY, "Fallback exposure", destination,
+          semanticSelection("fallback", choose.fallbackComponentId, { groupId: group.id }),
+          "fallback", "capital", "fallback"));
+        edges.push(edge(selectionId, fallbackId, "routing", "if incomplete"));
+        edges.push(edge(fallbackId, targetId, "capital", "fallback target"));
       }
-      if (choose.cooldownComponentId) {
-        const id = `cooldown:${group.id}`;
-        nodes.push(node(id, x - 235, pipelineY, "Selection constraint", choose.cooldown ?? "Cooldown",
-          semanticSelection("cooldown", choose.cooldownComponentId, { fieldPath: "config.duration", groupId: group.id }), "constraint", "constraint"));
-        edges.push(edge(selectId, id, "modifies", "strategy-flow-edge modifier-edge"));
+
+      const actionId = `action:${group.id}`;
+      nodes.push(node(actionId, x, routeY + 485, "Rebalance", "Action · realize the portfolio target",
+        semanticSelection("rule", predicate?.componentId ?? group.sleeveComponentId ?? group.allocationComponentId ?? null,
+          { groupId: group.id }), "action", "action", "action"));
+      edges.push(edge(targetId, actionId, "action", "realizes target"));
+
+      if (group.scheduleComponentId) {
+        const scheduleId = `schedule:${group.id}`;
+        nodes.push(node(scheduleId, x - 250, groupBaseY - 20, "Schedule",
+          group.timing ?? "Independent schedule",
+          semanticSelection("schedule", group.scheduleComponentId, { groupId: group.id }),
+          "schedule", "timing", "schedule"));
+        edges.push(edge(scheduleId, selectionId, "timing", "evaluates"));
       }
-      pipelineY += 145;
-    }
+    } else {
+      const allocationY = groupBaseY + 190;
+      nodes.push(node(universeId, x - 285, allocationY, "Asset universe",
+        `${group.universeLabel ?? "Explicit universe"} · ${group.assets.join(" · ")}`,
+        semanticSelection("universe", group.universeComponentId ?? null, { groupId: group.id }),
+        "universe", "decision-detail", "universe"));
 
-    const allocationId = `allocation:${group.id}`;
-    nodes.push(node(allocationId, x, pipelineY, "Equal allocation", group.choose ? "Selected assets receive equal target weights" : "Universe assets receive equal target weights",
-      semanticSelection(projection.split ? "split" : "group", projection.split ? projection.portfolioComponentId ?? null : group.allocationComponentId ?? null, { groupId: group.id }),
-      "allocation", "allocation"));
-    edges.push(edge(pipeline, allocationId, group.choose ? "selected candidates" : "assets"));
+      const allocationId = `allocation:${group.id}`;
+      nodes.push(node(allocationId, x, allocationY, "Equal allocation",
+        "Universe assets receive equal target weights",
+        semanticSelection(projection.split ? "split" : "group",
+          projection.split ? projection.portfolioComponentId ?? null : group.allocationComponentId ?? null,
+          { groupId: group.id }), "allocation", "capital", "allocation"));
+      edges.push(edge(groupId, allocationId, "capital", "equal weight"));
+      edges.push(edge(universeId, allocationId, "decision-detail", "assets"));
 
-    const actionId = `action:${group.id}`;
-    nodes.push(node(actionId, x, pipelineY + 135, "Rebalance", "Action · apply the portfolio targets",
-      semanticSelection("rule", projection.predicate?.componentId ?? group.sleeveComponentId ?? group.allocationComponentId ?? null, { groupId: group.id }),
-      "action", "action"));
-    edges.push(edge(allocationId, actionId, "portfolio targets"));
+      const targetId = `portfolio-target:${group.id}`;
+      nodes.push(node(targetId, x, allocationY + 170, "Portfolio target",
+        group.allocation ? `${group.allocation} sleeve target` : "Target exposure",
+        semanticSelection("group", group.allocationComponentId ?? group.sleeveComponentId ?? null, { groupId: group.id }),
+        "target", "capital", "target"));
+      edges.push(edge(allocationId, targetId, "capital"));
 
-    if (group.scheduleComponentId) {
-      const scheduleId = `schedule:${group.id}`;
-      nodes.push(node(scheduleId, x - 245, baseY, "Schedule", group.timing ?? "Independent schedule",
-        semanticSelection("schedule", group.scheduleComponentId, { groupId: group.id }), "schedule", "schedule"));
-      edges.push(edge(scheduleId, groupId, "evaluates", "strategy-flow-edge timing-edge"));
+      const actionId = `action:${group.id}`;
+      nodes.push(node(actionId, x, allocationY + 325, "Rebalance", "Action · realize the portfolio target",
+        semanticSelection("rule", predicate?.componentId ?? group.sleeveComponentId ?? group.allocationComponentId ?? null,
+          { groupId: group.id }), "action", "action", "action"));
+      edges.push(edge(targetId, actionId, "action", "realizes target"));
+
+      if (group.scheduleComponentId) {
+        const scheduleId = `schedule:${group.id}`;
+        nodes.push(node(scheduleId, x - 250, groupBaseY - 20, "Schedule",
+          group.timing ?? "Independent schedule",
+          semanticSelection("schedule", group.scheduleComponentId, { groupId: group.id }),
+          "schedule", "timing", "schedule"));
+        edges.push(edge(scheduleId, allocationId, "timing", "evaluates"));
+      }
     }
   });
 
-  if (projection.rebalanceScheduleComponentId) {
-    const id = "schedule:portfolio";
-    nodes.push(node(id, 120, 20, "Portfolio schedule", projection.rebalance ?? "Schedule",
-      semanticSelection("schedule", projection.rebalanceScheduleComponentId), "schedule", "schedule"));
-    edges.push(edge(id, rootId, "evaluates", "strategy-flow-edge timing-edge"));
-  }
-
-  if (projection.predicate) {
-    const predicateId = "predicate";
-    nodes.push(node(predicateId, 810, 20, "Market route", projection.predicate.label,
-      semanticSelection("rule", projection.predicate.componentId, { fieldPath: "condition" }), "predicate", "predicate"));
-    const thenId = "predicate:then";
-    nodes.push(node(thenId, 700, 175, "True route", projection.predicate.thenTarget ?? "Portfolio targets",
-      semanticSelection("rule", projection.predicate.componentId, { fieldPath: "actions[0]" }), "branch", "growth"));
-    edges.push(edge(predicateId, thenId, "true", "strategy-flow-edge true-route", "true"));
-    edges.push(edge(thenId, rootId, "target"));
-    if (projection.predicate.otherwiseTarget) {
+  if (predicate) {
+    if (thenIndex < 0) {
+      const thenId = "predicate:then";
+      nodes.push(node(thenId, centerX - 210, groupBaseY, "True-route exposure",
+        predicate.thenTarget ? targetDetail(predicate.thenTarget) : "Portfolio target",
+        semanticSelection("rule", predicate.componentId, { fieldPath: "actions[0]" }),
+        "exposure", "capital", "growth"));
+      edges.push(edge(predicateId, thenId, "routing", "true", "true"));
+    }
+    if (predicate.otherwiseTarget && otherwiseIndex < 0) {
       const otherwiseId = "predicate:otherwise";
-      nodes.push(node(otherwiseId, 930, 175, "False route", projection.predicate.otherwiseTarget,
-        semanticSelection("rule", projection.predicate.componentId, { fieldPath: "else_actions[0]" }), "branch", "defensive"));
-      edges.push(edge(predicateId, otherwiseId, "false", "strategy-flow-edge false-route", "false"));
-      edges.push(edge(otherwiseId, rootId, "target"));
-    } else {
-      nodes.push(node("predicate:retain", 930, 175, "False route", "Retain current holdings · no branch mutation",
-        semanticSelection("rule", projection.predicate.componentId, { fieldPath: "condition" }), "branch", "defensive"));
-      edges.push(edge(predicateId, "predicate:retain", "false", "strategy-flow-edge false-route", "false"));
+      nodes.push(node(otherwiseId, centerX + 210, groupBaseY, "False-route exposure",
+        targetDetail(predicate.otherwiseTarget),
+        semanticSelection("rule", predicate.componentId, { fieldPath: "else_actions[0]" }),
+        "exposure", "capital", "defensive"));
+      edges.push(edge(predicateId, otherwiseId, "routing", "false", "false"));
+    } else if (!predicate.otherwiseTarget) {
+      const retainId = "predicate:retain";
+      nodes.push(node(retainId, centerX + 260, groupBaseY, "Retain holdings",
+        "False route · keep current exposure · no branch mutation",
+        semanticSelection("rule", predicate.componentId, { fieldPath: "condition" }),
+        "exposure", "capital", "defensive"));
+      edges.push(edge(predicateId, retainId, "routing", "false · retain holdings", "false"));
     }
   }
+
+  if (projection.rebalanceScheduleComponentId) {
+    const scheduleId = "schedule:portfolio";
+    const targetId = predicate ? predicateId : splitId ?? rootId;
+    nodes.push(node(scheduleId, 120, 30, "Portfolio schedule",
+      projection.rebalance ?? "Schedule",
+      semanticSelection("schedule", projection.rebalanceScheduleComponentId),
+      "schedule", "timing", "schedule"));
+    edges.push(edge(scheduleId, targetId, "timing", "evaluates"));
+  }
+
   return { nodes, edges };
 }
 
@@ -209,7 +349,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   const displayed = nodes.map((item) => ({ ...item, selected: sameSemanticSelection(item.data.selection, state.editor.selection) }));
   const draftConnection = state.editor.flowDraft.connection;
   const edges = draftConnection && nodes.some((item) => item.id === draftConnection.sourceId) && nodes.some((item) => item.id === draftConnection.targetId)
-    ? [...graph.edges, edge(draftConnection.sourceId, draftConnection.targetId, "draft relationship", "strategy-flow-edge draft-edge", draftConnection.sourceHandle ?? undefined)]
+    ? [...graph.edges, edge(draftConnection.sourceId, draftConnection.targetId, "decision-detail", "draft relationship", draftConnection.sourceHandle ?? undefined)]
     : graph.edges;
 
   const removeSelected = useCallback(() => {
@@ -291,7 +431,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
       onNodeClick={(_, selected) => dispatch({ type: "select_semantic", selection: selected.data.selection })}
       onPaneClick={() => dispatch({ type: "select_semantic", selection: null })}
       nodesConnectable onConnect={onConnect} isValidConnection={isValidConnection}
-      deleteKeyCode={null} fitView fitViewOptions={{ padding: .2 }} minZoom={.35} maxZoom={1.8}>
+      deleteKeyCode={null} fitView fitViewOptions={{ padding: .16, maxZoom: 1.05 }} minZoom={.35} maxZoom={1.8}>
       <Background gap={24} size={1} /><Controls showInteractive={false} />
     </ReactFlow>
     <div className="flow-canvas-hint">Click to inspect · drag to arrange · connect only semantic handles · pan/zoom remain presentation-only</div>

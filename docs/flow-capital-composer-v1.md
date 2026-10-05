@@ -5,7 +5,7 @@
 Canonical Strategy remains the only strategy truth. The shared semantic projection feeds two deliberately different authoring perspectives:
 
 - **Blocky** answers which decision program executes and in what control-flow order.
-- **Flow** answers where ownership, candidate sets, selected exposure, allocation targets, and conditional routes go.
+- **Flow** answers where capital, ownership, and exposure are targeted, and which decisions route them. Candidate transformations are supporting detail, not its primary spine.
 - **LogicDraft** is an unfinished Blocky program.
 - **FlowDraft** is an unfinished Flow topology.
 
@@ -31,11 +31,65 @@ Flow uses repository-native concepts:
 
 A Flow node may aggregate several Canonical components. Inspector selection and provenance always retain the persisted component identity.
 
+
+## Capital-first Flow grammar
+
+The primary Flow path is reserved for capital, ownership, exposure, allocation, and capital routing. Projection metadata classifies every visible unit and relationship as one of:
+
+| Role | Visual meaning |
+| --- | --- |
+| Capital | Portfolio, Investment/Sleeve exposure, selected or fallback exposure, Allocation, and portfolio target |
+| Routing | Predicate, Split, Selection success/incomplete routing, and percentage branches |
+| Decision detail | Universe, Eligibility, and ranking/source context that determine an exposure |
+| Timing | Schedule attachment to the subgraph it evaluates |
+| Constraint | Cooldown or other supported behavior attached to Selection |
+| Action | Rebalance realizing a target; it is not another ownership destination |
+
+Candidate/data relationships do not become capital relationships merely because Canonical components are connected. Universe and Eligibility stay selectable and preserve exact provenance, but attach to the Selection mechanism with secondary relationships. Selection routes capital to a selected target basket or, when incomplete, to the distinct Selection fallback exposure. Equal weighting remains a primary capital relationship. Rebalance is downstream target realization.
+
+A data-pipeline projection is intentionally rejected:
+
+```text
+BAD — candidate processing presented as capital
+Investment → Universe → Eligibility → Selection → Allocation
+```
+
+The capital-first projection is:
+
+```text
+GOOD — capital destinations with decision detail attached
+
+Portfolio capital
+      │
+      ▼
+  Investment
+      │
+      ▼
+   Selection ── if incomplete ──> fallback exposure
+      │
+ selection succeeds
+      ▼
+selected target basket
+      │ equal weight
+      ▼
+portfolio target
+      │
+      ▼
+  Rebalance
+
+Universe ─┐
+Eligibility ─┴── decision detail for Selection
+```
+
+Predicate uses the same grammar: Portfolio capital enters a routing condition and leaves on explicit true/false exposure routes. A missing ELSE ends at **retain holdings**, an exposure outcome rather than a fabricated executable program. Sleeve percentages are labels on parallel routing relationships from the same Portfolio/Split parent.
+
+Capital nodes use greater size, border weight, and placement. Routing nodes remain prominent but visually distinct. Decision detail is smaller and dashed; timing and constraints are tertiary attachments. Color is supplementary, never the only distinction. Edge labels are reserved for high-value meaning such as `70%`, `30%`, `true`, `false`, `equal weight`, `if incomplete`, and `retain holdings`.
+
 ## Projection grammar
 
 - Explicit universes show source identity, count, and compact membership.
-- Eligibility is a candidate edge/node before Selection, never a portfolio false branch.
-- Selection fallback is a modifier route labelled “if incomplete”; it is not Control OTHERWISE.
+- Universe and Eligibility attach to Selection as decision detail; neither sits on the primary capital path.
+- Selection routes to a selected target basket and, when configured, a fallback exposure labelled “if incomplete”; fallback is not Control OTHERWISE.
 - Predicates render as labelled true and false routes. A missing ELSE ends in “retain current holdings”.
 - Portfolio splits render parallel Sleeve branches with allocation percentages.
 - Equal allocation and rebalance remain distinct units.
@@ -46,7 +100,7 @@ Initial layout is deterministic and keyed by semantic identity. Surviving node p
 
 ## Authoring and compatibility
 
-The Add panel presents Flow categories: Capital, Assets / universe, Decision / routing, and Timing / behavior. Recipes remain in Guide.
+The compact Add panel presents Flow categories: Capital, Assets, Decision, Allocation, Timing, and Behavior. Recipes remain in Guide.
 
 Safe existing operations are reused:
 

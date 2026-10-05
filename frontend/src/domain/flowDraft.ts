@@ -1,6 +1,6 @@
 export type FlowSemanticKind =
   | "portfolio" | "group" | "universe" | "eligibility" | "selection"
-  | "allocation" | "action" | "predicate" | "branch" | "schedule"
+  | "allocation" | "target" | "exposure" | "action" | "predicate" | "branch" | "schedule"
   | "fallback" | "constraint";
 
 export type FlowDraftStatus = "clean" | "incomplete" | "valid_but_unsupported" | "commit_ready";
@@ -34,22 +34,32 @@ export const EMPTY_FLOW_DRAFT: FlowDraftState = {
 const COMPATIBLE_CONNECTIONS = new Set([
   "portfolio>group",
   "group>universe",
+  "group>selection",
+  "group>allocation",
   "universe>eligibility",
   "universe>selection",
   "eligibility>selection",
+  "selection>exposure",
   "selection>allocation",
   "selection>fallback",
   "selection>constraint",
+  "exposure>allocation",
+  "allocation>target",
+  "fallback>target",
+  "target>action",
   "allocation>action",
   "allocation>group",
   "allocation>portfolio",
   "predicate>branch",
+  "predicate>exposure",
   "predicate>group",
   "predicate>allocation",
   "branch>group",
   "branch>allocation",
   "schedule>portfolio",
   "schedule>group",
+  "schedule>selection",
+  "schedule>allocation",
   "schedule>predicate",
 ]);
 
