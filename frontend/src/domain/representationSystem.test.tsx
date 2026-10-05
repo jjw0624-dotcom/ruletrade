@@ -90,8 +90,8 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(projectConceptualFlow(state.canonical, filterBootstrap.registry).groups[0].choose?.threshold).toBe("0.05");
     const bootstrap = { ...filterBootstrap, strategy: state.canonical };
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
-    expect(rules).toContain("ORDER BY Candidate trailing return · 63 completed observations");
-    expect(rules).toContain("WHERE Candidate trailing return · 63 completed observations &gt; 0.05");
+    expect(rules).toContain("ORDER BY Candidate&#x27;s 63-observation return");
+    expect(rules).toContain("WHERE Candidate&#x27;s 63-observation return &gt; 5%");
     expect(rules).not.toContain("Return lookback observations");
     expect(rules).not.toContain("Qualification threshold percent");
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="guided"><GuidedView /></StrategyEditorProvider>)).toContain("63 trading observations");
@@ -116,19 +116,19 @@ describe("one Canonical, distinct editable perspectives", () => {
     const bootstrap = { ...filterBootstrap, strategy: canonical };
     const flow = projectConceptualFlow(canonical, bootstrap.registry);
     const choose = flow.groups[0].choose!;
-    const meaning = "Candidate price · current ≥ 5";
+    const meaning = "Candidate\'s current adjusted price ≥ $5";
     expect(choose.condition).toBe(meaning);
     expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("qualification:"))?.data.detail).toBe(meaning);
     expect(projectLogicRepresentation(canonical, bootstrap.registry).groups[0].steps.find((item) => item.kind === "condition")?.text).toBe(meaning);
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
-    expect(rules).toContain(`WHERE ${meaning}`);
+    expect(rules).toContain("WHERE Candidate&#x27;s current adjusted price ≥ $5");
     const inspector = renderToStaticMarkup(<SelectionComposer
       direction="descending" count={choose.topN!} shortagePolicy="choose_all"
       strategy={canonical} universeComponentId={flow.groups[0].universeComponentId}
       valueExpression={choose.rankingValue} eligibilitySummary={choose.condition}
       onChange={vi.fn()}
     />);
-    expect(inspector).toContain(meaning);
+    expect(inspector).toContain("Candidate&#x27;s current adjusted price ≥ $5");
     expect(inspector).toContain("20 completed observations");
     expect(inspector).not.toContain("Return period");
   });
