@@ -256,7 +256,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [dispatch, options, state.canonical, structural]);
 
   const nodeById = useMemo(() => new Map(nodes.map((item) => [item.id, item])), [nodes]);
-  const isValidConnection = useCallback((connection: Connection) => {
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
     const source = connection.source ? nodeById.get(connection.source)?.data.semanticKind : undefined;
     const target = connection.target ? nodeById.get(connection.target)?.data.semanticKind : undefined;
     return Boolean(source && target && isCompatibleFlowConnection(source, target));

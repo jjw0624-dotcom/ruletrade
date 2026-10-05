@@ -127,7 +127,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const entries = semanticToolboxEntries(projection, momentumBootstrap.registry, capabilities, null, "blocky");
     expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "available_now" });
     expect(entries.find((entry) => entry.label === "Asset Set")).toMatchObject({ availability: "unavailable", options: [] });
-    expect(entries.some((entry) => entry.category === "Portfolio")).toBe(false);
+    expect(entries.some((entry) => entry.category === "Capital")).toBe(false);
     const initial = createEditorState(momentumBootstrap);
     expect(initial.canonical).toBe(momentumBootstrap.strategy);
     expect(initial.validation.status).toBe("valid");
