@@ -376,6 +376,14 @@ def list_research_assets(dataset_id: str = "synthetic_prices", query: str = "", 
     return {"items": [item.model_dump(mode="json") for item in items]}
 
 
+@app.post("/v1/assets/compare", response_model=AssetCompareResponse)
+def compare_research_assets(request: AssetCompareRequest) -> AssetCompareResponse:
+    try:
+        return AssetResearchService(registry).compare(request)
+    except (DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail={"code": "asset_compare_invalid", "message": str(exc)}) from exc
+
+
 @app.get("/v1/assets/{symbol}", response_model=AssetDetail)
 def read_research_asset(
     symbol: str,
@@ -410,14 +418,6 @@ def read_research_asset(
         return AssetResearchService(registry).detail(symbol, dataset_id, as_of, strategy=strategy, historical=historical)
     except (DatasetError, ValueError) as exc:
         raise HTTPException(status_code=422, detail={"code": "asset_data_unavailable", "message": str(exc)}) from exc
-
-
-@app.post("/v1/assets/compare", response_model=AssetCompareResponse)
-def compare_research_assets(request: AssetCompareRequest) -> AssetCompareResponse:
-    try:
-        return AssetResearchService(registry).compare(request)
-    except (DatasetError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail={"code": "asset_compare_invalid", "message": str(exc)}) from exc
 
 
 @app.get("/v1/schema/simple")

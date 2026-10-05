@@ -21,8 +21,8 @@ def test_asset_search_and_strategy_membership_are_real(tmp_path):
 
 def test_point_in_time_never_uses_future_observations(tmp_path):
     research = service(tmp_path)
-    earlier = research.detail("SPY", "synthetic_prices", date(2023, 6, 30), lookback_observations=5)
-    later = research.detail("SPY", "synthetic_prices", date(2024, 6, 30), lookback_observations=5)
+    earlier = research.detail("QQQ", "synthetic_prices", date(2023, 6, 30), lookback_observations=5)
+    later = research.detail("QQQ", "synthetic_prices", date(2024, 6, 30), lookback_observations=5)
     assert earlier.series[-1].date <= date(2023, 6, 30)
     assert all(point.date <= date(2023, 6, 30) for point in earlier.series)
     assert earlier.metrics[0].value != later.metrics[0].value
@@ -30,8 +30,8 @@ def test_point_in_time_never_uses_future_observations(tmp_path):
 
 def test_compare_is_bounded_and_uses_one_as_of(tmp_path):
     result = service(tmp_path).compare(AssetCompareRequest(
-        symbols=("SPY", "QQQ"), as_of=date(2024, 12, 31), lookback_observations=5
+        symbols=("QQQ", "VOO"), as_of=date(2024, 12, 31), lookback_observations=5
     ))
-    assert [item.asset.symbol for item in result.items] == ["SPY", "QQQ"]
+    assert [item.asset.symbol for item in result.items] == ["QQQ", "VOO"]
     assert all(item.series[-1].date <= result.as_of for item in result.items)
     assert all(item.metrics[1].status == "available" for item in result.items)

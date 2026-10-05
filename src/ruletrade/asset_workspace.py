@@ -85,6 +85,7 @@ class AssetCompareResponse(AssetResearchModel):
 _NAMES = {
     "SPY": ("SPDR S&P 500 ETF Trust", "ETF"),
     "QQQ": ("Invesco QQQ Trust", "ETF"),
+    "VOO": ("Vanguard S&P 500 ETF", "ETF"),
     "VGT": ("Vanguard Information Technology ETF", "ETF"),
     "SOXX": ("iShares Semiconductor ETF", "ETF"),
     "SCHG": ("Schwab U.S. Large-Cap Growth ETF", "ETF"),

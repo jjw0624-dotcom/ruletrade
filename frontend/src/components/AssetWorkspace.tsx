@@ -31,7 +31,7 @@ function assetPrice(symbol: string): ValueExpression {
   return { kind: "price", asset: { kind: "literal", value_type: "asset", value: symbol } } as ValueExpression;
 }
 
-export function AssetWorkspace({ initialSymbol="SPY", strategyId, revisionId, strategy, capabilities, historical, onAddToUniverse, onUseValue, onViewRule }: Props) {
+export function AssetWorkspace({ initialSymbol="QQQ", strategyId, revisionId, strategy, capabilities, historical, onAddToUniverse, onUseValue, onViewRule }: Props) {
   const [query,setQuery]=useState("");
   const [assets,setAssets]=useState<AssetSummary[]>([]);
   const [symbol,setSymbol]=useState(initialSymbol);
