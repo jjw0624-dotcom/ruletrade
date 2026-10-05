@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from ruletrade.compiler.analysis import StrategyRequirements
 from ruletrade.compiler.lean.plan import (
+    LeanComparison,
     LeanCooldownState,
     LeanDailyEvent,
     LeanFilterClause,
@@ -20,6 +21,7 @@ from ruletrade.compiler.lean.plan import (
     LeanTargetSleeve,
     LeanTargetSnapshot,
     LeanTrailingReturnPredicate,
+    LeanValue,
     normalize_lean_plan,
 )
 from ruletrade.ir.strategy import (
@@ -62,6 +64,28 @@ class _LoweredTargets:
             snapshot_allocations=self.snapshot_allocations + other.snapshot_allocations,
             exit_state_ids=self.exit_state_ids + other.exit_state_ids,
         )
+
+
+def _lower_value(value) -> LeanValue:
+    return LeanValue(
+        kind=value.kind,
+        value_type=value.value_type,
+        subject=value.subject,
+        asset=value.asset,
+        literal=value.literal,
+        observations=value.observations,
+        aggregate=value.aggregate,
+        operand=_lower_value(value.operand) if value.operand is not None else None,
+        factor=value.factor,
+    )
+
+
+def _lower_comparison(comparison) -> LeanComparison:
+    return LeanComparison(
+        operator=comparison.operator,
+        left=_lower_value(comparison.left),
+        right=_lower_value(comparison.right),
+    )
 
 
 def lower_strategy_ir_to_lean_plan(
@@ -129,6 +153,19 @@ def lower_strategy_ir_to_lean_plan(
             ),
             shortage_policy=top_n.shortage_policy,
             cooldown_state_id=cooldown_state_id,
+            ranking_value=(
+                _lower_value(rank.value)
+                if rank.value is not None
+                else LeanValue(
+                    kind="trailing_return", value_type="percentage", subject="candidate",
+                    observations=history.lookback_bars,
+                )
+            ),
+            eligibility=tuple(
+                _lower_comparison(item.comparison)
+                for item in (filter_operation.clauses if filter_operation is not None else ())
+                if item.comparison is not None
+            ),
         )
         return asset_set.symbols
 
@@ -349,6 +386,10 @@ def lower_strategy_ir_to_lean_plan(
                     )
                     if isinstance(target, PredicateRebalanceOp)
                     else None
+                ),
+                condition=(
+                    tuple(_lower_comparison(item) for item in target.comparisons)
+                    if isinstance(target, PredicateRebalanceOp) else ()
                 ),
                 otherwise_sleeve_ids=tuple(
                     sleeve.id for sleeve in otherwise_lowered.sleeves

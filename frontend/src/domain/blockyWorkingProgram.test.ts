@@ -1,16 +1,18 @@
 import * as Blockly from "blockly";
 import { describe, expect, it } from "vitest";
 
+import type { ConditionExpression } from "./canonical";
+
 import { classifyWorkingProgram, controlCommitIntent } from "./logicDraft";
 import { projectWorkingProgram, registerBlockyProgramBlocks } from "../views/BlockyView";
 
-function semanticData(workingId: string, source: "canonical" | "draft" = "canonical") {
-  return JSON.stringify({ workingId, source, kind: workingId });
+function semanticData(workingId: string, source: "canonical" | "draft" = "canonical", condition: ConditionExpression | null = null) {
+  return JSON.stringify({ workingId, source, kind: workingId, condition });
 }
 
-function block(workspace: Blockly.Workspace, type: string, workingId: string, source: "canonical" | "draft" = "canonical") {
+function block(workspace: Blockly.Workspace, type: string, workingId: string, source: "canonical" | "draft" = "canonical", condition: ConditionExpression | null = null) {
   const value = workspace.newBlock(type);
-  value.data = semanticData(workingId, source);
+  value.data = semanticData(workingId, source, condition);
   return value;
 }
 
@@ -38,7 +40,8 @@ describe("Blocky native working program", () => {
     expect(draft.blocks.find((item) => item.workingId === "statement:choose")).toMatchObject({ parentWorkingId: "logic-draft-1", inputName: "THEN" });
     // Blockly heals the original stack when Choose is detached; Allocate remains executable.
     expect(draft.blocks.find((item) => item.workingId === "statement:allocate")).toMatchObject({ parentWorkingId: "trigger:monthly", inputName: "NEXT" });
-    expect(classifyWorkingProgram(draft, baseline)).toBe("valid_but_unsupported");
+    expect(draft.blocks.find((item) => item.workingId === "logic-draft-1")?.condition).toBeNull();
+    expect(classifyWorkingProgram(draft, baseline)).toBe("incomplete");
     workspace.dispose();
   });
 
@@ -117,33 +120,41 @@ describe("typed control branch readiness", () => {
     nextWorkingId: string | null,
     source: "canonical" | "draft" = "canonical",
     summary: string | null = null,
-  ) => ({ workingId, blockType, source, componentId, parentWorkingId, inputName, nextWorkingId, summary });
+    condition: ConditionExpression | null = null,
+  ) => ({ workingId, blockType, source, componentId, parentWorkingId, inputName, nextWorkingId, summary, condition });
 
-  it("classifies complete THEN and OTHERWISE programs as commit-ready", () => {
+  it("requires an explicit composed Predicate before a valid branch topology becomes commit-ready", () => {
+    const condition: ConditionExpression = {
+      kind: "comparison", operator: "gte",
+      left: { kind: "current", series: { kind: "market_series", field: "price", subject: { kind: "literal", value_type: "asset", value: "QQQ" } } },
+      right: { kind: "literal", value_type: "money_per_share", value: 100 },
+    };
     const program = { blocks: [
       item("trigger", "rt_trigger", "monthly", null, null, null),
-      item("control", "rt_draft_if_else", null, null, null, null, "draft", "SPY 126-bar return > 0%"),
+      item("control", "rt_draft_if_else", null, null, null, null, "draft", null, condition),
       item("then-allocation", "rt_allocation", "weights", "control", "THEN", "then-action"),
       item("then-action", "rt_action", "rebalance", "then-allocation", "NEXT", null),
       item("else-allocation", "rt_allocation", "defensive_weights", "control", "ELSE", "else-action"),
       item("else-action", "rt_action", "rebalance", "else-allocation", "NEXT", null),
     ] };
+    const unset = { blocks: program.blocks.map((block) => block.workingId === "control" ? { ...block, condition: null } : block) };
+    expect(classifyWorkingProgram(unset, { blocks: [program.blocks[0]] })).toBe("incomplete");
+    expect(controlCommitIntent(unset)).toBeNull();
     expect(classifyWorkingProgram(program, { blocks: [program.blocks[0]] })).toBe("commit_ready");
     expect(controlCommitIntent(program)).toMatchObject({
       component_id: "rebalance",
       then_target_component_id: "weights",
       otherwise_target_component_id: "defensive_weights",
-      asset: "SPY",
-      lookback_bars: 126,
-      operator: "gt",
-      threshold: "0",
+      condition,
     });
   });
 
   it("keeps Timing and nested Control topologies unsupported", () => {
     const base = [
       item("action", "rt_action", "rebalance", null, null, null),
-      item("control", "rt_draft_if", null, null, null, null, "draft", "SPY 126-bar return > 0%"),
+      item("control", "rt_draft_if", null, null, null, null, "draft", null, {
+        kind: "comparison", operator: "gt", left: { kind: "literal", value_type: "decimal", value: 1 }, right: { kind: "literal", value_type: "decimal", value: 0 },
+      }),
     ];
     const timing = { blocks: [...base, item("timing", "rt_trigger", "monthly", "control", "THEN", null)] };
     expect(classifyWorkingProgram(timing, { blocks: [base[0]] })).toBe("valid_but_unsupported");

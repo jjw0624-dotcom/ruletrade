@@ -30,7 +30,7 @@ function selectionProjection(): SemanticCompositionProjection {
     fact("selection:top_n", "selection", "ranked_selection", "Choose 2 strongest", ref("top_n", "selection", ["assets", "momentum", "positive_return", "rank"], "config.count"), { count: 2 }),
     fact("universe:assets", "universe", "asset_set", "QQQ, VGT", ref("assets", "universe"), { assets: ["QQQ", "VGT"] }),
     fact("measure:momentum", "measure", "trailing_return", "126-bar trailing return", ref("momentum", "measure", [], "config.lookback_bars"), { lookback_bars: 126 }),
-    fact("eligibility:positive_return", "eligibility", "candidate_score_threshold", "Candidate return is above threshold", ref("positive_return", "eligibility", [], "config.threshold"), { threshold: "0" }),
+    fact("eligibility:positive_return", "eligibility", "candidate_score_threshold", "Candidate trailing return · 126 completed observations > 0", ref("positive_return", "eligibility", [], "condition"), { threshold: "0" }),
     fact("selection-fallback:fallback", "selection", "selection_fallback", "Selection fallback to TLT", ref("fallback", "selection"), { assets: ["TLT"] }),
     fact("constraint:cooldown", "constraint", "cooldown", "Cooldown 10 trading days", ref("cooldown", "constraint", [], "config.duration"), { duration: 10 }),
     fact("allocation:weights", "allocation", "equal_weight", "Equal weight", ref("weights", "allocation")),
@@ -75,6 +75,7 @@ describe("production Blocky program boundary", () => {
     expect(selection.kind).toBe("selection");
     expect(selection.ref.related_component_ids).toEqual(["assets", "momentum", "positive_return", "rank"]);
     expect(selection.modifiers.map((item) => item.kind)).toEqual(["eligibility", "fallback", "constraint"]);
+    expect(selection.modifiers.find((item) => item.kind === "eligibility")?.label).toBe("Candidate trailing return · 126 completed observations > 0");
     expect(selection.modifiers.find((item) => item.kind === "fallback")?.label).toContain("Selection fallback");
     expect(selection.modifiers.find((item) => item.kind === "constraint")?.value).toBe(10);
     expect(programStatementForSelection(program, semanticSelection("qualification", "positive_return"))).toBe(selection);
@@ -132,7 +133,7 @@ describe("production Blocky program boundary", () => {
     expect(markup).not.toContain(">Rank<");
   });
 
-  it("exposes executable Predicate IF separately from draft-only IF / Otherwise", () => {
+  it("adds IF and IF / Otherwise only as incomplete LogicDraft controls", () => {
     const entries = blockyProgramToolboxEntries(
       projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry),
       { ...capabilities, predicate_add_targets: ["rebalance"], predicate_remove_targets: [] },
@@ -140,15 +141,16 @@ describe("production Blocky program boundary", () => {
     );
     const executable = entries.find((item) => item.id === "if")!;
     const twoBranch = entries.find((item) => item.id === "if-otherwise")!;
-    expect(executable).toMatchObject({ status: "available", predicateTarget: "rebalance", draftKind: null });
+    expect(executable).toMatchObject({ status: "draftable", draftKind: "if" });
+    expect(executable.predicateTarget).toBeUndefined();
     expect(twoBranch).toMatchObject({ status: "draftable", draftKind: "if_otherwise" });
     const markup = renderToStaticMarkup(
       <StrategyEditorProvider bootstrap={filterBootstrap} initialView="blocky">
         <BlockyProgramToolbox entries={entries} structural={structural} />
       </StrategyEditorProvider>,
     );
-    expect(markup).toContain("Run the current rebalance only when a market trailing-return predicate passes.");
-    expect(markup).toContain("Two executable branches are not part of Predicate v1.");
+    expect(markup).toContain("Create an incomplete Control draft, then set its Predicate and branch topology.");
+    expect(markup).toContain("Create an incomplete two-branch Control draft; no Predicate is invented.");
   });
 
   it("opens Inspector only for native Blockly clicks, not selection or drag events", () => {
@@ -163,6 +165,7 @@ describe("production Blocky program boundary", () => {
     const drafted = editorReducer(initial, { type: "request_logic_control", kind: "if", position: { x: 120, y: 80 } });
     expect(hasUnresolvedLogicDraft(drafted.editor.logicDraft)).toBe(true);
     expect(drafted.editor.logicDraft.pendingControls[0]).toMatchObject({ kind: "if", position: { x: 120, y: 80 } });
+    expect(drafted.editor.logicDraft.selectedDraftId).toBe(drafted.editor.logicDraft.pendingControls[0].draftId);
     expect(logicDraftMessage(drafted.editor.logicDraft)).toContain("before saving or testing");
     expect(drafted.canonical).toBe(initial.canonical);
     const rules = editorReducer(drafted, { type: "set_active_view", view: "rules" });

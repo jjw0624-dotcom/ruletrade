@@ -1,28 +1,50 @@
-import type { CanonicalStrategyV1, ValueExpression } from "./canonical";
+import type { CanonicalStrategyV1, ConditionExpression, ValueExpression } from "./canonical";
 
 export function describeValueExpression(expression: ValueExpression): string {
   if (expression.kind === "candidate") return "Candidate";
   if (expression.kind === "literal" && expression.value_type === "asset") return String(expression.value);
   if (expression.kind === "literal") return String(expression.value);
   if (expression.kind === "group_ref") return `Group ${expression.group_id}`;
-  if (expression.kind === "market_series") return `${describeValueExpression(expression.subject)} ${expression.field} series`;
-  if (expression.kind === "current") return `${describeValueExpression(expression.series)} current value`;
+  if (expression.kind === "market_series") return `${describeValueExpression(expression.subject)} ${expression.field}`;
+  if (expression.kind === "current") return `${describeValueExpression(expression.series)} · current`;
   if (expression.kind === "rolling_aggregate") {
-    return `${describeValueExpression(expression.series)} ${expression.operator} over ${expression.window_observations} completed observations`;
+    return `${describeValueExpression(expression.series)} · ${expression.operator} over ${expression.window_observations} completed observations`;
   }
   if (expression.kind === "indicator") {
     const lookback = Number(expression.parameters.lookback_bars ?? 0);
     return expression.indicator_id === "trailing_return_indicator@1"
-      ? `${describeValueExpression(expression.asset)} trailing return over ${lookback} completed observations`
+      ? `${describeValueExpression(expression.asset)} trailing return · ${lookback} completed observations`
       : `${describeValueExpression(expression.asset)} ${expression.indicator_id}`;
   }
   if (expression.kind === "price") return `${describeValueExpression(expression.asset)} current price`;
   if (expression.kind === "average_cost") return `${describeValueExpression(expression.asset)} average cost`;
-  if (expression.kind === "arithmetic") return `${describeValueExpression(expression.left)} ${expression.operator} ${describeValueExpression(expression.right)}`;
+  if (expression.kind === "arithmetic") return expression.operator === "multiply"
+    ? `${describeValueExpression(expression.left)} × ${describeValueExpression(expression.right)}`
+    : `${describeValueExpression(expression.left)} ${expression.operator} ${describeValueExpression(expression.right)}`;
   if (expression.kind === "parameter_ref") return `Parameter ${expression.parameter_id}`;
   if (expression.kind === "state_ref") return `State ${expression.state_id}`;
   if (expression.kind === "component_output") return `Output ${expression.component_id}.${expression.port}`;
   return "Value";
+}
+
+export function describeConditionExpression(expression: ConditionExpression): string {
+  if (expression.kind === "comparison") {
+    const operator = { gt: ">", gte: "≥", lt: "<", lte: "≤", eq: "=", neq: "≠" }[expression.operator];
+    return `${describeValueExpression(expression.left)} ${operator} ${describeValueExpression(expression.right)}`;
+  }
+  if (expression.kind === "boolean") {
+    const joiner = expression.operator === "and" ? " AND " : " OR ";
+    return expression.operands.map(describeConditionExpression).join(joiner);
+  }
+  return "Committed condition";
+}
+
+export function valueExpressionType(expression: ValueExpression): string {
+  if (expression.kind === "literal") return expression.value_type;
+  if (expression.kind === "indicator" && expression.indicator_id === "trailing_return_indicator@1") return "percentage";
+  if (expression.kind === "current" || expression.kind === "rolling_aggregate" || expression.kind === "price") return "money_per_share";
+  if (expression.kind === "arithmetic") return valueExpressionType(expression.left);
+  return "decimal";
 }
 
 export function describeUniverse(strategy: CanonicalStrategyV1, componentId: string): string | null {

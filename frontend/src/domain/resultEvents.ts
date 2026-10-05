@@ -45,7 +45,7 @@ function categoryFor(items: DecisionEventSummary[]): ResultEventCategory {
   const kinds = new Set(items.map((item) => item.kind));
   if (kinds.has("fallback")) return "fallback";
   if (kinds.has("cooldown")) return "eligibility";
-  if (kinds.has("predicate")) return "condition";
+  if (kinds.has("predicate") || kinds.has("value_condition")) return "condition";
   if (kinds.has("filter") || kinds.has("selection") || kinds.has("random_selection") || kinds.has("final_selection")) return "selection";
   return "portfolio";
 }
@@ -53,7 +53,7 @@ function categoryFor(items: DecisionEventSummary[]): ResultEventCategory {
 function representative(items: DecisionEventSummary[], category: ResultEventCategory): DecisionEventSummary {
   const preferred: Record<ResultEventCategory, DecisionEventSummary["kind"][]> = {
     fallback: ["fallback", "final_selection"],
-    condition: ["predicate"],
+    condition: ["value_condition", "predicate"],
     eligibility: ["cooldown"],
     selection: ["selection", "random_selection", "filter", "final_selection"],
     portfolio: ["final_targets", "sleeve_contribution", "snapshot_usage", "snapshot_refresh", "state_mutation"],

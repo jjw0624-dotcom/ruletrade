@@ -32,6 +32,9 @@ class ValueCapability(FrozenModel):
     canonical_supported: bool = True
     dataset_evaluation_supported: bool
     strategy_compiler_supported: bool
+    capability_level: Literal[
+        "executable", "research_only", "semantic_only", "unavailable_in_current_dataset"
+    ]
     provider_requirement: str
     limitation: str | None = None
 
@@ -46,9 +49,9 @@ def value_capabilities() -> tuple[ValueCapability, ...]:
             input_types=("asset", "candidate"),
             output_type="money_per_share",
             dataset_evaluation_supported=True,
-            strategy_compiler_supported=False,
+            strategy_compiler_supported=True,
+            capability_level="executable",
             provider_requirement="point-in-time adjusted close",
-            limitation="Research evaluation is supported; strategy compiler support is deferred.",
         ),
         ValueCapability(
             id="market.volume.current",
@@ -57,6 +60,7 @@ def value_capabilities() -> tuple[ValueCapability, ...]:
             output_type="decimal",
             dataset_evaluation_supported=False,
             strategy_compiler_supported=False,
+            capability_level="unavailable_in_current_dataset",
             provider_requirement="point-in-time daily trade-bar volume",
             limitation="Canonical typing exists, but price-only CSV fixtures cannot evaluate volume.",
         ),
@@ -68,6 +72,7 @@ def value_capabilities() -> tuple[ValueCapability, ...]:
             parameters=("lookback_bars",),
             dataset_evaluation_supported=True,
             strategy_compiler_supported=True,
+            capability_level="executable",
             provider_requirement="lookback + 1 completed adjusted closes",
         ),
         ValueCapability(
@@ -77,9 +82,45 @@ def value_capabilities() -> tuple[ValueCapability, ...]:
             output_type="scalar matching the series unit",
             parameters=("operator", "window_observations"),
             dataset_evaluation_supported=True,
-            strategy_compiler_supported=False,
+            strategy_compiler_supported=True,
+            capability_level="executable",
             provider_requirement="completed point-in-time observations",
-            limitation="Dataset evaluation currently supports price series; compiler support is deferred.",
+            limitation="Executable for adjusted-price series; Volume remains unavailable.",
+        ),
+        ValueCapability(
+            id="arithmetic.scale",
+            label="Multiply by constant",
+            input_types=("decimal", "percentage", "money_per_share"),
+            output_type="same scalar type",
+            parameters=("factor",),
+            dataset_evaluation_supported=True,
+            strategy_compiler_supported=True,
+            capability_level="executable",
+            provider_requirement="the operand's provider requirement",
+        ),
+        ValueCapability(
+            id="indicator.rsi",
+            label="RSI",
+            input_types=("asset", "candidate"),
+            output_type="decimal",
+            canonical_supported=False,
+            dataset_evaluation_supported=False,
+            strategy_compiler_supported=False,
+            capability_level="semantic_only",
+            provider_requirement="completed adjusted closes and a fixed Wilder smoothing contract",
+            limitation="Deferred until evaluator and LEAN numerical equivalence are specified and tested.",
+        ),
+        ValueCapability(
+            id="indicator.volatility",
+            label="Volatility",
+            input_types=("asset", "candidate"),
+            output_type="percentage",
+            canonical_supported=False,
+            dataset_evaluation_supported=False,
+            strategy_compiler_supported=False,
+            capability_level="semantic_only",
+            provider_requirement="completed adjusted closes and an explicit return/annualization convention",
+            limitation="Deferred until return, sampling, and annualization semantics are fixed.",
         ),
     )
 
@@ -198,8 +239,8 @@ class DatasetValueEvaluator:
             values = self._prices(dataset_id, symbol, as_of, lookback + 1)
             return values[-1][1] / values[0][1] - Decimal(1), values[-1][0], "percentage"
         if isinstance(expression, ArithmeticExpression):
-            left, left_at, _ = self._scalar(expression.left, dataset_id, as_of, candidate_asset)
-            right, right_at, _ = self._scalar(expression.right, dataset_id, as_of, candidate_asset)
+            left, left_at, left_type = self._scalar(expression.left, dataset_id, as_of, candidate_asset)
+            right, right_at, right_type = self._scalar(expression.right, dataset_id, as_of, candidate_asset)
             try:
                 observed = {
                     "add": lambda: left + right,
@@ -209,7 +250,17 @@ class DatasetValueEvaluator:
                 }[expression.operator]()
             except (DivisionByZero, ZeroDivisionError) as exc:
                 raise ValueEvaluationError("division_by_zero", "Value expression divides by zero.") from exc
-            return observed, max(left_at, right_at), "decimal"
+            result_type = "decimal"
+            if expression.operator == "multiply":
+                if left_type == "decimal":
+                    result_type = right_type
+                elif right_type == "decimal":
+                    result_type = left_type
+            elif expression.operator in {"add", "subtract"} and left_type == right_type:
+                result_type = left_type
+            elif expression.operator == "divide" and right_type == "decimal":
+                result_type = left_type
+            return observed, max(left_at, right_at), result_type
         if isinstance(expression, LiteralExpression) and expression.value_type.value in {
             "decimal", "percentage", "money", "money_per_share"
         }:

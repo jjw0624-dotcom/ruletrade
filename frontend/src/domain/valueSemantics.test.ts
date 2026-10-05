@@ -10,7 +10,7 @@ describe("shared semantic subject and value projection", () => {
       operator: "mean",
       window_observations: 252,
       series: { kind: "market_series", field: "volume", subject: { kind: "candidate" } },
-    })).toBe("Candidate volume series mean over 252 completed observations");
+    })).toBe("Candidate volume · mean over 252 completed observations");
   });
 
   it("keeps Universe identity distinct from its asset-set storage", () => {

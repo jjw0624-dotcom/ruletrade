@@ -20,6 +20,27 @@ from ruletrade.ir.strategy import (
 )
 
 
+def _value_observations(value) -> int:
+    if value is None or value.kind == "literal":
+        return 0
+    if value.kind == "current_price":
+        return 1
+    if value.kind in {"trailing_return", "rolling_price"}:
+        return int(value.observations or 0) + (1 if value.kind == "trailing_return" else 0)
+    if value.kind == "scale":
+        return _value_observations(value.operand)
+    return 0
+
+
+def _value_assets(value) -> set[str]:
+    if value is None:
+        return set()
+    result = {value.asset} if value.subject == "asset" and value.asset else set()
+    if value.operand is not None:
+        result.update(_value_assets(value.operand))
+    return result
+
+
 @dataclass(frozen=True)
 class ScheduleRequirement:
     source_component_id: str
@@ -127,13 +148,28 @@ def analyze_strategy_ir(strategy_ir: StrategyIR) -> StrategyRequirements:
                     )
                 )
         elif isinstance(operation, PredicateRebalanceOp):
-            assets.add(operation.asset)
+            comparisons = operation.comparisons
+            predicate_assets = {
+                symbol
+                for item in comparisons
+                for value in (item.left, item.right)
+                for symbol in _value_assets(value)
+            } or ({operation.asset} if operation.asset else set())
+            assets.update(predicate_assets)
+            observation_count = max(
+                [
+                    _value_observations(value)
+                    for item in comparisons
+                    for value in (item.left, item.right)
+                ]
+                or [operation.lookback_bars + 1]
+            )
             daily_history.append(
                 DailyHistoryRequirement(
                     source_component_id=operation.provenance.component_id,
-                    symbols=(operation.asset,),
-                    lookback_bars=operation.lookback_bars,
-                    observation_count=operation.lookback_bars + 1,
+                    symbols=tuple(sorted(predicate_assets)),
+                    lookback_bars=max(0, observation_count - 1),
+                    observation_count=observation_count,
                 )
             )
     user_state = tuple(

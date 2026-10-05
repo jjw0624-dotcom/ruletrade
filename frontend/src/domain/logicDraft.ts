@@ -1,3 +1,5 @@
+import type { ConditionExpression } from "./canonical";
+
 export type LogicDraftStatus = "clean" | "incomplete" | "valid_but_unsupported" | "commit_ready";
 export type DraftControlKind = "if" | "if_otherwise";
 
@@ -10,6 +12,7 @@ export interface LogicWorkingBlock {
   inputName: string | null;
   nextWorkingId: string | null;
   summary: string | null;
+  condition?: ConditionExpression | null;
 }
 
 export interface LogicWorkingProgram {
@@ -82,18 +85,14 @@ export interface ControlCommitIntent {
   component_id: string;
   then_target_component_id: string;
   otherwise_target_component_id?: string;
-  asset: string;
-  lookback_bars: number;
-  operator: "gt" | "gte" | "lt" | "lte";
-  threshold: string;
+  condition: ConditionExpression;
 }
 
 export function controlCommitIntent(program: LogicWorkingProgram): ControlCommitIntent | null {
   const controls = program.blocks.filter((item) => item.source === "draft" && item.blockType.startsWith("rt_draft_if"));
   if (controls.length !== 1) return null;
   const control = controls[0];
-  const match = control.summary?.trim().match(/^([A-Z0-9._:-]+)\s+(\d+)-bar return\s*(>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)%?$/i);
-  if (!match) return null;
+  if (!control.condition) return null;
   const thenBranch = branchChain(program, control.workingId, "THEN");
   const elseBranch = branchChain(program, control.workingId, "ELSE");
   if (!supportedExecutableBranch(thenBranch)) return null;
@@ -102,15 +101,11 @@ export function controlCommitIntent(program: LogicWorkingProgram): ControlCommit
   const thenAllocation = thenBranch.find((item) => item.blockType === "rt_allocation" && item.componentId);
   const elseAllocation = elseBranch.find((item) => item.blockType === "rt_allocation" && item.componentId);
   if (!action?.componentId || !thenAllocation?.componentId) return null;
-  const operators = { ">": "gt", ">=": "gte", "<": "lt", "<=": "lte" } as const;
   return {
     component_id: action.componentId,
     then_target_component_id: thenAllocation.componentId,
     ...(elseAllocation?.componentId ? { otherwise_target_component_id: elseAllocation.componentId } : {}),
-    asset: match[1].toUpperCase(),
-    lookback_bars: Number(match[2]),
-    operator: operators[match[3] as keyof typeof operators],
-    threshold: String(Number(match[4]) / 100),
+    condition: control.condition,
   };
 }
 
@@ -120,7 +115,7 @@ export function classifyWorkingProgram(program: LogicWorkingProgram, baseline: L
   const currentCanonical = new Set(program.blocks.filter((item) => item.source === "canonical").map((item) => item.workingId));
   if ([...baselineCanonical].some((id) => !currentCanonical.has(id))) return "incomplete";
   const draftControls = program.blocks.filter((item) => item.source === "draft" && item.blockType.startsWith("rt_draft_if"));
-  if (draftControls.some((item) => !item.summary?.trim() || branchChain(program, item.workingId, "THEN").length === 0)) return "incomplete";
+  if (draftControls.some((item) => !item.condition || branchChain(program, item.workingId, "THEN").length === 0)) return "incomplete";
   if (draftControls.some((item) => item.blockType === "rt_draft_if_else" && branchChain(program, item.workingId, "ELSE").length === 0)) return "incomplete";
   return controlCommitIntent(program) ? "commit_ready" : "valid_but_unsupported";
 }

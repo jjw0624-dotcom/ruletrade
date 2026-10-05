@@ -29,6 +29,7 @@ from ruletrade.strategy.v1.models import (
 )
 from ruletrade.strategy.v1.registry import BUILTIN_REGISTRY, PrimitiveCategory
 from ruletrade.strategy.v1.validation import StrategySemanticError, validate_strategy_v1
+from ruletrade.strategy.v1.value_semantics import ValueCapability, value_capabilities
 
 
 class StructuralAuthoringError(ValueError):
@@ -191,6 +192,12 @@ class UpdateSelectionSemanticsOperation(FrozenModel):
     value_expression: Expression | None = None
 
 
+class UpdateUniverseReferenceOperation(FrozenModel):
+    kind: Literal["update_universe_reference"] = "update_universe_reference"
+    component_id: Identifier
+    universe_id: Identifier
+
+
 class CommitPredicateBranchesOperation(FrozenModel):
     """Commit a complete Blocky control topology using Canonical component identity."""
 
@@ -198,7 +205,8 @@ class CommitPredicateBranchesOperation(FrozenModel):
     component_id: Identifier
     then_target_component_id: Identifier
     otherwise_target_component_id: Identifier | None = None
-    asset: Symbol
+    condition: Expression | None = None
+    asset: Symbol | None = None
     lookback_bars: Annotated[int, Field(ge=1)] = 126
     operator: Literal["gt", "gte", "lt", "lte"] = "gt"
     threshold: Decimal = Decimal(0)
@@ -229,6 +237,7 @@ StructuralAuthoringOperation = Annotated[
     | RemovePredicateOperation
     | UpdateConditionExpressionOperation
     | UpdateSelectionSemanticsOperation
+    | UpdateUniverseReferenceOperation
     | CommitPredicateBranchesOperation,
     Field(discriminator="kind"),
 ]
@@ -335,6 +344,8 @@ class StructuralAuthoringCapabilities(FrozenModel):
     fallback_asset_set_targets: tuple[FallbackAssetSetCapability, ...] = ()
     predicate_add_targets: tuple[Identifier, ...] = ()
     predicate_remove_targets: tuple[Identifier, ...] = ()
+    value_capabilities: tuple[ValueCapability, ...] = ()
+    universe_targets: tuple[ChoiceCapability, ...] = ()
 
 
 def _predicate_condition(
@@ -386,17 +397,9 @@ def _add_predicate(strategy: CanonicalStrategyV1, operation: AddPredicateOperati
 
 
 def _is_predicate_v1_rule(component: Component) -> bool:
-    condition = component.condition
     return (
         component.primitive == "rule@1"
-        and isinstance(condition, ComparisonExpression)
-        and condition.operator in {"gt", "gte", "lt", "lte"}
-        and isinstance(condition.left, IndicatorExpression)
-        and condition.left.indicator_id == "trailing_return_indicator@1"
-        and isinstance(condition.left.asset, LiteralExpression)
-        and condition.left.asset.value_type == "asset"
-        and isinstance(condition.right, LiteralExpression)
-        and condition.right.value_type in {"decimal", "percentage"}
+        and component.condition is not None
         and len(component.actions) == 1
         and isinstance(component.actions[0], RebalanceAction)
         and isinstance(component.actions[0].targets, ComponentOutputExpression)
@@ -489,12 +492,21 @@ def _commit_predicate_branches(
         else ()
     )
     inbound = _connections_to(strategy, control.id, "targets") if control.primitive == "rebalance@1" else ()
+    condition = operation.condition
+    if condition is None:
+        if operation.asset is None:
+            raise StructuralAuthoringError(
+                "predicate_required",
+                f"graph.components[{control.id}].condition",
+                "Control composition requires an explicit Predicate condition.",
+            )
+        condition = _predicate_condition(
+            operation.asset, operation.lookback_bars, operation.operator, operation.threshold
+        )
     rule = control.model_copy(
         update={
             "primitive": "rule@1",
-            "condition": _predicate_condition(
-                operation.asset, operation.lookback_bars, operation.operator, operation.threshold
-            ),
+            "condition": condition,
             "actions": (then_action,),
             "else_actions": else_actions,
         }
@@ -1454,6 +1466,16 @@ def apply_structural_operation(
                 }
             ),
         )
+    elif isinstance(operation, UpdateUniverseReferenceOperation):
+        component = _require_primitive(
+            strategy, operation.component_id, {"universe@1"}, "Universe editing"
+        )
+        if operation.universe_id not in {item.id for item in strategy.definitions.universes}:
+            raise StructuralAuthoringError(
+                "invalid_input", f"definitions.universes[{operation.universe_id}]",
+                "Universe must reference an existing Canonical definition.",
+            )
+        candidate = _update_config(strategy, component, "universe_ref", operation.universe_id)
     elif isinstance(operation, AddPredicateOperation):
         candidate = _add_predicate(strategy, operation)
     elif isinstance(operation, UpdatePredicateOperation):
@@ -1494,6 +1516,15 @@ def apply_structural_operation(
             issue.path,
             f"The requested change would make the strategy invalid: {issue.message}",
         ) from exc
+    if isinstance(operation, (UpdateConditionExpressionOperation, UpdateSelectionSemanticsOperation)):
+        try:
+            from ruletrade.compiler.frontend import desugar_strategy
+            desugar_strategy(candidate)
+        except ValueError as exc:
+            raise StructuralAuthoringError(
+                "not_strategy_executable", "operation",
+                f"That semantic value is not executable by the maintained Strategy compiler: {exc}",
+            ) from exc
     return candidate
 
 
@@ -1533,6 +1564,8 @@ def structural_authoring_capabilities(
     schedule_targets: list[ScheduleCapability] = []
     cooldown_targets: list[IntegerCapability] = []
     fallback_edit_targets: list[FallbackAssetSetCapability] = []
+    universe_targets: list[ChoiceCapability] = []
+    universe_ids = tuple(item.id for item in strategy.definitions.universes)
     singleton_asset_sets = tuple(item.id for item in strategy.definitions.asset_sets if len(item.assets) == 1)
     for item in strategy.graph.components:
         resolved = BUILTIN_REGISTRY.resolve_config(item.primitive, item.config)
@@ -1592,6 +1625,14 @@ def structural_authoring_capabilities(
                     component_id=item.id,
                     asset_set_id=str(resolved["fallback_asset_set_ref"]),
                     choices=singleton_asset_sets,
+                )
+            )
+        elif item.primitive == "universe@1":
+            universe_targets.append(
+                ChoiceCapability(
+                    component_id=item.id,
+                    value=str(resolved["universe_ref"]),
+                    choices=universe_ids,
                 )
             )
         if item.primitive == "rank@1":
@@ -1717,4 +1758,6 @@ def structural_authoring_capabilities(
         predicate_remove_targets=tuple(
             item.id for item in strategy.graph.components if _is_predicate_v1_rule(item)
         ),
+        value_capabilities=value_capabilities(),
+        universe_targets=tuple(universe_targets),
     )

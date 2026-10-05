@@ -44,6 +44,22 @@ export interface StructuralAuthoringCapabilities {
   fallback_asset_set_targets: Array<{ component_id: string; asset_set_id: string; choices: string[] }>;
   predicate_add_targets?: string[];
   predicate_remove_targets?: string[];
+  value_capabilities?: StrategyValueCapability[];
+  universe_targets?: Array<{ component_id: string; value: string; choices: string[] }>;
+}
+
+export interface StrategyValueCapability {
+  id: string;
+  label: string;
+  input_types: string[];
+  output_type: string;
+  parameters: string[];
+  canonical_supported: boolean;
+  dataset_evaluation_supported: boolean;
+  strategy_compiler_supported: boolean;
+  capability_level: "executable" | "research_only" | "semantic_only" | "unavailable_in_current_dataset";
+  provider_requirement: string;
+  limitation?: string | null;
 }
 
 interface IntegerCapability {
@@ -87,6 +103,7 @@ export type StructuralAuthoringOperation =
   | { kind: "update_predicate"; component_id: string; asset: string; lookback_bars: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: string }
   | { kind: "remove_predicate"; component_id: string }
   | { kind: "update_condition_expression"; component_id: string; role: "predicate" | "eligibility"; condition: ConditionExpression }
+  | { kind: "update_universe_reference"; component_id: string; universe_id: string }
   | {
       kind: "update_selection_semantics";
       rank_component_id: string;
@@ -101,10 +118,7 @@ export type StructuralAuthoringOperation =
       component_id: string;
       then_target_component_id: string;
       otherwise_target_component_id?: string | null;
-      asset: string;
-      lookback_bars: number;
-      operator: "gt" | "gte" | "lt" | "lte";
-      threshold: string;
+      condition: ConditionExpression;
     };
 
 export interface StructuralAuthoringErrorDetail {

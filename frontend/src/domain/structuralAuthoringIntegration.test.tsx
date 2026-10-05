@@ -268,7 +268,7 @@ describe("Structural Authoring Guide and Flow integration", () => {
     const guide = projectGuided(added.canonical, added.registry);
     const flow = projectConceptualFlow(added.canonical, added.registry);
     expect(guide.kind === "momentum" && guide.momentum.threshold).toBe("0");
-    expect(flow.groups[0].choose?.condition).toBe("6M return > 0%");
+    expect(flow.groups[0].choose?.condition).toBe("Candidate trailing return · 126 completed observations > 0");
     expect(added.editor.selection).toMatchObject({ componentId: "positive_return", fieldPath: "config.threshold" });
   });
 

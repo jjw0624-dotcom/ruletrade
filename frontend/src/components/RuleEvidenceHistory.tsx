@@ -128,6 +128,7 @@ function EvidenceMatch({
 
 function kindLabel(kind: RuleEvidenceMatch["kinds"][number]): string {
   const labels: Partial<Record<RuleEvidenceMatch["kinds"][number], string>> = {
+    value_condition: "Value condition evaluated",
     filter: "Qualification evaluated",
     selection: "Assets selected",
     random_selection: "Assets chosen",

@@ -16,6 +16,7 @@ import { CodeView } from "../views/CodeView";
 import { fallbackBootstrap, filterBootstrap, momentumBootstrap } from "../test/fixture";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { BlockyView, blocklyInjectionOptions, blocklyViewportOptions } from "../views/BlockyView";
+import { SelectionComposer } from "../components/SelectionComposer";
 
 const cap: StructuralAuthoringCapabilities = {
   composition: { primitives: [
@@ -69,7 +70,7 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(logicStepForSelection(projectLogicRepresentation(blocky.canonical, filterBootstrap.registry), blocky.editor.selection)?.kind).toBe("condition");
     const rules = editorReducer(blocky, { type: "set_active_view", view: "rules" });
     expect(rules.editor.selection).toEqual(selected);
-    expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>)).toContain("Only keep assets");
+    expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>)).toContain("WHERE ");
     expect(flowNodeIdForSelection(projectFlowCanvas(flow).nodes, selected)).toBe(flowNode.id);
     expect(projectBuilderStructure(flow).children[0].children[0].children.find((item) => item.label === "Qualification")?.selection.componentId).toBe(selected.componentId);
   });
@@ -89,12 +90,47 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(projectConceptualFlow(state.canonical, filterBootstrap.registry).groups[0].choose?.threshold).toBe("0.05");
     const bootstrap = { ...filterBootstrap, strategy: state.canonical };
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
-    expect(rules).toContain("Return lookback observations");
-    expect(rules).toContain("Qualification threshold percent");
+    expect(rules).toContain("ORDER BY Candidate trailing return · 63 completed observations");
+    expect(rules).toContain("WHERE Candidate trailing return · 63 completed observations &gt; 0.05");
+    expect(rules).not.toContain("Return lookback observations");
+    expect(rules).not.toContain("Qualification threshold percent");
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="guided"><GuidedView /></StrategyEditorProvider>)).toContain("63 trading observations");
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap}><OverviewView onTest={() => undefined} /></StrategyEditorProvider>)).toContain("strongest");
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="code"><CodeView /></StrategyEditorProvider>)).toContain("0.05");
     expect(state.validation.status).toBe("dirty");
+  });
+
+  it("projects one committed Eligibility identically through Inspector WHERE, Rules, Flow, and read logic", () => {
+    const canonical = structuredClone(filterBootstrap.strategy);
+    const eligibility = canonical.graph.components.find((item) => item.id === "positive_return")!;
+    eligibility.condition = {
+      kind: "comparison", operator: "gte",
+      left: { kind: "current", series: { kind: "market_series", field: "price", subject: { kind: "candidate" } } },
+      right: { kind: "literal", value_type: "money_per_share", value: 5 },
+    };
+    const rank = canonical.graph.components.find((item) => item.id === "momentum_rank")!;
+    rank.value_expression = {
+      kind: "rolling_aggregate", operator: "mean", window_observations: 20,
+      series: { kind: "market_series", field: "price", subject: { kind: "candidate" } },
+    };
+    const bootstrap = { ...filterBootstrap, strategy: canonical };
+    const flow = projectConceptualFlow(canonical, bootstrap.registry);
+    const choose = flow.groups[0].choose!;
+    const meaning = "Candidate price · current ≥ 5";
+    expect(choose.condition).toBe(meaning);
+    expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("qualification:"))?.data.detail).toBe(meaning);
+    expect(projectLogicRepresentation(canonical, bootstrap.registry).groups[0].steps.find((item) => item.kind === "condition")?.text).toBe(meaning);
+    const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
+    expect(rules).toContain(`WHERE ${meaning}`);
+    const inspector = renderToStaticMarkup(<SelectionComposer
+      direction="descending" count={choose.topN!} shortagePolicy="choose_all"
+      strategy={canonical} universeComponentId={flow.groups[0].universeComponentId}
+      valueExpression={choose.rankingValue} eligibilitySummary={choose.condition}
+      onChange={vi.fn()}
+    />);
+    expect(inspector).toContain(meaning);
+    expect(inspector).toContain("20 completed observations");
+    expect(inspector).not.toContain("Return period");
   });
 
   it("rejects unsupported AI targets and preserves the working copy on backend rejection", async () => {
