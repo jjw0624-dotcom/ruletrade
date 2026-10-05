@@ -12,6 +12,13 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from ruletrade import __version__
+from ruletrade.asset_workspace import (
+    AssetCompareRequest,
+    AssetCompareResponse,
+    AssetDetail,
+    AssetResearchService,
+    HistoricalAssetContext,
+)
 from ruletrade.backtest_runs.errors import (
     BacktestRunDomainError,
     BacktestRunNotFoundError,
@@ -24,7 +31,6 @@ from ruletrade.backtest_runs.models import (
     CreateBacktestRunRequest,
 )
 from ruletrade.backtest_runs.service import BacktestRunService
-from ruletrade.asset_workspace import AssetCompareRequest, AssetCompareResponse, AssetDetail, AssetResearchService, HistoricalAssetContext
 from ruletrade.backtests.errors import (
     InvalidStrategyError,
     LeanExecutionError,
