@@ -14,6 +14,7 @@ import {
   type DataReadiness,
 } from "./domain/marketDataReadiness";
 import { logicDraftMessage } from "./domain/logicDraft";
+import { flowDraftMessage } from "./domain/flowDraft";
 import type { StrategyExample } from "./domain/examples";
 import type { ResearchContext } from "./domain/researchContext";
 import { projectConceptualFlow } from "./domain/conceptualFlow";
@@ -163,6 +164,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
 
   function unresolvedAuthoringMessage() {
     return logicDraftMessage(state.editor.logicDraft)
+      ?? flowDraftMessage(state.editor.flowDraft)
       ?? ((structural.semanticEdit?.status ?? "idle") === "idle" ? null : structural.semanticEdit?.message ?? "Finish the semantic edit before saving or testing.");
   }
 

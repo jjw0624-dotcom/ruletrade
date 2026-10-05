@@ -56,7 +56,7 @@ function NumericDraft({ label, value, step = "any", minimum, maximum, disabled, 
     onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>;
 }
 
-export function ValueComposer({ expression, strategy, capabilities, allowCandidate, allowLiteral = false, disabled, initiallyOpen = false, onChange, onWorkingState }: {
+export function ValueComposer({ expression, strategy, capabilities, allowCandidate, allowLiteral = false, disabled, initiallyOpen = false, editorOnly = false, onBack, onChange, onWorkingState }: {
   expression: ValueExpression | null;
   strategy: CanonicalStrategyV1;
   capabilities?: StrategyValueCapability[];
@@ -64,10 +64,12 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
   allowLiteral?: boolean;
   disabled?: boolean;
   initiallyOpen?: boolean;
+  editorOnly?: boolean;
+  onBack?: () => void;
   onChange: (value: ValueExpression) => void;
   onWorkingState?: (state: ValueWorkingState) => void;
 }) {
-  const [open, setOpen] = useState(initiallyOpen || !expression);
+  const [open, setOpen] = useState(editorOnly || initiallyOpen || !expression);
   const unwrapped = unwrapScale(expression);
   const subject = subjectOf(expression);
   const measure = measureOf(expression);
@@ -127,12 +129,13 @@ export function ValueComposer({ expression, strategy, capabilities, allowCandida
   const rolling = unwrapped.base?.kind === "rolling_aggregate" ? unwrapped.base : null;
   const literal = unwrapped.base?.kind === "literal" && unwrapped.base.value_type !== "asset" ? unwrapped.base : null;
 
-  return <div className={`value-composer${open ? " open" : ""}`}>
-    <button type="button" className="semantic-value-row" aria-expanded={open} aria-label={expression ? `Edit value: ${describeValueExpression(expression)}` : "Set semantic value"}
+  return <div className={`value-composer${open ? " open" : ""}${editorOnly ? " editor-only" : ""}`}>
+    {editorOnly && <header className="semantic-subeditor-header"><button type="button" className="text-button" onClick={onBack}>← Condition</button><strong>Value</strong></header>}
+    {!editorOnly && <button type="button" className="semantic-value-row" aria-expanded={open} aria-label={expression ? `Edit value: ${describeValueExpression(expression)}` : "Set semantic value"}
       disabled={disabled} onClick={() => setOpen((current) => !current)}>
-      <span>{expression ? describeValueExpression(expression) : "Set value"}</span><small>{open ? "Close" : "Edit"}</small>
-    </button>
-    {open && <div className="value-editor" aria-label="Value editor">
+      <span>{expression ? describeValueExpression(expression) : "Set value"}</span><small>{open ? "Done" : "Edit"}</small>
+    </button>}
+    {(editorOnly || open) && <div className="value-editor" aria-label="Value editor">
       {measureChoice !== "literal" && <fieldset><legend>What is this value about?</legend><div className="semantic-choice-row">
         <button type="button" aria-pressed={subjectChoice === "asset"} onClick={() => { setSubjectChoice("asset"); onWorkingState?.("incomplete"); }}>Specific asset</button>
         {allowCandidate && <button type="button" aria-pressed={subjectChoice === "candidate"} onClick={() => { setSubjectChoice("candidate"); queueMicrotask(() => emitIfComplete(measureChoice, { kind: "candidate" })); }}>Current candidate</button>}

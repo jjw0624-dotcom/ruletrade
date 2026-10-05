@@ -1,6 +1,6 @@
 import type { CanonicalStrategyV1, ConditionExpression, RegistryPayload, ValueExpression } from "./canonical";
 import { tryProjectSemanticStrategy, type SemanticGroup } from "./semanticProjection";
-import { describeConditionExpression, describeSelectionSummary, describeValueExpression } from "./valueSemantics";
+import { describeConditionExpression, describeSelectionSummary, describeUniverse, describeValueExpression } from "./valueSemantics";
 
 export interface ConceptualChoose {
   kind: "choose";
@@ -42,6 +42,7 @@ export interface ConceptualGroup {
   sourceComponentIds: string[];
   assetSetId?: string;
   universeComponentId?: string;
+  universeLabel?: string;
   allocationComponentId?: string;
   sleeveComponentId?: string;
   allocationValue?: string;
@@ -104,6 +105,7 @@ function conceptualGroup(group: SemanticGroup, strategy: CanonicalStrategyV1): C
     id: group.id, label: group.name, allocation: percentage(group.allocation), assets: pipeline.assets,
     timing: group.refreshSchedule ?? pipeline.schedule, sourceComponentIds: groupSourceIds(group),
     assetSetId: pipeline.assetSetId, universeComponentId: pipeline.assetComponentId,
+    universeLabel: describeUniverse(strategy, pipeline.assetComponentId) ?? "Assets",
     allocationComponentId: pipeline.allocationComponentId, sleeveComponentId: group.sleeveComponentId,
     allocationValue: group.allocation, scheduleComponentId: group.refreshScheduleComponentId,
     choose: pipeline.selectionComponentId ? chooseFrom(group, strategy) : undefined,

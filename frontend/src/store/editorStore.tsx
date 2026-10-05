@@ -9,6 +9,7 @@ import type {
 } from "../domain/canonical";
 import { selectionInCanonical, type SemanticSelection } from "../domain/semanticSelection";
 import { EMPTY_LOGIC_DRAFT, type DraftControlKind, type LogicDraftState, type LogicDraftStatus, type LogicWorkingProgram } from "../domain/logicDraft";
+import { EMPTY_FLOW_DRAFT, type FlowDraftConnection, type FlowDraftIntent, type FlowDraftState, type FlowDraftStatus } from "../domain/flowDraft";
 
 export type EditorView = "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 
@@ -21,6 +22,7 @@ export interface StrategyEditorState {
     leftPanelOpen: boolean;
     leftPanelTab: "structure" | "blocks";
     logicDraft: LogicDraftState;
+    flowDraft: FlowDraftState;
   };
   validation: {
     status: "valid" | "dirty" | "invalid" | "checking";
@@ -43,6 +45,10 @@ export type StrategyEditorAction =
   | { type: "request_remove_logic_draft"; draftId: string }
   | { type: "ack_remove_logic_draft" }
   | { type: "restore_logic_program" }
+  | { type: "begin_flow_draft"; intent: FlowDraftIntent }
+  | { type: "set_flow_draft_connection"; connection: FlowDraftConnection; status: FlowDraftStatus; message?: string | null }
+  | { type: "set_flow_draft_status"; status: FlowDraftStatus; message?: string | null }
+  | { type: "clear_flow_draft" }
   | { type: "validation_started" }
   | { type: "validation_finished"; valid: boolean; issues: ValidationIssue[] };
 
@@ -56,6 +62,7 @@ export function createEditorState(bootstrap: EditorBootstrap, initialView: Edito
       leftPanelOpen: true,
       leftPanelTab: "structure",
       logicDraft: EMPTY_LOGIC_DRAFT,
+      flowDraft: EMPTY_FLOW_DRAFT,
     },
     validation: {
       status: bootstrap.validation.valid ? "valid" : "invalid",
@@ -132,6 +139,23 @@ export function editorReducer(
       return { ...state, editor: { ...state.editor, logicDraft: { ...state.editor.logicDraft, removalRequestId: null, selectedDraftId: null } } };
     case "restore_logic_program":
       return { ...state, editor: { ...state.editor, logicDraft: { ...EMPTY_LOGIC_DRAFT, nextId: state.editor.logicDraft.nextId, restoreVersion: state.editor.logicDraft.restoreVersion + 1 } } };
+    case "begin_flow_draft":
+      return { ...state, editor: { ...state.editor, flowDraft: {
+        status: "incomplete", intent: action.intent, connection: null,
+        message: `Configure ${action.intent.kind} for ${action.intent.targetLabel}, or discard this Flow draft.`,
+      } } };
+    case "set_flow_draft_connection":
+      return { ...state, editor: { ...state.editor, flowDraft: {
+        ...state.editor.flowDraft, connection: action.connection, status: action.status,
+        message: action.message ?? state.editor.flowDraft.message,
+      } } };
+    case "set_flow_draft_status":
+      return { ...state, editor: { ...state.editor, flowDraft: {
+        ...state.editor.flowDraft, status: action.status,
+        message: action.message ?? state.editor.flowDraft.message,
+      } } };
+    case "clear_flow_draft":
+      return { ...state, editor: { ...state.editor, flowDraft: EMPTY_FLOW_DRAFT } };
     case "validation_started":
       return { ...state, validation: { ...state.validation, status: "checking" } };
     case "validation_finished":

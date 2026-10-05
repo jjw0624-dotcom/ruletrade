@@ -1,13 +1,21 @@
 import { useEffect, useId, useState } from "react";
 
 import type { CanonicalStrategyV1, ConditionExpression, ValueExpression } from "../domain/canonical";
-import { describeConditionExpression, valueExpressionType } from "../domain/valueSemantics";
+import { describeConditionExpression, describeValueExpression, valueExpressionType } from "../domain/valueSemantics";
 import type { StrategyValueCapability } from "../structuralAuthoringApi";
 import { ValueComposer, type ValueWorkingState } from "./ValueComposer";
 
 type Operator = "gt" | "gte" | "lt" | "lte";
 type Comparison = Extract<ConditionExpression, { kind: "comparison" }>;
-type DraftRow = { id: string; left: ValueExpression | null; right: ValueExpression | null; operator: Operator; leftReady: boolean; rightReady: boolean };
+type DraftRow = {
+  id: string;
+  left: ValueExpression | null;
+  right: ValueExpression | null;
+  operator: Operator;
+  leftReady: boolean;
+  rightReady: boolean;
+};
+type EditingValue = { index: number; side: "left" | "right" } | null;
 
 export interface ConditionComposerProps {
   role: "predicate" | "eligibility";
@@ -16,6 +24,7 @@ export interface ConditionComposerProps {
   capabilities?: StrategyValueCapability[];
   disabled?: boolean;
   initiallyOpen?: boolean;
+  initialEditingSide?: "left" | "right";
   onChange: (expression: ConditionExpression) => void;
   onWorkingState?: (state: ValueWorkingState) => void;
 }
@@ -34,15 +43,20 @@ function comparisons(expression: ConditionExpression | null): Comparison[] {
     : [];
 }
 
-export function ConditionComposer({ role, expression, strategy = fallbackStrategy, capabilities, disabled, initiallyOpen = false, onChange, onWorkingState }: ConditionComposerProps) {
+export function ConditionComposer({
+  role, expression, strategy = fallbackStrategy, capabilities, disabled,
+  initiallyOpen = false, initialEditingSide, onChange, onWorkingState,
+}: ConditionComposerProps) {
   const prefix = useId();
   const makeRows = (source: ConditionExpression | null): DraftRow[] => {
     const items = comparisons(source);
-    return items.length ? items.map((item, index) => ({ id: `${prefix}-${index}`, left: item.left, right: item.right, operator: item.operator as Operator, leftReady: true, rightReady: true }))
+    return items.length
+      ? items.map((item, index) => ({ id: `${prefix}-${index}`, left: item.left, right: item.right, operator: item.operator as Operator, leftReady: true, rightReady: true }))
       : [{ id: `${prefix}-new`, left: null, right: null, operator: "gt", leftReady: false, rightReady: false }];
   };
   const [rows, setRows] = useState<DraftRow[]>(() => makeRows(expression));
   const [open, setOpen] = useState(initiallyOpen || !expression);
+  const [editing, setEditing] = useState<EditingValue>(initialEditingSide ? { index: 0, side: initialEditingSide } : null);
   useEffect(() => setRows(makeRows(expression)), [expression]);
 
   if (expression && comparisons(expression).length === 0) {
@@ -57,30 +71,59 @@ export function ConditionComposer({ role, expression, strategy = fallbackStrateg
     const values: Comparison[] = next.map((item) => ({ kind: "comparison", operator: item.operator, left: item.left!, right: item.right! }));
     onChange(values.length === 1 ? values[0] : { kind: "boolean", operator: "and", operands: values });
   };
-  const update = (id: string, patch: Partial<DraftRow>) => emit(rows.map((item) => item.id === id ? { ...item, ...patch } : item));
+  const update = (index: number, patch: Partial<DraftRow>) => emit(rows.map((item, current) => current === index ? { ...item, ...patch } : item));
   const summary = expression ? describeConditionExpression(expression) : "Set condition";
+  const active = editing ? rows[editing.index] : undefined;
 
-  return <section className={`condition-composer${open ? " open" : ""}`}>
-    <header className="semantic-section-header"><div><span className="eyebrow">{role === "predicate" ? "Condition" : "Eligibility"}</span><strong>{summary}</strong></div>
-      <button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen((current) => !current)}>{open ? "Close" : "Edit"}</button></header>
+  if (editing && active) {
+    const value = active[editing.side];
+    return <section className="condition-composer condition-value-depth" data-editor-depth="value">
+      <ValueComposer
+        expression={value}
+        strategy={strategy}
+        capabilities={capabilities}
+        allowCandidate={role === "eligibility"}
+        allowLiteral={editing.side === "right"}
+        disabled={disabled}
+        editorOnly
+        onBack={() => setEditing(null)}
+        onWorkingState={(state) => update(editing.index, editing.side === "left" ? { leftReady: state === "complete" } : { rightReady: state === "complete" })}
+        onChange={(nextValue) => {
+          if (editing.side === "left") {
+            const right = active.right?.kind === "literal" ? { ...active.right, value_type: valueExpressionType(nextValue) } : active.right;
+            update(editing.index, { left: nextValue, right, leftReady: true });
+          } else update(editing.index, { right: nextValue, rightReady: true });
+        }}
+      />
+    </section>;
+  }
+
+  return <section className={`condition-composer${open ? " open" : ""}`} data-editor-depth="condition">
+    <header className="semantic-section-header">
+      <div><span className="eyebrow">{role === "predicate" ? "Condition" : "Eligibility"}</span><strong>{summary}</strong></div>
+      <button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen((current) => !current)}>{open ? "Done" : "Edit"}</button>
+    </header>
     {open && <div className="condition-rows">
       <p className="condition-all-label">ALL of these</p>
       {rows.map((item, index) => <article key={item.id} className="comparison-row" aria-label={`Condition ${index + 1}`}>
         <span className="comparison-number">{index + 1}</span>
-        <ValueComposer expression={item.left} strategy={strategy} capabilities={capabilities} allowCandidate={role === "eligibility"} disabled={disabled}
-          initiallyOpen={!item.left} onWorkingState={(state) => update(item.id, { leftReady: state === "complete" })}
-          onChange={(left) => {
-            const right = item.right?.kind === "literal" ? { ...item.right, value_type: valueExpressionType(left) } : item.right;
-            update(item.id, { left, right, leftReady: true });
-          }} />
+        <button type="button" className="semantic-value-row comparison-value" aria-label={`Edit condition ${index + 1} left value`} onClick={() => setEditing({ index, side: "left" })}>
+          <span>{item.left ? describeValueExpression(item.left) : "Set left value"}</span><small>Edit</small>
+        </button>
         <label className="comparison-operator"><span className="sr-only">Operator</span><select aria-label={`Condition ${index + 1} operator`} value={item.operator} disabled={disabled}
-          onChange={(event) => update(item.id, { operator: event.target.value as Operator })}><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option></select></label>
-        <ValueComposer expression={item.right} strategy={strategy} capabilities={capabilities} allowCandidate={role === "eligibility"} allowLiteral disabled={disabled}
-          initiallyOpen={!item.right} onWorkingState={(state) => update(item.id, { rightReady: state === "complete" })}
-          onChange={(right) => update(item.id, { right, rightReady: true })} />
-        {rows.length > 1 && <button type="button" className="comparison-remove" aria-label={`Remove condition ${index + 1}`} onClick={() => emit(rows.filter((row) => row.id !== item.id))}>×</button>}
+          onChange={(event) => update(index, { operator: event.target.value as Operator })}><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option></select></label>
+        <button type="button" className="semantic-value-row comparison-value" aria-label={`Edit condition ${index + 1} right value`} onClick={() => setEditing({ index, side: "right" })}>
+          <span>{item.right ? describeValueExpression(item.right) : "Set right value"}</span><small>Edit</small>
+        </button>
+        {rows.length > 1 && <button type="button" className="comparison-remove" aria-label={`Remove condition ${index + 1}`} onClick={() => {
+          setEditing(null);
+          emit(rows.filter((_, current) => current !== index));
+        }}>×</button>}
       </article>)}
-      {rows.length < 5 && <button type="button" className="secondary-button add-condition" onClick={() => emit([...rows, { id: `${prefix}-${Date.now()}`, left: null, right: null, operator: "gt", leftReady: false, rightReady: false }])}>+ Add condition</button>}
+      {rows.length < 5 && <button type="button" className="secondary-button add-condition" onClick={() => {
+        setEditing(null);
+        emit([...rows, { id: `${prefix}-${Date.now()}`, left: null, right: null, operator: "gt", leftReady: false, rightReady: false }]);
+      }}>+ Add condition</button>}
       <p className="fixed-setting">ALL supports up to five comparisons. ANY and nested conditions remain unavailable.</p>
     </div>}
   </section>;

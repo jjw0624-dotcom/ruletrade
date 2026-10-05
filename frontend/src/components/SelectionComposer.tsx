@@ -30,7 +30,7 @@ export function SelectionComposer(props: SelectionComposerProps) {
   const emit = (patch: Partial<Pick<SelectionComposerProps, "direction" | "count" | "shortagePolicy" | "valueExpression">>) =>
     props.onChange({ direction: patch.direction ?? props.direction, count: patch.count ?? props.count, shortagePolicy: patch.shortagePolicy ?? props.shortagePolicy, valueExpression: patch.valueExpression ?? props.valueExpression });
   return <section className="selection-composer" aria-label="Selection editor">
-    <header className="semantic-section-header"><div><span className="eyebrow">Selection</span><strong>Choose {props.count}</strong></div><span className="semantic-save-state">Automatic</span></header>
+    <header className="semantic-section-header"><div><span className="eyebrow">Selection</span><strong>Choose {props.count}</strong></div></header>
     {props.strategy && props.universeComponentId && <section className="selection-section"><span className="eyebrow">FROM</span>
       {props.universeChoices && props.universeId && props.onUniverseChange
         ? <select aria-label="Selection universe" value={props.universeId} disabled={props.disabled} onChange={(event) => props.onUniverseChange?.(event.target.value)}>{props.universeChoices.map((id) => <option key={id} value={id}>{props.strategy?.definitions.universes?.find((item) => item.id === id)?.name ?? id}</option>)}</select>

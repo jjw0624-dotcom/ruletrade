@@ -15,7 +15,7 @@ export interface StructureItem {
 
 export interface ConstructionOption {
   kind: BuilderBlockKind;
-  category: "Portfolio" | "Decision / routing";
+  category: "Capital" | "Decision / routing";
   label: string;
   description: string;
   targetComponentId: string;
@@ -24,7 +24,7 @@ export interface ConstructionOption {
   anchorSelection: SemanticSelection;
 }
 
-export type ToolboxCategory = "Portfolio" | "Assets" | "Decision / logic" | "Timing";
+export type ToolboxCategory = "Capital" | "Assets / universe" | "Decision / routing" | "Timing / behavior";
 export type ToolboxAvailability = "available_now" | "needs_context" | "unavailable" | "unsupported";
 
 export interface SemanticToolboxEntry {
@@ -44,18 +44,18 @@ type ToolboxDefinition = Omit<SemanticToolboxEntry, "availability" | "availabili
 };
 
 const TOOLBOX_DEFINITIONS: ToolboxDefinition[] = [
-  { id: "investment", category: "Portfolio", label: "Investment", description: "A capital path backed by an asset set and allocation.", primitives: ["asset_set@1", "equal_weight@1"], perspectives: ["flow"] },
-  { id: "split", category: "Portfolio", label: "Split", description: "Split capital into two valid sleeves.", primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"], operationKind: "split", perspectives: ["flow"] },
-  { id: "sleeve", category: "Portfolio", label: "Sleeve", description: "A named allocation branch inside a portfolio.", primitives: ["portfolio_sleeve@1"], perspectives: ["flow"] },
-  { id: "allocation", category: "Portfolio", label: "Allocation", description: "Convert selected assets into portfolio targets.", primitives: ["equal_weight@1"], perspectives: ["flow"] },
-  { id: "asset-set", category: "Assets", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
-  { id: "metric", category: "Decision / logic", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "metric", perspectives: ["flow", "blocky"] },
-  { id: "condition", category: "Decision / logic", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
-  { id: "rank", category: "Decision / logic", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
-  { id: "choose", category: "Decision / logic", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
-  { id: "fallback", category: "Decision / logic", label: "Fallback", description: "Route incomplete selections to a fallback asset.", primitives: ["fallback@1"], operationKind: "fallback", perspectives: ["flow", "blocky"] },
-  { id: "cooldown", category: "Decision / logic", label: "Cooldown", description: "Wait before buying the same asset again.", primitives: ["cooldown@1"], operationKind: "cooldown", perspectives: ["flow", "blocky"] },
-  { id: "schedule", category: "Timing", label: "Schedule", description: "Choose when the Strategy evaluates and rebalances.", primitives: ["daily@1", "monthly@1"], perspectives: ["flow", "blocky"] },
+  { id: "investment", category: "Capital", label: "Investment", description: "A capital path backed by an asset set and allocation.", primitives: ["asset_set@1", "equal_weight@1"], perspectives: ["flow"] },
+  { id: "split", category: "Capital", label: "Split", description: "Split capital into two valid sleeves.", primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"], operationKind: "split", perspectives: ["flow"] },
+  { id: "sleeve", category: "Capital", label: "Sleeve", description: "A named allocation branch inside a portfolio.", primitives: ["portfolio_sleeve@1"], perspectives: ["flow"] },
+  { id: "allocation", category: "Capital", label: "Allocation", description: "Convert selected assets into portfolio targets.", primitives: ["equal_weight@1"], perspectives: ["flow"] },
+  { id: "asset-set", category: "Assets / universe", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
+  { id: "metric", category: "Decision / routing", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "metric", perspectives: ["flow", "blocky"] },
+  { id: "condition", category: "Decision / routing", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
+  { id: "rank", category: "Decision / routing", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
+  { id: "choose", category: "Decision / routing", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
+  { id: "fallback", category: "Decision / routing", label: "Fallback", description: "Route incomplete selections to a fallback asset.", primitives: ["fallback@1"], operationKind: "fallback", perspectives: ["flow", "blocky"] },
+  { id: "cooldown", category: "Decision / routing", label: "Cooldown", description: "Wait before buying the same asset again.", primitives: ["cooldown@1"], operationKind: "cooldown", perspectives: ["flow", "blocky"] },
+  { id: "schedule", category: "Timing / behavior", label: "Schedule", description: "Choose when the Strategy evaluates and rebalances.", primitives: ["daily@1", "monthly@1"], perspectives: ["flow", "blocky"] },
 ];
 
 function groupItems(group: ConceptualGroup): StructureItem[] {
@@ -211,7 +211,7 @@ export function constructionOptions(
     .every((primitive) => composable.has(primitive))) {
     options.push({
       kind: "split",
-      category: "Portfolio",
+      category: "Capital",
       label: "Split",
       targetLabel: "Portfolio",
       groupId: null,
