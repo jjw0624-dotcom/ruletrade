@@ -83,7 +83,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(fromBlankCanvas).toHaveLength(1);
     expect(fromPortfolio).toEqual(fromBlankCanvas);
     expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });
-    expect(fromBlankCanvas[0]).toMatchObject({ category: "Decision / routing", label: "Condition" });
+    expect(fromBlankCanvas[0]).toMatchObject({ category: "Decision", label: "Condition" });
     expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
   });
 
@@ -119,6 +119,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(entries.find((entry) => entry.label === "Metric")).toMatchObject({ availability: "needs_context", options: [] });
     expect(entries.find((entry) => entry.label === "Schedule")).toMatchObject({ availability: "unsupported", options: [] });
     expect(entries.map((entry) => entry.label)).not.toContain("Growth + Defensive");
+    expect(new Set(entries.map((entry) => entry.category))).toEqual(new Set(["Capital", "Assets", "Decision", "Allocation", "Timing", "Behavior"]));
   });
 
   it("separates available toolbox concepts from unavailable concepts without inventing mutations", () => {
@@ -127,7 +128,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const entries = semanticToolboxEntries(projection, momentumBootstrap.registry, capabilities, null, "blocky");
     expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "available_now" });
     expect(entries.find((entry) => entry.label === "Asset Set")).toMatchObject({ availability: "unavailable", options: [] });
-    expect(entries.some((entry) => entry.category === "Portfolio")).toBe(false);
+    expect(entries.some((entry) => entry.category === "Capital")).toBe(false);
     const initial = createEditorState(momentumBootstrap);
     expect(initial.canonical).toBe(momentumBootstrap.strategy);
     expect(initial.validation.status).toBe("valid");

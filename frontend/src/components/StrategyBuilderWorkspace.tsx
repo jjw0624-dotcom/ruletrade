@@ -15,6 +15,7 @@ import { RulesView } from "../views/RulesView";
 import { CodeView } from "../views/CodeView";
 import { AIHandoffView } from "../views/AIHandoffView";
 import { logicDraftMessage } from "../domain/logicDraft";
+import { flowDraftMessage } from "../domain/flowDraft";
 
 const BlockyView = lazy(() => import("../views/BlockyView").then((module) => ({ default: module.BlockyView })));
 
@@ -85,6 +86,7 @@ export function StrategyBuilderWorkspace({
 }) {
   const { state, dispatch } = useStrategyEditor();
   const draftMessage = logicDraftMessage(state.editor.logicDraft)
+    ?? flowDraftMessage(state.editor.flowDraft)
     ?? ((structural.semanticEdit?.status ?? "idle") === "idle" ? null : structural.semanticEdit?.message ?? "Finish the semantic edit before saving or testing.");
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
   const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection || state.editor.logicDraft.selectedDraftId), Boolean(research?.researchOpen));

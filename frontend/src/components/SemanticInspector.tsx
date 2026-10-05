@@ -64,9 +64,9 @@ function ConditionInspectorControl({
       onWorkingState={(working) => { if (working === "incomplete") structural.setSemanticEditStatus?.("unfinished"); }}
       onChange={commit}
     />
-    <div className={`semantic-edit-feedback ${(structural.semanticEdit?.status ?? "idle")}`} role="status">
-      {(structural.semanticEdit?.status ?? "idle") === "idle" ? "Saved" : structural.semanticEdit?.message}
-    </div>
+    {(structural.semanticEdit?.status ?? "idle") !== "idle" && <div className={`semantic-edit-feedback ${(structural.semanticEdit?.status ?? "idle")}`} role="status">
+      {structural.semanticEdit?.message}
+    </div>}
     {removable && <button type="button" className="text-button danger" disabled={structural.status === "applying"} onClick={() => void structural.apply(
       role === "predicate"
         ? { kind: "remove_predicate", component_id: componentId }

@@ -40,7 +40,8 @@ describe("semantic expression authoring controls", () => {
     const html = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy} expression={null} initiallyOpen onChange={change} />);
     expect(html).toContain("Set condition");
     expect(html).toContain("ALL of these");
-    expect(html).toContain("Set value");
+    expect(html).toContain("Set left value");
+    expect(html).toContain("Set right value");
     expect(html).toContain("+ Add condition");
     expect(change).not.toHaveBeenCalled();
   });
@@ -85,4 +86,44 @@ describe("semantic expression authoring controls", () => {
     expect(html).not.toContain("Scale");
     expect(html).toContain("Only executable Strategy values");
   });
+
+  it("drills from Condition into exactly one Value editor and returns through one Back control", () => {
+    const expression = {
+      kind: "comparison", operator: "gt", left: candidateReturn,
+      right: { kind: "literal", value_type: "percentage", value: 0 },
+    } as const;
+    const left = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy}
+      expression={expression} initiallyOpen initialEditingSide="left" onChange={vi.fn()} />);
+    expect((left.match(/aria-label="Value editor"/g) ?? [])).toHaveLength(1);
+    expect(left).toContain("← Condition");
+    expect(left).toContain("63");
+    expect(left).not.toContain(">Close<");
+    expect(left).not.toContain("RIGHT VALUE");
+
+    const right = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy}
+      expression={expression} initiallyOpen initialEditingSide="right" onChange={vi.fn()} />);
+    expect((right.match(/aria-label="Value editor"/g) ?? [])).toHaveLength(1);
+    expect(right).toContain("0");
+    expect(right).not.toContain(">Close<");
+  });
+
+  it("keeps the compact Condition surface at one semantic depth", () => {
+    const html = renderToStaticMarkup(<ConditionComposer role="predicate" strategy={strategy} expression={{
+      kind: "comparison", operator: "gt", left: candidateReturn,
+      right: { kind: "literal", value_type: "percentage", value: 0 },
+    }} initiallyOpen onChange={vi.fn()} />);
+    expect(html).toContain('data-editor-depth="condition"');
+    expect(html).not.toContain('data-editor-depth="value"');
+    expect(html).not.toContain('aria-label="Value editor"');
+    expect(html).not.toContain(">Close<");
+  });
+
+  it("does not present permanent Automatic state in Selection or Inspector semantics", () => {
+    const html = renderToStaticMarkup(<SelectionComposer direction="descending" count={2}
+      shortagePolicy="choose_all" strategy={strategy} universeComponentId="universe"
+      valueExpression={candidateReturn} onChange={vi.fn()} />);
+    expect(html).not.toContain("Automatic");
+    expect(html).not.toContain(">Saved<");
+  });
+
 });

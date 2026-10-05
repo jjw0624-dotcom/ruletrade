@@ -157,7 +157,7 @@ export function WorkspaceLeftPanel({ projection, structural }: {
           {perspective !== "blocky" && <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>}
           {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
           {structural.status !== "checking" && perspective !== "blocky" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
-          {perspective === "blocky" ? <BlockyProgramToolbox entries={programLibrary} structural={structural} /> : (["Portfolio", "Assets", "Decision / logic", "Timing"] as ToolboxCategory[]).map((category) => {
+          {perspective === "blocky" ? <BlockyProgramToolbox entries={programLibrary} structural={structural} /> : (["Capital", "Assets", "Decision", "Allocation", "Timing", "Behavior"] as ToolboxCategory[]).map((category) => {
             const categoryEntries = library.filter((entry) => entry.category === category);
             return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
               {categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id}>
