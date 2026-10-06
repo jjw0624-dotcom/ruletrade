@@ -118,7 +118,7 @@ describe("one Canonical, distinct editable perspectives", () => {
     const choose = flow.groups[0].choose!;
     const meaning = "Candidate\'s current adjusted price ≥ $5";
     expect(choose.condition).toBe(meaning);
-    expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("selection:"))?.data.detail).toContain("eligibility filter");
+    expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("selected-target:"))?.data.badges).toContain("1 eligibility filter");
     expect(projectLogicRepresentation(canonical, bootstrap.registry).groups[0].steps.find((item) => item.kind === "condition")?.text).toBe(meaning);
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
     expect(rules).toContain("WHERE Candidate&#x27;s current adjusted price ≥ $5");

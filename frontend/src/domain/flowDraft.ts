@@ -34,6 +34,7 @@ export const EMPTY_FLOW_DRAFT: FlowDraftState = {
 const COMPATIBLE_CONNECTIONS = new Set([
   // Flow connects capital and routing units. Candidate mechanics belong inside Selection's Inspector.
   "portfolio>group",
+  "portfolio>allocation",
   "group>selection",
   "group>allocation",
   "selection>exposure",

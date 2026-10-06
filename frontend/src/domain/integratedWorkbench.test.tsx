@@ -154,7 +154,7 @@ describe("integrated Strategy research workbench", () => {
 
   it("maps exact semantic identity to the xyflow node used by View in Flow", () => {
     const nodes = projectFlowCanvas(projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry)).nodes;
-    expect(flowNodeIdForSelection(nodes, semanticSelection("rule", "positive_return", { fieldPath: "config.threshold" }))).toBe("selection:growth_sleeve");
+    expect(flowNodeIdForSelection(nodes, semanticSelection("rule", "positive_return", { fieldPath: "config.threshold" }))).toBe("selected-target:growth_sleeve");
     expect(flowNodeIdForSelection(nodes, semanticSelection("rule", "same-looking-but-unrelated", { fieldPath: "config.threshold" }))).toBeNull();
   });
 

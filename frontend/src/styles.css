@@ -978,3 +978,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .flow-toolbox-block{width:auto;min-width:54px;padding:6px 8px;border:1px solid #9db0a2;border-radius:6px;background:#eef6f0;color:#1f5537;font-size:11px;font-weight:700;cursor:grab}
 .flow-toolbox-block:active{cursor:grabbing}.flow-toolbox-block:disabled{border-color:var(--border);background:#eceeeb;color:var(--muted);cursor:not-allowed}
 @media(max-width:760px){.flow-capital-toolbox{grid-template-columns:68px minmax(0,1fr)}.flow-toolbox-categories button{font-size:9px}.flow-toolbox-entry{grid-template-columns:1fr}.flow-toolbox-block{justify-self:start}}
+
+
+/* Minimal capital Flow: canvas stays topology-first; semantic detail becomes badges/Inspector provenance. */
+.semantic-flow-node{gap:3px}
+.semantic-flow-node>span{color:var(--muted);font-size:11px;line-height:1.25}
+.semantic-flow-node.flow-role-capital{width:205px;min-height:58px}
+.semantic-flow-node.flow-role-routing{width:220px;min-height:60px}
+.semantic-flow-node.flow-role-action{width:170px;min-height:50px}
+.semantic-flow-node.draft{border-style:dashed;border-color:#8b58a2;background:#fbf7ff;box-shadow:0 6px 16px rgba(75,45,89,.12)}
+.flow-node-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.flow-node-badges small{padding:2px 5px;border:1px solid #ccd7d0;border-radius:999px;background:rgba(255,255,255,.72);color:#59685f;font-size:9px;line-height:1.2}
+.semantic-flow-node.constraint,.semantic-flow-node.schedule{box-shadow:none}
+.strategy-flow-edge.flow-edge-action .react-flow__edge-text{font-size:9px;fill:#6d7b73}

@@ -14,6 +14,7 @@ describe("FlowDraft authoring boundary", () => {
 
   it("allows only typed capital relationships", () => {
     expect(isCompatibleFlowConnection("portfolio", "group")).toBe(true);
+    expect(isCompatibleFlowConnection("portfolio", "allocation")).toBe(true);
     expect(isCompatibleFlowConnection("selection", "exposure")).toBe(true);
     expect(isCompatibleFlowConnection("exposure", "allocation")).toBe(true);
     expect(isCompatibleFlowConnection("allocation", "action")).toBe(true);
@@ -36,7 +37,15 @@ describe("FlowDraft authoring boundary", () => {
     const rules = editorReducer(draft, { type: "set_active_view", view: "rules" });
     expect(rules.editor.flowDraft).toEqual(draft.editor.flowDraft);
     expect(rules.canonical).toBe(initial.canonical);
-    const cleared = editorReducer(rules, { type: "clear_flow_draft" });
+    const connected = editorReducer(rules, { type: "set_flow_draft_connection", connection: {
+      sourceId: "portfolio:root", targetId: "draft:split",
+      sourceKind: "portfolio", targetKind: "allocation", compatible: true,
+    }, status: "commit_ready", message: "Ready to create Split." });
+    const detached = editorReducer(connected, { type: "clear_flow_draft_connection" });
+    expect(detached.editor.flowDraft.connection).toBeNull();
+    expect(detached.editor.flowDraft.status).toBe("incomplete");
+    expect(detached.canonical).toBe(initial.canonical);
+    const cleared = editorReducer(detached, { type: "clear_flow_draft" });
     expect(cleared.editor.flowDraft.status).toBe("clean");
     expect(cleared.canonical).toBe(initial.canonical);
   });

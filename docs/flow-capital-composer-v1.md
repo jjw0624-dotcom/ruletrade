@@ -204,3 +204,46 @@ compact toolbox drag/click
 ```
 
 Supported scaffolds include ranked Selection, Eligibility, fallback, cooldown, and the atomic two-Sleeve Split. Connection handles reject candidate-data pipeline relationships. A compatible but not yet unambiguous direct rewire stays draft-only and blocks Save/Test; it never changes Canonical. Node movement remains presentation-only; semantic deletion uses only backend-supported removal operations.
+
+
+## Minimal capital Flow and Inspector-first detail
+
+The default canvas is intentionally smaller than the Canonical graph. Its primary vocabulary is:
+
+- **Capital / ownership:** Portfolio, Investment, Sleeve.
+- **Destination / exposure:** direct asset baskets, selected assets, and fallback assets.
+- **Routing:** Split, Predicate condition, and Selection when Selection has an incomplete-result route.
+- **Allocation:** percentage and equal-weight labels on capital relationships.
+- **Timing / constraints:** compact badges on the semantic unit they qualify.
+- **Action:** one shared Rebalance realization point.
+
+Universe, Eligibility, Ranking, Portfolio target, Allocation, Schedule, and Cooldown are not independent first-class canvas nodes in the ordinary projection. They retain exact semantic provenance on the owning destination/routing unit. Selecting that unit opens the shared Inspector, where FROM, WHERE, ORDER BY, TAKE, SHORTAGE, FALLBACK, allocation, schedule, and constraint details remain Canonical-backed and editable.
+
+A Selection without fallback is compressed into the selected exposure. A Selection with fallback remains a routing mechanism because it has two materially different capital outcomes:
+
+```text
+Investment → Choose assets ── selected ──> Selected exposure ── equal weight ──> Rebalance
+                         └─ incomplete ─> Fallback exposure ────────────────> Rebalance
+```
+
+Predicate routing remains explicit, including **retain current holdings** for a no-ELSE false route. Split ownership remains parallel, with percentages on the Portfolio-to-Sleeve relationships.
+
+### Native construction boundary
+
+The compact Flow toolbox is a bounded, internally scrollable high-level library with Capital, Destination, Routing, Allocation, Timing, and Behavior categories. Long capability explanations are contextual help, not permanent cards.
+
+The production-native commit-ready gesture currently supported end to end is:
+
+```text
+drag Split
+→ working allocation node
+→ connect Portfolio to Split
+→ commit-ready FlowDraft
+→ transform_to_growth_defensive
+→ backend Canonical replacement
+→ Flow / Blocky / Rules reprojection
+```
+
+Detaching or deleting the working node/edge returns the draft to incomplete without changing Canonical. Other compatible construction units can be placed and connected as working topology, but remain **draft-only** until their semantic configuration or mutation mapping is unambiguous. This is deliberate: the canvas never approximates a Strategy mutation.
+
+Node positions remain projection state keyed by deterministic semantic IDs. Canonical contains no Flow styling, coordinates, or aggregation metadata.
