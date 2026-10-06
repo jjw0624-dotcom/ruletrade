@@ -14,17 +14,15 @@ describe("FlowDraft authoring boundary", () => {
 
   it("allows only typed capital relationships", () => {
     expect(isCompatibleFlowConnection("portfolio", "group")).toBe(true);
-    expect(isCompatibleFlowConnection("universe", "selection")).toBe(true);
     expect(isCompatibleFlowConnection("selection", "exposure")).toBe(true);
     expect(isCompatibleFlowConnection("exposure", "allocation")).toBe(true);
-    expect(isCompatibleFlowConnection("allocation", "target")).toBe(true);
-    expect(isCompatibleFlowConnection("target", "action")).toBe(true);
+    expect(isCompatibleFlowConnection("allocation", "action")).toBe(true);
     expect(isCompatibleFlowConnection("selection", "allocation")).toBe(true);
     expect(isCompatibleFlowConnection("schedule", "group")).toBe(true);
     expect(isCompatibleFlowConnection("predicate", "branch")).toBe(true);
     expect(isCompatibleFlowConnection("selection", "schedule")).toBe(false);
-    expect(isCompatibleFlowConnection("universe", "target")).toBe(false);
-    expect(isCompatibleFlowConnection("fallback", "action")).toBe(false);
+    expect(isCompatibleFlowConnection("universe", "selection")).toBe(false);
+    expect(isCompatibleFlowConnection("fallback", "action")).toBe(true);
     expect(isCompatibleFlowConnection("allocation", "allocation")).toBe(false);
   });
 

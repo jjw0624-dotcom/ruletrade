@@ -25,13 +25,6 @@ import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../do
 import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
 
-const availabilityTitle = {
-  available_now: "Available now",
-  needs_context: "Needs compatible context",
-  unavailable: "Currently unavailable",
-  unsupported: "Unsupported",
-} as const;
-
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
   const selected = sameSemanticSelection(state.editor.selection, item.selection);
@@ -123,6 +116,44 @@ export function BlockyProgramToolbox({ entries, structural }: {
   </div>;
 }
 
+export function FlowCapitalToolbox({ entries, structural }: { entries: ReturnType<typeof semanticToolboxEntries>; structural: StructuralAuthoringController }) {
+  const { dispatch } = useStrategyEditor();
+  const categories: ToolboxCategory[] = ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
+  const [activeCategory, setActiveCategory] = useState<ToolboxCategory>("Capital");
+  const displayed = entries.filter((entry) => entry.category === activeCategory);
+  const busy = structural.status === "checking" || structural.status === "applying";
+  const startDrag = (event: DragEvent<HTMLButtonElement>, option: ConstructionOption) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-ruletrade-concept", JSON.stringify({ kind: option.kind, targetComponentId: option.targetComponentId }));
+  };
+  const start = (option: ConstructionOption) => {
+    if (option.kind === "split") {
+      void dispatchSplitConstruction(option, structural);
+      return;
+    }
+    dispatch({ type: "select_semantic", selection: option.anchorSelection });
+    dispatch({ type: "begin_flow_draft", intent: {
+      kind: option.kind, targetComponentId: option.targetComponentId, targetLabel: option.targetLabel, groupId: option.groupId,
+    } });
+  };
+  return <div className="flow-capital-toolbox" data-flow-toolbox>
+    <nav className="flow-toolbox-categories" aria-label="Flow categories">
+      {categories.map((category) => <button key={category} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
+    </nav>
+    <section className="flow-toolbox-library" aria-label={`${activeCategory} Flow tools`}>
+      {displayed.map((entry) => <article className={`flow-toolbox-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id} title={entry.description}>
+        <div><strong>{entry.label}</strong><small>{entry.availability === "available_now" ? entry.availabilityLabel : entry.availabilityLabel}</small></div>
+        {entry.options.map((option) => <button className="flow-toolbox-block" key={`${option.kind}:${option.targetComponentId}`}
+          disabled={busy} draggable={!busy} onDragStart={(event) => startDrag(event, option)}
+          onClick={() => start(option)} title={`Drag ${entry.label} onto Flow, or click to begin the supported construction`}>
+          {entry.label}<span className="sr-only"> — drag to Flow or click to begin</span>
+        </button>)}
+        {entry.options.length === 0 && <button className="flow-toolbox-block" disabled>{entry.label}</button>}
+      </article>)}
+    </section>
+  </div>;
+}
+
 export function WorkspaceLeftPanel({ projection, structural }: {
   projection: ConceptualFlowProjection;
   structural: StructuralAuthoringController;
@@ -151,20 +182,9 @@ export function WorkspaceLeftPanel({ projection, structural }: {
           <p className="panel-hint">Select an investment object to inspect it everywhere.</p>
         </Tabs.Content>
         <Tabs.Content value="blocks" className="blocks-panel" data-perspective={perspective}>
-          {perspective !== "blocky" && <header><span className="eyebrow">Semantic toolbox</span><h2>Add to this Strategy</h2><p>Build with executable concepts. Recipes remain in Guide.</p></header>}
-          {structural.status === "checking" && <p role="status">Checking what fits here…</p>}
-          {structural.status !== "checking" && perspective !== "blocky" && <p className="panel-hint">The library stays visible even when a concept has no legal target. The backend remains the authority.</p>}
-          {perspective === "blocky" ? <BlockyProgramToolbox entries={programLibrary} structural={structural} /> : (["Capital", "Assets", "Decision", "Allocation", "Timing", "Behavior"] as ToolboxCategory[]).map((category) => {
-            const categoryEntries = library.filter((entry) => entry.category === category);
-            return categoryEntries.length > 0 && <section className="construction-category" key={category}><h3>{category}</h3>
-              {categoryEntries.map((entry) => <article className={`semantic-library-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id}>
-                <header><strong>{entry.label}</strong><span>{availabilityTitle[entry.availability]}</span></header>
-                <p>{entry.description}</p>
-                {entry.availability !== "available_now" && <small>{entry.availabilityLabel}</small>}
-                {entry.options.map((option) => <ConstructionControl key={`${option.kind}:${option.targetComponentId}`} option={option} structural={structural} />)}
-              </article>)}
-            </section>;
-          })}
+          {perspective === "blocky"
+            ? <BlockyProgramToolbox entries={programLibrary} structural={structural} />
+            : <FlowCapitalToolbox entries={library} structural={structural} />}
         </Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>

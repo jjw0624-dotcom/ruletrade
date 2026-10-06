@@ -15,7 +15,7 @@ export interface StructureItem {
 
 export interface ConstructionOption {
   kind: BuilderBlockKind;
-  category: "Capital" | "Decision";
+  category: "Capital" | "Destination" | "Routing" | "Allocation" | "Timing" | "Behavior";
   label: string;
   description: string;
   targetComponentId: string;
@@ -24,7 +24,7 @@ export interface ConstructionOption {
   anchorSelection: SemanticSelection;
 }
 
-export type ToolboxCategory = "Capital" | "Assets" | "Decision" | "Allocation" | "Timing" | "Behavior";
+export type ToolboxCategory = "Capital" | "Destination" | "Routing" | "Allocation" | "Timing" | "Behavior";
 export type ToolboxAvailability = "available_now" | "needs_context" | "unavailable" | "unsupported";
 
 export interface SemanticToolboxEntry {
@@ -48,11 +48,11 @@ const TOOLBOX_DEFINITIONS: ToolboxDefinition[] = [
   { id: "split", category: "Capital", label: "Split", description: "Split capital into two valid sleeves.", primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"], operationKind: "split", perspectives: ["flow"] },
   { id: "sleeve", category: "Capital", label: "Sleeve", description: "A named allocation branch inside a portfolio.", primitives: ["portfolio_sleeve@1"], perspectives: ["flow"] },
   { id: "allocation", category: "Allocation", label: "Allocation", description: "Convert selected assets into portfolio targets.", primitives: ["equal_weight@1"], perspectives: ["flow"] },
-  { id: "asset-set", category: "Assets", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
-  { id: "metric", category: "Assets", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "metric", perspectives: ["flow", "blocky"] },
-  { id: "condition", category: "Decision", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
-  { id: "rank", category: "Assets", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
-  { id: "choose", category: "Assets", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
+  { id: "asset-set", category: "Destination", label: "Asset Set", description: "A named universe of investable assets.", primitives: ["asset_set@1"], perspectives: ["flow", "blocky"] },
+  { id: "metric", category: "Routing", label: "Metric", description: "Measure trailing return for an asset universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "metric", perspectives: ["flow", "blocky"] },
+  { id: "condition", category: "Routing", label: "Condition", description: "Require the supported return threshold before ranking.", primitives: ["filter@1"], operationKind: "qualification", perspectives: ["flow", "blocky"] },
+  { id: "rank", category: "Routing", label: "Rank", description: "Order scored assets from strongest to weakest.", primitives: ["rank@1"], perspectives: ["flow", "blocky"] },
+  { id: "choose", category: "Routing", label: "Choose", description: "Choose the strongest assets from a universe.", primitives: ["trailing_return@1", "rank@1", "top_n@1"], operationKind: "choose", perspectives: ["flow", "blocky"] },
   { id: "fallback", category: "Behavior", label: "Fallback", description: "Route incomplete selections to a fallback asset.", primitives: ["fallback@1"], operationKind: "fallback", perspectives: ["flow", "blocky"] },
   { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Wait before buying the same asset again.", primitives: ["cooldown@1"], operationKind: "cooldown", perspectives: ["flow", "blocky"] },
   { id: "schedule", category: "Timing", label: "Schedule", description: "Choose when the Strategy evaluates and rebalances.", primitives: ["daily@1", "monthly@1"], perspectives: ["flow", "blocky"] },
@@ -173,34 +173,34 @@ export function constructionOptions(
     const chooseTarget = group.allocationComponentId;
     if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)
       && ["trailing_return@1", "rank@1", "top_n@1"].every((primitive) => composable.has(primitive))) options.push({
-      kind: "metric", category: "Decision", label: "Metric", targetLabel, groupId,
+      kind: "metric", category: "Routing", label: "Metric", targetLabel, groupId,
       description: "Add trailing return with the minimum Rank and Choose support required for a valid executable pipeline.",
       targetComponentId: chooseTarget,
       anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
     });
     if (chooseTarget && capabilities.choose_pipeline_targets.includes(chooseTarget)) options.push({
-      kind: "choose", category: "Decision", label: "Choose", targetLabel, groupId,
+      kind: "choose", category: "Routing", label: "Choose", targetLabel, groupId,
       description: "Measure returns, rank this universe, and choose the strongest assets.",
       targetComponentId: chooseTarget,
       anchorSelection: semanticSelection("universe", group.universeComponentId ?? chooseTarget, { groupId }),
     });
     const rankTarget = group.choose?.rankComponentId;
     if (rankTarget && composable.has("filter@1") && capabilities.qualification_add_targets.includes(rankTarget)) options.push({
-      kind: "qualification", category: "Decision", label: "Condition", targetLabel, groupId,
+      kind: "qualification", category: "Routing", label: "Condition", targetLabel, groupId,
       description: "Require the supported positive-return condition before ranking.",
       targetComponentId: rankTarget,
       anchorSelection: semanticSelection("selection", group.choose!.selectionComponentId, { groupId }),
     });
     const fallbackTarget = group.allocationComponentId;
     if (fallbackTarget && capabilities.fallback_add_targets.includes(fallbackTarget)) options.push({
-      kind: "fallback", category: "Decision", label: "Fallback", targetLabel, groupId,
+      kind: "fallback", category: "Behavior", label: "Fallback", targetLabel, groupId,
       description: "Choose where money goes when too few assets qualify.",
       targetComponentId: fallbackTarget,
       anchorSelection: semanticSelection("selection", group.choose?.selectionComponentId ?? fallbackTarget, { groupId }),
     });
     const cooldownTarget = group.choose?.selectionComponentId;
     if (cooldownTarget && capabilities.cooldown_add_targets.includes(cooldownTarget)) options.push({
-      kind: "cooldown", category: "Decision", label: "Cooldown", targetLabel, groupId,
+      kind: "cooldown", category: "Behavior", label: "Cooldown", targetLabel, groupId,
       description: "After selling, wait before buying the same asset again.",
       targetComponentId: cooldownTarget,
       anchorSelection: semanticSelection("selection", cooldownTarget, { groupId }),

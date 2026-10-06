@@ -171,3 +171,36 @@ The following remain unavailable rather than faked:
 - Asset Workspace navigation.
 
 Stable Universe, Group, Selection, and Predicate identities are suitable for a future Asset Workspace without coupling it to xyflow IDs.
+
+
+## Native capital Flow correction
+
+The Flow Add panel is a bounded, internally scrollable tool library. It uses compact categories: **Capital**, **Destination**, **Routing**, **Allocation**, **Timing**, and **Behavior**. Tool descriptions are contextual (title/help), rather than permanently consuming canvas-adjacent height.
+
+The primary Flow projection intentionally aggregates candidate mechanics:
+
+- **Removed from the default capital canvas:** standalone Universe, Eligibility, ranking, and portfolio-target nodes.
+- **Retained as exact Selection detail:** FROM, WHERE, ORDER BY, TAKE, SHORTAGE, and FALLBACK are available through the shared Selection Inspector. Selection carries provenance for its Universe and Eligibility, so Evidence, Rules, Blocky, and View rule retain their exact identity.
+- **Retained as primary topology:** Portfolio/Investment/Sleeve ownership, Split, Condition routing, Selection routing, selected/fallback exposures, allocation, action, schedule attachment, and constraints.
+
+The normal Selection route is therefore:
+
+```text
+Investment → Choose assets → Selected assets → Equal allocation → Rebalance
+                         └─ if incomplete → Fallback exposure ─┘
+```
+
+This is not a loss of strategy semantics; it is a representation boundary. Candidate admission and ranking determine the selected exposure but are not themselves capital destinations.
+
+Native construction follows the existing safe boundary:
+
+```text
+compact toolbox drag/click
+→ FlowDraft
+→ compatible capital relationship or supported scaffold
+→ backend semantic intent
+→ Canonical replacement
+→ Flow / Blocky / Rules reprojection
+```
+
+Supported scaffolds include ranked Selection, Eligibility, fallback, cooldown, and the atomic two-Sleeve Split. Connection handles reject candidate-data pipeline relationships. A compatible but not yet unambiguous direct rewire stays draft-only and blocks Save/Test; it never changes Canonical. Node movement remains presentation-only; semantic deletion uses only backend-supported removal operations.
