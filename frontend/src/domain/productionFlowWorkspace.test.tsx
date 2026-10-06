@@ -153,7 +153,7 @@ describe("mounted production Flow workspace", () => {
     const manifest = productionFlowNodeManifest(graph.nodes);
     expect(geometry).toMatchObject({ nodeCount: 6, edgeCount: 6, finitePositions: true });
     expect(geometry.ids).toEqual(expect.arrayContaining([
-      "portfolio", "selected-target:investment", "fallback:investment", "action:portfolio",
+      "portfolio", "group:fallback", "selection:fallback", "selected-target:fallback", "fallback:fallback", "action:portfolio",
     ]));
     expect(geometry.kinds).toEqual(expect.arrayContaining(["portfolio", "group", "selection", "exposure", "fallback", "action"]));
 
