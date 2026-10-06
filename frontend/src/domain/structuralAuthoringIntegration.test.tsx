@@ -372,7 +372,7 @@ describe("Structural Authoring Guide and Flow integration", () => {
 
     const projected = projectConceptualFlow(editor.canonical, editor.registry);
     expect(projected.groups).toHaveLength(2);
-    expect(projected.groups.map((group) => group.allocation)).toEqual(["0.5", "0.5"]);
+    expect(projected.groups.map((group) => group.allocation)).toEqual(["50%", "50%"]);
     expect(projected.groups.map((group) => group.sleeveComponentId)).toEqual(
       expect.arrayContaining(["growth_sleeve", "defensive_sleeve"]),
     );
