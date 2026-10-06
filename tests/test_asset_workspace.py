@@ -16,6 +16,7 @@ def test_asset_search_and_strategy_membership_are_real(tmp_path):
     assert item.symbol == "QQQ"
     detail = service(tmp_path).detail("QQQ", "synthetic_prices", date(2024, 12, 31), strategy=fallback_momentum_strategy())
     assert any(item.kind in {"asset_set", "universe"} for item in detail.memberships)
+    assert any(item.component_id for item in detail.memberships)
     assert detail.series[-1].date <= detail.as_of
 
 

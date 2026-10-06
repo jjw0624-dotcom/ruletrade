@@ -37,6 +37,7 @@ architecture when they conflict with code or the living architecture.
 | `market-data-preflight-ux.md` | CURRENT | Product preflight behavior |
 | `integrated-research-workbench.md` | CURRENT | Shared Builder/Activity/Research behavior |
 | `connected-workspace-contract-v1.md` | CURRENT | Semantic address, ownership, and authoritative replacement contract |
+| `mvp1-capability-ledger.md` | MVP 1 / CURRENT | Product capability truth, connected mutation paths, and current/historical boundary |
 | `editable-representations-v1.md` | CURRENT | Flow/Blocky/Rules/Code/AI representation boundaries |
 | `blocky-program-composer-v1.md` | MVP 1 / CURRENT | Production Blocky decision-program grammar and LogicDraft boundary |
 | `executable-predicate-v1.md` | MVP 1 / CURRENT | Restricted executable IF, Authoring Contract, LEAN lowering, and Evidence |

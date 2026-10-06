@@ -957,3 +957,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .asset-comparison{overflow:auto}.asset-comparison table{width:100%;border-collapse:collapse}.asset-comparison th,.asset-comparison td{text-align:left;padding:.55rem;border-bottom:1px solid var(--border,#dbe2ea)}
 .asset-value-handoff .value-composer{max-width:42rem}.asset-workspace-message{position:sticky;bottom:0;background:#eef5ff;padding:.6rem;border-radius:.5rem}
 @media(max-width:760px){.asset-workspace-layout{grid-template-columns:1fr}.asset-browser{border-right:0;border-bottom:1px solid var(--border,#dbe2ea);max-height:16rem;padding-right:0}.asset-workspace-header{flex-direction:column}}
+
+.asset-membership-targets{display:grid;gap:.5rem}.asset-membership-targets li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#dbe2ea);border-radius:.55rem}.asset-membership-targets li span{display:grid}.asset-membership-targets li small{color:var(--muted,#64748b)}.asset-membership-targets li .secondary-button,.asset-membership-targets li .text-button{width:auto;text-decoration:none}
+@media(max-width:760px){.asset-membership-targets li{grid-template-columns:1fr auto}.asset-membership-targets li span{grid-column:1/-1}}

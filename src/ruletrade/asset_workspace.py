@@ -48,6 +48,7 @@ class StrategyMembership(AssetResearchModel):
     kind: Literal["asset_set", "group", "universe"]
     id: str
     label: str
+    component_id: str | None = None
 
 
 class HistoricalAssetContext(AssetResearchModel):
@@ -195,13 +196,30 @@ class AssetResearchService:
             return ()
         result: list[StrategyMembership] = []
         asset_sets = {item.id: item for item in strategy.definitions.asset_sets}
+        asset_components = {
+            str(item.config.get("asset_set_ref")): item.id
+            for item in strategy.graph.components
+            if item.primitive == "asset_set@1"
+        }
+        universe_components = {
+            str(item.config.get("universe_ref")): item.id
+            for item in strategy.graph.components
+            if item.primitive == "universe@1"
+        }
+        component_ids = {item.id for item in strategy.graph.components}
         for item in strategy.definitions.asset_sets:
             if symbol in item.assets:
-                result.append(StrategyMembership(kind="asset_set", id=item.id, label=item.id.replace("_", " ")))
+                result.append(StrategyMembership(
+                    kind="asset_set", id=item.id, label=item.id.replace("_", " "),
+                    component_id=asset_components.get(item.id),
+                ))
         for group in strategy.definitions.groups:
             aset = asset_sets.get(group.asset_set_ref)
             if aset and symbol in aset.assets:
-                result.append(StrategyMembership(kind="group", id=group.id, label=group.name))
+                result.append(StrategyMembership(
+                    kind="group", id=group.id, label=group.name,
+                    component_id=group.id if group.id in component_ids else asset_components.get(group.asset_set_ref),
+                ))
         for universe in strategy.definitions.universes or ():
             asset_set_ref = universe.asset_set_ref
             if universe.source == "group" and universe.group_ref:
@@ -209,5 +227,8 @@ class AssetResearchService:
                 asset_set_ref = group.asset_set_ref if group else None
             aset = asset_sets.get(asset_set_ref or "")
             if aset and symbol in aset.assets:
-                result.append(StrategyMembership(kind="universe", id=universe.id, label=universe.name))
+                result.append(StrategyMembership(
+                    kind="universe", id=universe.id, label=universe.name,
+                    component_id=universe_components.get(universe.id) or asset_components.get(asset_set_ref or ""),
+                ))
         return tuple(result)
