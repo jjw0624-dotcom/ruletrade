@@ -383,11 +383,11 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [dispatch, options]);
 
   const handleNodesChange = useCallback((changes: NodeChange<SemanticNode>[]) => {
-    const committedChanges = changes.filter((change) => !draftNode || change.id !== draftNode.id);
+    const committedChanges = changes.filter((change) => !draftNode || !("id" in change) || change.id !== draftNode.id);
     if (committedChanges.length > 0) onNodesChange(committedChanges);
     if (!draftNode) return;
     for (const change of changes) {
-      if (change.id !== draftNode.id) continue;
+      if (!("id" in change) || change.id !== draftNode.id) continue;
       if (change.type === "position" && change.position) {
         setDraftNode((current) => current ? { ...current, position: change.position! } : current);
       }

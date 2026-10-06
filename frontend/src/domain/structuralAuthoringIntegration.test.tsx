@@ -375,7 +375,7 @@ describe("Structural Authoring Guide and Flow integration", () => {
     expect(editor.editor.flowDraft.status).toBe("incomplete");
     expect(editor.canonical).toBe(momentumBootstrap.strategy);
     editor = editorReducer(editor, { type: "set_flow_draft_connection", connection: {
-      sourceId: "portfolio:root", targetId: draftNode.id, sourceKind: "portfolio", targetKind: "allocation", compatible: true,
+      sourceId: "portfolio:root", targetId: draftNode.id, sourceKind: "portfolio", targetKind: "allocation",
     }, status: "commit_ready", message: "Ready to create Split." });
     expect(editor.editor.flowDraft.status).toBe("commit_ready");
     const backendCanonical = structuredClone(sleevesBootstrap.strategy);

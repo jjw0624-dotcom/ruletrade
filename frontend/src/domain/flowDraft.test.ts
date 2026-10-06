@@ -39,7 +39,7 @@ describe("FlowDraft authoring boundary", () => {
     expect(rules.canonical).toBe(initial.canonical);
     const connected = editorReducer(rules, { type: "set_flow_draft_connection", connection: {
       sourceId: "portfolio:root", targetId: "draft:split",
-      sourceKind: "portfolio", targetKind: "allocation", compatible: true,
+      sourceKind: "portfolio", targetKind: "allocation",
     }, status: "commit_ready", message: "Ready to create Split." });
     const detached = editorReducer(connected, { type: "clear_flow_draft_connection" });
     expect(detached.editor.flowDraft.connection).toBeNull();
