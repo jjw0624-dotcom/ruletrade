@@ -67,10 +67,11 @@ describe("minimal capital Flow projection", () => {
   });
 
   it("compresses Cooldown and independent schedules into badges with exact provenance", () => {
-    const cooldown = canvas(cooldownBootstrap as typeof goldenBootstrap);
+    const cooldownProjection = projectConceptualFlow(cooldownBootstrap.strategy, cooldownBootstrap.registry);
+    const cooldown = projectFlowCanvas(cooldownProjection);
     expect(cooldown.nodes.some((item) => item.data.semanticKind === "constraint")).toBe(false);
     const cooldownDestination = cooldown.nodes.find((item) => item.id.startsWith("selected-target:"))!;
-    expect(cooldownDestination.data.badges?.some((item) => item.includes("10") && item.toLowerCase().includes("wait"))).toBe(true);
+    expect(cooldownDestination.data.badges).toContain(cooldownProjection.groups[0].choose?.cooldown);
     expect(cooldownDestination.data.provenance?.some((item) => item.role === "cooldown")).toBe(true);
 
     const scheduled = canvas(independentSchedulesBootstrap as typeof goldenBootstrap);
