@@ -62,7 +62,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const structure = projectBuilderStructure(projection);
     const cooldown = structure.children[0].children[0].children.find((item) => item.label === "Cooldown")!;
     const flow = projectFlowCanvas(projection);
-    const node = flow.nodes.find((item) => item.data.provenance?.some((address) => address.kind === "cooldown"))!;
+    const node = flow.nodes.find((item) => item.data.provenance?.some((address) => address.role === "cooldown"))!;
     expect(cooldown.selection).toEqual(semanticSelection("cooldown", "cooldown", { fieldPath: "config.duration", groupId: projection.groups[0].id }));
     expect(node.data.provenance?.some((address) => sameSemanticSelection(cooldown.selection, address))).toBe(true);
     expect(flow.nodes.some((item) => item.id.startsWith("cooldown:"))).toBe(false);
