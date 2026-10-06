@@ -83,8 +83,41 @@ const edge = (
 };
 
 export function mergeFlowNodePositions(projected: SemanticNode[], current: SemanticNode[]): SemanticNode[] {
-  const positions = new Map(current.map((item) => [item.id, item.position]));
-  return projected.map((item) => ({ ...item, position: positions.get(item.id) ?? item.position }));
+  const existingById = new Map(current.map((item) => [item.id, item]));
+  return projected.map((item) => {
+    const existing = existingById.get(item.id);
+    if (!existing) return item;
+    // ReactFlow writes measured dimensions through onNodesChange. Retain that
+    // runtime-only state while Canonical continues to own semantic identity and
+    // projection. Dropping it recreates an unmeasured controlled node on every
+    // render, which makes ReactFlow's NodeWrapper correctly keep it hidden.
+    return {
+      ...item,
+      position: existing.position ?? item.position,
+      measured: existing.measured,
+      width: existing.width,
+      height: existing.height,
+      initialWidth: existing.initialWidth,
+      initialHeight: existing.initialHeight,
+    };
+  });
+}
+
+export type FlowRenderStatus = "waiting" | "ready" | "viewport_failure" | "render_failure" | "visibility_failure";
+export type FlowRenderBoundary = {
+  supplied: number;
+  rendered: number;
+  visible: number;
+  width: number;
+  height: number;
+};
+
+export function flowRenderStatus(boundary: FlowRenderBoundary): FlowRenderStatus {
+  if (boundary.supplied === 0 || boundary.rendered === 0) return "waiting";
+  if (boundary.width <= 0 || boundary.height <= 0) return "viewport_failure";
+  if (boundary.rendered < boundary.supplied) return "render_failure";
+  if (boundary.visible < boundary.supplied) return "visibility_failure";
+  return "ready";
 }
 
 function groupOwnsTarget(group: ConceptualGroup, target: string | undefined): boolean {
@@ -335,7 +368,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   const boundaryRef = useRef<HTMLDivElement>(null);
   const initialFitDone = useRef(false);
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<SemanticNode, Edge> | null>(null);
-  const [renderDiagnostic, setRenderDiagnostic] = useState({ status: "waiting" as "waiting" | "ready" | "viewport_failure" | "render_failure", rendered: 0, width: 0, height: 0 });
+  const [renderDiagnostic, setRenderDiagnostic] = useState({ status: "waiting" as FlowRenderStatus, rendered: 0, visible: 0, width: 0, height: 0 });
   const activeOption = pendingOption ?? (state.editor.flowDraft.intent
     ? options.find((item) => item.kind === state.editor.flowDraft.intent?.kind
       && item.targetComponentId === state.editor.flowDraft.intent?.targetComponentId) ?? null
@@ -361,16 +394,26 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
       if (cancelled) return;
       const boundary = boundaryRef.current;
       const rect = boundary?.getBoundingClientRect();
-      const rendered = boundary?.querySelectorAll(".react-flow__node").length ?? 0;
+      const wrappers = Array.from(boundary?.querySelectorAll<HTMLElement>(".react-flow__node") ?? []);
+      const rendered = wrappers.length;
+      const visible = wrappers.filter((wrapper) => {
+        const computed = window.getComputedStyle(wrapper);
+        const nodeRect = wrapper.getBoundingClientRect();
+        return computed.display !== "none"
+          && computed.visibility === "visible"
+          && Number.parseFloat(computed.opacity || "1") > 0
+          && nodeRect.width > 0
+          && nodeRect.height > 0;
+      }).length;
       const width = rect?.width ?? 0;
       const height = rect?.height ?? 0;
-      setRenderDiagnostic((current) => current.rendered === rendered && current.width === width && current.height === height
-        ? current : { ...current, rendered, width, height });
-      if (width > 0 && height > 0 && rendered >= displayed.length) {
+      const boundaryState = { supplied: displayed.length, rendered, visible, width, height };
+      const status = flowRenderStatus(boundaryState);
+      setRenderDiagnostic((current) => current.status === status && current.rendered === rendered && current.visible === visible
+        && current.width === width && current.height === height ? current : { status, rendered, visible, width, height });
+      if (status === "ready") {
         initialFitDone.current = true;
-        void flowInstance.fitView({ padding: .1, maxZoom: 1.38, duration: 0 }).then(() => {
-          if (!cancelled) setRenderDiagnostic({ status: "ready", rendered, width, height });
-        });
+        void flowInstance.fitView({ padding: .1, maxZoom: 1.38, duration: 0 });
         return;
       }
       attempts += 1;
@@ -378,10 +421,8 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
         frame = requestAnimationFrame(inspectAndFit);
         return;
       }
-      const status = width <= 0 || height <= 0 ? "viewport_failure" : "render_failure";
-      setRenderDiagnostic({ status, rendered, width, height });
       if (import.meta.env.DEV) console.warn("RuleTrade Flow rendering invariant failed", {
-        status, projected: graph.nodes.length, supplied: displayed.length, rendered, width, height,
+        status, projected: graph.nodes.length, ...boundaryState,
         manifest: productionFlowNodeManifest(displayed),
       });
     };
@@ -497,6 +538,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
     data-flow-projected-node-count={graph.nodes.length}
     data-flow-supplied-node-count={displayed.length}
     data-flow-rendered-node-count={renderDiagnostic.rendered}
+    data-flow-visible-node-count={renderDiagnostic.visible}
     data-flow-viewport-width={renderDiagnostic.width}
     data-flow-viewport-height={renderDiagnostic.height}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
 import { workspaceFromPersistedStrategy } from "../App";
 import { projectConceptualFlow } from "./conceptualFlow";
-import { projectProductionFlowCanvas, productionFlowGeometry, productionFlowNodeManifest } from "../views/FlowView";
+import { flowRenderStatus, mergeFlowNodePositions, projectProductionFlowCanvas, productionFlowGeometry, productionFlowNodeManifest } from "../views/FlowView";
 import { semanticSelection } from "./semanticSelection";
 import { StrategyEditorProvider } from "../store/editorStore";
 import { fallbackBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
@@ -110,6 +110,21 @@ function mountedWorkspace(
 }
 
 describe("mounted production Flow workspace", () => {
+  it("retains xyflow measurements during concise Canonical reconciliation and diagnoses hidden wrappers", () => {
+    const graph = projectProductionFlowCanvas(projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry));
+    const measuredRuntimeNodes = graph.nodes.map((item) => item.id === "portfolio"
+      ? { ...item, measured: { width: 205, height: 58 } }
+      : item);
+    const reconciled = mergeFlowNodePositions(graph.nodes, measuredRuntimeNodes);
+
+    // ReactFlow owns wrapper visibility: it uses its measured dimensions to
+    // release the initial hidden state. Projection reconciliation must not
+    // erase those runtime values when Canonical itself has not changed.
+    expect(reconciled.find((item) => item.id === "portfolio")?.measured).toEqual({ width: 205, height: 58 });
+    expect(flowRenderStatus({ supplied: 9, rendered: 9, visible: 0, width: 1200, height: 700 })).toBe("visibility_failure");
+    expect(flowRenderStatus({ supplied: 9, rendered: 9, visible: 9, width: 1200, height: 700 })).toBe("ready");
+  });
+
   it("hydrates persisted Canonical and first mounts xyflow only through the visible Flow transition", () => {
     const runtimeWorkspace = workspaceFromPersistedStrategy(persistedApiDetail(sleevesBootstrap), sleevesBootstrap);
     expect(runtimeWorkspace.bootstrap.strategy.graph.components.length).toBeGreaterThan(0);
