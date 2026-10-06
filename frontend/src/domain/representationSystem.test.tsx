@@ -61,8 +61,8 @@ describe("one Canonical, distinct editable perspectives", () => {
   it("maps Flow qualification to the same Blocky and Rules identity across switches", () => {
     const canonical = filterBootstrap.strategy;
     const flow = projectConceptualFlow(canonical, filterBootstrap.registry);
-    const flowNode = projectFlowCanvas(flow).nodes.find((item) => item.data.selection.componentId === "positive_return")!;
-    const selected = flowNode.data.selection;
+    const flowNode = projectFlowCanvas(flow).nodes.find((item) => item.data.provenance?.some((address) => address.componentId === "positive_return"))!;
+    const selected = flowNode.data.provenance!.find((address) => address.componentId === "positive_return")!;
     const state = editorReducer(createEditorState(filterBootstrap, "flow"), { type: "select_semantic", selection: selected });
     const blocky = editorReducer(state, { type: "set_active_view", view: "blocky" });
     expect(blocky.canonical).toBe(state.canonical);
@@ -118,7 +118,7 @@ describe("one Canonical, distinct editable perspectives", () => {
     const choose = flow.groups[0].choose!;
     const meaning = "Candidate\'s current adjusted price ≥ $5";
     expect(choose.condition).toBe(meaning);
-    expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("qualification:"))?.data.detail).toBe(meaning);
+    expect(projectFlowCanvas(flow).nodes.find((item) => item.id.startsWith("selection:"))?.data.detail).toContain("eligibility filter");
     expect(projectLogicRepresentation(canonical, bootstrap.registry).groups[0].steps.find((item) => item.kind === "condition")?.text).toBe(meaning);
     const rules = renderToStaticMarkup(<StrategyEditorProvider bootstrap={bootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>);
     expect(rules).toContain("WHERE Candidate&#x27;s current adjusted price ≥ $5");
