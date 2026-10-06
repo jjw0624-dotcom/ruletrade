@@ -116,6 +116,12 @@ export function BlockyProgramToolbox({ entries, structural }: {
   </div>;
 }
 
+function compactAvailabilityLabel(availability: ReturnType<typeof semanticToolboxEntries>[number]["availability"]): string {
+  if (availability === "available_now") return "Ready";
+  if (availability === "needs_context") return "Needs context";
+  return "Unavailable";
+}
+
 export function FlowCapitalToolbox({ entries, structural }: { entries: ReturnType<typeof semanticToolboxEntries>; structural: StructuralAuthoringController }) {
   const { dispatch } = useStrategyEditor();
   const categories: ToolboxCategory[] = ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
@@ -145,11 +151,11 @@ export function FlowCapitalToolbox({ entries, structural }: { entries: ReturnTyp
         {entry.options.map((option) => <button className="flow-toolbox-block" key={`${option.kind}:${option.targetComponentId}`}
           disabled={busy} draggable={!busy} onDragStart={(event) => startDrag(event, option)}
           onClick={() => start(option)} aria-describedby={`flow-tool-help-${entry.id}`}>
-          <strong>{entry.label}</strong><small>{entry.availabilityLabel}</small>
+          <strong>{entry.label}</strong><small>{compactAvailabilityLabel(entry.availability)}</small>
           <span className="sr-only" id={`flow-tool-help-${entry.id}`}>{entry.description}. Drag onto Flow or click to begin.</span>
         </button>)}
         {entry.options.length === 0 && <button className="flow-toolbox-block" disabled aria-describedby={`flow-tool-help-${entry.id}`}>
-          <strong>{entry.label}</strong><small>{entry.availabilityLabel}</small>
+          <strong>{entry.label}</strong><small>{compactAvailabilityLabel(entry.availability)}</small>
           <span className="sr-only" id={`flow-tool-help-${entry.id}`}>{entry.description}</span>
         </button>}
       </div>)}
