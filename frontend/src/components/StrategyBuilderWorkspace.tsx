@@ -54,6 +54,7 @@ export function StrategyBuilderWorkspace({
   onTest,
   revisionId,
   researchContext,
+  onOpenAssets,
 }: {
   name: string;
   dirty: boolean;
@@ -83,6 +84,7 @@ export function StrategyBuilderWorkspace({
   onTest: () => void;
   revisionId?: string | null;
   researchContext?: { runId: string; sessionId: string; asset: string | null } | null;
+  onOpenAssets?: () => void;
 }) {
   const { state, dispatch } = useStrategyEditor();
   const draftMessage = logicDraftMessage(state.editor.logicDraft)
@@ -114,7 +116,7 @@ export function StrategyBuilderWorkspace({
       <div className="builder-actions">
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(draftMessage)} title={draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
         <button className="primary-button" onClick={onTest} disabled={Boolean(draftMessage)} title={draftMessage ?? undefined}>Test <span aria-hidden="true">▶</span></button>
-      </div>
+      </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
     </header>
     {(notices || validation) && <div className="builder-messages" data-workspace-status="overlay">{notices}{validation}</div>}
     {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
