@@ -330,6 +330,11 @@ describe("Structural Authoring Guide and Flow integration", () => {
       ...capabilities,
       growth_defensive_targets: ["weights"],
       transform_to_growth_defensive: true,
+      composition: {
+        primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"].map((primitive) => ({ primitive, category: "transform", create_supported: true, reason: null })),
+        mutation_kinds: ["create_component", "create_asset_set", "connect", "disconnect"],
+        incomplete_working_states: false,
+      },
     };
     const sourceProjection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
     const option = constructionOptions(sourceProjection, splitCapabilities, null)
