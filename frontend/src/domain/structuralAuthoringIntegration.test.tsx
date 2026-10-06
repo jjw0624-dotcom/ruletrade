@@ -3,17 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 
 import { QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
 import type { EditorBootstrap } from "./canonical";
-import { structuralAuthoringApi, type StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
+import { structuralAuthoringApi, type StructuralAuthoringCapabilities, type StructuralAuthoringOperation } from "../structuralAuthoringApi";
 import { createEditorState, editorReducer, StrategyEditorProvider, type EditorView } from "../store/editorStore";
 import { filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import { GuidedView } from "../views/GuidedView";
 import { OverviewView } from "../views/OverviewView";
-import { FlowView, shapeTransformationTargets } from "../views/FlowView";
+import { FlowView, createFlowDraftNode, isCommitReadyFlowConnection, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
-import { semanticSelection } from "./semanticSelection";
+import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import { isLatestAuthoringRequest, type StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { conditionAutoApplyOperation } from "../components/SemanticInspector";
+import { constructionOptions, semanticToolboxEntries } from "./builderProjection";
+import { FlowCapitalToolbox } from "../components/WorkspaceLeftPanel";
+import { dispatchSplitConstruction } from "./constructionDispatch";
 
 const capabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -158,6 +161,13 @@ describe("Structural Authoring Guide and Flow integration", () => {
     expect(markup).toContain("react-flow");
     expect(markup).toContain("Growth");
     expect(markup).toContain("Defensive");
+    expect(markup).toContain("70%");
+    expect(markup).toContain("30%");
+    expect(markup).toContain("Rebalance");
+    expect(markup).not.toContain("Selection universe");
+    expect(markup).not.toContain(">Eligibility<");
+    expect(markup).not.toContain("Asset universe");
+    expect(markup).not.toContain("Portfolio target");
   });
 
 
@@ -320,6 +330,91 @@ describe("Structural Authoring Guide and Flow integration", () => {
       condition: { kind: "comparison", operator: "gt", left: { kind: "literal", value_type: "decimal", value: 1 }, right: { kind: "literal", value_type: "decimal", value: 0 } },
     }, fetcher)).rejects.toThrow("Invalid condition");
     expect(canonical).toEqual(filterBootstrap.strategy);
+  });
+
+
+  it("connects the advertised Flow Split action to atomic backend authoring and parallel reprojection", async () => {
+    const splitCapabilities = {
+      ...capabilities,
+      growth_defensive_targets: ["weights"],
+      transform_to_growth_defensive: true,
+      composition: {
+        primitives: ["asset_set@1", "equal_weight@1", "portfolio_sleeve@1", "portfolio@1"].map((primitive) => ({ primitive, category: "transform", create_supported: true, reason: null })),
+        mutation_kinds: ["create_component", "create_asset_set", "connect", "disconnect"],
+        incomplete_working_states: false as const,
+      },
+    };
+    const sourceProjection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
+    const option = constructionOptions(sourceProjection, splitCapabilities, null)
+      .find((item) => item.kind === "split");
+    expect(option).toBeDefined();
+
+    const toolbox = renderToStaticMarkup(
+      <StrategyEditorProvider bootstrap={momentumBootstrap} initialView="flow">
+        <FlowCapitalToolbox entries={semanticToolboxEntries(sourceProjection, momentumBootstrap.registry, splitCapabilities, null, "flow")} structural={{
+          capabilities: splitCapabilities, status: "ready", error: null, apply: async () => true, compose: async () => true,
+        }} />
+      </StrategyEditorProvider>,
+    );
+    expect(toolbox).toContain("flow-capital-toolbox");
+    expect(toolbox).toContain("flow-toolbox-library");
+    expect(toolbox).toContain("Capital");
+    expect(toolbox).toContain("Destination");
+    expect(toolbox).toContain("Routing");
+    expect(toolbox).toContain("Allocation");
+    expect(toolbox).not.toContain("shape-transformation");
+
+    const draftNode = createFlowDraftNode(option!, { x: 320, y: 180 });
+    expect(draftNode).toMatchObject({ type: "semantic", deletable: true, data: { semanticKind: "allocation" } });
+    expect(isCommitReadyFlowConnection(option!, "portfolio", "allocation")).toBe(true);
+
+    let editor = createEditorState(momentumBootstrap, "flow");
+    editor = editorReducer(editor, { type: "begin_flow_draft", intent: {
+      kind: option!.kind, targetComponentId: option!.targetComponentId, targetLabel: option!.targetLabel, groupId: option!.groupId,
+    } });
+    expect(editor.editor.flowDraft.status).toBe("incomplete");
+    expect(editor.canonical).toBe(momentumBootstrap.strategy);
+    editor = editorReducer(editor, { type: "set_flow_draft_connection", connection: {
+      sourceId: "portfolio:root", targetId: draftNode.id, sourceKind: "portfolio", targetKind: "allocation",
+    }, status: "commit_ready", message: "Ready to create Split." });
+    expect(editor.editor.flowDraft.status).toBe("commit_ready");
+    const backendCanonical = structuredClone(sleevesBootstrap.strategy);
+    for (const component of backendCanonical.graph.components) {
+      if (component.primitive === "portfolio_sleeve@1") component.config.allocation = "0.5";
+    }
+    const apply = vi.fn(async (operation: StructuralAuthoringOperation, selection?: SemanticSelection | null) => {
+      editor = editorReducer(editor, {
+        type: "replace_canonical_dirty",
+        canonical: backendCanonical,
+        selection,
+      });
+      return true;
+    });
+    const structural: StructuralAuthoringController = {
+      capabilities: splitCapabilities,
+      status: "ready",
+      error: null,
+      apply,
+      compose: async () => false,
+    };
+
+    expect(await dispatchSplitConstruction(option!, structural)).toBe(true);
+    editor = editorReducer(editor, { type: "clear_flow_draft" });
+    expect(apply).toHaveBeenCalledWith({
+      kind: "transform_to_growth_defensive",
+      target_component_id: "weights",
+      growth_allocation: "0.5",
+      defensive_assets: ["IEF"],
+    }, semanticSelection("split", "weights_portfolio"));
+
+    const projected = projectConceptualFlow(editor.canonical, editor.registry);
+    expect(projected.groups).toHaveLength(2);
+    expect(projected.groups.map((group) => group.allocation)).toEqual(["50%", "50%"]);
+    expect(projected.groups.map((group) => group.sleeveComponentId)).toEqual(
+      expect.arrayContaining(["growth_sleeve", "defensive_sleeve"]),
+    );
+    expect(editor.validation.status).toBe("dirty");
+    expect(editor.editor.flowDraft.status).toBe("clean");
   });
 
 });

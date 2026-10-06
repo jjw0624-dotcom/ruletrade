@@ -47,6 +47,7 @@ export type StrategyEditorAction =
   | { type: "restore_logic_program" }
   | { type: "begin_flow_draft"; intent: FlowDraftIntent }
   | { type: "set_flow_draft_connection"; connection: FlowDraftConnection; status: FlowDraftStatus; message?: string | null }
+  | { type: "clear_flow_draft_connection" }
   | { type: "set_flow_draft_status"; status: FlowDraftStatus; message?: string | null }
   | { type: "clear_flow_draft" }
   | { type: "validation_started" }
@@ -149,6 +150,13 @@ export function editorReducer(
         ...state.editor.flowDraft, connection: action.connection, status: action.status,
         message: action.message ?? state.editor.flowDraft.message,
       } } };
+    case "clear_flow_draft_connection":
+      return { ...state, editor: { ...state.editor, flowDraft: {
+        ...state.editor.flowDraft, connection: null, status: "incomplete",
+        message: state.editor.flowDraft.intent
+          ? `Reconnect ${state.editor.flowDraft.intent.kind} to a compatible capital unit, or discard this draft.`
+          : "Reconnect or discard this Flow draft.",
+      } } };
     case "set_flow_draft_status":
       return { ...state, editor: { ...state.editor, flowDraft: {
         ...state.editor.flowDraft, status: action.status,
@@ -176,13 +184,22 @@ const StrategyEditorContext = createContext<StrategyEditorContextValue | null>(n
 export function StrategyEditorProvider({
   bootstrap,
   initialView = "overview",
+  initialSelection = null,
+  initialLeftPanelTab = "structure",
   children,
 }: {
   bootstrap: EditorBootstrap;
   initialView?: EditorView;
+  initialSelection?: SemanticSelection | null;
+  initialLeftPanelTab?: "structure" | "blocks";
   children: ReactNode;
 }) {
-  const [state, dispatch] = useReducer(editorReducer, bootstrap, (value) => createEditorState(value, initialView));
+  const [state, dispatch] = useReducer(editorReducer, bootstrap, (value) => {
+    const initial = createEditorState(value, initialView);
+    initial.editor.selection = initialSelection;
+    initial.editor.leftPanelTab = initialLeftPanelTab;
+    return initial;
+  });
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <StrategyEditorContext.Provider value={value}>{children}</StrategyEditorContext.Provider>;
 }

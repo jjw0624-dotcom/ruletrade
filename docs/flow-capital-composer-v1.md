@@ -171,3 +171,109 @@ The following remain unavailable rather than faked:
 - Asset Workspace navigation.
 
 Stable Universe, Group, Selection, and Predicate identities are suitable for a future Asset Workspace without coupling it to xyflow IDs.
+
+
+## Native capital Flow correction
+
+The Flow Add panel is a bounded, internally scrollable tool library. It uses compact categories: **Capital**, **Destination**, **Routing**, **Allocation**, **Timing**, and **Behavior**. Tool descriptions are contextual (title/help), rather than permanently consuming canvas-adjacent height.
+
+The primary Flow projection intentionally aggregates candidate mechanics:
+
+- **Removed from the default capital canvas:** standalone Universe, Eligibility, ranking, and portfolio-target nodes.
+- **Retained as exact Selection detail:** FROM, WHERE, ORDER BY, TAKE, SHORTAGE, and FALLBACK are available through the shared Selection Inspector. Selection carries provenance for its Universe and Eligibility, so Evidence, Rules, Blocky, and View rule retain their exact identity.
+- **Retained as primary topology:** Portfolio/Investment/Sleeve ownership, Split, Condition routing, Selection routing, selected/fallback exposures, allocation, action, schedule attachment, and constraints.
+
+The normal Selection route is therefore:
+
+```text
+Investment → Choose assets → Selected assets → Equal allocation → Rebalance
+                         └─ if incomplete → Fallback exposure ─┘
+```
+
+This is not a loss of strategy semantics; it is a representation boundary. Candidate admission and ranking determine the selected exposure but are not themselves capital destinations.
+
+Native construction follows the existing safe boundary:
+
+```text
+compact toolbox drag/click
+→ FlowDraft
+→ compatible capital relationship or supported scaffold
+→ backend semantic intent
+→ Canonical replacement
+→ Flow / Blocky / Rules reprojection
+```
+
+Supported scaffolds include ranked Selection, Eligibility, fallback, cooldown, and the atomic two-Sleeve Split. Connection handles reject candidate-data pipeline relationships. A compatible but not yet unambiguous direct rewire stays draft-only and blocks Save/Test; it never changes Canonical. Node movement remains presentation-only; semantic deletion uses only backend-supported removal operations.
+
+
+## Minimal capital Flow and Inspector-first detail
+
+The default canvas is intentionally smaller than the Canonical graph. Its primary vocabulary is:
+
+- **Capital / ownership:** Portfolio, Investment, Sleeve.
+- **Destination / exposure:** direct asset baskets, selected assets, and fallback assets.
+- **Routing:** Split, Predicate condition, and Selection when Selection has an incomplete-result route.
+- **Allocation:** percentage and equal-weight labels on capital relationships.
+- **Timing / constraints:** compact badges on the semantic unit they qualify.
+- **Action:** one shared Rebalance realization point.
+
+Universe, Eligibility, Ranking, Portfolio target, Allocation, Schedule, and Cooldown are not independent first-class canvas nodes in the ordinary projection. They retain exact semantic provenance on the owning destination/routing unit. Selecting that unit opens the shared Inspector, where FROM, WHERE, ORDER BY, TAKE, SHORTAGE, FALLBACK, allocation, schedule, and constraint details remain Canonical-backed and editable.
+
+A Selection without fallback is compressed into the selected exposure. A Selection with fallback remains a routing mechanism because it has two materially different capital outcomes:
+
+```text
+Investment → Choose assets ── selected ──> Selected exposure ── equal weight ──> Rebalance
+                         └─ incomplete ─> Fallback exposure ────────────────> Rebalance
+```
+
+Predicate routing remains explicit, including **retain current holdings** for a no-ELSE false route. Split ownership remains parallel, with percentages on the Portfolio-to-Sleeve relationships.
+
+### Native construction boundary
+
+The compact Flow toolbox is a bounded, internally scrollable high-level library with Capital, Destination, Routing, Allocation, Timing, and Behavior categories. Long capability explanations are contextual help, not permanent cards.
+
+The production-native commit-ready gesture currently supported end to end is:
+
+```text
+drag Split
+→ working allocation node
+→ connect Portfolio to Split
+→ commit-ready FlowDraft
+→ transform_to_growth_defensive
+→ backend Canonical replacement
+→ Flow / Blocky / Rules reprojection
+```
+
+Detaching or deleting the working node/edge returns the draft to incomplete without changing Canonical. Other compatible construction units can be placed and connected as working topology, but remain **draft-only** until their semantic configuration or mutation mapping is unambiguous. This is deliberate: the canvas never approximates a Strategy mutation.
+
+Node positions remain projection state keyed by deterministic semantic IDs. Canonical contains no Flow styling, coordinates, or aggregation metadata.
+
+
+## Mounted production boundary
+
+The production browser path is explicit and covered as one integration surface:
+
+```text
+StrategyEditor
+→ StrategyBuilderWorkspace
+→ FlowView
+→ projectConceptualFlow
+→ projectProductionFlowCanvas
+→ displayed nodes
+→ ReactFlow
+```
+
+`projectProductionFlowCanvas` is the final production invariant, not an alternate representation. It rejects independent Inspector-owned primary nodes before they reach ReactFlow. The mounted workspace exposes a deterministic node manifest for integration assertions.
+
+The production Add path is:
+
+```text
+StrategyBuilderWorkspace
+→ WorkspaceLeftPanel
+→ semanticToolboxEntries
+→ FlowCapitalToolbox
+```
+
+The Flow toolbox uses compact category navigation and a bounded internal scroll container. Detailed availability explanations are accessible contextual text, not permanent documentation cards.
+
+Mounted workspace tests select the real Growth Selection semantic identity and verify that its compact Flow unit opens the shared Selection Inspector with FROM, WHERE, ORDER BY, DIRECTION, TAKE, WHEN FEWER QUALIFY, and SELECTION FALLBACK. This proves that canvas compression does not discard Canonical meaning.

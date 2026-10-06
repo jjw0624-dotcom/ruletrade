@@ -28,7 +28,7 @@ describe("Strategy Editor Canonical architecture", () => {
     const projection = projectConceptualFlow(state.canonical, state.registry);
     const flow = projectFlowCanvas(projection);
     expect(projection.groups[0].choose).toMatchObject({ topN: 2, resample: "per_event" });
-    expect(flow.nodes.some((node) => node.data.title === "Choose 2")).toBe(true);
+    expect(flow.nodes.some((node) => node.id.startsWith("selected-target:") && node.data.detail.includes("Choose 2"))).toBe(true);
     expect(flow.nodes.some((node) => node.data.title === "Rebalance")).toBe(true);
   });
 

@@ -412,6 +412,17 @@ def read_research_asset(
             raise HTTPException(status_code=422, detail={"code": "historical_context_incomplete", "message": "run_id and event_id are required together."})
         run = get_lean_backtest_service().get_run(run_id)
         event = get_lean_backtest_service().get_decision_event(run_id, event_id)
+        if revision_id and revision_id != run.revision_id:
+            raise HTTPException(status_code=409, detail={
+                "code": "historical_revision_mismatch",
+                "message": "Historical asset research must use the exact Revision that produced the Run.",
+            })
+        if as_of > event.session_id:
+            raise HTTPException(status_code=422, detail={
+                "code": "historical_as_of_after_decision",
+                "message": "Historical asset research cannot include observations after the Decision date.",
+            })
+        strategy = get_strategy_service().get_revision_by_id(run.revision_id).canonical_strategy
         evidence = (event.model_dump(mode="json"),) if symbol.upper() in event.model_dump_json().upper() else ()
         historical = HistoricalAssetContext(
             run_id=run_id,

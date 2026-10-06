@@ -38,6 +38,15 @@ development server only; production build and serving behavior are unchanged.
 Open `http://127.0.0.1:5173`. FastAPI documentation is available at
 `http://127.0.0.1:8000/docs`.
 
+The Vite server uses polling and `Cache-Control: no-store` so a WSL branch
+fast-forward cannot silently leave the browser on the previous module graph.
+The mounted Builder exposes non-visual DOM contracts
+(`data-workspace-runtime-contract`, `data-flow-runtime-contract`, and
+`data-flow-toolbox-contract`) for acceptance diagnostics. Restart `make frontend`
+after changing branches if the contract attributes are absent; that means the
+browser is connected to a pre-contract runtime, regardless of the checkout's
+current Git SHA.
+
 ## Validation contract
 
 | Command | Contract |

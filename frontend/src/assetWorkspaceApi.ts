@@ -2,7 +2,7 @@ export type AssetStatus = "available" | "partial" | "unavailable";
 export interface AssetSummary { symbol: string; name: string; asset_type: "ETF" | "Equity"; data_status: AssetStatus; available_from: string | null; available_to: string | null }
 export interface PricePoint { date: string; adjusted_close: string }
 export interface AssetMetric { id: string; label: string; status: "available" | "insufficient_history" | "unavailable"; value?: string | null; value_type?: string | null; reason?: string | null; value_definition?: Record<string, unknown> | null }
-export interface AssetMembership { kind: "asset_set" | "group" | "universe"; id: string; label: string }
+export interface AssetMembership { kind: "asset_set" | "group" | "universe"; id: string; label: string; component_id: string | null }
 export interface HistoricalAssetContext { run_id: string; event_id: string; session_id: string; revision_id: string; read_only: true; evidence: Array<Record<string, unknown>> }
 export interface AssetDetail { asset: AssetSummary; as_of: string; mode: "current" | "historical"; series: PricePoint[]; metrics: AssetMetric[]; memberships: AssetMembership[]; historical?: HistoricalAssetContext | null; capabilities: Array<Record<string, unknown>> }
 

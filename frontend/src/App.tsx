@@ -17,7 +17,7 @@ import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
-type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
+export type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
 
 export function workspaceFromCreatedStrategy(
   detail: StrategyDetail,
@@ -35,6 +35,18 @@ export function workspaceFromCreatedStrategy(
 
 export function routeForCreatedStrategy(detail: StrategyDetail): AppRoute {
   return { page: "strategy", strategyId: detail.strategy.id };
+}
+
+export function workspaceFromPersistedStrategy(
+  detail: StrategyDetail,
+  registryBootstrap: EditorBootstrap,
+): StrategyWorkspace {
+  const bootstrap: EditorBootstrap = {
+    ...registryBootstrap,
+    strategy: detail.current_revision.canonical_strategy,
+    validation: { valid: true, issues: [] },
+  };
+  return { bootstrap, example: defaultsFor(bootstrap), detail };
 }
 
 export function StrategyLoadError({ message, onHome }: { message: string; onHome: () => void }) {
@@ -107,8 +119,7 @@ export default function App() {
     const task = route.page === "example"
       ? (() => { const exampleId = route.exampleId; return loadEditorBootstrap(exampleId).then((bootstrap) => ({ bootstrap, example: findExample(exampleId)! })); })()
       : (() => { const strategyId = route.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
-          const bootstrap = { ...registryBootstrap, strategy: detail.current_revision.canonical_strategy, validation: { valid: true, issues: [] } };
-          return { bootstrap, example: defaultsFor(bootstrap), detail };
+          return workspaceFromPersistedStrategy(detail, registryBootstrap);
         }); })();
     task.then((value) => { if (!cancelled) { setWorkspace(value); setWorkspaceStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setWorkspaceError(reason instanceof Error ? reason.message : String(reason)); setWorkspaceStatus("error"); } });
     return () => { cancelled = true; controller.abort(); };

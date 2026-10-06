@@ -53,8 +53,8 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const structure = projectBuilderStructure(projection);
     const flow = projectFlowCanvas(projection);
     const qualification = structure.children[0].children[0].children.find((item) => item.label === "Qualification")!;
-    const flowQualification = flow.nodes.find((item) => item.id.startsWith("qualification:"))!;
-    expect(sameSemanticSelection(qualification.selection, flowQualification.data.selection)).toBe(true);
+    const flowSelection = flow.nodes.find((item) => item.id.startsWith("selected-target:"))!;
+    expect(flowSelection.data.provenance?.some((item) => sameSemanticSelection(qualification.selection, item))).toBe(true);
   });
 
   it("projects an existing Cooldown with exact provenance across Structure and Flow", () => {
@@ -62,9 +62,10 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const structure = projectBuilderStructure(projection);
     const cooldown = structure.children[0].children[0].children.find((item) => item.label === "Cooldown")!;
     const flow = projectFlowCanvas(projection);
-    const node = flow.nodes.find((item) => item.id.startsWith("cooldown:"))!;
+    const node = flow.nodes.find((item) => item.data.provenance?.some((address) => address.role === "cooldown"))!;
     expect(cooldown.selection).toEqual(semanticSelection("cooldown", "cooldown", { fieldPath: "config.duration", groupId: projection.groups[0].id }));
-    expect(sameSemanticSelection(cooldown.selection, node.data.selection)).toBe(true);
+    expect(node.data.provenance?.some((address) => sameSemanticSelection(cooldown.selection, address))).toBe(true);
+    expect(flow.nodes.some((item) => item.id.startsWith("cooldown:"))).toBe(false);
   });
 
   it("offers insertion only from backend capability targets", () => {
@@ -83,7 +84,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     expect(fromBlankCanvas).toHaveLength(1);
     expect(fromPortfolio).toEqual(fromBlankCanvas);
     expect(fromBlankCanvas[0]).toMatchObject({ kind: "qualification", targetComponentId: "momentum_rank", targetLabel: "Investment" });
-    expect(fromBlankCanvas[0]).toMatchObject({ category: "Decision", label: "Condition" });
+    expect(fromBlankCanvas[0]).toMatchObject({ category: "Routing", label: "Condition" });
     expect(fromBlankCanvas[0].anchorSelection.componentId).toBe("top_n");
   });
 
@@ -112,14 +113,15 @@ describe("shared Strategy Builder workspace boundaries", () => {
     };
     const entries = semanticToolboxEntries(projection, filterBootstrap.registry, { ...none, composition }, null, "flow");
     expect(entries.map((entry) => entry.label)).toEqual([
-      "Investment", "Split", "Sleeve", "Allocation", "Asset Set", "Metric",
-      "Condition", "Rank", "Choose", "Fallback", "Cooldown", "Schedule",
+      "Investment", "Split", "Sleeve", "Equal allocation", "Assets / Target",
+      "Condition", "Selection", "Fallback", "Cooldown", "Schedule",
     ]);
     expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "needs_context", options: [] });
-    expect(entries.find((entry) => entry.label === "Metric")).toMatchObject({ availability: "needs_context", options: [] });
+    expect(entries.map((entry) => entry.label)).not.toContain("Metric");
+    expect(entries.map((entry) => entry.label)).not.toContain("Rank");
     expect(entries.find((entry) => entry.label === "Schedule")).toMatchObject({ availability: "unsupported", options: [] });
     expect(entries.map((entry) => entry.label)).not.toContain("Growth + Defensive");
-    expect(new Set(entries.map((entry) => entry.category))).toEqual(new Set(["Capital", "Assets", "Decision", "Allocation", "Timing", "Behavior"]));
+    expect(new Set(entries.map((entry) => entry.category))).toEqual(new Set(["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"]));
   });
 
   it("separates available toolbox concepts from unavailable concepts without inventing mutations", () => {
@@ -127,7 +129,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const capabilities = { ...none, composition: filterComposition, qualification_add_targets: ["momentum_rank"], add_qualification_condition: true };
     const entries = semanticToolboxEntries(projection, momentumBootstrap.registry, capabilities, null, "blocky");
     expect(entries.find((entry) => entry.label === "Condition")).toMatchObject({ availability: "available_now" });
-    expect(entries.find((entry) => entry.label === "Asset Set")).toMatchObject({ availability: "unavailable", options: [] });
+    expect(entries.find((entry) => entry.label === "Assets / Target")).toMatchObject({ availability: "unavailable", options: [] });
     expect(entries.some((entry) => entry.category === "Capital")).toBe(false);
     const initial = createEditorState(momentumBootstrap);
     expect(initial.canonical).toBe(momentumBootstrap.strategy);
