@@ -16,7 +16,7 @@ export const SPLIT_SCAFFOLD_DEFAULTS = {
 export function dispatchSplitConstruction(
   option: ConstructionOption,
   structural: StructuralAuthoringController,
-  growthAllocation = SPLIT_SCAFFOLD_DEFAULTS.growthAllocation,
+  growthAllocation: string = SPLIT_SCAFFOLD_DEFAULTS.growthAllocation,
   defensiveAssets: string[] = [...SPLIT_SCAFFOLD_DEFAULTS.defensiveAssets],
 ): Promise<boolean> {
   if (option.kind !== "split") return Promise.resolve(false);
