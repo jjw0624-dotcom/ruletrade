@@ -444,7 +444,8 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [activeOption, dispatch, draftNode, nodeById, structural]);
 
   const draftActive = state.editor.flowDraft.status !== "clean";
-  return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}\n    data-flow-node-manifest={productionFlowNodeManifest(displayed)}
+  return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}
+    data-flow-node-manifest={productionFlowNodeManifest(displayed)}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={onDrop}
     onKeyDown={(event) => {
