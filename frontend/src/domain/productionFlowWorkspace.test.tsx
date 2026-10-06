@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
 import { workspaceFromPersistedStrategy } from "../App";
 import { projectConceptualFlow } from "./conceptualFlow";
-import { projectProductionFlowCanvas, productionFlowNodeManifest } from "../views/FlowView";
+import { projectProductionFlowCanvas, productionFlowGeometry, productionFlowNodeManifest } from "../views/FlowView";
 import { semanticSelection } from "./semanticSelection";
 import { StrategyEditorProvider } from "../store/editorStore";
-import { momentumBootstrap, sleevesBootstrap } from "../test/fixture";
+import { fallbackBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import type { EditorBootstrap } from "./canonical";
 import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
@@ -110,7 +110,7 @@ function mountedWorkspace(
 }
 
 describe("mounted production Flow workspace", () => {
-  it("hydrates persisted Canonical before mounting ReactFlow in a visible Flow surface", () => {
+  it("hydrates persisted Canonical and first mounts xyflow only through the visible Flow transition", () => {
     const runtimeWorkspace = workspaceFromPersistedStrategy(persistedApiDetail(sleevesBootstrap), sleevesBootstrap);
     expect(runtimeWorkspace.bootstrap.strategy.graph.components.length).toBeGreaterThan(0);
 
@@ -119,20 +119,51 @@ describe("mounted production Flow workspace", () => {
       runtimeWorkspace.bootstrap.registry,
     ));
     const manifest = productionFlowNodeManifest(graph.nodes);
+    const geometry = productionFlowGeometry(graph.nodes, graph.edges);
+    expect(geometry).toMatchObject({ nodeCount: 9, edgeCount: 10, finitePositions: true });
     expect(manifest).not.toBe("");
     expect(graph.edges.filter((item) => item.source === "split").map((item) => item.label)).toEqual(["70%", "30%"]);
 
-    const initiallyHidden = mountedWorkspace(sleevesBootstrap, baseCapabilities, { view: "overview" });
-    expect(initiallyHidden).toContain('data-flow-projection-manifest="' + manifest + '"');
-    expect(initiallyHidden).toContain('data-flow-node-manifest="' + manifest + '"');
-    expect(initiallyHidden).toContain('data-flow-canvas-mounted="false"');
-    expect(initiallyHidden).not.toContain("data-flow-reactflow-boundary");
+    // Persisted workspaces start in overview. ReactFlow must not initialize in that hidden layer.
+    const initiallyOverview = mountedWorkspace(sleevesBootstrap, baseCapabilities, { view: "overview" });
+    expect(initiallyOverview).not.toContain("data-flow-runtime-contract");
+    expect(initiallyOverview).not.toContain("data-flow-reactflow-boundary");
 
+    // Selecting Flow mounts the real production boundary with the exact supplied manifest.
     const activated = mountedWorkspace(sleevesBootstrap, baseCapabilities, { view: "flow" });
     expect(activated).toContain('data-flow-canvas-mounted="true"');
+    expect(activated).toContain('data-flow-projected-node-count="9"');
+    expect(activated).toContain('data-flow-supplied-node-count="9"');
     expect(activated).toContain("data-flow-reactflow-boundary");
     expect(activated).toContain('data-flow-reactflow-node-manifest="' + manifest + '"');
     for (const required of ["Portfolio", "Split", "Growth", "Defensive"]) expect(manifest).toContain(required);
+    for (const forbidden of ["Selection universe", "Eligibility", "Ranking", "Asset universe", "Equal allocation", "Portfolio target"]) {
+      expect(manifest).not.toContain(forbidden);
+    }
+  });
+
+  it("supplies a finite, non-empty persisted Momentum/Fallback graph to the real ReactFlow boundary", () => {
+    const runtimeWorkspace = workspaceFromPersistedStrategy(persistedApiDetail(fallbackBootstrap), fallbackBootstrap);
+    expect(runtimeWorkspace.bootstrap.strategy.graph.components.length).toBe(9);
+    const graph = projectProductionFlowCanvas(projectConceptualFlow(
+      runtimeWorkspace.bootstrap.strategy,
+      runtimeWorkspace.bootstrap.registry,
+    ));
+    const geometry = productionFlowGeometry(graph.nodes, graph.edges);
+    const manifest = productionFlowNodeManifest(graph.nodes);
+    expect(geometry).toMatchObject({ nodeCount: 6, edgeCount: 6, finitePositions: true });
+    expect(geometry.ids).toEqual(expect.arrayContaining([
+      "portfolio", "selected-target:investment", "fallback:investment", "action:portfolio",
+    ]));
+    expect(geometry.kinds).toEqual(expect.arrayContaining(["portfolio", "group", "selection", "exposure", "fallback", "action"]));
+
+    const activated = mountedWorkspace(fallbackBootstrap, baseCapabilities, { view: "flow" });
+    expect(activated).toContain('data-flow-projection-manifest="' + manifest + '"');
+    expect(activated).toContain('data-flow-node-manifest="' + manifest + '"');
+    expect(activated).toContain('data-flow-reactflow-node-manifest="' + manifest + '"');
+    expect(activated).toContain('data-flow-projected-node-count="6"');
+    expect(activated).toContain('data-flow-supplied-node-count="6"');
+    for (const required of ["Choose 2 assets", "Selected assets", "TLT", "Rebalance"]) expect(manifest).toContain(required);
     for (const forbidden of ["Selection universe", "Eligibility", "Ranking", "Asset universe", "Equal allocation", "Portfolio target"]) {
       expect(manifest).not.toContain(forbidden);
     }

@@ -90,15 +90,20 @@ export function StrategyBuilderWorkspace({
   const draftMessage = logicDraftMessage(state.editor.logicDraft)
     ?? flowDraftMessage(state.editor.flowDraft)
     ?? ((structural.semanticEdit?.status ?? "idle") === "idle" ? null : structural.semanticEdit?.message ?? "Finish the semantic edit before saving or testing.");
+  const [flowVisited, setFlowVisited] = useState(state.editor.activeView === "flow");
   const [blockyVisited, setBlockyVisited] = useState(state.editor.activeView === "blocky");
   const showInspector = shouldShowSemanticInspector(Boolean(state.editor.selection || state.editor.logicDraft.selectedDraftId), Boolean(research?.researchOpen));
-  const switchView = (view: EditorView) => { if (view === "blocky") setBlockyVisited(true); dispatch({ type: "set_active_view", view }); };
+  const switchView = (view: EditorView) => {
+    if (view === "flow") setFlowVisited(true);
+    if (view === "blocky") setBlockyVisited(true);
+    dispatch({ type: "set_active_view", view });
+  };
   const builder = <div className={`builder-core active-${state.editor.activeView}${state.editor.leftPanelOpen ? " left-open" : ""}${showInspector ? " inspector-open" : ""}`}>
     <WorkspaceLeftPanel projection={projection} structural={structural} />
     <main className="representation-workspace" aria-label={`${representationLabel[state.editor.activeView]} representation`}>
       <section hidden={state.editor.activeView !== "overview"} className="representation-layer"><OverviewView onTest={onTest} /></section>
       <section hidden={state.editor.activeView !== "guided"} className="representation-layer"><GuidedView structural={structural} /></section>
-      <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>
+      {flowVisited && <section hidden={state.editor.activeView !== "flow"} className="representation-layer flow-layer"><FlowView structural={structural} /></section>}
       {blockyVisited && <section hidden={state.editor.activeView !== "blocky"} className="representation-layer blocky-layer"><Suspense fallback={<p role="status">Loading logic editor…</p>}><BlockyView structural={structural} /></Suspense></section>}
       <section hidden={state.editor.activeView !== "rules"} className="representation-layer"><RulesView structural={structural} /></section>
       <section hidden={state.editor.activeView !== "code"} className="representation-layer"><CodeView /></section>

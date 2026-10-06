@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState,
-  type Connection, type Edge, type Node, type NodeChange, type NodeProps,
+  type Connection, type Edge, type Node, type NodeChange, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -279,6 +279,16 @@ export function productionFlowNodeManifest(nodes: SemanticNode[]): string {
   return nodes.map((item) => `${item.id}|${item.data.semanticKind}|${item.data.title}`).join(";");
 }
 
+export function productionFlowGeometry(nodes: SemanticNode[], edges: SemanticEdge[]) {
+  return {
+    nodeCount: nodes.length,
+    edgeCount: edges.length,
+    ids: nodes.map((item) => item.id),
+    kinds: nodes.map((item) => item.data.semanticKind),
+    finitePositions: nodes.every((item) => Number.isFinite(item.position.x) && Number.isFinite(item.position.y)),
+  };
+}
+
 export function flowNodeIdForSelection(nodes: SemanticNode[], selection: SemanticSelection | null): string | null {
   if (!selection?.componentId) return null;
   const matching = nodes.filter((item) => item.data.selection.componentId === selection.componentId
@@ -322,6 +332,10 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   const [pendingOption, setPendingOption] = useState<ConstructionOption | null>(null);
   const [draftNode, setDraftNode] = useState<SemanticNode | null>(null);
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+  const boundaryRef = useRef<HTMLDivElement>(null);
+  const initialFitDone = useRef(false);
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<SemanticNode, Edge> | null>(null);
+  const [renderDiagnostic, setRenderDiagnostic] = useState({ status: "waiting" as "waiting" | "ready" | "viewport_failure" | "render_failure", rendered: 0, width: 0, height: 0 });
   const activeOption = pendingOption ?? (state.editor.flowDraft.intent
     ? options.find((item) => item.kind === state.editor.flowDraft.intent?.kind
       && item.targetComponentId === state.editor.flowDraft.intent?.targetComponentId) ?? null
@@ -338,6 +352,43 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   const committedNodes = mergeFlowNodePositions(graph.nodes, nodes);
   const displayed = [...committedNodes, ...(draftNode ? [draftNode] : [])]
     .map((item) => ({ ...item, selected: sameSemanticSelection(item.data.selection, state.editor.selection) }));
+  useEffect(() => {
+    if (!flowInstance || initialFitDone.current || displayed.length === 0) return;
+    let cancelled = false;
+    let frame = 0;
+    let attempts = 0;
+    const inspectAndFit = () => {
+      if (cancelled) return;
+      const boundary = boundaryRef.current;
+      const rect = boundary?.getBoundingClientRect();
+      const rendered = boundary?.querySelectorAll(".react-flow__node").length ?? 0;
+      const width = rect?.width ?? 0;
+      const height = rect?.height ?? 0;
+      setRenderDiagnostic((current) => current.rendered === rendered && current.width === width && current.height === height
+        ? current : { ...current, rendered, width, height });
+      if (width > 0 && height > 0 && rendered >= displayed.length) {
+        initialFitDone.current = true;
+        void flowInstance.fitView({ padding: .1, maxZoom: 1.38, duration: 0 }).then(() => {
+          if (!cancelled) setRenderDiagnostic({ status: "ready", rendered, width, height });
+        });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 60) {
+        frame = requestAnimationFrame(inspectAndFit);
+        return;
+      }
+      const status = width <= 0 || height <= 0 ? "viewport_failure" : "render_failure";
+      setRenderDiagnostic({ status, rendered, width, height });
+      if (import.meta.env.DEV) console.warn("RuleTrade Flow rendering invariant failed", {
+        status, projected: graph.nodes.length, supplied: displayed.length, rendered, width, height,
+        manifest: productionFlowNodeManifest(displayed),
+      });
+    };
+    frame = requestAnimationFrame(inspectAndFit);
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
+  }, [displayed.length, flowInstance, graph.nodes.length]);
+
   const draftConnection = state.editor.flowDraft.connection;
   const displayedIds = new Set(displayed.map((item) => item.id));
   const edges = draftConnection && displayedIds.has(draftConnection.sourceId) && displayedIds.has(draftConnection.targetId)
@@ -437,22 +488,27 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [activeOption, dispatch, draftNode, nodeById, structural]);
 
   const draftActive = state.editor.flowDraft.status !== "clean";
-  const canvasActive = state.editor.activeView === "flow";
   return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}
     data-flow-runtime-contract="minimal-capital-v2"
     data-flow-projection-manifest={productionFlowNodeManifest(graph.nodes)}
     data-flow-node-manifest={productionFlowNodeManifest(displayed)}
-    data-flow-canvas-mounted={canvasActive ? "true" : "false"}
+    data-flow-canvas-mounted="true"
+    data-flow-render-status={renderDiagnostic.status}
+    data-flow-projected-node-count={graph.nodes.length}
+    data-flow-supplied-node-count={displayed.length}
+    data-flow-rendered-node-count={renderDiagnostic.rendered}
+    data-flow-viewport-width={renderDiagnostic.width}
+    data-flow-viewport-height={renderDiagnostic.height}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={onDrop}
     onKeyDown={(event) => {
       if (event.key === "Escape") dispatch({ type: "select_semantic", selection: null });
       if ((event.key === "Delete" || event.key === "Backspace") && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) removeSelected();
     }}>
-    {canvasActive && <div className="flow-reactflow-boundary" data-flow-reactflow-boundary
+    <div ref={boundaryRef} className="flow-reactflow-boundary" data-flow-reactflow-boundary
       data-flow-reactflow-node-manifest={productionFlowNodeManifest(displayed)}>
     <ReactFlow<SemanticNode, Edge>
-      nodes={displayed} edges={edges} nodeTypes={nodeTypes}
+      nodes={displayed} onInit={setFlowInstance} edges={edges} nodeTypes={nodeTypes}
       onNodesChange={handleNodesChange}
       onNodesDelete={(deleted) => { if (draftNode && deleted.some((item) => item.id === draftNode.id)) clearDraft(); }}
       onEdgesDelete={(deleted) => { if (deleted.some((item) => (item.data as { role?: FlowRelationshipRole } | undefined)?.role === "decision-detail")) dispatch({ type: "clear_flow_draft_connection" }); }}
@@ -462,7 +518,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
       fitView fitViewOptions={{ padding: .1, maxZoom: 1.38 }} minZoom={.4} maxZoom={1.8}>
       <Background gap={24} size={1} /><Controls showInteractive={false} />
     </ReactFlow>
-    </div>}
+    </div>
     <div className="flow-canvas-hint">Inspect detail · drag supported units · connect capital handles · pan/zoom stay local</div>
     {options.length > 0 && <div className="flow-add-hint">Drag a high-level Flow unit from Add, then connect and complete it.</div>}
     {connectionNotice && <div className="flow-connection-notice" role="status">{connectionNotice}<button onClick={() => setConnectionNotice(null)} aria-label="Dismiss Flow notice">×</button></div>}
