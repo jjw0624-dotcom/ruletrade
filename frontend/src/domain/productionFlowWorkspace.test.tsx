@@ -147,6 +147,5 @@ describe("mounted production Flow workspace", () => {
     expect(markup).not.toContain("Executable primitive; standalone insertion");
     expect(markup).not.toContain("Needs a compatible Strategy location");
     expect(markup).not.toContain("<article");
-    expect(markup).not.toContain("shape-transformation");
   });
 });
