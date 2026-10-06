@@ -6,7 +6,8 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { constructionOptions, semanticDeleteOperation, type ConstructionOption } from "../domain/builderProjection";
-import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import { projectConceptualFlow, type ConceptualGroup } from "../domain/conceptualFlow";
 import { isCompatibleFlowConnection, type FlowSemanticKind } from "../domain/flowDraft";
 import { sameSemanticSelection, semanticSelection, type SemanticSelection } from "../domain/semanticSelection";
@@ -456,10 +457,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
       {pendingOption.kind === "cooldown" && <CooldownConstructionControl busy={structural.status === "applying"} error={structural.error} onApply={(duration) => applyDraft(() => structural.apply({
         kind: "add_cooldown_to_selection", selection_component_id: pendingOption.targetComponentId, duration,
       }, semanticSelection("cooldown", `${pendingOption.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId: pendingOption.groupId })))} />}
-      {pendingOption.kind === "split" && <GrowthDefensiveTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(allocation, assets) => applyDraft(async () => {
-        const operation = composeTwoSleevePortfolio(state.canonical, pendingOption.targetComponentId, allocation, assets);
-        return operation ? structural.compose(operation, (result) => semanticSelection("split", result.created_component_ids.portfolio ?? null)) : false;
-      })} />}
+      {pendingOption.kind === "split" && <GrowthDefensiveTransformationControl busy={structural.status === "applying"} error={structural.error} onApply={(allocation, assets) => applyDraft(() => dispatchSplitConstruction(pendingOption, structural, allocation, assets))} />}
       <button className="text-button" onClick={() => { setPendingOption(null); dispatch({ type: "clear_flow_draft" }); }}>Cancel</button>
     </div>}
   </div>;

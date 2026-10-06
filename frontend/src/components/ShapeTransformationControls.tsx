@@ -105,17 +105,25 @@ export function CooldownConstructionControl({ busy, error, onApply }: {
   </form>;
 }
 
+export const DEFAULT_SPLIT_GROWTH_ALLOCATION = "0.5";
+export const DEFAULT_SPLIT_DEFENSIVE_ASSETS = ["IEF"] as const;
+
+export async function applyDefaultSplit(onApply: (growthAllocation: string, defensiveAssets: string[]) => Promise<boolean>) {
+  return onApply(DEFAULT_SPLIT_GROWTH_ALLOCATION, [...DEFAULT_SPLIT_DEFENSIVE_ASSETS]);
+}
+
 export function GrowthDefensiveTransformationControl({ busy, error, onApply }: {
   busy: boolean;
   error: ErrorState;
   onApply: (growthAllocation: string, defensiveAssets: string[]) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const [growthPercent, setGrowthPercent] = useState(70);
+  const [growthPercent, setGrowthPercent] = useState(50);
   const [assets, setAssets] = useState("IEF");
   if (!open) return <section className="shape-transformation"><span className="eyebrow">Portfolio primitive</span>
     <h4>Add Split</h4><p>Create the smallest valid two-sleeve scaffold, then edit its semantic parts.</p>
-    <button className="secondary-button" onClick={() => setOpen(true)}>Add Split</button>
+    <div className="dialog-actions"><button className="primary-button" disabled={busy} onClick={() => void applyDefaultSplit(onApply)}>{busy ? "Adding…" : "Add Split"}</button><button className="text-button" disabled={busy} onClick={() => setOpen(true)}>Customize</button></div>
+    <ErrorMessage error={error} />
   </section>;
   const defensive = assets.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
   const submit = async (event: FormEvent) => {

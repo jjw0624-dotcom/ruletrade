@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { QualificationAuthoringControl } from "../components/StructuralAuthoringControls";
 import type { EditorBootstrap } from "./canonical";
-import { structuralAuthoringApi, type StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
+import { structuralAuthoringApi, type StructuralAuthoringCapabilities, type StructuralAuthoringOperation } from "../structuralAuthoringApi";
 import { createEditorState, editorReducer, StrategyEditorProvider, type EditorView } from "../store/editorStore";
 import { filterBootstrap, momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import { GuidedView } from "../views/GuidedView";
@@ -11,9 +11,11 @@ import { OverviewView } from "../views/OverviewView";
 import { FlowView, shapeTransformationTargets } from "../views/FlowView";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
-import { semanticSelection } from "./semanticSelection";
+import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import { isLatestAuthoringRequest, type StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
 import { conditionAutoApplyOperation } from "../components/SemanticInspector";
+import { constructionOptions } from "./builderProjection";
+import { dispatchSplitConstruction } from "./constructionDispatch";
 
 const capabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -320,6 +322,56 @@ describe("Structural Authoring Guide and Flow integration", () => {
       condition: { kind: "comparison", operator: "gt", left: { kind: "literal", value_type: "decimal", value: 1 }, right: { kind: "literal", value_type: "decimal", value: 0 } },
     }, fetcher)).rejects.toThrow("Invalid condition");
     expect(canonical).toEqual(filterBootstrap.strategy);
+  });
+
+
+  it("connects the advertised Flow Split action to atomic backend authoring and parallel reprojection", async () => {
+    const splitCapabilities = {
+      ...capabilities,
+      growth_defensive_targets: ["weights"],
+      transform_to_growth_defensive: true,
+    };
+    const sourceProjection = projectConceptualFlow(momentumBootstrap.strategy, momentumBootstrap.registry);
+    const option = constructionOptions(sourceProjection, splitCapabilities, null)
+      .find((item) => item.kind === "split");
+    expect(option).toBeDefined();
+
+    let editor = createEditorState(momentumBootstrap, "flow");
+    const backendCanonical = structuredClone(sleevesBootstrap.strategy);
+    for (const component of backendCanonical.graph.components) {
+      if (component.primitive === "portfolio_sleeve@1") component.config.allocation = "0.5";
+    }
+    const apply = vi.fn(async (operation: StructuralAuthoringOperation, selection?: SemanticSelection | null) => {
+      editor = editorReducer(editor, {
+        type: "replace_canonical_dirty",
+        canonical: backendCanonical,
+        selection,
+      });
+      return true;
+    });
+    const structural: StructuralAuthoringController = {
+      capabilities: splitCapabilities,
+      status: "ready",
+      error: null,
+      apply,
+      compose: async () => false,
+    };
+
+    expect(await dispatchSplitConstruction(option!, structural)).toBe(true);
+    expect(apply).toHaveBeenCalledWith({
+      kind: "transform_to_growth_defensive",
+      target_component_id: "weights",
+      growth_allocation: "0.5",
+      defensive_assets: ["IEF"],
+    }, semanticSelection("split", "weights_portfolio"));
+
+    const projected = projectConceptualFlow(editor.canonical, editor.registry);
+    expect(projected.groups).toHaveLength(2);
+    expect(projected.groups.map((group) => group.allocation)).toEqual(["0.5", "0.5"]);
+    expect(projected.groups.map((group) => group.sleeveComponentId)).toEqual(
+      expect.arrayContaining(["growth_sleeve", "defensive_sleeve"]),
+    );
+    expect(editor.validation.status).toBe("dirty");
   });
 
 });

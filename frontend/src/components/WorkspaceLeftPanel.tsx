@@ -21,7 +21,8 @@ import {
   GrowthDefensiveTransformationControl,
   MetricConstructionControl,
 } from "./ShapeTransformationControls";
-import { composeRankedSelectionPipeline, composeTwoSleevePortfolio, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
+import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
 
 const availabilityTitle = {
@@ -74,11 +75,7 @@ export function ConstructionControl({ option, structural }: {
     weight_component_id: option.targetComponentId,
     fallback_asset: asset,
   }, semanticSelection("fallback", `${option.targetComponentId}_fallback`, { groupId }))} /></div>;
-  if (option.kind === "split") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => {
-    const operation = composeTwoSleevePortfolio(state.canonical, option.targetComponentId, allocation, assets);
-    if (!operation) return Promise.resolve(false);
-    return structural.compose(operation, (result) => semanticSelection("split", result.created_component_ids.portfolio ?? null));
-  }} /></div>;
+  if (option.kind === "split") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><GrowthDefensiveTransformationControl busy={busy} error={structural.error} onApply={(allocation, assets) => dispatchSplitConstruction(option, structural, allocation, assets)} /></div>;
   if (option.kind === "cooldown") return <div className="semantic-toolbox-item" draggable onDragStart={drag}><CooldownConstructionControl busy={busy} error={structural.error} onApply={(duration) => structural.apply({
     kind: "add_cooldown_to_selection", selection_component_id: option.targetComponentId, duration,
   }, semanticSelection("cooldown", `${option.targetComponentId}_cooldown`, { fieldPath: "config.duration", groupId }))} /></div>;
