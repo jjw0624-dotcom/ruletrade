@@ -991,3 +991,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .flow-node-badges small{padding:2px 5px;border:1px solid #ccd7d0;border-radius:999px;background:rgba(255,255,255,.72);color:#59685f;font-size:9px;line-height:1.2}
 .semantic-flow-node.constraint,.semantic-flow-node.schedule{box-shadow:none}
 .strategy-flow-edge.flow-edge-action .react-flow__edge-text{font-size:9px;fill:#6d7b73}
+
+
+/* Production Flow toolbox: compact tool rows with an explicit bounded scroll contract. */
+.flow-capital-toolbox{max-height:100%;overflow:hidden}
+.flow-toolbox-library[data-scroll-container="bounded"]{max-height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:6px}
+.flow-toolbox-entry{display:block;margin:0 0 4px;padding:0;border:0;border-radius:5px;background:transparent}
+.flow-toolbox-entry.needs_context,.flow-toolbox-entry.unavailable,.flow-toolbox-entry.unsupported{background:transparent}
+.flow-toolbox-block{display:flex;width:100%;min-width:0;align-items:center;justify-content:space-between;gap:6px;padding:7px 8px;text-align:left}
+.flow-toolbox-block strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.flow-toolbox-block small{flex:0 0 auto;color:var(--muted);font-size:9px;font-weight:500}

@@ -247,3 +247,33 @@ drag Split
 Detaching or deleting the working node/edge returns the draft to incomplete without changing Canonical. Other compatible construction units can be placed and connected as working topology, but remain **draft-only** until their semantic configuration or mutation mapping is unambiguous. This is deliberate: the canvas never approximates a Strategy mutation.
 
 Node positions remain projection state keyed by deterministic semantic IDs. Canonical contains no Flow styling, coordinates, or aggregation metadata.
+
+
+## Mounted production boundary
+
+The production browser path is explicit and covered as one integration surface:
+
+```text
+StrategyEditor
+→ StrategyBuilderWorkspace
+→ FlowView
+→ projectConceptualFlow
+→ projectProductionFlowCanvas
+→ displayed nodes
+→ ReactFlow
+```
+
+`projectProductionFlowCanvas` is the final production invariant, not an alternate representation. It rejects independent Inspector-owned primary nodes before they reach ReactFlow. The mounted workspace exposes a deterministic node manifest for integration assertions.
+
+The production Add path is:
+
+```text
+StrategyBuilderWorkspace
+→ WorkspaceLeftPanel
+→ semanticToolboxEntries
+→ FlowCapitalToolbox
+```
+
+The Flow toolbox uses compact category navigation and a bounded internal scroll container. Detailed availability explanations are accessible contextual text, not permanent documentation cards.
+
+Mounted workspace tests select the real Growth Selection semantic identity and verify that its compact Flow unit opens the shared Selection Inspector with FROM, WHERE, ORDER BY, DIRECTION, TAKE, WHEN FEWER QUALIFY, and SELECTION FALLBACK. This proves that canvas compression does not discard Canonical meaning.

@@ -271,6 +271,25 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
   return { nodes, edges };
 }
 
+const FORBIDDEN_PRIMARY_FLOW_TITLES = new Set(["Selection universe", "Eligibility", "Asset universe", "Portfolio target", "Equal allocation"]);
+
+export function productionFlowNodeManifest(nodes: SemanticNode[]): string {
+  return nodes.map((item) => `${item.id}|${item.data.semanticKind}|${item.data.title}`).join(";");
+}
+
+export function projectProductionFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
+  const graph = projectFlowCanvas(projection);
+  const violations = graph.nodes.filter((item) =>
+    FORBIDDEN_PRIMARY_FLOW_TITLES.has(item.data.title)
+    || ["universe", "eligibility", "target", "allocation", "schedule", "constraint"].includes(item.data.semanticKind)
+      && item.id !== "split",
+  );
+  if (violations.length > 0) {
+    throw new Error(`Production Flow contains Inspector-owned primary nodes: ${productionFlowNodeManifest(violations)}`);
+  }
+  return graph;
+}
+
 export function flowNodeIdForSelection(nodes: SemanticNode[], selection: SemanticSelection | null): string | null {
   if (!selection?.componentId) return null;
   const matching = nodes.filter((item) => item.data.selection.componentId === selection.componentId
@@ -308,7 +327,7 @@ const inertStructural: StructuralAuthoringController = { capabilities: null, sta
 export function FlowView({ structural = inertStructural }: { structural?: StructuralAuthoringController }) {
   const { state, dispatch } = useStrategyEditor();
   const projection = useMemo(() => projectConceptualFlow(state.canonical, state.registry), [state.canonical, state.registry]);
-  const graph = useMemo(() => projectFlowCanvas(projection), [projection]);
+  const graph = useMemo(() => projectProductionFlowCanvas(projection), [projection]);
   const options = useMemo(() => constructionOptions(projection, structural.capabilities, state.editor.selection), [projection, structural.capabilities, state.editor.selection]);
   const [nodes, setNodes, onNodesChange] = useNodesState<SemanticNode>(graph.nodes);
   const [pendingOption, setPendingOption] = useState<ConstructionOption | null>(null);
@@ -425,7 +444,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [activeOption, dispatch, draftNode, nodeById, structural]);
 
   const draftActive = state.editor.flowDraft.status !== "clean";
-  return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}
+  return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}\n    data-flow-node-manifest={productionFlowNodeManifest(displayed)}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={onDrop}
     onKeyDown={(event) => {

@@ -140,16 +140,19 @@ export function FlowCapitalToolbox({ entries, structural }: { entries: ReturnTyp
     <nav className="flow-toolbox-categories" aria-label="Flow categories">
       {categories.map((category) => <button key={category} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
     </nav>
-    <section className="flow-toolbox-library" aria-label={`${activeCategory} Flow tools`}>
-      {displayed.map((entry) => <article className={`flow-toolbox-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id} title={entry.description}>
-        <div><strong>{entry.label}</strong><small>{entry.availability === "available_now" ? entry.availabilityLabel : entry.availabilityLabel}</small></div>
+    <section className="flow-toolbox-library" aria-label={`${activeCategory} Flow tools`} data-scroll-container="bounded" role="list">
+      {displayed.map((entry) => <div className={`flow-toolbox-entry ${entry.availability}`} data-toolbox-concept={entry.id} key={entry.id} role="listitem">
         {entry.options.map((option) => <button className="flow-toolbox-block" key={`${option.kind}:${option.targetComponentId}`}
           disabled={busy} draggable={!busy} onDragStart={(event) => startDrag(event, option)}
-          onClick={() => start(option)} title={`Drag ${entry.label} onto Flow, or click to begin the supported construction`}>
-          {entry.label}<span className="sr-only"> — drag to Flow or click to begin</span>
+          onClick={() => start(option)} aria-describedby={`flow-tool-help-${entry.id}`}>
+          <strong>{entry.label}</strong><small>{entry.availabilityLabel}</small>
+          <span className="sr-only" id={`flow-tool-help-${entry.id}`}>{entry.description}. Drag onto Flow or click to begin.</span>
         </button>)}
-        {entry.options.length === 0 && <button className="flow-toolbox-block" disabled>{entry.label}</button>}
-      </article>)}
+        {entry.options.length === 0 && <button className="flow-toolbox-block" disabled aria-describedby={`flow-tool-help-${entry.id}`}>
+          <strong>{entry.label}</strong><small>{entry.availabilityLabel}</small>
+          <span className="sr-only" id={`flow-tool-help-${entry.id}`}>{entry.description}</span>
+        </button>}
+      </div>)}
     </section>
   </div>;
 }

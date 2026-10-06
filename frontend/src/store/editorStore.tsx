@@ -184,13 +184,22 @@ const StrategyEditorContext = createContext<StrategyEditorContextValue | null>(n
 export function StrategyEditorProvider({
   bootstrap,
   initialView = "overview",
+  initialSelection = null,
+  initialLeftPanelTab = "structure",
   children,
 }: {
   bootstrap: EditorBootstrap;
   initialView?: EditorView;
+  initialSelection?: SemanticSelection | null;
+  initialLeftPanelTab?: "structure" | "blocks";
   children: ReactNode;
 }) {
-  const [state, dispatch] = useReducer(editorReducer, bootstrap, (value) => createEditorState(value, initialView));
+  const [state, dispatch] = useReducer(editorReducer, bootstrap, (value) => {
+    const initial = createEditorState(value, initialView);
+    initial.editor.selection = initialSelection;
+    initial.editor.leftPanelTab = initialLeftPanelTab;
+    return initial;
+  });
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <StrategyEditorContext.Provider value={value}>{children}</StrategyEditorContext.Provider>;
 }
