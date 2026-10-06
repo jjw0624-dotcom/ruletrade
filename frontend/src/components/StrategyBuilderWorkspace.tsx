@@ -106,7 +106,7 @@ export function StrategyBuilderWorkspace({
     </main>
     {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
   </div>;
-  return <section className="strategy-builder-workspace">
+  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
       <div className="representation-switcher" aria-label="Strategy representation">

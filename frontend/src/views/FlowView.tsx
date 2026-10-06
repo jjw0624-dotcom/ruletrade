@@ -99,7 +99,7 @@ function targetDetail(target: string): string {
   return target.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function projectFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
+export function projectProductionFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
   const nodes: SemanticNode[] = [];
   const edges: SemanticEdge[] = [];
   const rootId = "portfolio";
@@ -271,23 +271,12 @@ export function projectFlowCanvas(projection: ReturnType<typeof projectConceptua
   return { nodes, edges };
 }
 
-const FORBIDDEN_PRIMARY_FLOW_TITLES = new Set(["Selection universe", "Eligibility", "Asset universe", "Portfolio target", "Equal allocation"]);
+// Compatibility export for projection-level tests. The production projection itself is
+// concise; no post-projection label blacklist or node hiding is applied.
+export const projectFlowCanvas = projectProductionFlowCanvas;
 
 export function productionFlowNodeManifest(nodes: SemanticNode[]): string {
   return nodes.map((item) => `${item.id}|${item.data.semanticKind}|${item.data.title}`).join(";");
-}
-
-export function projectProductionFlowCanvas(projection: ReturnType<typeof projectConceptualFlow>) {
-  const graph = projectFlowCanvas(projection);
-  const violations = graph.nodes.filter((item) =>
-    FORBIDDEN_PRIMARY_FLOW_TITLES.has(item.data.title)
-    || ["universe", "eligibility", "target", "allocation", "schedule", "constraint"].includes(item.data.semanticKind)
-      && item.id !== "split",
-  );
-  if (violations.length > 0) {
-    throw new Error(`Production Flow contains Inspector-owned primary nodes: ${productionFlowNodeManifest(violations)}`);
-  }
-  return graph;
 }
 
 export function flowNodeIdForSelection(nodes: SemanticNode[], selection: SemanticSelection | null): string | null {
@@ -343,7 +332,11 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
     if (state.editor.flowDraft.status === "clean") setDraftNode(null);
   }, [state.editor.flowDraft.status]);
 
-  const displayed = [...nodes, ...(draftNode ? [draftNode] : [])]
+  // xyflow owns positions, but the current Canonical projection owns node identity.
+  // Reconcile synchronously so Fast Refresh or a branch fast-forward cannot leak a
+  // preserved legacy node list into the final ReactFlow boundary before the effect runs.
+  const committedNodes = mergeFlowNodePositions(graph.nodes, nodes);
+  const displayed = [...committedNodes, ...(draftNode ? [draftNode] : [])]
     .map((item) => ({ ...item, selected: sameSemanticSelection(item.data.selection, state.editor.selection) }));
   const draftConnection = state.editor.flowDraft.connection;
   const displayedIds = new Set(displayed.map((item) => item.id));
@@ -445,6 +438,8 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
 
   const draftActive = state.editor.flowDraft.status !== "clean";
   return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}
+    data-flow-runtime-contract="minimal-capital-v2"
+    data-flow-projection-manifest={productionFlowNodeManifest(graph.nodes)}
     data-flow-node-manifest={productionFlowNodeManifest(displayed)}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={onDrop}

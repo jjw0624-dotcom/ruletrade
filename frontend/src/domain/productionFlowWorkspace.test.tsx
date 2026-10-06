@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { StrategyBuilderWorkspace } from "../components/StrategyBuilderWorkspace";
+import { workspaceFromPersistedStrategy } from "../App";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { projectProductionFlowCanvas, productionFlowNodeManifest } from "../views/FlowView";
 import { semanticSelection } from "./semanticSelection";
@@ -10,6 +11,7 @@ import { momentumBootstrap, sleevesBootstrap } from "../test/fixture";
 import type { EditorBootstrap } from "./canonical";
 import type { StructuralAuthoringCapabilities } from "../structuralAuthoringApi";
 import type { StructuralAuthoringController } from "../hooks/useStructuralAuthoring";
+import type { StrategyDetail } from "../strategyApi";
 
 const baseCapabilities: StructuralAuthoringCapabilities = {
   groups: [],
@@ -42,6 +44,28 @@ const baseCapabilities: StructuralAuthoringCapabilities = {
   fallback_asset_set_targets: [],
 };
 
+function persistedApiDetail(bootstrap: EditorBootstrap): StrategyDetail {
+  return {
+    strategy: {
+      id: "strategy-growth-defensive",
+      name: bootstrap.strategy.metadata.name,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      current_revision_id: "revision-growth-defensive",
+      archived_at: null,
+    },
+    current_revision: {
+      id: "revision-growth-defensive",
+      strategy_id: "strategy-growth-defensive",
+      parent_revision_id: null,
+      canonical_strategy: bootstrap.strategy,
+      source_hash: "backend-owned-fixture",
+      schema_version: "ruletrade.dev/strategy/v1",
+      created_at: "2026-01-01T00:00:00Z",
+    },
+  };
+}
+
 function structural(capabilities: StructuralAuthoringCapabilities): StructuralAuthoringController {
   return {
     capabilities,
@@ -58,16 +82,19 @@ function mountedWorkspace(
   options: { selection?: ReturnType<typeof semanticSelection>; addPanel?: boolean } = {},
 ) {
   const authoring = structural(capabilities);
-  const projection = projectConceptualFlow(bootstrap.strategy, bootstrap.registry);
+  // Follow the same persisted API detail + registry bootstrap construction used by App.
+  const runtimeWorkspace = workspaceFromPersistedStrategy(persistedApiDetail(bootstrap), bootstrap);
+  const runtimeBootstrap = runtimeWorkspace.bootstrap;
+  const projection = projectConceptualFlow(runtimeBootstrap.strategy, runtimeBootstrap.registry);
   return renderToStaticMarkup(
     <StrategyEditorProvider
-      bootstrap={bootstrap}
+      bootstrap={runtimeBootstrap}
       initialView="flow"
       initialSelection={options.selection ?? null}
       initialLeftPanelTab={options.addPanel ? "blocks" : "structure"}
     >
       <StrategyBuilderWorkspace
-        name={bootstrap.strategy.metadata.name}
+        name={runtimeBootstrap.strategy.metadata.name}
         dirty={false}
         saving={false}
         persisted
@@ -108,7 +135,10 @@ describe("mounted production Flow workspace", () => {
     const markup = mountedWorkspace(sleevesBootstrap, baseCapabilities, {
       selection: semanticSelection("selection", "top_n", { groupId: "growth_sleeve" }),
     });
-    expect(markup).toContain("data-flow-node-manifest=");
+    expect(markup).toContain('data-workspace-runtime-contract="capital-flow-minimal-v2"');
+    expect(markup).toContain('data-flow-runtime-contract="minimal-capital-v2"');
+    expect(markup).toContain(`data-flow-projection-manifest="${manifest}"`);
+    expect(markup).toContain(`data-flow-node-manifest="${manifest}"`);
     expect(markup).toContain("Growth");
     expect(markup).toContain("Defensive");
     expect(markup).toContain("70%");
@@ -137,6 +167,8 @@ describe("mounted production Flow workspace", () => {
     };
     const markup = mountedWorkspace(momentumBootstrap, capabilities, { addPanel: true });
     expect(markup).toContain('data-flow-toolbox="true"');
+    expect(markup).toContain('data-flow-toolbox-contract="compact-capital-v1"');
+    expect(markup).toContain('data-flow-toolbox-mode="Capital"');
     expect(markup).toContain('aria-label="Flow categories"');
     for (const category of ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"]) {
       expect(markup).toContain(`>${category}<`);

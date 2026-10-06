@@ -142,7 +142,7 @@ export function FlowCapitalToolbox({ entries, structural }: { entries: ReturnTyp
       kind: option.kind, targetComponentId: option.targetComponentId, targetLabel: option.targetLabel, groupId: option.groupId,
     } });
   };
-  return <div className="flow-capital-toolbox" data-flow-toolbox>
+  return <div className="flow-capital-toolbox" data-flow-toolbox data-flow-toolbox-contract="compact-capital-v1" data-flow-toolbox-mode={activeCategory}>
     <nav className="flow-toolbox-categories" aria-label="Flow categories">
       {categories.map((category) => <button key={category} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
     </nav>
