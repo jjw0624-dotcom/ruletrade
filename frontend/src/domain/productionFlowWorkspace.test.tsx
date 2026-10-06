@@ -88,7 +88,7 @@ describe("mounted production Flow workspace", () => {
     const graph = projectProductionFlowCanvas(projection);
     const manifest = productionFlowNodeManifest(graph.nodes);
     expect(manifest.split(";")).toEqual([
-      expect.stringMatching(/^portfolio\|portfolio\|Growth 70 \/ Defensive 30 Portfolio$/),
+      "portfolio|portfolio|Portfolio",
       "split|allocation|Split",
       "group:growth_sleeve|group|Growth",
       expect.stringMatching(/^selection:growth_sleeve\|selection\|Choose 2 assets/),
