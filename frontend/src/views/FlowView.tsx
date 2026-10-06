@@ -437,16 +437,20 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
   }, [activeOption, dispatch, draftNode, nodeById, structural]);
 
   const draftActive = state.editor.flowDraft.status !== "clean";
+  const canvasActive = state.editor.activeView === "flow";
   return <div className="flow-representation" tabIndex={0} data-flow-draft-status={state.editor.flowDraft.status}
     data-flow-runtime-contract="minimal-capital-v2"
     data-flow-projection-manifest={productionFlowNodeManifest(graph.nodes)}
     data-flow-node-manifest={productionFlowNodeManifest(displayed)}
+    data-flow-canvas-mounted={canvasActive ? "true" : "false"}
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-concept")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={onDrop}
     onKeyDown={(event) => {
       if (event.key === "Escape") dispatch({ type: "select_semantic", selection: null });
       if ((event.key === "Delete" || event.key === "Backspace") && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) removeSelected();
     }}>
+    {canvasActive && <div className="flow-reactflow-boundary" data-flow-reactflow-boundary
+      data-flow-reactflow-node-manifest={productionFlowNodeManifest(displayed)}>
     <ReactFlow<SemanticNode, Edge>
       nodes={displayed} edges={edges} nodeTypes={nodeTypes}
       onNodesChange={handleNodesChange}
@@ -458,6 +462,7 @@ export function FlowView({ structural = inertStructural }: { structural?: Struct
       fitView fitViewOptions={{ padding: .1, maxZoom: 1.38 }} minZoom={.4} maxZoom={1.8}>
       <Background gap={24} size={1} /><Controls showInteractive={false} />
     </ReactFlow>
+    </div>}
     <div className="flow-canvas-hint">Inspect detail · drag supported units · connect capital handles · pan/zoom stay local</div>
     {options.length > 0 && <div className="flow-add-hint">Drag a high-level Flow unit from Add, then connect and complete it.</div>}
     {connectionNotice && <div className="flow-connection-notice" role="status">{connectionNotice}<button onClick={() => setConnectionNotice(null)} aria-label="Dismiss Flow notice">×</button></div>}

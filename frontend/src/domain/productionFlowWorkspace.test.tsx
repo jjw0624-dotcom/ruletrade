@@ -79,7 +79,7 @@ function structural(capabilities: StructuralAuthoringCapabilities): StructuralAu
 function mountedWorkspace(
   bootstrap: EditorBootstrap,
   capabilities: StructuralAuthoringCapabilities,
-  options: { selection?: ReturnType<typeof semanticSelection>; addPanel?: boolean } = {},
+  options: { selection?: ReturnType<typeof semanticSelection>; addPanel?: boolean; view?: "overview" | "flow" } = {},
 ) {
   const authoring = structural(capabilities);
   // Follow the same persisted API detail + registry bootstrap construction used by App.
@@ -89,7 +89,7 @@ function mountedWorkspace(
   return renderToStaticMarkup(
     <StrategyEditorProvider
       bootstrap={runtimeBootstrap}
-      initialView="flow"
+      initialView={options.view ?? "flow"}
       initialSelection={options.selection ?? null}
       initialLeftPanelTab={options.addPanel ? "blocks" : "structure"}
     >
@@ -110,6 +110,34 @@ function mountedWorkspace(
 }
 
 describe("mounted production Flow workspace", () => {
+  it("hydrates persisted Canonical before mounting ReactFlow in a visible Flow surface", () => {
+    const runtimeWorkspace = workspaceFromPersistedStrategy(persistedApiDetail(sleevesBootstrap), sleevesBootstrap);
+    expect(runtimeWorkspace.bootstrap.strategy.graph.components.length).toBeGreaterThan(0);
+
+    const graph = projectProductionFlowCanvas(projectConceptualFlow(
+      runtimeWorkspace.bootstrap.strategy,
+      runtimeWorkspace.bootstrap.registry,
+    ));
+    const manifest = productionFlowNodeManifest(graph.nodes);
+    expect(manifest).not.toBe("");
+    expect(graph.edges.filter((item) => item.source === "split").map((item) => item.label)).toEqual(["70%", "30%"]);
+
+    const initiallyHidden = mountedWorkspace(sleevesBootstrap, baseCapabilities, { view: "overview" });
+    expect(initiallyHidden).toContain('data-flow-projection-manifest="' + manifest + '"');
+    expect(initiallyHidden).toContain('data-flow-node-manifest="' + manifest + '"');
+    expect(initiallyHidden).toContain('data-flow-canvas-mounted="false"');
+    expect(initiallyHidden).not.toContain("data-flow-reactflow-boundary");
+
+    const activated = mountedWorkspace(sleevesBootstrap, baseCapabilities, { view: "flow" });
+    expect(activated).toContain('data-flow-canvas-mounted="true"');
+    expect(activated).toContain("data-flow-reactflow-boundary");
+    expect(activated).toContain('data-flow-reactflow-node-manifest="' + manifest + '"');
+    for (const required of ["Portfolio", "Split", "Growth", "Defensive"]) expect(manifest).toContain(required);
+    for (const forbidden of ["Selection universe", "Eligibility", "Ranking", "Asset universe", "Equal allocation", "Portfolio target"]) {
+      expect(manifest).not.toContain(forbidden);
+    }
+  });
+
   it("passes only minimal capital nodes to ReactFlow and retains Selection detail in the Inspector", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const graph = projectProductionFlowCanvas(projection);
