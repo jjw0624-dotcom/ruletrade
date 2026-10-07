@@ -31,7 +31,7 @@ import { useBacktestRun } from "./hooks/useBacktestRun";
 import { useAuthoring } from "./hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "./store/editorStore";
 import { StrategyBuilderWorkspace } from "./components/StrategyBuilderWorkspace";
-import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionSummary, type SaveRevisionResponse, type StrategyDetailV1 } from "./strategyApi";
+import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionRecord, type RevisionSummary, type SaveRevisionResponse, type StrategyDetailV1 } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
 import {
   marketDataApi,
@@ -154,10 +154,16 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     if (viewInFlow) dispatch({ type: "set_active_view", view: "flow" });
   }
 
-  async function acceptAdoption(response: SaveRevisionResponse<CanonicalStrategyV1>) {
+  async function acceptAdoption(response: SaveRevisionResponse) {
+    if (!("graph" in response.revision.canonical_strategy)) {
+      setSaveStatus("error");
+      setSaveMessage("This v1 editor cannot adopt a v2 revision.");
+      return;
+    }
+    const revision = response.revision as RevisionRecord<CanonicalStrategyV1>;
     setStrategy(response.strategy);
-    setBase(response.revision);
-    dispatch({ type: "replace_canonical", canonical: response.revision.canonical_strategy });
+    setBase(revision);
+    dispatch({ type: "replace_canonical", canonical: revision.canonical_strategy });
     setSaveStatus("saved");
     setSaveMessage("This change is now part of your strategy. You can test it again now.");
   }
