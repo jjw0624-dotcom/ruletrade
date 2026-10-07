@@ -140,10 +140,12 @@ class _Runtime:
                 value.source, candidate, binding_id,
                 anchor + value.offset_observations,
             )
-            return ProgramValueObservation(
+            relative = ProgramValueObservation(
                 value.semantic_id, candidate, observation.value, observation.reason,
                 observation.observed_at, observation.expression_hash,
             )
+            self.observations.append(relative)
+            return relative
         if isinstance(value, CrossSectionalValueV2):
             if candidate is None:
                 raise ProgramExecutionError("cross_section_requires_candidate")
