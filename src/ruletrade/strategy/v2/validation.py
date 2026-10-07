@@ -257,6 +257,18 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "daily.raw_ohlc@1": provider_blocked,
         "daily.volume_raw_shares@1": provider_blocked,
         "daily.pit_membership@1": provider_blocked,
-        "indicator.rsi": verified_adjusted_close,
+        # The old unversioned indicator token remains intentionally invalid;
+        # only the explicit DailyValue Wilder compatibility profile is verified.
+        "indicator.rsi": OperationCapability(
+            parseable=False,
+            type_valid=False,
+            role_valid=False,
+            provider_available=False,
+            historical_safe=False,
+            reference_evaluable=False,
+            backend_lowerable=False,
+            authoring_reachable=False,
+            verified_profile=False,
+        ),
     }
 
