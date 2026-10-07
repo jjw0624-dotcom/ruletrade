@@ -16,7 +16,7 @@ from ruletrade.strategy.v2.models import (
     NotConditionV2,
     ValueExpressionV2,
 )
-from ruletrade.strategy.v2.daily_values import DailyValueNode, SubjectKind, infer_daily_type, plan_daily_value
+from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind, infer_daily_type, plan_daily_value
 from ruletrade.strategy.v2.semantic_types import (
     HistoryRequirement,
     Quantity,
@@ -233,6 +233,26 @@ def validate_condition(
     return tuple(diagnostics)
 
 
+def _daily_nodes(value: ValueExpressionV2) -> tuple[DailyValueNode, ...]:
+    if not isinstance(value, DailyValueNode):
+        return ()
+    nodes: list[DailyValueNode] = []
+    stack = [value]
+    while stack:
+        node = stack.pop()
+        nodes.append(node)
+        stack.extend(node.operands)
+    return tuple(nodes)
+
+
+def _condition_values(condition: ConditionV2) -> tuple[ValueExpressionV2, ...]:
+    if isinstance(condition, ComparisonV2):
+        return (condition.left, condition.right)
+    if isinstance(condition, NotConditionV2):
+        return _condition_values(condition.child)
+    return tuple(value for child in condition.children for value in _condition_values(child))
+
+
 def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
     selection = strategy.selection
@@ -262,6 +282,25 @@ def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnos
             "unknown_selection_universe", "selection.universe_id",
             "Selection FROM must reference an explicit AssetSet or static Group.",
         ))
+    values: list[ValueExpressionV2] = [selection.ranking]
+    if selection.eligibility is not None:
+        values.extend(_condition_values(selection.eligibility))
+    if strategy.predicate is not None:
+        values.extend(_condition_values(strategy.predicate))
+    for value in values:
+        for node in _daily_nodes(value):
+            if node.kind == "observe" and not (
+                node.field == MarketField.CLOSE and node.basis == PriceBasis.ADJUSTED
+            ):
+                diagnostics.append(SemanticDiagnostic(
+                    "provider_capability_unavailable", node.semantic_id,
+                    "The maintained provider supports adjusted close only; raw OHLC and Volume are unavailable.",
+                ))
+            if node.subject_kind == SubjectKind.GROUP_MEMBERS and node.subject_id not in group_ids:
+                diagnostics.append(SemanticDiagnostic(
+                    "unknown_static_group", node.semantic_id,
+                    "Group-member Values must reference a persisted static Group.",
+                ))
     return tuple(diagnostics)
 
 
