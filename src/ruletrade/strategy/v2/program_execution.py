@@ -58,6 +58,7 @@ class ProgramExecutionResult:
     cutoff: str
     state: dict[str, str]
     event_cutoffs: dict[str, int]
+    event_truths: dict[str, str]
     selection_outputs: dict[str, tuple[str, ...]]
     target_weights: dict[str, Decimal]
     retained_holdings: bool
@@ -74,6 +75,7 @@ class _Runtime:
         *,
         prior_state: dict[str, str] | None = None,
         event_cutoffs: dict[str, int] | None = None,
+        prior_event_truths: dict[str, str] | None = None,
     ) -> None:
         self.program = program
         self.snapshot = snapshot
@@ -85,6 +87,8 @@ class _Runtime:
         self.evidence: list[ProgramDecisionEvidence] = []
         self.observations: list[ProgramValueObservation] = []
         self.event_cutoffs: dict[str, int] = dict(event_cutoffs or {})
+        self.prior_event_truths: dict[str, str] = dict(prior_event_truths or {})
+        self.event_truths: dict[str, str] = {}
 
     @property
     def observed_at(self) -> str:
@@ -279,7 +283,7 @@ class _Runtime:
             return True
         current = date.fromisoformat(self.snapshot.dates[self.cutoff])
         if self.cutoff == len(self.snapshot.dates) - 1:
-            return True
+            return clock.terminal_boundary_policy == "fixture_end_is_boundary"
         following = date.fromisoformat(self.snapshot.dates[self.cutoff + 1])
         if clock.timeframe == "weekly":
             return current.isocalendar()[:2] != following.isocalendar()[:2]
@@ -414,10 +418,15 @@ class _Runtime:
                 if not self.clock_due(statement.event.clock_id):
                     continue
                 current = self.condition(statement.event.condition)
-                previous = "false"
-                if self.cutoff > 0:
-                    prior = _Runtime(self.program, self.snapshot, self.cutoff - 1)
+                previous = self.prior_event_truths.get(statement.event.semantic_id, "false")
+                if statement.event.semantic_id not in self.prior_event_truths and self.cutoff > 0:
+                    prior = _Runtime(
+                        self.program, self.snapshot, self.cutoff - 1,
+                        prior_state=self.state,
+                        event_cutoffs=self.event_cutoffs,
+                    )
                     previous = prior.condition(statement.event.condition)
+                self.event_truths[statement.event.semantic_id] = current
                 triggered = (
                     statement.event.trigger == "while_true" and current == "true"
                     or statement.event.trigger == "rising_edge" and current == "true" and previous != "true"
@@ -484,6 +493,7 @@ def execute_program_v2(
     revision_id: str | None = None,
     prior_state: dict[str, str] | None = None,
     event_cutoffs: dict[str, int] | None = None,
+    prior_event_truths: dict[str, str] | None = None,
 ) -> ProgramExecutionResult:
     issues = validate_program_v2(program)
     if issues:
@@ -493,6 +503,7 @@ def execute_program_v2(
         program, snapshot, cutoff,
         prior_state=prior_state,
         event_cutoffs=event_cutoffs,
+        prior_event_truths=prior_event_truths,
     )
     runtime.statements(program.statements)
     return ProgramExecutionResult(
@@ -502,6 +513,7 @@ def execute_program_v2(
         cutoff=snapshot.dates[cutoff],
         state=runtime.state,
         event_cutoffs=runtime.event_cutoffs,
+        event_truths=runtime.event_truths,
         selection_outputs=runtime.selections,
         target_weights=runtime.target_weights,
         retained_holdings=runtime.retained,
