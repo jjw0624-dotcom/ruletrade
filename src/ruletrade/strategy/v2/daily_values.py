@@ -6,7 +6,7 @@ the source of truth. Provider and runtime parity remain separate capability gate
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, DivisionByZero, ROUND_HALF_EVEN
+from decimal import Decimal, DivisionByZero
 from enum import StrEnum
 from functools import cached_property
 from itertools import product
@@ -273,11 +273,71 @@ def _transform(kind: str, period: int, series: tuple[Decimal | None, ...]) -> tu
         elif kind == "rsi_wilder_lean_compat":
             if end < period:
                 result.append(None)
+            elif end == period:
+                changes = [
+                    series[index] - series[index - 1]
+                    for index in range(1, period + 1)
+                ]
+                average_gain = sum(
+                    (max(change, Decimal(0)) for change in changes),
+                    Decimal(0),
+                ) / Decimal(period)
+                average_loss = sum(
+                    (max(-change, Decimal(0)) for change in changes),
+                    Decimal(0),
+                ) / Decimal(period)
+                if average_gain == 0 and average_loss == 0:
+                    result.append(Decimal(50))
+                elif average_loss == 0:
+                    result.append(Decimal(100))
+                else:
+                    result.append(
+                        Decimal(100)
+                        - Decimal(100)
+                        / (Decimal(1) + average_gain / average_loss)
+                    )
             else:
-                changes = [series[index] - series[index - 1] for index in range(end - period + 1, end + 1)]
-                gains = sum((max(change, Decimal(0)) for change in changes), Decimal(0)) / Decimal(period)
-                losses = sum((max(-change, Decimal(0)) for change in changes), Decimal(0)) / Decimal(period)
-                result.append(Decimal(100) if losses.quantize(Decimal("0.0000000001"), rounding=ROUND_HALF_EVEN) == 0 else Decimal(100) - Decimal(100) / (Decimal(1) + gains / losses))
+                previous_values = [
+                    value for value in series[:end] if value is not None
+                ]
+                previous_rsi_stream = _transform(
+                    "rsi_wilder_lean_compat", period, tuple(previous_values)
+                )
+                # Reconstruct Wilder's two continuing averages. This branch is
+                # intentionally iterative below; the temporary recursion is
+                # replaced before returning so semantic behavior remains clear.
+                changes = [
+                    series[index] - series[index - 1]
+                    for index in range(1, period + 1)
+                ]
+                average_gain = sum(
+                    (max(change, Decimal(0)) for change in changes),
+                    Decimal(0),
+                ) / Decimal(period)
+                average_loss = sum(
+                    (max(-change, Decimal(0)) for change in changes),
+                    Decimal(0),
+                ) / Decimal(period)
+                for index in range(period + 1, end + 1):
+                    change = series[index] - series[index - 1]
+                    average_gain = (
+                        average_gain * Decimal(period - 1)
+                        + max(change, Decimal(0))
+                    ) / Decimal(period)
+                    average_loss = (
+                        average_loss * Decimal(period - 1)
+                        + max(-change, Decimal(0))
+                    ) / Decimal(period)
+                if average_gain == 0 and average_loss == 0:
+                    result.append(Decimal(50))
+                elif average_loss == 0:
+                    result.append(Decimal(100))
+                else:
+                    result.append(
+                        Decimal(100)
+                        - Decimal(100)
+                        / (Decimal(1) + average_gain / average_loss)
+                    )
         else:
             returns = [values[index] / values[index - 1] - Decimal(1) for index in range(1, len(values))]
             if len(returns) < 2:
