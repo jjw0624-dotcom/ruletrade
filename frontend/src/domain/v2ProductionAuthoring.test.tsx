@@ -1,22 +1,22 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { V2StrategyEditor } from "../components/V2StrategyEditor";
-import type { CanonicalStrategyV2 } from "./canonicalV2";
+import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 
-const close = {
+const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
   subject_kind: "candidate", binding_id: "candidate", subject_id: null,
   field: "close", basis: "adjusted", skip: 0,
   missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
-} as const;
+};
 
-const candidateReturn = {
+const candidateReturn: DailyValueNode = {
   semantic_id: "candidate-return", kind: "trailing_return", operands: [close],
   observations: 126, skip: 0, missing_policy: "require_all",
   minimum_count: 1, minimum_fraction: 1,
-} as const;
+};
 
 const strategy: CanonicalStrategyV2 = {
   api_version: "ruletrade.dev/strategy/v2",
