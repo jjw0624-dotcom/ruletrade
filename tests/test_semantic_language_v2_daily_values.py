@@ -282,3 +282,27 @@ def test_rsi_wilder_profile_preserves_continuing_state_not_rolling_mean() -> Non
     assert value is not None
     assert value < Decimal("100")
     assert value > Decimal("90")
+
+
+def test_typed_plan_reports_only_verified_probe_roots_as_backend_lowerable() -> None:
+    asset_close = observe("asset-close", SubjectKind.ASSET, "AAA")
+    sma = DailyValueNode(
+        semantic_id="asset-sma",
+        kind="sma",
+        operands=(asset_close,),
+        observations=3,
+    )
+    assert plan_daily_value(asset_close).backend_lowerable
+    assert plan_daily_value(sma).backend_lowerable
+
+    history = DailyValueNode(
+        semantic_id="asset-history",
+        kind="history",
+        operands=(sma,),
+        observations=2,
+    )
+    assert not plan_daily_value(history).backend_lowerable
+    assert not plan_daily_value(
+        observe("candidate-close", SubjectKind.CANDIDATE, binding_id="candidate"),
+        binding_id="candidate",
+    ).backend_lowerable
