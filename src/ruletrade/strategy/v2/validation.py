@@ -255,38 +255,44 @@ def _condition_values(condition: ConditionV2) -> tuple[ValueExpressionV2, ...]:
 
 def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
+    values: list[ValueExpressionV2] = []
+    group_ids = {group.id for group in strategy.definitions.groups}
+    asset_set_ids = {item.id for item in strategy.definitions.asset_sets}
+
     selection = strategy.selection
-    if selection.eligibility is not None:
-        diagnostics.extend(validate_condition(
-            selection.eligibility, SemanticRole.ELIGIBILITY,
-            bound_candidate_id=selection.binding.id,
-        ))
+    if selection is not None:
+        if selection.eligibility is not None:
+            diagnostics.extend(validate_condition(
+                selection.eligibility, SemanticRole.ELIGIBILITY,
+                bound_candidate_id=selection.binding.id,
+            ))
+        try:
+            rank_type = infer_value_type(selection.ranking, binding_id=selection.binding.id)
+        except (SemanticTypeError, ValueError) as exc:
+            diagnostics.append(SemanticDiagnostic(
+                str(exc).split(":", 1)[0], "selection.ranking", str(exc),
+            ))
+        else:
+            if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER} or rank_type.axes:
+                diagnostics.append(SemanticDiagnostic(
+                    "ranking_not_comparable", "selection.ranking",
+                    "Ranking must yield one comparable scalar per Candidate.",
+                ))
+        if selection.universe_id not in group_ids | asset_set_ids:
+            diagnostics.append(SemanticDiagnostic(
+                "unknown_selection_universe", "selection.universe_id",
+                "Selection FROM must reference an explicit AssetSet or static Group.",
+            ))
+        values.append(selection.ranking)
+        if selection.eligibility is not None:
+            values.extend(_condition_values(selection.eligibility))
+
     if strategy.predicate is not None:
         diagnostics.extend(validate_condition(
             strategy.predicate, SemanticRole.PREDICATE, bound_candidate_id=None,
         ))
-    try:
-        rank_type = infer_value_type(selection.ranking, binding_id=selection.binding.id)
-    except (SemanticTypeError, ValueError) as exc:
-        diagnostics.append(SemanticDiagnostic(str(exc).split(":", 1)[0], "selection.ranking", str(exc)))
-    else:
-        if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER} or rank_type.axes:
-            diagnostics.append(SemanticDiagnostic(
-                "ranking_not_comparable", "selection.ranking",
-                "Ranking must yield one comparable scalar per Candidate.",
-            ))
-    group_ids = {group.id for group in strategy.definitions.groups}
-    asset_set_ids = {item.id for item in strategy.definitions.asset_sets}
-    if selection.universe_id not in group_ids | asset_set_ids:
-        diagnostics.append(SemanticDiagnostic(
-            "unknown_selection_universe", "selection.universe_id",
-            "Selection FROM must reference an explicit AssetSet or static Group.",
-        ))
-    values: list[ValueExpressionV2] = [selection.ranking]
-    if selection.eligibility is not None:
-        values.extend(_condition_values(selection.eligibility))
-    if strategy.predicate is not None:
         values.extend(_condition_values(strategy.predicate))
+
     for value in values:
         for node in _daily_nodes(value):
             if node.kind == "observe" and not (
@@ -301,11 +307,14 @@ def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnos
                     "unknown_static_group", node.semantic_id,
                     "Group-member Values must reference a persisted static Group.",
                 ))
+
+    if strategy.program is not None:
+        from ruletrade.strategy.v2.program_validation import validate_program_v2
+        diagnostics.extend(validate_program_v2(strategy.program))
     return tuple(diagnostics)
 
-
 def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequirement:
-    requirements = [_history_requirement(strategy.selection.ranking)]
+    requirements: list[HistoryRequirement] = []
 
     def visit(condition: ConditionV2) -> None:
         if isinstance(condition, ComparisonV2):
@@ -316,12 +325,20 @@ def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequireme
         else:
             visit(condition.child)
 
-    if strategy.selection.eligibility is not None:
-        visit(strategy.selection.eligibility)
+    if strategy.selection is not None:
+        requirements.append(_history_requirement(strategy.selection.ranking))
+        if strategy.selection.eligibility is not None:
+            visit(strategy.selection.eligibility)
     if strategy.predicate is not None:
         visit(strategy.predicate)
+    if strategy.program is not None:
+        from ruletrade.strategy.v2.program_validation import daily_nodes_for_value, program_values
+        for value in program_values(strategy.program):
+            for node in daily_nodes_for_value(value):
+                requirements.append(_history_requirement(node))
+    if not requirements:
+        return HistoryRequirement(minimum_history_lower_bound=0)
     return HistoryRequirement(max(item.minimum_history_lower_bound for item in requirements))
-
 
 def v2_capabilities() -> dict[str, OperationCapability]:
     """Truthful Profile-A capability ledger.
