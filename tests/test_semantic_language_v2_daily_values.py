@@ -522,3 +522,72 @@ def test_provenance_records_domain_coverage_and_shared_semantic_addresses() -> N
     assert "growth-median-b" in second.provenance.semantic_ids
     assert evaluator.evaluation_counts["growth-median-a"] == 1
     assert "growth-median-b" not in evaluator.evaluation_counts
+
+
+def test_shared_daily_value_formatting_is_semantic_not_ast_terminology() -> None:
+    candidate = observe(
+        "candidate-close", SubjectKind.CANDIDATE, binding_id="candidate"
+    )
+    rsi = DailyValueNode(
+        semantic_id="candidate-rsi",
+        kind="rsi_wilder_lean_compat",
+        operands=(candidate,),
+        observations=14,
+    )
+    group = observe("growth-close", SubjectKind.GROUP_MEMBERS, "growth")
+    returned = DailyValueNode(
+        semantic_id="growth-return",
+        kind="trailing_return",
+        operands=(group,),
+        observations=126,
+    )
+    median = DailyValueNode(
+        semantic_id="growth-median",
+        kind="reduce",
+        operands=(returned,),
+        axis=ReductionAxis.ASSET,
+        reduction=ReductionOperation.MEDIAN,
+    )
+    assert format_daily_value(rsi) == "Candidate's adjusted close · RSI(14)"
+    assert "growth members" in format_daily_value(median)
+    assert "median across asset" in format_daily_value(median)
+    assert "DailyValueNode" not in format_daily_value(median)
+
+
+@pytest.mark.parametrize(
+    ("operator", "expected"),
+    [
+        ("gt", "true"),
+        ("gte", "true"),
+        ("lt", "false"),
+        ("lte", "false"),
+        ("eq", "false"),
+        ("neq", "true"),
+    ],
+)
+def test_all_typed_comparison_operators(
+    operator: str,
+    expected: str,
+) -> None:
+    snapshot = fixture_snapshot()
+    current = DailyValueEvaluator(snapshot).evaluate(
+        observe("close", SubjectKind.ASSET, "AAA")
+    )
+    threshold = DailyValueNode(
+        semantic_id="threshold",
+        kind="literal",
+        value=Decimal("10"),
+        quantity=Quantity.PRICE,
+        unit=Unit.USD_PER_SHARE,
+        refinement="adjusted_close",
+    )
+    right = DailyValueEvaluator(snapshot).evaluate(threshold)
+    assert compare_daily_values(current, right, operator).values[()] == expected
+
+
+def test_three_valued_boolean_truth_table_is_complete() -> None:
+    assert combine_truth("all", "false", "unknown") == "false"
+    assert combine_truth("all", "true", "unknown") == "unknown"
+    assert combine_truth("any", "true", "unknown") == "true"
+    assert combine_truth("any", "false", "unknown") == "unknown"
+    assert combine_truth("not", "unknown") == "unknown"
