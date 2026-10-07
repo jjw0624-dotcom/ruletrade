@@ -117,8 +117,8 @@ def authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
         V2AuthoringCapability(
             operation_id=operation_id,
             label=label,
-            available=ledger[operation_id].production_ready,
-            reason=None if ledger[operation_id].production_ready else (
+            available=(ledger[operation_id].provider_available and ledger[operation_id].backend_lowerable and ledger[operation_id].verified_profile),
+            reason=None if (ledger[operation_id].provider_available and ledger[operation_id].backend_lowerable and ledger[operation_id].verified_profile) else (
                 "Unavailable with the maintained data provider."
                 if not ledger[operation_id].provider_available
                 else "Known semantic operation; executable authoring is not yet available."
