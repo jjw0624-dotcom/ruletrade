@@ -104,6 +104,14 @@ def _selection_values(statement: SelectionStatementV2) -> tuple[ValueExpressionV
     return tuple(values)
 
 
+def _cross_section_values(value: ValueExpressionV2) -> tuple[CrossSectionalValueV2, ...]:
+    if isinstance(value, CrossSectionalValueV2):
+        return (value,)
+    if isinstance(value, ScoreValueV2):
+        return tuple(item for term in value.terms for item in _cross_section_values(term.value))
+    return ()
+
+
 def program_values(program: SemanticProgramV2) -> tuple[ValueExpressionV2, ...]:
     values: list[ValueExpressionV2] = []
     stack = list(program.statements)
@@ -181,6 +189,12 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "Selection output ids must be unique.",
                 ))
             declared_selection_outputs.add(statement.output_id)
+            for cross_section in _cross_section_values(statement.selection.ranking):
+                if cross_section.domain_id != statement.selection.universe_id:
+                    diagnostics.append(SemanticDiagnostic(
+                        "cross_section_domain_mismatch", f"{path}.selection.ranking",
+                        "Cross-sectional ranking domain must equal the Selection universe.",
+                    ))
             if statement.selection.eligibility is not None:
                 condition(statement.selection.eligibility, f"{path}.selection.eligibility", SemanticRole.ELIGIBILITY, statement.selection.binding.id)
             try:
@@ -302,6 +316,8 @@ def infer_program_value_type(value: ValueExpressionV2, *, binding_id: str | None
             term_type = infer_program_value_type(term.value, binding_id=binding_id)
             if term_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER}:
                 raise ValueError("score_term_not_numeric")
+            if term_type.unit not in {Unit.RATIO, Unit.POINTS}:
+                raise ValueError("score_term_not_dimensionless")
         first = infer_program_value_type(value.terms[0].value, binding_id=binding_id)
         return first.model_copy(update={
             "quantity": Quantity.SCORE,
