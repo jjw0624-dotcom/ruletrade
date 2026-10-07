@@ -219,7 +219,9 @@ def parse_canonical_strategy(value: object) -> CanonicalStrategy:
     if not isinstance(value, dict):
         raise ValueError("canonical Strategy must be an object")
     version = value.get("api_version")
-    if version == "ruletrade.dev/strategy/v1":
+    # Pre-version-field v1 fixtures remain accepted as legacy v1; persisted
+    # snapshots are normalized with CanonicalStrategyV1's explicit default.
+    if version in {None, "ruletrade.dev/strategy/v1"}:
         return CanonicalStrategyV1.model_validate(value)
     if version == "ruletrade.dev/strategy/v2":
         return CanonicalStrategyV2.model_validate(value)
