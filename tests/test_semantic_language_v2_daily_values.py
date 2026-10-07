@@ -13,6 +13,8 @@ from ruletrade.strategy.v2.daily_values import (
     ReductionAxis,
     ReductionOperation,
     SubjectKind,
+    compare_daily_values,
+    combine_truth,
     format_daily_value,
     infer_daily_type,
     plan_daily_value,
@@ -161,3 +163,21 @@ def test_plan_preserves_fields_history_seed_requirement_and_human_summary() -> N
     assert plan.history.minimum_history_lower_bound >= 77
     assert plan.history.seed_anchor_required
     assert "63-observation" in format_daily_value(history)
+
+
+def test_typed_comparison_and_three_valued_boolean_short_circuit() -> None:
+    close = observe("close", SubjectKind.ASSET, "AAA")
+    current = DailyValueEvaluator(fixture_snapshot()).evaluate(close)
+    threshold = DailyValueNode(
+        semantic_id="threshold",
+        kind="literal",
+        value=Decimal("10"),
+        quantity=Quantity.PRICE,
+        unit=Unit.USD_PER_SHARE,
+        refinement="adjusted_close",
+    )
+    comparison = compare_daily_values(current, DailyValueEvaluator(fixture_snapshot()).evaluate(threshold), "gt")
+    assert comparison.values[()] == "true"
+    assert combine_truth("all", "false", "unknown") == "false"
+    assert combine_truth("any", "true", "unknown") == "true"
+    assert combine_truth("not", "unknown") == "unknown"

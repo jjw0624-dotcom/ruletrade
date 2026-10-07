@@ -511,3 +511,60 @@ def format_daily_value(node: DailyValueNode) -> str:
     if node.kind == "reduce":
         return f"{node.reduction.value} {node.axis.value} of {format_daily_value(node.operands[0])}"
     return node.kind
+
+
+@dataclass(frozen=True)
+class DailyTruthResult:
+    axes: tuple[Axis, ...]
+    values: dict[tuple[str, ...], str]
+    reasons: dict[tuple[str, ...], str | None]
+
+
+def compare_daily_values(left: DailyValueResult, right: DailyValueResult, operator: Literal["gt", "gte", "lt", "lte", "eq", "neq"]) -> DailyTruthResult:
+    axes = require_compatible_values(left.semantic_type, right.semantic_type)
+    coordinates = product(*(DailyValueEvaluator._keys_for_static(axis, left, right) for axis in axes))
+    values: dict[tuple[str, ...], str] = {}
+    reasons: dict[tuple[str, ...], str | None] = {}
+    for coordinate in coordinates:
+        left_coordinate = tuple(coordinate[next(index for index, axis in enumerate(axes) if axis.name == child.name)] for child in left.axes)
+        right_coordinate = tuple(coordinate[next(index for index, axis in enumerate(axes) if axis.name == child.name)] for child in right.axes)
+        a = left.cells[left_coordinate] if left.axes else left.cells[()]
+        b = right.cells[right_coordinate] if right.axes else right.cells[()]
+        if a.value is None or b.value is None:
+            values[coordinate] = "unknown"
+            reasons[coordinate] = a.reason or b.reason
+            continue
+        comparisons = {
+            "gt": a.value > b.value, "gte": a.value >= b.value,
+            "lt": a.value < b.value, "lte": a.value <= b.value,
+            "eq": a.value == b.value, "neq": a.value != b.value,
+        }
+        values[coordinate] = "true" if comparisons[operator] else "false"
+        reasons[coordinate] = None
+    return DailyTruthResult(axes, values, reasons)
+
+
+def combine_truth(operator: Literal["all", "any", "not"], *values: str) -> str:
+    if operator == "not":
+        if len(values) != 1:
+            raise DailyValueError("not_requires_one_operand")
+        return {"true": "false", "false": "true", "unknown": "unknown"}[values[0]]
+    if not values:
+        raise DailyValueError("explicit_empty_truth_policy_required")
+    if operator == "all":
+        return "false" if "false" in values else "unknown" if "unknown" in values else "true"
+    if operator == "any":
+        return "true" if "true" in values else "unknown" if "unknown" in values else "false"
+    raise DailyValueError("unknown_truth_operator")
+
+
+def _keys_for_static(axis: Axis, left: DailyValueResult, right: DailyValueResult) -> tuple[str, ...]:
+    for result in (left, right):
+        if axis.name == "time":
+            return tuple(key[0] if len(result.axes) == 1 else key[-1] for key in result.cells)
+        if axis.name == "asset":
+            return tuple(key[0] for key in result.cells)
+    return ()
+
+
+DailyValueEvaluator._keys_for_static = staticmethod(_keys_for_static)
