@@ -75,27 +75,6 @@ def _statement_children(statement: ProgramStatementV2) -> tuple[ProgramStatement
     return ()
 
 
-def _selection_values(statement: SelectionStatementV2) -> tuple[ValueExpressionV2, ...]:
-    values: list[ValueExpressionV2] = [statement.selection.ranking]
-    eligibility = statement.selection.eligibility
-    if eligibility is None:
-        return tuple(values)
-
-    from ruletrade.strategy.v2.models import BooleanGroupV2, ComparisonV2, NotConditionV2
-
-    def visit(condition: object) -> None:
-        if isinstance(condition, ComparisonV2):
-            values.extend((condition.left, condition.right))
-        elif isinstance(condition, BooleanGroupV2):
-            for child in condition.children:
-                visit(child)
-        elif isinstance(condition, NotConditionV2):
-            visit(condition.child)
-
-    visit(eligibility)
-    return tuple(values)
-
-
 def _condition_values(condition) -> tuple[ValueExpressionV2, ...]:
     from ruletrade.strategy.v2.models import BooleanGroupV2, ComparisonV2, NotConditionV2
     if isinstance(condition, ComparisonV2):
@@ -145,6 +124,7 @@ def program_values(program: SemanticProgramV2) -> tuple[ValueExpressionV2, ...]:
                 values.extend(_condition_values(override.when))
         stack.extend(_statement_children(statement))
     return tuple(values)
+
 
 def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
