@@ -20,6 +20,7 @@ _OPERATOR_ABSOLUTE_TOLERANCES = {
     ("sma", "1"): Decimal("1e-27"),
     ("ema", "1"): Decimal("1e-18"),
     ("rsi_wilder_lean_compat", "1"): Decimal("1e-12"),
+    ("realized_volatility", "1"): Decimal("1e-12"),
 }
 
 
@@ -96,7 +97,7 @@ def _csharp_string(value: str) -> str:
 
 def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
     current = value
-    while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat"}:
+    while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
         current = current.operands[0]
     if not (
         current.kind == "observe"
@@ -205,6 +206,42 @@ def lower_daily_value_probe(value: DailyValueNode) -> str:
             return;
         }
         Emit(observedAt, "available", _indicator.Current.Value, null);"""
+    elif value.kind == "realized_volatility":
+        period = value.observations or 0
+        if period < 3:
+            raise DailyProbeLoweringError("realized_volatility requires at least three price observations")
+        operator_id, operator_version = "realized_volatility", "1"
+        state = f"    private readonly RollingWindow<decimal> _closes = new RollingWindow<decimal>({period});"
+        setup = ""
+        evaluate = f"""
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {{
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }}
+        _closes.Add(bar.Close);
+        if (!_closes.IsReady)
+        {{
+            Emit(observedAt, "not_ready", null, "insufficient_history");
+            return;
+        }}
+        decimal sum = 0m;
+        var returns = new decimal[{period - 1}];
+        for (var index = 0; index < returns.Length; index++)
+        {{
+            returns[index] = _closes[index] / _closes[index + 1] - 1m;
+            sum += returns[index];
+        }}
+        var mean = sum / returns.Length;
+        decimal squared = 0m;
+        foreach (var item in returns)
+        {{
+            var difference = item - mean;
+            squared += difference * difference;
+        }}
+        var sampleVariance = squared / (returns.Length - 1);
+        var annualized = (decimal)(Math.Sqrt((double)sampleVariance) * Math.Sqrt(252d));
+        Emit(observedAt, "available", annualized, null);"""
     else:
         raise DailyProbeLoweringError(f"unsupported DailyValue lowering: {value.kind}")
 
