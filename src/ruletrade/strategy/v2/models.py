@@ -93,8 +93,55 @@ class CandidateCurrentPriceValue(FrozenModel):
         )
 
 
+class CrossSectionalValueV2(FrozenModel):
+    """A domain-relative transform. The source is evaluated once per member."""
+
+    kind: Literal["cross_sectional"] = "cross_sectional"
+    semantic_id: Identifier
+    source: DailyValueNode
+    domain_id: Identifier
+    transform: Literal["rank", "percentile", "quantile", "bucket"]
+    direction: Literal["ascending", "descending"] = "descending"
+    bins: Annotated[int, Field(ge=2, le=100)] | None = None
+
+    @model_validator(mode="after")
+    def validate_bins(self) -> "CrossSectionalValueV2":
+        if self.transform in {"quantile", "bucket"} and self.bins is None:
+            raise ValueError("quantile/bucket requires bins")
+        if self.transform in {"rank", "percentile"} and self.bins is not None:
+            raise ValueError("rank/percentile does not accept bins")
+        return self
+
+
+class ScoreTermV2(FrozenModel):
+    semantic_id: Identifier
+    value: DailyValueNode | CrossSectionalValueV2
+    weight: Decimal
+
+
+class ScoreValueV2(FrozenModel):
+    kind: Literal["score"] = "score"
+    semantic_id: Identifier
+    terms: tuple[ScoreTermV2, ...] = Field(min_length=1, max_length=20)
+    missing_policy: Literal["require_all", "renormalize_available"] = "require_all"
+
+
+class EventRelativeValueV2(FrozenModel):
+    kind: Literal["event_relative"] = "event_relative"
+    semantic_id: Identifier
+    event_id: Identifier
+    source: DailyValueNode
+    offset_observations: Annotated[int, Field(ge=-2000, le=2000)] = 0
+
+
 ValueExpressionV2: TypeAlias = (
-    DailyValueNode | LiteralValue | CandidateTrailingReturnValue | CandidateCurrentPriceValue
+    DailyValueNode
+    | LiteralValue
+    | CandidateTrailingReturnValue
+    | CandidateCurrentPriceValue
+    | CrossSectionalValueV2
+    | ScoreValueV2
+    | EventRelativeValueV2
 )
 
 
@@ -185,6 +232,151 @@ class StrategyDefinitionsV2(FrozenModel):
         return self
 
 
+class ProgramClockV2(FrozenModel):
+    id: Identifier
+    timeframe: Literal["daily", "weekly", "monthly"]
+    boundary: Literal["close"] = "close"
+    timezone: str = "UTC"
+    completed_only: Literal[True] = True
+
+
+class EventDefinitionV2(FrozenModel):
+    semantic_id: Identifier
+    clock_id: Identifier
+    condition: ConditionV2
+    trigger: Literal["rising_edge", "falling_edge", "while_true"] = "rising_edge"
+
+
+class AllocationTargetV2(FrozenModel):
+    semantic_id: Identifier
+    kind: Literal["asset", "selection", "group", "cash", "retain"]
+    ref: str | None = None
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> "AllocationTargetV2":
+        if self.kind in {"asset", "selection", "group"} and not self.ref:
+            raise ValueError(f"{self.kind} allocation target requires ref")
+        if self.kind in {"cash", "retain"} and self.ref is not None:
+            raise ValueError(f"{self.kind} allocation target cannot have ref")
+        return self
+
+
+class AllocationLegV2(FrozenModel):
+    semantic_id: Identifier
+    target: AllocationTargetV2
+    weight: Decimal | None = Field(default=None, ge=0, le=1)
+
+
+class AllocationStatementV2(FrozenModel):
+    kind: Literal["allocate"] = "allocate"
+    semantic_id: Identifier
+    method: Literal["equal", "fixed"]
+    legs: tuple[AllocationLegV2, ...] = Field(min_length=1, max_length=100)
+    clock_id: Identifier | None = None
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> "AllocationStatementV2":
+        if self.method == "fixed":
+            if any(leg.weight is None for leg in self.legs):
+                raise ValueError("fixed allocation requires every weight")
+            if sum((leg.weight or Decimal(0) for leg in self.legs), Decimal(0)) != Decimal(1):
+                raise ValueError("fixed allocation weights must sum exactly to 1")
+        elif any(leg.weight is not None for leg in self.legs):
+            raise ValueError("equal allocation derives weights and cannot persist explicit weights")
+        return self
+
+
+class SelectionStatementV2(FrozenModel):
+    kind: Literal["select"] = "select"
+    semantic_id: Identifier
+    selection: SelectionV2
+    output_id: Identifier
+    clock_id: Identifier | None = None
+
+
+class StateTransitionV2(FrozenModel):
+    semantic_id: Identifier
+    state_key: Identifier
+    from_value: str | None = None
+    to_value: str
+    when: ConditionV2
+    clock_id: Identifier | None = None
+
+
+class StateTransitionStatementV2(FrozenModel):
+    kind: Literal["transition"] = "transition"
+    semantic_id: Identifier
+    transition: StateTransitionV2
+
+
+class EventStatementV2(FrozenModel):
+    kind: Literal["on_event"] = "on_event"
+    semantic_id: Identifier
+    event: EventDefinitionV2
+    statements: tuple["ProgramStatementV2", ...] = Field(min_length=1, max_length=100)
+
+
+class ConditionalStatementV2(FrozenModel):
+    kind: Literal["control"] = "control"
+    semantic_id: Identifier
+    condition: ConditionV2
+    then_statements: tuple["ProgramStatementV2", ...] = Field(min_length=1, max_length=100)
+    otherwise_statements: tuple["ProgramStatementV2", ...] = Field(default=(), max_length=100)
+    unknown_policy: Literal["retain", "otherwise"] = "retain"
+    clock_id: Identifier | None = None
+
+
+class OverrideRuleV2(FrozenModel):
+    semantic_id: Identifier
+    priority: int
+    when: ConditionV2
+    action: AllocationStatementV2
+
+
+class GuardedAllocationStatementV2(FrozenModel):
+    kind: Literal["guarded_allocation"] = "guarded_allocation"
+    semantic_id: Identifier
+    guard: ConditionV2 | None = None
+    primary: AllocationStatementV2
+    overrides: tuple[OverrideRuleV2, ...] = Field(default=(), max_length=20)
+    fallback: AllocationStatementV2 | None = None
+    unknown_guard_policy: Literal["block", "allow"] = "block"
+
+
+class UnresolvedStatementV2(FrozenModel):
+    kind: Literal["unresolved"] = "unresolved"
+    semantic_id: Identifier
+    source_text: str = Field(min_length=1, max_length=2000)
+    category: Literal["fuzzy_term", "missing_reference", "unsupported_semantics"]
+    reason: str = Field(min_length=1, max_length=500)
+
+
+ProgramStatementV2: TypeAlias = Annotated[
+    SelectionStatementV2
+    | AllocationStatementV2
+    | ConditionalStatementV2
+    | EventStatementV2
+    | StateTransitionStatementV2
+    | GuardedAllocationStatementV2
+    | UnresolvedStatementV2,
+    Field(discriminator="kind"),
+]
+
+
+class SemanticProgramV2(FrozenModel):
+    semantic_id: Identifier
+    clocks: tuple[ProgramClockV2, ...] = Field(min_length=1, max_length=20)
+    initial_state: dict[Identifier, str] = Field(default_factory=dict)
+    statements: tuple[ProgramStatementV2, ...] = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> "SemanticProgramV2":
+        clock_ids = [clock.id for clock in self.clocks]
+        if len(clock_ids) != len(set(clock_ids)):
+            raise ValueError("Program clock ids must be unique")
+        return self
+
+
 class CanonicalStrategyV2(FrozenModel):
     """A separate persisted semantic envelope; it is never parsed as v1."""
 
@@ -193,19 +385,25 @@ class CanonicalStrategyV2(FrozenModel):
     metadata: StrategyMetadata
     definitions: StrategyDefinitionsV2
     operator_lock: dict[str, str]
-    selection: SelectionV2
+    selection: SelectionV2 | None = None
     predicate: ConditionV2 | None = None
+    program: SemanticProgramV2 | None = None
 
     @model_validator(mode="after")
     def validate_operator_lock(self) -> "CanonicalStrategyV2":
         if "compare" not in self.operator_lock:
             raise ValueError("operator_lock is missing: compare")
+        if self.selection is None and self.program is None:
+            raise ValueError("v2 requires a compatibility Selection or a Semantic Program")
         return self
 
 
 BooleanGroupV2.model_rebuild()
 NotConditionV2.model_rebuild()
 SelectionV2.model_rebuild()
+EventStatementV2.model_rebuild()
+ConditionalStatementV2.model_rebuild()
+SemanticProgramV2.model_rebuild()
 CanonicalStrategyV2.model_rebuild()
 
 CanonicalStrategy = CanonicalStrategyV1 | CanonicalStrategyV2
