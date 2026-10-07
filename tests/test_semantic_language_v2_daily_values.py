@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
@@ -306,3 +306,219 @@ def test_typed_plan_reports_only_verified_probe_roots_as_backend_lowerable() -> 
         observe("candidate-close", SubjectKind.CANDIDATE, binding_id="candidate"),
         binding_id="candidate",
     ).backend_lowerable
+
+
+def test_k07_interpretation_a_value_stress_case_is_reference_executable() -> None:
+    parameters = {
+        "A": ("10", ".002", ".00204", "400"),
+        "B": ("20", ".003", ".00306", "300"),
+        "C": ("4", ".002", ".00204", "300"),
+        "D": ("50", ".001", ".01", "100"),
+    }
+    series: dict[str, dict[str, tuple[Decimal | None, ...]]] = {}
+    with localcontext() as context:
+        context.prec = 28
+        for asset, (close, past, current_return, current_volume) in parameters.items():
+            current = Decimal(close)
+            previous = current / (Decimal(1) + Decimal(current_return))
+            prices = tuple(
+                previous / (Decimal(1) + Decimal(past)) ** (252 - index)
+                for index in range(253)
+            ) + (current,)
+            series[asset] = {
+                "close:adjusted": prices,
+                "close:raw": prices,
+                "volume:raw_shares": (
+                    (Decimal(100),) * 253 + (Decimal(current_volume),)
+                ),
+            }
+    snapshot = DailyMarketSnapshot(
+        snapshot_id="k07-interpretation-a",
+        clock=Clock(id="daily-close"),
+        dates=tuple(f"observation-{index:03d}" for index in range(254)),
+        domains={"k07": tuple(parameters)},
+        series=series,
+    )
+
+    price = observe(
+        "k07-price",
+        SubjectKind.CANDIDATE,
+        binding_id="candidate",
+        basis=PriceBasis.RAW,
+    )
+    volume = observe(
+        "k07-volume",
+        SubjectKind.CANDIDATE,
+        binding_id="candidate",
+        field=MarketField.VOLUME,
+        basis=PriceBasis.RAW_SHARES,
+    )
+    adjusted = observe(
+        "k07-adjusted",
+        SubjectKind.CANDIDATE,
+        binding_id="candidate",
+    )
+    price_floor = DailyValueNode(
+        semantic_id="k07-price-floor",
+        kind="literal",
+        value=Decimal(5),
+        quantity=Quantity.PRICE,
+        unit=Unit.USD_PER_SHARE,
+        refinement="raw_ohlc",
+    )
+    volume_history = DailyValueNode(
+        semantic_id="k07-prior-volume",
+        kind="history",
+        operands=(volume,),
+        observations=252,
+        skip=1,
+    )
+    volume_mean = DailyValueNode(
+        semantic_id="k07-volume-mean",
+        kind="reduce",
+        operands=(volume_history,),
+        axis=ReductionAxis.TIME,
+        reduction=ReductionOperation.MEAN,
+    )
+    multiplier = DailyValueNode(
+        semantic_id="k07-volume-multiplier",
+        kind="literal",
+        value=Decimal("2.5"),
+        quantity=Quantity.SCORE,
+        unit=Unit.RATIO,
+    )
+    volume_bound = DailyValueNode(
+        semantic_id="k07-volume-bound",
+        kind="arithmetic",
+        operands=(multiplier, volume_mean),
+        arithmetic="multiply",
+    )
+    daily_return = DailyValueNode(
+        semantic_id="k07-daily-return",
+        kind="trailing_return",
+        operands=(adjusted,),
+        observations=1,
+    )
+    movement = DailyValueNode(
+        semantic_id="k07-absolute-daily-return",
+        kind="absolute",
+        operands=(daily_return,),
+    )
+    movement_history = DailyValueNode(
+        semantic_id="k07-prior-movement",
+        kind="history",
+        operands=(movement,),
+        observations=252,
+        skip=1,
+    )
+    movement_mean = DailyValueNode(
+        semantic_id="k07-movement-mean",
+        kind="reduce",
+        operands=(movement_history,),
+        axis=ReductionAxis.TIME,
+        reduction=ReductionOperation.MEAN,
+    )
+    movement_relative = DailyValueNode(
+        semantic_id="k07-movement-relative",
+        kind="arithmetic",
+        operands=(movement, movement_mean),
+        arithmetic="divide",
+    )
+    one = DailyValueNode(
+        semantic_id="k07-one",
+        kind="literal",
+        value=Decimal(1),
+        quantity=Quantity.SCORE,
+        unit=Unit.RATIO,
+        refinement="ratio",
+    )
+    movement_delta = DailyValueNode(
+        semantic_id="k07-movement-delta",
+        kind="arithmetic",
+        operands=(movement_relative, one),
+        arithmetic="subtract",
+    )
+    movement_abs_delta = DailyValueNode(
+        semantic_id="k07-movement-abs-delta",
+        kind="absolute",
+        operands=(movement_delta,),
+    )
+    tolerance = DailyValueNode(
+        semantic_id="k07-movement-tolerance",
+        kind="literal",
+        value=Decimal(".05"),
+        quantity=Quantity.SCORE,
+        unit=Unit.RATIO,
+        refinement="ratio",
+    )
+    ranking = DailyValueNode(
+        semantic_id="k07-ranking-return",
+        kind="trailing_return",
+        operands=(adjusted,),
+        observations=126,
+    )
+
+    evaluator = DailyValueEvaluator(snapshot)
+    eligible: list[tuple[str, Decimal]] = []
+    for candidate in parameters:
+        kwargs = {"candidate": candidate, "binding_id": "candidate"}
+        price_truth = compare_daily_values(
+            evaluator.evaluate(price, **kwargs),
+            evaluator.evaluate(price_floor, **kwargs),
+            "gte",
+        ).values[()]
+        volume_truth = compare_daily_values(
+            evaluator.evaluate(volume, **kwargs),
+            evaluator.evaluate(volume_bound, **kwargs),
+            "gte",
+        ).values[()]
+        movement_truth = compare_daily_values(
+            evaluator.evaluate(movement_abs_delta, **kwargs),
+            evaluator.evaluate(tolerance, **kwargs),
+            "lte",
+        ).values[()]
+        if combine_truth("all", price_truth, volume_truth, movement_truth) == "true":
+            score = evaluator.evaluate(ranking, **kwargs).scalar()
+            assert score is not None
+            eligible.append((candidate, score))
+
+    assert [asset for asset, _ in sorted(
+        eligible, key=lambda item: item[1], reverse=True
+    )] == ["B", "A"]
+
+
+def test_provenance_records_domain_coverage_and_shared_semantic_addresses() -> None:
+    group = observe("growth-close", SubjectKind.GROUP_MEMBERS, "growth")
+    returned = DailyValueNode(
+        semantic_id="growth-return",
+        kind="trailing_return",
+        operands=(group,),
+        observations=2,
+    )
+    reduced = DailyValueNode(
+        semantic_id="growth-median-a",
+        kind="reduce",
+        operands=(returned,),
+        axis=ReductionAxis.ASSET,
+        reduction=ReductionOperation.MEDIAN,
+        missing_policy=MissingPolicy.SKIP_WITH_COVERAGE,
+        minimum_count=2,
+        minimum_fraction=Decimal(".66"),
+    )
+    evaluator = DailyValueEvaluator(fixture_snapshot())
+    first = evaluator.evaluate(reduced)
+    assert first.provenance is not None
+    assert first.provenance.snapshot_id == "synthetic-daily-v2"
+    assert first.provenance.reduction_axis == "asset"
+    assert first.provenance.requested_members == ("AAA", "BBB", "CCC")
+    assert first.provenance.available_members == ("AAA", "BBB")
+    assert first.provenance.missing_members == ("CCC",)
+
+    alias = reduced.model_copy(update={"semantic_id": "growth-median-b"})
+    second = evaluator.evaluate(alias)
+    assert second.cells == first.cells
+    assert second.provenance is not None
+    assert second.provenance.semantic_ids[0] == "growth-median-a"
+    assert "growth-median-b" in second.provenance.semantic_ids
+    assert evaluator.evaluation_counts["growth-median-a"] == 1
+    assert "growth-median-b" not in evaluator.evaluation_counts
