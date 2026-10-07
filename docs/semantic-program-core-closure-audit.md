@@ -93,3 +93,17 @@ breadth:
   connection point must change.
 - Canonical remains authoritative; working editor state never becomes a second
   Strategy truth.
+
+## CI restoration boundary
+
+The v1 editor narrows API responses to `CanonicalStrategyV1`; the v2 editor owns
+`CanonicalStrategyV2`. Shared transport remains generic without allowing a v2
+revision to enter the v1 store. Recursive React rendering uses `ReactNode`, and
+frontend fixtures are explicitly typed as mutable `DailyValueNode` values.
+
+Acceptance for this preparation batch requires both exact-head jobs:
+
+- Repository validation
+- Generated C# / LEAN compile (including the maintained Work 2 differential)
+
+No local or browser validation is claimed by this audit.
