@@ -103,7 +103,7 @@ def _csharp_string(value: str) -> str:
 
 def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
     current = value
-    while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
+    while current.kind in {"current", "trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
         current = current.operands[0]
     if not (
         current.kind == "observe"
@@ -135,7 +135,7 @@ def lower_daily_value_probe(
     semantic_id = _csharp_string(plan.expression_id)
     ticker = _csharp_string(observe.subject_id or "")
     requested = "null" if requested_date is None else _csharp_string(requested_date)
-    if value.kind == "observe":
+    if value.kind in {"observe", "current"}:
         operator_id, operator_version = "adjusted_close", "1"
         state = ""
         setup = ""
