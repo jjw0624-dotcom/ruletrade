@@ -5,8 +5,10 @@ import type { EditorBootstrap } from "./domain/canonical";
 import { findExample, type ExampleId, type StrategyExample } from "./domain/examples";
 import { pathForRoute, routeFromPath, type AppRoute } from "./domain/navigation";
 import { StrategyEditor } from "./StrategyEditor";
+import { V2StrategyEditor } from "./components/V2StrategyEditor";
+import { isCanonicalV2 } from "./domain/canonicalV2";
 import { StrategyEditorProvider } from "./store/editorStore";
-import { strategyApi, type StrategyDetail, type StrategyRecord } from "./strategyApi";
+import { strategyApi, type StrategyDetail, type StrategyDetailV1, type StrategyDetailV2, type StrategyRecord } from "./strategyApi";
 import { ExploreView } from "./views/ExploreView";
 import { HomeView } from "./views/HomeView";
 import { PublicView } from "./views/PublicView";
@@ -20,7 +22,7 @@ type LoadState = "idle" | "loading" | "loaded" | "error";
 export type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
 
 export function workspaceFromCreatedStrategy(
-  detail: StrategyDetail,
+  detail: StrategyDetailV1,
   bootstrap: EditorBootstrap,
   example: StrategyExample,
   initialView: "overview" | "guided" = "overview",
@@ -43,7 +45,7 @@ export function workspaceFromPersistedStrategy(
 ): StrategyWorkspace {
   const bootstrap: EditorBootstrap = {
     ...registryBootstrap,
-    strategy: detail.current_revision.canonical_strategy,
+    strategy: detail.current_revision.canonical_strategy as EditorBootstrap["strategy"],
     validation: { valid: true, issues: [] },
   };
   return { bootstrap, example: defaultsFor(bootstrap), detail };
@@ -54,6 +56,7 @@ export function StrategyLoadError({ message, onHome }: { message: string; onHome
 }
 
 function defaultsFor(bootstrap: EditorBootstrap): StrategyExample {
+  if ((bootstrap.strategy as { api_version?: string }).api_version === "ruletrade.dev/strategy/v2") return findExample("sleeves")!;
   const cooldown = bootstrap.strategy.graph.components.some((item) => item.primitive.toLowerCase().includes("cooldown"));
   return findExample(cooldown ? "cooldown" : "sleeves")!;
 }
@@ -181,7 +184,9 @@ export default function App() {
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
-    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? workspace.example.id} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail} confirmation={adoptionNotice} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus} /></StrategyEditorProvider>}
+    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && workspace.detail && isCanonicalV2(workspace.detail.current_revision.canonical_strategy)
+      ? <V2StrategyEditor key={workspace.detail.current_revision.id} persisted={workspace.detail as StrategyDetailV2} onDirtyChange={setDirty} onHome={() => navigate({ page: "home" })} />
+      : route.page === "strategy" && workspace && workspaceStatus === "loaded" && <StrategyEditorProvider key={workspace.detail?.current_revision.id ?? workspace.example.id} bootstrap={workspace.bootstrap} initialView={workspace.initialView ?? "overview"}><StrategyEditor example={workspace.example} persisted={workspace.detail as StrategyDetailV1 | undefined} confirmation={adoptionNotice} onDirtyChange={setDirty} onArchived={() => navigate({ page: "home" })} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus} /></StrategyEditorProvider>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
