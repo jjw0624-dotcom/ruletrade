@@ -10,7 +10,7 @@ from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, Pric
 
 
 _PREFIX = "RULETRADE_DAILY_VALUE|"
-_PATTERN = re.compile(r"^RULETRADE_DAILY_VALUE\|(?P<payload>{.*})$", re.MULTILINE)
+_PATTERN = re.compile(re.escape(_PREFIX) + r"(?P<payload>\{.*?\})(?:\r?$)", re.MULTILINE)
 
 
 class DailyProbeLoweringError(ValueError):
@@ -28,6 +28,16 @@ class DailyProbeObservation:
     reason: str | None = None
 
 
+def _csharp_string(value: str) -> str:
+    """Return one ordinary C# string literal without relying on JSON escaping."""
+    return '"' + (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    ) + '"'
+
+
 def lower_adjusted_close_probe(value: DailyValueNode) -> str:
     """Generate a maintained-QCAlgorithm probe for one adjusted-close Value.
 
@@ -42,8 +52,8 @@ def lower_adjusted_close_probe(value: DailyValueNode) -> str:
         and value.subject_id
     ):
         raise DailyProbeLoweringError("only asset adjusted-close observe@1 is lowerable")
-    identity = json.dumps(value.semantic_id)
-    ticker = json.dumps(value.subject_id)
+    semantic_id = _csharp_string(value.semantic_id)
+    ticker = _csharp_string(value.subject_id)
     return f"""using System;
 using System.Globalization;
 using QuantConnect;
@@ -53,6 +63,7 @@ using QuantConnect.Data;
 public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 {{
     private Symbol _symbol;
+    private const char Quote = (char)34;
 
     public override void Initialize()
     {{
@@ -63,19 +74,27 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 
     public override void OnData(Slice data)
     {{
+        var observedAt = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         if (!data.Bars.TryGetValue(_symbol, out var bar))
         {{
-            Debug("RULETRADE_DAILY_VALUE|{{\"semantic_id\":" + {identity}
-                + ",\"operator_id\":\"adjusted_close\",\"operator_version\":\"1\""
-                + ",\"observed_at\":\"" + Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                + "\",\"status\":\"unavailable\",\"value\":null,\"reason\":\"missing_bar\"}}");
+            Debug("RULETRADE_DAILY_VALUE|{{"
+                + Quote + "semantic_id" + Quote + ":" + Quote + {semantic_id} + Quote
+                + "," + Quote + "operator_id" + Quote + ":" + Quote + "adjusted_close" + Quote
+                + "," + Quote + "operator_version" + Quote + ":" + Quote + "1" + Quote
+                + "," + Quote + "observed_at" + Quote + ":" + Quote + observedAt + Quote
+                + "," + Quote + "status" + Quote + ":" + Quote + "unavailable" + Quote
+                + "," + Quote + "value" + Quote + ":null"
+                + "," + Quote + "reason" + Quote + ":" + Quote + "missing_bar" + Quote + "}}");
             return;
         }}
-        Debug("RULETRADE_DAILY_VALUE|{{\"semantic_id\":" + {identity}
-            + ",\"operator_id\":\"adjusted_close\",\"operator_version\":\"1\""
-            + ",\"observed_at\":\"" + Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            + "\",\"status\":\"available\",\"value\":\"" + bar.Close.ToString("G29", CultureInfo.InvariantCulture)
-            + "\",\"reason\":null}}");
+        Debug("RULETRADE_DAILY_VALUE|{{"
+            + Quote + "semantic_id" + Quote + ":" + Quote + {semantic_id} + Quote
+            + "," + Quote + "operator_id" + Quote + ":" + Quote + "adjusted_close" + Quote
+            + "," + Quote + "operator_version" + Quote + ":" + Quote + "1" + Quote
+            + "," + Quote + "observed_at" + Quote + ":" + Quote + observedAt + Quote
+            + "," + Quote + "status" + Quote + ":" + Quote + "available" + Quote
+            + "," + Quote + "value" + Quote + ":" + Quote + bar.Close.ToString("G29", CultureInfo.InvariantCulture) + Quote
+            + "," + Quote + "reason" + Quote + ":null}}");
     }}
 }}
 """
