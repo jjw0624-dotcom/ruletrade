@@ -22,6 +22,7 @@ from ruletrade.strategy.v2.models import (
     SelectionStatementV2,
     SemanticProgramV2,
     StateTransitionStatementV2,
+    StateConditionV2,
     UnresolvedStatementV2,
     ValueExpressionV2,
     CrossSectionalValueV2,
@@ -95,6 +96,35 @@ def _selection_values(statement: SelectionStatementV2) -> tuple[ValueExpressionV
     return tuple(values)
 
 
+def _condition_values(condition) -> tuple[ValueExpressionV2, ...]:
+    from ruletrade.strategy.v2.models import BooleanGroupV2, ComparisonV2, NotConditionV2
+    if isinstance(condition, ComparisonV2):
+        return (condition.left, condition.right)
+    if isinstance(condition, BooleanGroupV2):
+        return tuple(value for child in condition.children for value in _condition_values(child))
+    if isinstance(condition, NotConditionV2):
+        return _condition_values(condition.child)
+    return ()
+
+
+def _condition_state_keys(condition) -> tuple[str, ...]:
+    from ruletrade.strategy.v2.models import BooleanGroupV2, NotConditionV2
+    if isinstance(condition, StateConditionV2):
+        return (condition.state_key,)
+    if isinstance(condition, BooleanGroupV2):
+        return tuple(key for child in condition.children for key in _condition_state_keys(child))
+    if isinstance(condition, NotConditionV2):
+        return _condition_state_keys(condition.child)
+    return ()
+
+
+def _selection_values(statement: SelectionStatementV2) -> tuple[ValueExpressionV2, ...]:
+    values: list[ValueExpressionV2] = [statement.selection.ranking]
+    if statement.selection.eligibility is not None:
+        values.extend(_condition_values(statement.selection.eligibility))
+    return tuple(values)
+
+
 def program_values(program: SemanticProgramV2) -> tuple[ValueExpressionV2, ...]:
     values: list[ValueExpressionV2] = []
     stack = list(program.statements)
@@ -102,9 +132,19 @@ def program_values(program: SemanticProgramV2) -> tuple[ValueExpressionV2, ...]:
         statement = stack.pop()
         if isinstance(statement, SelectionStatementV2):
             values.extend(_selection_values(statement))
+        elif isinstance(statement, ConditionalStatementV2):
+            values.extend(_condition_values(statement.condition))
+        elif isinstance(statement, EventStatementV2):
+            values.extend(_condition_values(statement.event.condition))
+        elif isinstance(statement, StateTransitionStatementV2):
+            values.extend(_condition_values(statement.transition.when))
+        elif isinstance(statement, GuardedAllocationStatementV2):
+            if statement.guard is not None:
+                values.extend(_condition_values(statement.guard))
+            for override in statement.overrides:
+                values.extend(_condition_values(override.when))
         stack.extend(_statement_children(statement))
     return tuple(values)
-
 
 def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
@@ -112,6 +152,15 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
     statement_ids: set[str] = set()
     event_ids: set[str] = set()
     selection_outputs: set[str] = set()
+
+    def condition(condition, path: str, role: SemanticRole = SemanticRole.PREDICATE, binding_id: str | None = None) -> None:
+        diagnostics.extend(validate_condition(condition, role, bound_candidate_id=binding_id))
+        for state_key in _condition_state_keys(condition):
+            if state_key not in program.initial_state:
+                diagnostics.append(SemanticDiagnostic(
+                    "undeclared_state", path,
+                    f"State condition references uninitialized key {state_key!r}.",
+                ))
 
     def clock_ref(clock_id: str | None, path: str) -> None:
         if clock_id is not None and clock_id not in clocks:
@@ -150,11 +199,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                 ))
             selection_outputs.add(statement.output_id)
             if statement.selection.eligibility is not None:
-                diagnostics.extend(validate_condition(
-                    statement.selection.eligibility,
-                    SemanticRole.ELIGIBILITY,
-                    bound_candidate_id=statement.selection.binding.id,
-                ))
+                condition(statement.selection.eligibility, f"{path}.selection.eligibility", SemanticRole.ELIGIBILITY, statement.selection.binding.id)
             try:
                 rank_type = infer_program_value_type(
                     statement.selection.ranking,
@@ -176,9 +221,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
             return
         if isinstance(statement, ConditionalStatementV2):
             clock_ref(statement.clock_id, f"{path}.clock_id")
-            diagnostics.extend(validate_condition(
-                statement.condition, SemanticRole.PREDICATE, bound_candidate_id=None,
-            ))
+            condition(statement.condition, f"{path}.condition")
             for index, child in enumerate(statement.then_statements):
                 visit(child, f"{path}.then[{index}]")
             for index, child in enumerate(statement.otherwise_statements):
@@ -192,17 +235,13 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "Event semantic ids must be unique.",
                 ))
             event_ids.add(statement.event.semantic_id)
-            diagnostics.extend(validate_condition(
-                statement.event.condition, SemanticRole.PREDICATE, bound_candidate_id=None,
-            ))
+            condition(statement.event.condition, f"{path}.event.condition")
             for index, child in enumerate(statement.statements):
                 visit(child, f"{path}.statements[{index}]")
             return
         if isinstance(statement, StateTransitionStatementV2):
             clock_ref(statement.transition.clock_id, f"{path}.transition.clock_id")
-            diagnostics.extend(validate_condition(
-                statement.transition.when, SemanticRole.PREDICATE, bound_candidate_id=None,
-            ))
+            condition(statement.transition.when, f"{path}.transition.when")
             if statement.transition.state_key not in program.initial_state:
                 diagnostics.append(SemanticDiagnostic(
                     "undeclared_state", f"{path}.transition.state_key",
@@ -211,9 +250,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
             return
         if isinstance(statement, GuardedAllocationStatementV2):
             if statement.guard is not None:
-                diagnostics.extend(validate_condition(
-                    statement.guard, SemanticRole.PREDICATE, bound_candidate_id=None,
-                ))
+                condition(statement.guard, f"{path}.guard")
             priorities = [item.priority for item in statement.overrides]
             if len(priorities) != len(set(priorities)):
                 diagnostics.append(SemanticDiagnostic(
@@ -222,9 +259,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                 ))
             allocation(statement.primary, f"{path}.primary")
             for index, override in enumerate(statement.overrides):
-                diagnostics.extend(validate_condition(
-                    override.when, SemanticRole.PREDICATE, bound_candidate_id=None,
-                ))
+                condition(override.when, f"{path}.overrides[{index}].when")
                 allocation(override.action, f"{path}.overrides[{index}].action")
             if statement.fallback is not None:
                 allocation(statement.fallback, f"{path}.fallback")
