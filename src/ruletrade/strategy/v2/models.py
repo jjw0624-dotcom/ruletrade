@@ -214,7 +214,7 @@ class SelectionV2(FrozenModel):
             elif isinstance(condition, BooleanGroupV2):
                 for child in condition.children:
                     visit_condition(child)
-            else:
+            elif isinstance(condition, NotConditionV2):
                 visit_condition(condition.child)
 
         visit_value(self.ranking)
