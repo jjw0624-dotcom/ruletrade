@@ -50,7 +50,7 @@ using QuantConnect;
 using QuantConnect.Algorithm;
 using QuantConnect.Data;
 
-public class RuleTradeDailyValueProbe : QCAlgorithm
+public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 {{
     private Symbol _symbol;
 
