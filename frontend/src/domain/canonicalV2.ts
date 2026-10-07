@@ -69,8 +69,20 @@ export interface CanonicalStrategyV2 {
     count: number;
     shortage_policy: "choose_all" | "require_full";
     fallback_asset: string | null;
-  };
+  } | null;
   predicate: ConditionV2 | null;
+  program?: {
+    semantic_id: string;
+    clocks: Array<{
+      id: string;
+      timeframe: "daily" | "weekly" | "monthly";
+      boundary: "close";
+      timezone: string;
+      completed_only: true;
+    }>;
+    initial_state: Record<string, string>;
+    statements: Array<{ kind: string; semantic_id: string }>;
+  } | null;
 }
 
 export type V2AuthoringOperation =
