@@ -554,3 +554,39 @@ def test_selection_outputs_require_definite_program_order_and_nested_ids_are_uni
     )
     issues = validate_program_v2(program(duplicate_nested))
     assert "duplicate_program_semantic_id" in {item.code for item in issues}
+
+
+def test_score_and_cross_section_domains_do_not_mix_units_or_universes() -> None:
+    with pytest.raises(ValueError, match="non-zero"):
+        ScoreValueV2(
+            semantic_id="zero-score",
+            terms=(ScoreTermV2(
+                semantic_id="zero-term", value=candidate_return(), weight=Decimal("0"),
+            ),),
+        )
+
+    price_score = ScoreValueV2(
+        semantic_id="price-score",
+        terms=(ScoreTermV2(
+            semantic_id="price-term", value=candidate_close(), weight=Decimal("1"),
+        ),),
+    )
+    price_issues = validate_program_v2(program(SelectionStatementV2(
+        semantic_id="price-score-selection",
+        selection=selection(price_score),
+        output_id="price-score-output",
+    )))
+    assert "score_term_not_dimensionless" in {item.code for item in price_issues}
+
+    wrong_domain = CrossSectionalValueV2(
+        semantic_id="wrong-domain-rank",
+        source=candidate_return(),
+        domain_id="other-universe",
+        transform="rank",
+    )
+    domain_issues = validate_program_v2(program(SelectionStatementV2(
+        semantic_id="wrong-domain-selection",
+        selection=selection(wrong_domain),
+        output_id="wrong-domain-output",
+    )))
+    assert "cross_section_domain_mismatch" in {item.code for item in domain_issues}
