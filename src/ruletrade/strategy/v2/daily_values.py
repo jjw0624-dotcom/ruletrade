@@ -128,9 +128,21 @@ class DailyValueNode(FrozenModel):
 
     @cached_property
     def content_hash(self) -> str:
-        payload = self.model_dump(mode="json")
-        payload.pop("semantic_id", None)
-        return semantic_content_hash(payload)
+        def without_addresses(value: object) -> object:
+            if isinstance(value, dict):
+                return {
+                    key: without_addresses(item)
+                    for key, item in value.items()
+                    if key != "semantic_id"
+                }
+            if isinstance(value, list):
+                return [without_addresses(item) for item in value]
+            return value
+
+        # semantic_id is an Evidence/provenance address, not computational
+        # content. Strip it recursively so equivalent closed subexpressions may
+        # share work without erasing either address.
+        return semantic_content_hash(without_addresses(self.model_dump(mode="json")))
 
 
 DailyValueNode.model_rebuild()
@@ -382,11 +394,23 @@ class DailyValueEvaluator:
         )
         if key in self._memo:
             cached = self._memo[key]
-            if cached.provenance is None or node.semantic_id in cached.provenance.semantic_ids:
+            addresses: list[str] = []
+
+            def collect_addresses(value: DailyValueNode) -> None:
+                addresses.append(value.semantic_id)
+                for child in value.operands:
+                    collect_addresses(child)
+
+            collect_addresses(node)
+            if cached.provenance is None or all(
+                address in cached.provenance.semantic_ids for address in addresses
+            ):
                 return cached
             provenance = replace(
                 cached.provenance,
-                semantic_ids=cached.provenance.semantic_ids + (node.semantic_id,),
+                semantic_ids=tuple(dict.fromkeys(
+                    cached.provenance.semantic_ids + tuple(addresses)
+                )),
             )
             shared = replace(cached, provenance=provenance)
             self._memo[key] = shared
