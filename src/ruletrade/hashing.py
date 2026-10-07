@@ -8,6 +8,7 @@ from typing import Any
 from ruletrade.domain import SimpleStrategySpec
 from ruletrade.strategy.models import StrategyDocument
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
 from ruletrade.strategy.v1.registry import (
     BUILTIN_REGISTRY,
     PrimitiveCategory,
@@ -16,7 +17,7 @@ from ruletrade.strategy.v1.registry import (
 from ruletrade.strategy.v1.types import ValueType, normalize_typed_value, value_matches_type
 
 
-HashableStrategy = SimpleStrategySpec | StrategyDocument | CanonicalStrategyV1
+HashableStrategy = SimpleStrategySpec | StrategyDocument | CanonicalStrategyV1 | CanonicalStrategyV2
 
 
 def _decimal_text(value: Decimal) -> str:
@@ -194,6 +195,9 @@ def semantic_payload(
 
     if isinstance(spec, CanonicalStrategyV1):
         return _v1_semantic_payload(spec)
+
+    if isinstance(spec, CanonicalStrategyV2):
+        return _normalize_value(spec.model_dump(mode="python", exclude={"metadata"}))
 
     raise TypeError(
         f"unsupported strategy type: {type(spec).__name__}"
