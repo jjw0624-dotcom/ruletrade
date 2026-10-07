@@ -197,23 +197,66 @@ def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequireme
 def v2_capabilities() -> dict[str, OperationCapability]:
     """Truthful Profile-A capability ledger.
 
-    RSI/volume/volatility deliberately remain absent: this vertical slice must
-    not advertise a Registry token as an executable production feature.
+    The adjusted-close roots below passed the pinned reference-vs-Docker-LEAN
+    differential. They remain non-production-ready because v2 authoring is not
+    exposed. Provider-limited fields and reference-only composition stay
+    explicitly unverified.
     """
 
-    executable_bridge = OperationCapability(
-        parseable=True, type_valid=True, role_valid=True,
-        provider_available=True, historical_safe=True,
-        reference_evaluable=True, backend_lowerable=True,
-        authoring_reachable=False, verified_profile=False,
+    verified_adjusted_close = OperationCapability(
+        parseable=True,
+        type_valid=True,
+        role_valid=True,
+        provider_available=True,
+        historical_safe=True,
+        reference_evaluable=True,
+        backend_lowerable=True,
+        authoring_reachable=False,
+        verified_profile=True,
+    )
+    reference_only = OperationCapability(
+        parseable=True,
+        type_valid=True,
+        role_valid=True,
+        provider_available=True,
+        historical_safe=True,
+        reference_evaluable=True,
+        backend_lowerable=False,
+        authoring_reachable=False,
+        verified_profile=False,
+    )
+    provider_blocked = OperationCapability(
+        parseable=True,
+        type_valid=True,
+        role_valid=True,
+        provider_available=False,
+        historical_safe=False,
+        reference_evaluable=True,
+        backend_lowerable=False,
+        authoring_reachable=False,
+        verified_profile=False,
     )
     return {
-        "candidate.trailing_return": executable_bridge,
-        "candidate.current_price": executable_bridge,
-        "indicator.rsi": OperationCapability(
-            parseable=False, type_valid=False, role_valid=False,
-            provider_available=False, historical_safe=False,
-            reference_evaluable=False, backend_lowerable=False,
-            authoring_reachable=False, verified_profile=False,
-        ),
+        # Existing v2 Canonical bridge aliases.
+        "candidate.trailing_return": verified_adjusted_close,
+        "candidate.current_price": verified_adjusted_close,
+        # DailyValue operator profiles verified against the maintained runtime.
+        "daily.adjusted_close@1": verified_adjusted_close,
+        "daily.trailing_return@1": verified_adjusted_close,
+        "daily.sma@1": verified_adjusted_close,
+        "daily.ema@1": verified_adjusted_close,
+        "daily.rsi_wilder_lean_compat@1": verified_adjusted_close,
+        "daily.realized_volatility@1": verified_adjusted_close,
+        # Typed reference composition does not yet have general LEAN lowering.
+        "daily.history@1": reference_only,
+        "daily.reduce.asset@1": reference_only,
+        "daily.reduce.time@1": reference_only,
+        "daily.arithmetic@1": reference_only,
+        "daily.comparison_truth@1": reference_only,
+        # The maintained provider exposes neither these fields nor PIT identity.
+        "daily.raw_ohlc@1": provider_blocked,
+        "daily.volume_raw_shares@1": provider_blocked,
+        "daily.pit_membership@1": provider_blocked,
+        "indicator.rsi": verified_adjusted_close,
     }
+
