@@ -5,6 +5,7 @@ import pytest
 from ruletrade.strategy.v2.daily_probe import (
     DailyProbeLoweringError,
     lower_adjusted_close_probe,
+    lower_daily_value_probe,
     parse_daily_probe_observations,
 )
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
@@ -47,3 +48,16 @@ def test_probe_rejects_unimplemented_daily_operator() -> None:
     )
     with pytest.raises(DailyProbeLoweringError, match="only asset adjusted-close"):
         lower_adjusted_close_probe(trailing)
+
+
+def test_sma_probe_uses_maintained_lean_indicator_and_semantic_identity() -> None:
+    sma = DailyValueNode(
+        semantic_id="qqq-sma-5",
+        kind="sma",
+        operands=(adjusted_close(),),
+        observations=5,
+    )
+    source = lower_daily_value_probe(sma)
+    assert "SimpleMovingAverage(5)" in source
+    assert "qqq-sma-5" in source
+    assert '"sma"' in source
