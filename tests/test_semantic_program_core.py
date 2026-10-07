@@ -33,6 +33,7 @@ from ruletrade.strategy.v2.models import (
     SemanticProgramV2,
     StateTransitionStatementV2,
     StateTransitionV2,
+    StateConditionV2,
     UnresolvedStatementV2,
 )
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
@@ -427,3 +428,64 @@ def test_169_corpus_representative_classification_is_honest() -> None:
     assert provider.disposition == CorpusDisposition.PROVIDER_BLOCKED
     assert fuzzy.disposition == CorpusDisposition.UNRESOLVED
     assert deferred.disposition == CorpusDisposition.DEFERRED
+
+
+def test_declared_state_can_drive_control_and_undeclared_state_is_rejected() -> None:
+    state_gate = StateConditionV2(
+        semantic_id="risk-on-state", state_key="regime", expected="risk_on",
+    )
+    transition = StateTransitionStatementV2(
+        semantic_id="turn-risk-on",
+        transition=StateTransitionV2(
+            semantic_id="regime-transition",
+            state_key="regime",
+            from_value="risk_off",
+            to_value="risk_on",
+            when=condition_over("105"),
+        ),
+    )
+    routing = ConditionalStatementV2(
+        semantic_id="state-route",
+        condition=state_gate,
+        then_statements=(asset_allocation("QQQ", "risk-on-allocation"),),
+        otherwise_statements=(asset_allocation("TLT", "risk-off-allocation"),),
+    )
+    core = program(transition, routing)
+    assert execute_program_v2(core, snapshot(), cutoff_index=1).target_weights == {"QQQ": Decimal("1")}
+
+    invalid = program(routing.model_copy(update={
+        "condition": state_gate.model_copy(update={"state_key": "undeclared"}),
+    }))
+    assert "undeclared_state" in {item.code for item in validate_program_v2(invalid)}
+
+
+def test_group_allocation_expands_members_and_event_anchor_is_returned() -> None:
+    group_allocation = AllocationStatementV2(
+        semantic_id="group-allocation",
+        method="equal",
+        legs=(AllocationLegV2(
+            semantic_id="group-leg",
+            target=AllocationTargetV2(
+                semantic_id="group-target", kind="group", ref="growth",
+            ),
+        ),),
+    )
+    group_result = execute_program_v2(program(group_allocation), snapshot())
+    assert group_result.target_weights == {
+        "QQQ": Decimal(1) / Decimal(3),
+        "VGT": Decimal(1) / Decimal(3),
+        "SOXX": Decimal(1) / Decimal(3),
+    }
+
+    event_program = program(EventStatementV2(
+        semantic_id="event-handler",
+        event=EventDefinitionV2(
+            semantic_id="risk-on-event",
+            clock_id="daily-close",
+            condition=condition_over("105"),
+            trigger="rising_edge",
+        ),
+        statements=(asset_allocation("QQQ", "event-allocation"),),
+    ))
+    event_result = execute_program_v2(event_program, snapshot(), cutoff_index=1)
+    assert event_result.event_cutoffs == {"risk-on-event": 1}
