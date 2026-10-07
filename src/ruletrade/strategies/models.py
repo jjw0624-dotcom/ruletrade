@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v2.models import CanonicalStrategy
 
 StrategyName = Annotated[str, Field(min_length=1, max_length=100)]
 
@@ -31,7 +31,7 @@ class RevisionRecord(ProductModel):
     id: str
     strategy_id: str
     parent_revision_id: str | None
-    canonical_strategy: CanonicalStrategyV1
+    canonical_strategy: CanonicalStrategy
     source_hash: str
     schema_version: str
     created_at: datetime
