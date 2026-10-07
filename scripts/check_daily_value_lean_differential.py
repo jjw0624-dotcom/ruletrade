@@ -43,7 +43,7 @@ def _adjusted_close_snapshot(fixture: Path, symbol: str) -> DailyMarketSnapshot:
 
 def _compare(value: DailyValueNode, snapshot: DailyMarketSnapshot) -> dict[str, str | bool | None]:
     reference_value = DailyValueEvaluator(snapshot).evaluate(value).scalar()
-    operator_id = {"observe": "adjusted_close", "trailing_return": "trailing_return", "sma": "sma", "ema": "ema", "rsi_wilder_lean_compat": "rsi_wilder_lean_compat"}[value.kind]
+    operator_id = {"observe": "adjusted_close", "trailing_return": "trailing_return", "sma": "sma", "ema": "ema", "rsi_wilder_lean_compat": "rsi_wilder_lean_compat", "realized_volatility": "realized_volatility"}[value.kind]
     reference = DailyProbeObservation(
         semantic_id=value.semantic_id,
         operator_id=operator_id,
@@ -109,6 +109,12 @@ def main() -> None:
         operands=(close,),
         observations=5,
     )
+    volatility = DailyValueNode(
+        semantic_id="probe-qqq-realized-volatility-5",
+        kind="realized_volatility",
+        operands=(close,),
+        observations=5,
+    )
     print(json.dumps({
         "fixture": str(fixture),
         "fixture_price_scale": str(_LEAN_EQUITY_DAILY_PRICE_SCALE),
@@ -118,6 +124,7 @@ def main() -> None:
             _compare(sma, snapshot),
             _compare(ema, snapshot),
             _compare(rsi, snapshot),
+            _compare(volatility, snapshot),
         ],
     }, sort_keys=True))
 
