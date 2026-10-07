@@ -22,6 +22,7 @@ from ruletrade.strategy.v2.models import (
     SelectionStatementV2,
     SemanticProgramV2,
     StateTransitionStatementV2,
+    StateConditionV2,
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.program_validation import validate_program_v2
@@ -56,6 +57,7 @@ class ProgramExecutionResult:
     snapshot_id: str
     cutoff: str
     state: dict[str, str]
+    event_cutoffs: dict[str, int]
     selection_outputs: dict[str, tuple[str, ...]]
     target_weights: dict[str, Decimal]
     retained_holdings: bool
@@ -251,6 +253,8 @@ class _Runtime:
                 "gt": left.value > right.value,
             }
             return "true" if operations[condition.operator] else "false"
+        if isinstance(condition, StateConditionV2):
+            return "true" if self.state.get(condition.state_key) == condition.expected else "false"
         if isinstance(condition, NotConditionV2):
             return {"true": "false", "false": "true", "unknown": "unknown"}[
                 self.condition(condition.child, candidate=candidate, binding_id=binding_id, members=members)
@@ -361,7 +365,9 @@ class _Runtime:
                 return
             if target.kind == "selection":
                 assets = self.selections.get(target.ref or "", ())
-            elif target.kind in {"asset", "cash", "group"}:
+            elif target.kind == "group":
+                assets = self.members(target.ref or "")
+            elif target.kind in {"asset", "cash"}:
                 assets = (target.ref or target.kind.upper(),)
             else:
                 assets = ()
@@ -495,6 +501,7 @@ def execute_program_v2(
         snapshot_id=snapshot.snapshot_id,
         cutoff=snapshot.dates[cutoff],
         state=runtime.state,
+        event_cutoffs=runtime.event_cutoffs,
         selection_outputs=runtime.selections,
         target_weights=runtime.target_weights,
         retained_holdings=runtime.retained,
