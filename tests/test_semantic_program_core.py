@@ -467,6 +467,14 @@ def test_declared_state_can_drive_control_and_undeclared_state_is_rejected() -> 
         "condition": state_gate.model_copy(update={"state_key": "undeclared"}),
     }))
     assert "undeclared_state" in {item.code for item in validate_program_v2(invalid)}
+    invalid_eligibility = program(SelectionStatementV2(
+        semantic_id="invalid-state-eligibility",
+        selection=selection().model_copy(update={"eligibility": state_gate}),
+        output_id="invalid-output",
+    ))
+    assert "state_condition_role_forbidden" in {
+        item.code for item in validate_program_v2(invalid_eligibility)
+    }
 
 
 def test_group_allocation_expands_members_and_event_anchor_is_returned() -> None:
