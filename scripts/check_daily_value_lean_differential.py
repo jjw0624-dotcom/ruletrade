@@ -91,10 +91,34 @@ def main() -> None:
         operands=(close,),
         observations=5,
     )
+    sma = DailyValueNode(
+        semantic_id="probe-qqq-sma-5",
+        kind="sma",
+        operands=(close,),
+        observations=5,
+    )
+    ema = DailyValueNode(
+        semantic_id="probe-qqq-ema-5",
+        kind="ema",
+        operands=(close,),
+        observations=5,
+    )
+    rsi = DailyValueNode(
+        semantic_id="probe-qqq-rsi-5",
+        kind="rsi_wilder_lean_compat",
+        operands=(close,),
+        observations=5,
+    )
     print(json.dumps({
         "fixture": str(fixture),
         "fixture_price_scale": str(_LEAN_EQUITY_DAILY_PRICE_SCALE),
-        "results": [_compare(close, snapshot), _compare(trailing, snapshot)],
+        "results": [
+            _compare(close, snapshot),
+            _compare(trailing, snapshot),
+            _compare(sma, snapshot),
+            _compare(ema, snapshot),
+            _compare(rsi, snapshot),
+        ],
     }, sort_keys=True))
 
 
