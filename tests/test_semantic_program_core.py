@@ -590,3 +590,29 @@ def test_score_and_cross_section_domains_do_not_mix_units_or_universes() -> None
         output_id="wrong-domain-output",
     )))
     assert "cross_section_domain_mismatch" in {item.code for item in domain_issues}
+
+
+def test_program_value_provenance_hashes_content_not_semantic_address() -> None:
+    base = CrossSectionalValueV2(
+        semantic_id="rank-address-a",
+        source=candidate_return(),
+        domain_id="growth",
+        transform="percentile",
+        direction="descending",
+    )
+
+    def observed_hash(value: CrossSectionalValueV2) -> str:
+        result = execute_program_v2(program(SelectionStatementV2(
+            semantic_id=f"selection-{value.semantic_id}",
+            selection=selection(value),
+            output_id=f"output-{value.semantic_id}",
+        )), snapshot(), cutoff_index=2)
+        return next(
+            item.expression_hash for item in result.value_observations
+            if item.semantic_id == value.semantic_id
+        )
+
+    assert observed_hash(base) == observed_hash(base.model_copy(update={"semantic_id": "rank-address-b"}))
+    assert observed_hash(base) != observed_hash(base.model_copy(update={
+        "semantic_id": "rank-direction-change", "direction": "ascending",
+    }))
