@@ -61,3 +61,12 @@ def test_sma_probe_uses_maintained_lean_indicator_and_semantic_identity() -> Non
     assert "SimpleMovingAverage(5)" in source
     assert "qqq-sma-5" in source
     assert '"sma"' in source
+
+
+def test_requested_date_probe_has_explicit_missing_bar_fallback() -> None:
+    source = lower_daily_value_probe(
+        adjusted_close(), requested_date="2024-06-30"
+    )
+    assert 'RequestedDate = "2024-06-30"' in source
+    assert "missing_completed_bar" in source
+    assert "OnEndOfAlgorithm" in source
