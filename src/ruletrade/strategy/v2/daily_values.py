@@ -70,7 +70,7 @@ class DailyValueNode(FrozenModel):
     kind: Literal[
         "literal", "observe", "current", "history", "trailing_return",
         "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility",
-        "reduce", "arithmetic",
+        "reduce", "arithmetic", "absolute",
     ]
     operands: tuple["DailyValueNode", ...] = ()
     subject_kind: SubjectKind | None = None
@@ -97,7 +97,7 @@ class DailyValueNode(FrozenModel):
             "literal": 0, "observe": 0, "current": 1, "history": 1,
             "trailing_return": 1, "sma": 1, "ema": 1,
             "rsi_wilder_lean_compat": 1, "realized_volatility": 1,
-            "reduce": 1, "arithmetic": 2,
+            "reduce": 1, "arithmetic": 2, "absolute": 1,
         }[self.kind]
         if len(self.operands) != arity:
             raise ValueError(f"{self.kind} requires {arity} operand(s)")
@@ -230,7 +230,7 @@ def infer_daily_type(node: DailyValueNode, *, binding_id: str | None = None) -> 
     if node.kind == "observe":
         return _observe_type(node, binding_id)
     left = infer_daily_type(node.operands[0], binding_id=binding_id)
-    if node.kind == "current":
+    if node.kind in {"current", "absolute"}:
         return left
     if node.kind == "history":
         return left.model_copy(update={"axes": left.axes + (Axis(name="time", domain_id=f"daily-close:observations:{node.observations}:skip:{node.skip}", coordinate_policy="completed_observation"),)})
@@ -450,8 +450,14 @@ class DailyValueEvaluator:
             operator_versions=plan.operator_versions,
             fields=plan.fields,
             windows=tuple(windows),
-            reduction_axis=None if reduction is None else reduction.axis.value,
-            coverage_policy=None if reduction is None else reduction.missing_policy.value,
+            reduction_axis=(
+                reduction.axis.value
+                if reduction is not None and reduction.axis is not None
+                else None
+            ),
+            coverage_policy=(
+                reduction.missing_policy.value if reduction is not None else None
+            ),
             requested_members=tuple(dict.fromkeys(requested)),
             available_members=tuple(dict.fromkeys(available)),
             missing_members=tuple(dict.fromkeys(missing)),
@@ -467,6 +473,20 @@ class DailyValueEvaluator:
             return self._current_indicator(node, inferred, candidate)
         if node.kind == "current":
             return self.evaluate(node.operands[0], candidate=candidate, binding_id=binding_id)
+        if node.kind == "absolute":
+            source = self.evaluate(
+                node.operands[0], candidate=candidate, binding_id=binding_id
+            )
+            cells = {
+                coordinate: DailyCell(
+                    None if cell.value is None else abs(cell.value),
+                    cell.reason,
+                )
+                for coordinate, cell in source.cells.items()
+            }
+            return DailyValueResult(
+                inferred, source.axes, cells, source.observed_at
+            )
         if node.kind == "history":
             return self._history(node, inferred, candidate)
         if node.kind == "reduce":
@@ -489,11 +509,16 @@ class DailyValueEvaluator:
             return self.snapshot.field_values(symbol, node.field or MarketField.CLOSE, node.basis or PriceBasis.ADJUSTED)[:self.cutoff_index + 1]
         if node.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
             return _transform(node.kind, node.observations or 0, self._stream(node.operands[0], symbol))
+        if node.kind == "absolute":
+            return tuple(
+                None if value is None else abs(value)
+                for value in self._stream(node.operands[0], symbol)
+            )
         raise DailyValueError("expected_stream_expression")
 
     def _source_observe(self, node: DailyValueNode) -> DailyValueNode:
         current = node
-        while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
+        while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility", "absolute"}:
             current = current.operands[0]
         if current.kind != "observe":
             raise DailyValueError("stream_source_must_be_observe")
@@ -647,6 +672,10 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
 
         if value.kind == "current":
             return child_minimum, child_checkpoint
+        if value.kind == "absolute":
+            backend_lowerable = False
+            versions.add("absolute@1")
+            return child_minimum, child_checkpoint
         if value.kind == "trailing_return":
             versions.add("trailing_return@1")
             return child_minimum + window, child_checkpoint
@@ -700,6 +729,8 @@ def format_daily_value(node: DailyValueNode) -> str:
         return f"{subject}'s {field}"
     if node.kind == "current":
         return f"current {format_daily_value(node.operands[0])}"
+    if node.kind == "absolute":
+        return f"absolute {format_daily_value(node.operands[0])}"
     if node.kind == "history":
         return f"{node.observations}-observation history of {format_daily_value(node.operands[0])}"
     if node.kind in {"sma", "ema", "trailing_return", "rsi_wilder_lean_compat"}:
