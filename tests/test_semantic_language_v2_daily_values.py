@@ -221,3 +221,64 @@ def test_history_planner_preserves_nested_readiness_and_distinct_seed_checkpoint
     )
     assert ema_history.history.minimum_history_lower_bound == 112
     assert ema_history.history.seed_anchor_required
+
+
+@pytest.mark.parametrize(
+    ("prices", "expected"),
+    [
+        ([10, 11, 12, 13, 14, 15], Decimal("100")),
+        ([15, 14, 13, 12, 11, 10], Decimal("0")),
+        ([10, 10, 10, 10, 10, 10], Decimal("50")),
+    ],
+)
+def test_rsi_wilder_profile_golden_monotonic_and_flat(
+    prices: list[int],
+    expected: Decimal,
+) -> None:
+    dates = tuple(f"2026-02-{day:02d}" for day in range(1, len(prices) + 1))
+    snapshot = DailyMarketSnapshot(
+        snapshot_id="rsi-golden",
+        clock=Clock(id="daily-close"),
+        dates=dates,
+        domains={},
+        series={
+            "AAA": {
+                "close:adjusted": tuple(Decimal(value) for value in prices),
+            }
+        },
+    )
+    close = observe("rsi-close", SubjectKind.ASSET, "AAA")
+    rsi = DailyValueNode(
+        semantic_id="rsi-3",
+        kind="rsi_wilder_lean_compat",
+        operands=(close,),
+        observations=3,
+    )
+    assert DailyValueEvaluator(snapshot).evaluate(rsi).scalar() == expected
+
+
+def test_rsi_wilder_profile_preserves_continuing_state_not_rolling_mean() -> None:
+    prices = [10, 9, 10, 11, 12, 13, 14, 15]
+    dates = tuple(f"2026-03-{day:02d}" for day in range(1, len(prices) + 1))
+    snapshot = DailyMarketSnapshot(
+        snapshot_id="rsi-continuing",
+        clock=Clock(id="daily-close"),
+        dates=dates,
+        domains={},
+        series={
+            "AAA": {
+                "close:adjusted": tuple(Decimal(value) for value in prices),
+            }
+        },
+    )
+    close = observe("rsi-close", SubjectKind.ASSET, "AAA")
+    rsi = DailyValueNode(
+        semantic_id="rsi-3",
+        kind="rsi_wilder_lean_compat",
+        operands=(close,),
+        observations=3,
+    )
+    value = DailyValueEvaluator(snapshot).evaluate(rsi).scalar()
+    assert value is not None
+    assert value < Decimal("100")
+    assert value > Decimal("90")
