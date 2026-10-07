@@ -18,6 +18,7 @@ from ruletrade.strategy.v2.authoring import (
     apply_v2_authoring,
 )
 from ruletrade.strategy.v2.daily_values import (
+    DailyMarketSnapshot,
     DailyValueNode,
     MarketField,
     PriceBasis,
@@ -31,7 +32,8 @@ from ruletrade.strategy.v2.models import (
     SelectionV2,
     StrategyDefinitionsV2,
 )
-from ruletrade.strategy.v2.semantic_types import Quantity, Unit, asset_axis
+from ruletrade.strategy.v2.execution import execute_selection_v2
+from ruletrade.strategy.v2.semantic_types import Clock, Quantity, Unit, asset_axis
 from ruletrade.strategy.v2.validation import SemanticRole, validate_condition, validate_strategy_v2
 
 
@@ -193,3 +195,71 @@ def test_v2_api_capabilities_are_provider_honest() -> None:
         assert capabilities["daily.rsi_wilder_lean_compat@1"]["available"] is True
         assert capabilities["daily.volume_raw_shares@1"]["available"] is False
         assert capabilities["daily.raw_ohlc@1"]["available"] is False
+
+
+def selection_snapshot() -> DailyMarketSnapshot:
+    return DailyMarketSnapshot(
+        snapshot_id="selection-fixture",
+        clock=Clock(id="daily-close"),
+        dates=("2026-01-01", "2026-01-02", "2026-01-03"),
+        domains={"growth": ("QQQ", "VGT", "SOXX")},
+        series={
+            "QQQ": {"close:adjusted": (Decimal("100"), Decimal("110"), Decimal("121"))},
+            "VGT": {"close:adjusted": (Decimal("100"), Decimal("90"), Decimal("81"))},
+            "SOXX": {"close:adjusted": (Decimal("100"), Decimal("100"), None)},
+        },
+    )
+
+
+def test_generalized_selection_executes_truth_ranking_fallback_and_evidence() -> None:
+    strategy = strategy_v2()
+    ranking = candidate_return(2, "ranking-return")
+    positive = ComparisonV2(
+        semantic_id="positive",
+        operator="gt",
+        left=ranking,
+        right=return_literal("0", "threshold"),
+    )
+    strategy = strategy.model_copy(update={
+        "selection": strategy.selection.model_copy(update={
+            "eligibility": positive,
+            "ranking": ranking,
+            "count": 2,
+            "shortage_policy": "require_full",
+            "fallback_asset": "TLT",
+        }),
+    })
+    result = execute_selection_v2(strategy, selection_snapshot())
+    assert result.complete is False
+    assert result.selected_assets == ("TLT",)
+    assert result.evidence.eligible_members == ("QQQ",)
+    assert result.evidence.unknown_members == ("SOXX",)
+    assert result.evidence.fallback_used is True
+    assert {item.semantic_id for item in result.evidence.comparisons} == {"positive"}
+    qqq = next(item for item in result.evidence.ranking_observations if item.candidate == "QQQ")
+    assert qqq.semantic_id == "ranking-return"
+    assert qqq.value == Decimal("0.21")
+    assert qqq.expression_hash
+
+
+def test_choose_all_shortage_is_distinct_from_selection_fallback() -> None:
+    strategy = strategy_v2()
+    ranking = candidate_return(2, "ranking-return")
+    strategy = strategy.model_copy(update={
+        "selection": strategy.selection.model_copy(update={
+            "eligibility": ComparisonV2(
+                semantic_id="positive",
+                operator="gt",
+                left=ranking,
+                right=return_literal("0", "threshold"),
+            ),
+            "ranking": ranking,
+            "count": 2,
+            "shortage_policy": "choose_all",
+            "fallback_asset": "TLT",
+        }),
+    })
+    result = execute_selection_v2(strategy, selection_snapshot())
+    assert result.complete is False
+    assert result.selected_assets == ("QQQ",)
+    assert result.evidence.fallback_used is False
