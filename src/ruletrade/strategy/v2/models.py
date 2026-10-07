@@ -1,8 +1,13 @@
-"""Explicit Canonical v2 envelope for the first Profile A vertical slice."""
+"""Canonical v2 authoring models for Profile A.
+
+The v2 envelope deliberately remains distinct from v1.  Values reuse the typed
+DailyValueNode algebra verified in Work 2; authoring never invents a parallel
+expression language.
+"""
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
@@ -12,6 +17,7 @@ from ruletrade.strategy.v1.models import (
     GroupDefinition,
     StrategyMetadata,
 )
+from ruletrade.strategy.v2.daily_values import DailyValueNode, SubjectKind, infer_daily_type
 from ruletrade.strategy.v2.semantic_types import (
     Axis,
     Clock,
@@ -32,6 +38,8 @@ class CandidateBinding(FrozenModel):
     domain_id: Identifier
 
 
+# Legacy bridge nodes stay readable so Work 2/v1 lowering remains stable. New
+# authoring emits DailyValueNode.
 class LiteralValue(FrozenModel):
     kind: Literal["literal"] = "literal"
     semantic_id: Identifier
@@ -85,25 +93,43 @@ class CandidateCurrentPriceValue(FrozenModel):
         )
 
 
-ValueExpressionV2 = Annotated[
-    LiteralValue | CandidateTrailingReturnValue | CandidateCurrentPriceValue,
-    Field(discriminator="kind"),
-]
+ValueExpressionV2: TypeAlias = (
+    DailyValueNode | LiteralValue | CandidateTrailingReturnValue | CandidateCurrentPriceValue
+)
 
 
 class ComparisonV2(FrozenModel):
+    kind: Literal["comparison"] = "comparison"
     semantic_id: Identifier
     operator: Literal["lt", "lte", "eq", "neq", "gte", "gt"]
     left: ValueExpressionV2
     right: ValueExpressionV2
 
 
+class BooleanGroupV2(FrozenModel):
+    kind: Literal["all", "any"]
+    semantic_id: Identifier
+    children: tuple["ConditionV2", ...] = Field(min_length=1, max_length=12)
+
+
+class NotConditionV2(FrozenModel):
+    kind: Literal["not"] = "not"
+    semantic_id: Identifier
+    child: "ConditionV2"
+
+
+ConditionV2: TypeAlias = Annotated[
+    ComparisonV2 | BooleanGroupV2 | NotConditionV2,
+    Field(discriminator="kind"),
+]
+
+
 class SelectionV2(FrozenModel):
     semantic_id: Identifier
     universe_id: Identifier
     binding: CandidateBinding
-    eligibility: ComparisonV2 | None = None
-    ranking: CandidateTrailingReturnValue | CandidateCurrentPriceValue
+    eligibility: ConditionV2 | None = None
+    ranking: ValueExpressionV2
     direction: Literal["ascending", "descending"] = "descending"
     count: Annotated[int, Field(ge=1, le=100)]
     shortage_policy: Literal["choose_all", "require_full"] = "choose_all"
@@ -113,12 +139,31 @@ class SelectionV2(FrozenModel):
     def validate_binding(self) -> "SelectionV2":
         if self.binding.domain_id != self.universe_id:
             raise ValueError("candidate binding must be lexically bound to the Selection universe")
-        values = [self.ranking]
-        if self.eligibility is not None:
-            values += [self.eligibility.left, self.eligibility.right]
-        for value in values:
-            if hasattr(value, "binding_id") and value.binding_id != self.binding.id:
+
+        def visit_value(value: ValueExpressionV2) -> None:
+            if isinstance(value, DailyValueNode):
+                stack = [value]
+                while stack:
+                    node = stack.pop()
+                    if node.subject_kind == SubjectKind.CANDIDATE and node.binding_id != self.binding.id:
+                        raise ValueError("unbound_candidate: Value belongs to a different lexical binder")
+                    stack.extend(node.operands)
+            elif hasattr(value, "binding_id") and value.binding_id != self.binding.id:
                 raise ValueError("unbound_candidate: Value belongs to a different lexical binder")
+
+        def visit_condition(condition: ConditionV2) -> None:
+            if isinstance(condition, ComparisonV2):
+                visit_value(condition.left)
+                visit_value(condition.right)
+            elif isinstance(condition, BooleanGroupV2):
+                for child in condition.children:
+                    visit_condition(child)
+            else:
+                visit_condition(condition.child)
+
+        visit_value(self.ranking)
+        if self.eligibility is not None:
+            visit_condition(self.eligibility)
         return self
 
 
@@ -149,17 +194,33 @@ class CanonicalStrategyV2(FrozenModel):
     definitions: StrategyDefinitionsV2
     operator_lock: dict[str, str]
     selection: SelectionV2
+    predicate: ConditionV2 | None = None
 
     @model_validator(mode="after")
     def validate_operator_lock(self) -> "CanonicalStrategyV2":
-        required = {"candidate.trailing_return", "compare"}
-        missing = required - set(self.operator_lock)
-        if missing:
-            raise ValueError(f"operator_lock is missing: {', '.join(sorted(missing))}")
+        if "compare" not in self.operator_lock:
+            raise ValueError("operator_lock is missing: compare")
         return self
 
 
-CanonicalStrategyDocument = Annotated[
-    CanonicalStrategyV2,
-    Field(discriminator="api_version"),
-]
+BooleanGroupV2.model_rebuild()
+NotConditionV2.model_rebuild()
+SelectionV2.model_rebuild()
+CanonicalStrategyV2.model_rebuild()
+
+CanonicalStrategy = CanonicalStrategyV1 | CanonicalStrategyV2
+
+
+def parse_canonical_strategy(value: object) -> CanonicalStrategy:
+    """Parse only by explicit api_version; never reinterpret v1 as v2."""
+
+    if isinstance(value, (CanonicalStrategyV1, CanonicalStrategyV2)):
+        return value
+    if not isinstance(value, dict):
+        raise ValueError("canonical Strategy must be an object")
+    version = value.get("api_version")
+    if version == "ruletrade.dev/strategy/v1":
+        return CanonicalStrategyV1.model_validate(value)
+    if version == "ruletrade.dev/strategy/v2":
+        return CanonicalStrategyV2.model_validate(value)
+    raise ValueError(f"unsupported canonical api_version: {version!r}")
