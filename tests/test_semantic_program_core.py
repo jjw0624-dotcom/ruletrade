@@ -1,0 +1,429 @@
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from ruletrade.strategy.v2.daily_values import (
+    DailyMarketSnapshot,
+    DailyValueNode,
+    MarketField,
+    PriceBasis,
+    SubjectKind,
+)
+from ruletrade.strategy.v2.models import (
+    AllocationLegV2,
+    AllocationStatementV2,
+    AllocationTargetV2,
+    BooleanGroupV2,
+    CandidateBinding,
+    ComparisonV2,
+    ConditionalStatementV2,
+    CrossSectionalValueV2,
+    EventDefinitionV2,
+    EventRelativeValueV2,
+    EventStatementV2,
+    GuardedAllocationStatementV2,
+    OverrideRuleV2,
+    ProgramClockV2,
+    ScoreTermV2,
+    ScoreValueV2,
+    SelectionStatementV2,
+    SelectionV2,
+    SemanticProgramV2,
+    StateTransitionStatementV2,
+    StateTransitionV2,
+    UnresolvedStatementV2,
+)
+from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.program_validation import (
+    CorpusDisposition,
+    classify_corpus_case,
+    validate_program_v2,
+)
+from ruletrade.strategy.v2.semantic_types import Clock, Quantity, Unit
+
+
+def snapshot() -> DailyMarketSnapshot:
+    return DailyMarketSnapshot(
+        snapshot_id="program-core",
+        clock=Clock(id="daily-close"),
+        dates=(
+            "2026-01-01", "2026-01-02", "2026-01-05",
+            "2026-01-06", "2026-01-30", "2026-02-02",
+        ),
+        domains={"growth": ("QQQ", "VGT", "SOXX")},
+        series={
+            "QQQ": {"close:adjusted": tuple(map(Decimal, ("100", "110", "121", "125", "130", "132")))},
+            "VGT": {"close:adjusted": tuple(map(Decimal, ("100", "101", "102", "102", "103", "104")))},
+            "SOXX": {"close:adjusted": tuple(map(Decimal, ("100", "95", "90", "89", "88", "87")))},
+            "TLT": {"close:adjusted": tuple(map(Decimal, ("100", "100", "100", "100", "100", "100")))},
+        },
+    )
+
+
+def candidate_close(semantic_id: str = "candidate-close") -> DailyValueNode:
+    return DailyValueNode(
+        semantic_id=semantic_id,
+        kind="observe",
+        subject_kind=SubjectKind.CANDIDATE,
+        binding_id="candidate",
+        field=MarketField.CLOSE,
+        basis=PriceBasis.ADJUSTED,
+    )
+
+
+def candidate_return(semantic_id: str = "candidate-return") -> DailyValueNode:
+    return DailyValueNode(
+        semantic_id=semantic_id,
+        kind="trailing_return",
+        observations=1,
+        operands=(candidate_close(f"{semantic_id}-close"),),
+    )
+
+
+def asset_close(symbol: str, semantic_id: str) -> DailyValueNode:
+    return DailyValueNode(
+        semantic_id=semantic_id,
+        kind="observe",
+        subject_kind=SubjectKind.ASSET,
+        subject_id=symbol,
+        field=MarketField.CLOSE,
+        basis=PriceBasis.ADJUSTED,
+    )
+
+
+def literal(value: str, semantic_id: str, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE) -> DailyValueNode:
+    return DailyValueNode(
+        semantic_id=semantic_id,
+        kind="literal",
+        value=Decimal(value),
+        quantity=quantity,
+        unit=unit,
+        refinement="adjusted_close" if quantity == Quantity.PRICE else "score",
+    )
+
+
+def condition_over(value: str = "105") -> ComparisonV2:
+    return ComparisonV2(
+        semantic_id=f"qqq-over-{value}",
+        operator="gt",
+        left=asset_close("QQQ", "qqq-close"),
+        right=literal(value, f"threshold-{value}"),
+    )
+
+
+def selection(ranking=None) -> SelectionV2:
+    return SelectionV2(
+        semantic_id="growth-selection",
+        universe_id="growth",
+        binding=CandidateBinding(id="candidate", domain_id="growth"),
+        eligibility=None,
+        ranking=ranking or candidate_return(),
+        direction="descending",
+        count=2,
+        shortage_policy="require_full",
+        fallback_asset="TLT",
+    )
+
+
+def equal_selection_allocation(output_id: str = "chosen") -> AllocationStatementV2:
+    return AllocationStatementV2(
+        semantic_id="allocate-selection",
+        method="equal",
+        legs=(
+            AllocationLegV2(
+                semantic_id="selected-leg",
+                target=AllocationTargetV2(
+                    semantic_id="selected-target", kind="selection", ref=output_id,
+                ),
+            ),
+        ),
+    )
+
+
+def asset_allocation(symbol: str, semantic_id: str) -> AllocationStatementV2:
+    return AllocationStatementV2(
+        semantic_id=semantic_id,
+        method="fixed",
+        legs=(
+            AllocationLegV2(
+                semantic_id=f"{semantic_id}-leg",
+                target=AllocationTargetV2(
+                    semantic_id=f"{semantic_id}-target", kind="asset", ref=symbol,
+                ),
+                weight=Decimal("1"),
+            ),
+        ),
+    )
+
+
+def program(*statements, timeframe: str = "daily") -> SemanticProgramV2:
+    return SemanticProgramV2(
+        semantic_id="program",
+        clocks=(ProgramClockV2(id=f"{timeframe}-close", timeframe=timeframe),),
+        initial_state={"regime": "risk_off"},
+        statements=statements,
+    )
+
+
+def test_cross_sectional_rank_percentile_quantile_bucket_and_score_are_deterministic() -> None:
+    source = candidate_return()
+    percentile = CrossSectionalValueV2(
+        semantic_id="momentum-percentile",
+        source=source,
+        domain_id="growth",
+        transform="percentile",
+        direction="descending",
+    )
+    score = ScoreValueV2(
+        semantic_id="composite-score",
+        terms=(
+            ScoreTermV2(semantic_id="percentile-term", value=percentile, weight=Decimal("0.75")),
+            ScoreTermV2(
+                semantic_id="return-term", value=source, weight=Decimal("0.25"),
+            ),
+        ),
+    )
+    core = program(
+        SelectionStatementV2(
+            semantic_id="select-by-score",
+            selection=selection(score),
+            output_id="chosen",
+        ),
+        equal_selection_allocation(),
+    )
+    result = execute_program_v2(core, snapshot(), cutoff_index=2)
+    assert result.selection_outputs["chosen"] == ("QQQ", "VGT")
+    assert result.target_weights == {"QQQ": Decimal("0.5"), "VGT": Decimal("0.5")}
+    observed = {
+        (item.semantic_id, item.candidate): item.value
+        for item in result.value_observations
+    }
+    assert observed[("momentum-percentile", "QQQ")] == Decimal("1")
+    assert observed[("momentum-percentile", "SOXX")] == Decimal("0")
+
+    for transform in ("quantile", "bucket"):
+        ranked = CrossSectionalValueV2(
+            semantic_id=f"{transform}-value",
+            source=source,
+            domain_id="growth",
+            transform=transform,
+            bins=3,
+        )
+        candidate_program = program(
+            SelectionStatementV2(
+                semantic_id=f"select-{transform}",
+                selection=selection(ranked),
+                output_id="chosen",
+            ),
+        )
+        outcome = execute_program_v2(candidate_program, snapshot(), cutoff_index=2)
+        assert outcome.selection_outputs["chosen"][:2] == ("QQQ", "VGT")
+
+
+def test_event_rising_edge_and_event_relative_reference_use_exact_anchor() -> None:
+    relative = EventRelativeValueV2(
+        semantic_id="event-close",
+        event_id="risk-on-event",
+        source=candidate_close("event-candidate-close"),
+        offset_observations=0,
+    )
+    event_selection = selection(relative).model_copy(update={"count": 1})
+    core = program(
+        EventStatementV2(
+            semantic_id="risk-on-handler",
+            event=EventDefinitionV2(
+                semantic_id="risk-on-event",
+                clock_id="daily-close",
+                condition=condition_over("105"),
+                trigger="rising_edge",
+            ),
+            statements=(
+                SelectionStatementV2(
+                    semantic_id="event-selection",
+                    selection=event_selection,
+                    output_id="event-choice",
+                ),
+            ),
+        ),
+    )
+    before = execute_program_v2(core, snapshot(), cutoff_index=0)
+    triggered = execute_program_v2(core, snapshot(), cutoff_index=1)
+    after = execute_program_v2(core, snapshot(), cutoff_index=2)
+    assert "event-choice" not in before.selection_outputs
+    assert triggered.selection_outputs["event-choice"] == ("QQQ",)
+    assert "event-choice" not in after.selection_outputs
+    assert any(item.semantic_id == "event-close" and item.observed_at == "2026-01-02" for item in triggered.value_observations)
+
+
+def test_state_transition_is_explicit_and_does_not_mutate_on_false_or_unknown() -> None:
+    core = program(
+        StateTransitionStatementV2(
+            semantic_id="enter-risk-on",
+            transition=StateTransitionV2(
+                semantic_id="risk-on-transition",
+                state_key="regime",
+                from_value="risk_off",
+                to_value="risk_on",
+                when=condition_over("105"),
+                clock_id="daily-close",
+            ),
+        ),
+    )
+    assert execute_program_v2(core, snapshot(), cutoff_index=0).state["regime"] == "risk_off"
+    assert execute_program_v2(core, snapshot(), cutoff_index=1).state["regime"] == "risk_on"
+
+
+def test_multi_clock_runs_only_at_completed_boundary() -> None:
+    weekly = SemanticProgramV2(
+        semantic_id="weekly-program",
+        clocks=(ProgramClockV2(id="weekly-close", timeframe="weekly"),),
+        statements=(
+            SelectionStatementV2(
+                semantic_id="weekly-selection",
+                selection=selection(),
+                output_id="weekly-choice",
+                clock_id="weekly-close",
+            ),
+        ),
+    )
+    assert "weekly-choice" not in execute_program_v2(weekly, snapshot(), cutoff_index=0).selection_outputs
+    assert "weekly-choice" in execute_program_v2(weekly, snapshot(), cutoff_index=1).selection_outputs
+
+
+def test_control_executes_only_selected_branch_and_unknown_retains() -> None:
+    core = program(
+        ConditionalStatementV2(
+            semantic_id="risk-control",
+            condition=condition_over("105"),
+            then_statements=(asset_allocation("QQQ", "risk-on"),),
+            otherwise_statements=(asset_allocation("TLT", "risk-off"),),
+        ),
+    )
+    false_result = execute_program_v2(core, snapshot(), cutoff_index=0)
+    true_result = execute_program_v2(core, snapshot(), cutoff_index=1)
+    assert false_result.target_weights == {"TLT": Decimal("1")}
+    assert true_result.target_weights == {"QQQ": Decimal("1")}
+    assert {item.semantic_id for item in true_result.evidence if item.kind == "allocation"} == {"risk-on"}
+
+
+def test_guard_override_primary_fallback_precedence_is_total() -> None:
+    select_empty = SelectionStatementV2(
+        semantic_id="empty-selection",
+        selection=selection().model_copy(update={
+            "eligibility": condition_over("1000"),
+            "fallback_asset": None,
+        }),
+        output_id="chosen",
+    )
+    guarded = GuardedAllocationStatementV2(
+        semantic_id="capital-policy",
+        guard=condition_over("50"),
+        primary=equal_selection_allocation(),
+        overrides=(
+            OverrideRuleV2(
+                semantic_id="risk-override",
+                priority=100,
+                when=condition_over("120"),
+                action=asset_allocation("TLT", "override-tlt"),
+            ),
+        ),
+        fallback=asset_allocation("TLT", "fallback-tlt"),
+    )
+    core = program(select_empty, guarded)
+    fallback = execute_program_v2(core, snapshot(), cutoff_index=1)
+    override = execute_program_v2(core, snapshot(), cutoff_index=3)
+    assert fallback.target_weights == {"TLT": Decimal("1")}
+    assert any(item.outcome == "fallback" for item in fallback.evidence)
+    assert override.target_weights == {"TLT": Decimal("1")}
+    assert any(item.outcome == "override" for item in override.evidence)
+
+
+def test_unknown_guard_blocks_and_retains_holdings() -> None:
+    missing = ComparisonV2(
+        semantic_id="missing-guard",
+        operator="gt",
+        left=DailyValueNode(
+            semantic_id="missing-history",
+            kind="sma",
+            observations=20,
+            operands=(asset_close("QQQ", "guard-close"),),
+        ),
+        right=literal("1", "one"),
+    )
+    core = program(
+        GuardedAllocationStatementV2(
+            semantic_id="guarded",
+            guard=missing,
+            primary=asset_allocation("QQQ", "primary"),
+        ),
+    )
+    result = execute_program_v2(core, snapshot(), cutoff_index=1)
+    assert result.retained_holdings is True
+    assert result.target_weights == {}
+    assert result.evidence[-1].outcome == "guard_blocked"
+
+
+def test_fixed_allocation_requires_exact_total_and_parallel_targets() -> None:
+    with pytest.raises(ValueError, match="sum exactly"):
+        AllocationStatementV2(
+            semantic_id="bad-split",
+            method="fixed",
+            legs=(
+                AllocationLegV2(
+                    semantic_id="growth",
+                    target=AllocationTargetV2(
+                        semantic_id="growth-target", kind="asset", ref="QQQ",
+                    ),
+                    weight=Decimal("0.7"),
+                ),
+                AllocationLegV2(
+                    semantic_id="defensive",
+                    target=AllocationTargetV2(
+                        semantic_id="defensive-target", kind="asset", ref="TLT",
+                    ),
+                    weight=Decimal("0.2"),
+                ),
+            ),
+        )
+
+
+def test_fuzzy_or_unresolved_semantics_are_draft_only() -> None:
+    unresolved = program(
+        UnresolvedStatementV2(
+            semantic_id="fuzzy-strong-market",
+            source_text="buy when the market feels strong",
+            category="fuzzy_term",
+            reason="strong has no explicit measurable definition",
+        ),
+    )
+    issues = validate_program_v2(unresolved)
+    assert {item.code for item in issues} == {"unresolved_semantics"}
+    with pytest.raises(ProgramExecutionError, match="unresolved_semantics"):
+        execute_program_v2(unresolved, snapshot())
+
+
+def test_169_corpus_representative_classification_is_honest() -> None:
+    representable = classify_corpus_case(
+        "K-cross-score-event-state",
+        required_semantics={
+            "cross_section", "score", "event", "state", "event_relative",
+            "multi_clock", "allocation", "guard", "override", "fallback",
+        },
+    )
+    provider = classify_corpus_case(
+        "K-volume-breakout",
+        required_semantics={"condition"},
+        provider_fields={"adjusted_close", "volume"},
+    )
+    fuzzy = classify_corpus_case(
+        "K-strong-market", required_semantics={"condition"}, has_fuzzy_terms=True,
+    )
+    deferred = classify_corpus_case(
+        "K-options-vol-surface", required_semantics={"options_surface"},
+    )
+    assert representable.disposition == CorpusDisposition.REPRESENTABLE
+    assert provider.disposition == CorpusDisposition.PROVIDER_BLOCKED
+    assert fuzzy.disposition == CorpusDisposition.UNRESOLVED
+    assert deferred.disposition == CorpusDisposition.DEFERRED
