@@ -15,7 +15,9 @@ from ruletrade.strategy.v2.models import (
     CanonicalStrategyV2,
     ConditionV2,
     Identifier,
+    ProgramStatementV2,
     SelectionV2,
+    SemanticProgramV2,
     Symbol,
     ValueExpressionV2,
 )
@@ -70,6 +72,17 @@ class SetPredicate(FrozenModel):
     predicate: ConditionV2 | None
 
 
+class SetSemanticProgram(FrozenModel):
+    kind: Literal["set_semantic_program"]
+    program: SemanticProgramV2
+
+
+class ReplaceProgramStatement(FrozenModel):
+    kind: Literal["replace_program_statement"]
+    semantic_id: Identifier
+    statement: ProgramStatementV2
+
+
 V2AuthoringOperation = Annotated[
     SetSelectionUniverse
     | SetEligibilityCondition
@@ -78,7 +91,9 @@ V2AuthoringOperation = Annotated[
     | SetSelectionCount
     | SetShortagePolicy
     | SetSelectionFallback
-    | SetPredicate,
+    | SetPredicate
+    | SetSemanticProgram
+    | ReplaceProgramStatement,
     Field(discriminator="kind"),
 ]
 
@@ -128,6 +143,47 @@ def authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
     )
 
 
+def _replace_program_statement(
+    program: SemanticProgramV2,
+    semantic_id: str,
+    replacement: ProgramStatementV2,
+) -> SemanticProgramV2:
+    from ruletrade.strategy.v2.models import ConditionalStatementV2, EventStatementV2
+
+    matches = 0
+
+    def visit(statement: ProgramStatementV2) -> ProgramStatementV2:
+        nonlocal matches
+        if statement.semantic_id == semantic_id:
+            matches += 1
+            return replacement
+        if isinstance(statement, ConditionalStatementV2):
+            return statement.model_copy(update={
+                "then_statements": tuple(visit(item) for item in statement.then_statements),
+                "otherwise_statements": tuple(visit(item) for item in statement.otherwise_statements),
+            })
+        if isinstance(statement, EventStatementV2):
+            return statement.model_copy(update={
+                "statements": tuple(visit(item) for item in statement.statements),
+            })
+        return statement
+
+    changed = program.model_copy(update={
+        "statements": tuple(visit(item) for item in program.statements),
+    })
+    if matches == 0:
+        raise V2AuthoringError(
+            "program_statement_not_found",
+            f"No Program statement has semantic id {semantic_id!r}.",
+        )
+    if matches > 1:
+        raise V2AuthoringError(
+            "ambiguous_program_address",
+            f"Program semantic id {semantic_id!r} is not unique.",
+        )
+    return SemanticProgramV2.model_validate(changed)
+
+
 def apply_v2_authoring(request: ApplyV2AuthoringRequest) -> ApplyV2AuthoringResponse:
     current_hash = strategy_hash(request.strategy)
     if current_hash != request.expected_source_hash:
@@ -138,6 +194,16 @@ def apply_v2_authoring(request: ApplyV2AuthoringRequest) -> ApplyV2AuthoringResp
 
     operation = request.operation
     selection = request.strategy.selection
+    selection_operations = (
+        SetSelectionUniverse, SetEligibilityCondition, SetRankingValue,
+        SetRankingDirection, SetSelectionCount, SetShortagePolicy,
+        SetSelectionFallback,
+    )
+    if isinstance(operation, selection_operations) and selection is None:
+        raise V2AuthoringError(
+            "compatibility_selection_missing",
+            "This Strategy is Program-native; address a Program statement instead.",
+        )
     if isinstance(operation, SetSelectionUniverse):
         selection = selection.model_copy(update={
             "universe_id": operation.universe_id,
@@ -158,6 +224,19 @@ def apply_v2_authoring(request: ApplyV2AuthoringRequest) -> ApplyV2AuthoringResp
 
     if isinstance(operation, SetPredicate):
         candidate = request.strategy.model_copy(update={"predicate": operation.predicate})
+    elif isinstance(operation, SetSemanticProgram):
+        candidate = request.strategy.model_copy(update={"program": operation.program})
+    elif isinstance(operation, ReplaceProgramStatement):
+        if request.strategy.program is None:
+            raise V2AuthoringError(
+                "semantic_program_missing",
+                "This Strategy does not yet contain a Semantic Program.",
+            )
+        candidate = request.strategy.model_copy(update={
+            "program": _replace_program_statement(
+                request.strategy.program, operation.semantic_id, operation.statement,
+            ),
+        })
     else:
         candidate = request.strategy.model_copy(update={"selection": SelectionV2.model_validate(selection)})
 
