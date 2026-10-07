@@ -99,9 +99,9 @@ def test_quantity_and_refinement_reject_rsi_as_return() -> None:
 
 
 def test_axes_align_by_domain_identity_not_length_and_scalar_broadcasts() -> None:
-    growth = SemanticType(SemanticDType.DECIMAL, Quantity.PRICE, Unit.USD_PER_SHARE, axes=(asset_axis("growth"),))
-    defensive = SemanticType(SemanticDType.DECIMAL, Quantity.PRICE, Unit.USD_PER_SHARE, axes=(asset_axis("defensive"),))
-    scalar = SemanticType(SemanticDType.DECIMAL, Quantity.PRICE, Unit.USD_PER_SHARE)
+    growth = SemanticType(dtype=SemanticDType.DECIMAL, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE, axes=(asset_axis("growth"),))
+    defensive = SemanticType(dtype=SemanticDType.DECIMAL, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE, axes=(asset_axis("defensive"),))
+    scalar = SemanticType(dtype=SemanticDType.DECIMAL, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE)
     with pytest.raises(SemanticTypeError, match="axis_domain_mismatch"):
         aligned_axes(growth, defensive)
     assert aligned_axes(scalar, growth) == growth.axes
@@ -109,8 +109,8 @@ def test_axes_align_by_domain_identity_not_length_and_scalar_broadcasts() -> Non
 
 def test_cartesian_broadcast_is_not_created_implicitly() -> None:
     clock = Clock(id="daily-close")
-    by_asset = SemanticType(SemanticDType.DECIMAL, Quantity.PRICE, Unit.USD_PER_SHARE, axes=(asset_axis("growth"),), clock=clock)
-    by_time = SemanticType(SemanticDType.DECIMAL, Quantity.PRICE, Unit.USD_PER_SHARE, axes=(Axis(name="time", domain_id="daily"),), clock=clock)
+    by_asset = SemanticType(dtype=SemanticDType.DECIMAL, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE, axes=(asset_axis("growth"),), clock=clock)
+    by_time = SemanticType(dtype=SemanticDType.DECIMAL, quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE, axes=(Axis(name="time", domain_id="daily"),), clock=clock)
     with pytest.raises(SemanticTypeError, match="implicit_cartesian"):
         aligned_axes(by_asset, by_time)
 

@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from ruletrade.strategy.v1.models import AssetSetDefinition, GroupDefinition, StrategyMetadata
+from ruletrade.strategy.v1.models import (\n    AssetSetDefinition,\n    CanonicalStrategyV1,\n    GroupDefinition,\n    StrategyMetadata,\n)
 from ruletrade.strategy.v2.semantic_types import (
     Axis,
     Clock,

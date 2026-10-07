@@ -10,7 +10,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Iterable, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -138,7 +138,7 @@ def require_compatible_values(left: SemanticType, right: SemanticType) -> tuple[
         raise SemanticTypeError(
             "unit_mismatch: comparison requires equal quantity, unit, and refinement"
         )
-    if left.clock != right.clock:
+    if left.clock is not None and right.clock is not None and left.clock != right.clock:
         raise SemanticTypeError("clock_alignment_required")
     return aligned_axes(left, right)
 
