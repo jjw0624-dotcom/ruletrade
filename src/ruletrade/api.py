@@ -796,6 +796,8 @@ class EvaluateSemanticProgramRequest(FrozenModel):
     cutoff: str | None = None
     revision_id: str | None = None
     prior_state: dict[str, str] | None = None
+    event_cutoffs: dict[str, int] | None = None
+    prior_event_truths: dict[str, str] | None = None
 
 
 @app.post("/v2/canonical/programs/evaluate")
@@ -811,6 +813,8 @@ def evaluate_semantic_program(request: EvaluateSemanticProgramRequest) -> dict[s
             cutoff_index=cutoff_index,
             revision_id=request.revision_id,
             prior_state=request.prior_state,
+            event_cutoffs=request.event_cutoffs,
+            prior_event_truths=request.prior_event_truths,
         )
     except (
         DailyDatasetProviderError,
