@@ -82,7 +82,7 @@ jobs:
           df -h /
       - name: Compile generated C# against LEAN
         run: ./scripts/check_lean.sh --compile-only
-      - name: Run v2 daily adjusted-close LEAN differential
+      - name: Run Profile A Work 2 DailyValue LEAN differentials
         run: make check-lean-daily-values
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
