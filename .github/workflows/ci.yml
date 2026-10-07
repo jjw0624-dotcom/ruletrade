@@ -71,17 +71,19 @@ jobs:
         run: make check-lean-generate
       - name: Free space for the LEAN Docker image
         run: |
+          # Keep the Python/uv environment alive: the following real Docker
+          # differential is part of this same job, not a compile-only afterthought.
           sudo rm -rf \
             /usr/local/lib/android \
             /usr/local/share/boost \
             /usr/share/dotnet \
-            /opt/ghc \
-            /opt/hostedtoolcache
-          rm -rf .venv
+            /opt/ghc
           docker system prune --all --force
           df -h /
       - name: Compile generated C# against LEAN
         run: ./scripts/check_lean.sh --compile-only
+      - name: Run Profile A Work 2 DailyValue LEAN differentials
+        run: make check-lean-daily-values
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.1

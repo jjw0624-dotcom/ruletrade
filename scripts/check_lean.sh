@@ -9,7 +9,7 @@ fi
 
 cd "$(dirname "$0")/.."
 
-names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values)
+names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values daily-value-probe)
 generators=(
   generate_golden_lean.py
   generate_momentum_lean.py
@@ -21,7 +21,13 @@ generators=(
   generate_candidate_lean.py
   generate_one_investment_lean.py
   generate_strategy_values_lean.py
+  generate_daily_value_probe_lean.py
 )
+
+if [[ "${#names[@]}" -ne "${#generators[@]}" ]]; then
+  echo "LEAN generator manifest is inconsistent" >&2
+  exit 1
+fi
 
 if [[ "$mode" != "--compile-only" ]]; then
   for index in "${!names[@]}"; do
