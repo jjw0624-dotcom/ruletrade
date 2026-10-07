@@ -5,7 +5,7 @@ the source of truth. Provider and runtime parity remain separate capability gate
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, DivisionByZero
 from enum import StrEnum
 from functools import cached_property
@@ -143,11 +143,29 @@ class DailyCell:
 
 
 @dataclass(frozen=True)
+class DailyValueProvenance:
+    semantic_ids: tuple[str, ...]
+    expression_hash: str
+    snapshot_id: str
+    cutoff: str
+    clock_id: str
+    operator_versions: tuple[str, ...]
+    fields: tuple[str, ...]
+    windows: tuple[tuple[str, int, int], ...]
+    reduction_axis: str | None
+    coverage_policy: str | None
+    requested_members: tuple[str, ...]
+    available_members: tuple[str, ...]
+    missing_members: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class DailyValueResult:
     semantic_type: SemanticType
     axes: tuple[Axis, ...]
     cells: dict[tuple[str, ...], DailyCell]
     observed_at: tuple[str, ...]
+    provenance: DailyValueProvenance | None = None
 
     def scalar(self) -> Decimal | None:
         if self.axes:
@@ -347,17 +365,97 @@ class DailyValueEvaluator:
     def __init__(self, snapshot: DailyMarketSnapshot, *, cutoff_index: int | None = None) -> None:
         self.snapshot = snapshot
         self.cutoff_index = len(snapshot.dates) - 1 if cutoff_index is None else cutoff_index
-        self._memo: dict[tuple[str, str | None], DailyValueResult] = {}
+        self._memo: dict[
+            tuple[str, int, str, str, str | None, str | None],
+            DailyValueResult,
+        ] = {}
         self.evaluation_counts: dict[str, int] = {}
 
     def evaluate(self, node: DailyValueNode, *, candidate: str | None = None, binding_id: str | None = None) -> DailyValueResult:
-        key = (node.content_hash, candidate if self._uses_candidate(node) else None)
+        key = (
+            self.snapshot.snapshot_id,
+            self.cutoff_index,
+            self.snapshot.clock.id,
+            node.content_hash,
+            candidate if self._uses_candidate(node) else None,
+            binding_id,
+        )
         if key in self._memo:
-            return self._memo[key]
+            cached = self._memo[key]
+            if cached.provenance is None or node.semantic_id in cached.provenance.semantic_ids:
+                return cached
+            provenance = replace(
+                cached.provenance,
+                semantic_ids=cached.provenance.semantic_ids + (node.semantic_id,),
+            )
+            shared = replace(cached, provenance=provenance)
+            self._memo[key] = shared
+            return shared
         self.evaluation_counts[node.semantic_id] = self.evaluation_counts.get(node.semantic_id, 0) + 1
         result = self._evaluate(node, candidate, binding_id)
+        result = replace(
+            result,
+            provenance=self._build_provenance(node, candidate, binding_id),
+        )
         self._memo[key] = result
         return result
+
+    def _build_provenance(
+        self,
+        node: DailyValueNode,
+        candidate: str | None,
+        binding_id: str | None,
+    ) -> DailyValueProvenance:
+        observes: list[DailyValueNode] = []
+        windows: list[tuple[str, int, int]] = []
+        semantic_ids: list[str] = []
+
+        def visit(value: DailyValueNode) -> None:
+            semantic_ids.append(value.semantic_id)
+            if value.kind == "observe":
+                observes.append(value)
+            if value.observations is not None:
+                windows.append((value.kind, value.observations, value.skip))
+            for child in value.operands:
+                visit(child)
+
+        visit(node)
+        requested: list[str] = []
+        available: list[str] = []
+        missing: list[str] = []
+        for observe in observes:
+            symbols = self._symbols(observe, candidate)
+            if observe.subject_kind == SubjectKind.GROUP_MEMBERS:
+                requested.extend(symbols)
+            for symbol in symbols:
+                try:
+                    value = self.snapshot.field_values(
+                        symbol,
+                        observe.field or MarketField.CLOSE,
+                        observe.basis or PriceBasis.ADJUSTED,
+                    )[self.cutoff_index]
+                except (DailyValueError, IndexError):
+                    value = None
+                if observe.subject_kind == SubjectKind.GROUP_MEMBERS:
+                    (available if value is not None else missing).append(symbol)
+
+        plan = plan_daily_value(node, binding_id=binding_id)
+        reduction = node if node.kind == "reduce" else None
+        return DailyValueProvenance(
+            semantic_ids=tuple(dict.fromkeys(semantic_ids)),
+            expression_hash=node.content_hash,
+            snapshot_id=self.snapshot.snapshot_id,
+            cutoff=self.snapshot.dates[self.cutoff_index],
+            clock_id=self.snapshot.clock.id,
+            operator_versions=plan.operator_versions,
+            fields=plan.fields,
+            windows=tuple(windows),
+            reduction_axis=None if reduction is None else reduction.axis.value,
+            coverage_policy=None if reduction is None else reduction.missing_policy.value,
+            requested_members=tuple(dict.fromkeys(requested)),
+            available_members=tuple(dict.fromkeys(available)),
+            missing_members=tuple(dict.fromkeys(missing)),
+        )
 
     def _evaluate(self, node: DailyValueNode, candidate: str | None, binding_id: str | None) -> DailyValueResult:
         inferred = infer_daily_type(node, binding_id=binding_id)
