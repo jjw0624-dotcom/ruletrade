@@ -9,7 +9,7 @@ fi
 
 cd "$(dirname "$0")/.."
 
-names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values)
+names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values daily-value-probe)
 generators=(
   generate_golden_lean.py
   generate_momentum_lean.py
