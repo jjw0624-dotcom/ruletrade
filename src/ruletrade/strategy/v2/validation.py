@@ -267,11 +267,20 @@ def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnos
 
 def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequirement:
     requirements = [_history_requirement(strategy.selection.ranking)]
+
+    def visit(condition: ConditionV2) -> None:
+        if isinstance(condition, ComparisonV2):
+            requirements.extend((_history_requirement(condition.left), _history_requirement(condition.right)))
+        elif isinstance(condition, BooleanGroupV2):
+            for child in condition.children:
+                visit(child)
+        else:
+            visit(condition.child)
+
     if strategy.selection.eligibility is not None:
-        requirements.extend((
-            _history_requirement(strategy.selection.eligibility.left),
-            _history_requirement(strategy.selection.eligibility.right),
-        ))
+        visit(strategy.selection.eligibility)
+    if strategy.predicate is not None:
+        visit(strategy.predicate)
     return HistoryRequirement(max(item.minimum_history_lower_bound for item in requirements))
 
 
@@ -292,7 +301,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         historical_safe=True,
         reference_evaluable=True,
         backend_lowerable=True,
-        authoring_reachable=False,
+        authoring_reachable=True,
         verified_profile=True,
     )
     reference_only = OperationCapability(
