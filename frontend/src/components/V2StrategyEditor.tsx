@@ -27,6 +27,24 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
+  if (canonical.selection === null) {
+    return <section className="strategy-builder-workspace v2-program-workspace" data-canonical-version="v2">
+      <header className="builder-chrome">
+        <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
+        <div className="builder-identity"><strong>{persisted.strategy.name}</strong><small>Semantic Program Core</small></div>
+        <div className="builder-actions"><button className="secondary-button" disabled>Save</button><button className="primary-button" disabled>Test ▶</button></div>
+      </header>
+      <main className="representation-workspace">
+        <section className="representation-layer v2-summary">
+          <span className="eyebrow">Profile A · Semantic Program Core</span>
+          <h1>{canonical.metadata.name}</h1>
+          <p>{canonical.program?.statements.length ?? 0} typed Program statements are preserved in this revision.</p>
+          <p>Generalized Program authoring is intentionally deferred until the core contract is accepted.</p>
+        </section>
+      </main>
+    </section>;
+  }
+
   const apply = async (operation: V2AuthoringOperation) => {
     const request = ++sequence.current;
     setStatus("updating"); setMessage("Updating…");
