@@ -6,7 +6,13 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
+from ruletrade.strategy.v2.daily_values import (
+    DailyValueNode,
+    MarketField,
+    PriceBasis,
+    SubjectKind,
+    plan_daily_value,
+)
 
 
 _PREFIX = "RULETRADE_DAILY_VALUE|"
@@ -120,8 +126,13 @@ def lower_daily_value_probe(
     A requested date emits exactly one record. A missing completed bar is
     explicit instead of being inferred from an absent log line.
     """
+    plan = plan_daily_value(value)
+    if not plan.backend_lowerable:
+        raise DailyProbeLoweringError(
+            "typed DailyValue plan is not supported by the LEAN probe backend"
+        )
     observe = _asset_adjusted_close_operand(value)
-    semantic_id = _csharp_string(value.semantic_id)
+    semantic_id = _csharp_string(plan.expression_id)
     ticker = _csharp_string(observe.subject_id or "")
     requested = "null" if requested_date is None else _csharp_string(requested_date)
     if value.kind == "observe":
