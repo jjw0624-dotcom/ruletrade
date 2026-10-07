@@ -24,7 +24,7 @@ IDs. A compatibility Selection is not silently converted into a Program.
 |---|---|---|
 | Value | `DailyValueNode` | Work 2 typed daily semantics remain unchanged. |
 | Cross-section | `CrossSectionalValueV2` | Deterministic rank, percentile, quantile, or bucket over one named domain. Missing members do not receive a rank. Ties use stable member identity. |
-| Score | `ScoreValueV2` | Explicit weighted terms; missing policy is either require-all or renormalize-available. |
+| Score | `ScoreValueV2` | Explicit non-zero weighted dimensionless terms; missing policy is either require-all or renormalize-available. |
 | Condition | `ComparisonV2`, `StateConditionV2`, ALL, ANY, NOT | Three-valued Truth; Candidate references require lexical Selection binding; declared state is Program-only and cannot filter Eligibility. |
 | Selection | `SelectionStatementV2` | Produces a named target set. Shortage and Selection fallback remain distinct. |
 | Control | `ConditionalStatementV2` | Evaluates only the selected branch. Unknown explicitly retains or routes to OTHERWISE. |
@@ -47,7 +47,7 @@ For an ordered available domain of size (n):
 - member identity is the deterministic tie-break;
 - unavailable members remain unavailable rather than receiving zero.
 
-These are semantic profiles, not display labels.
+A cross-sectional ranking domain must be identical to its Selection universe; the runtime never substitutes a visually similar domain. These are semantic profiles, not display labels.
 
 ## Event and state semantics
 
@@ -87,6 +87,8 @@ as-of completed observations remains an explicit future profile.
 5. Otherwise execute the explicit fallback.
 6. Without a resolvable primary or fallback, retain holdings.
 
+Selection outputs follow definite-program-order analysis: an output created only inside one Control branch or an Event is unavailable outside that path. Nested Allocation statements also retain globally unique semantic addresses.
+
 Selection fallback is still part of Selection target determination. It is not
 Control OTHERWISE and it is not allocation fallback.
 
@@ -103,7 +105,7 @@ Reference execution records:
 - exact cutoff;
 - executed statement semantic IDs;
 - decision kind and outcome;
-- Value semantic ID, candidate, observed value/reason, timestamp, and expression hash;
+- Value semantic ID, candidate, observed value/reason, timestamp, and full composed-expression content hash (semantic addresses excluded);
 - selected outputs, resulting target weights, retained-holdings outcome, next state, Event cutoffs, and Event Truth checkpoints.
 
 Unselected Control branches emit no branch-local events or Value observations.
