@@ -83,6 +83,38 @@ describe("mounted v2 production editor", () => {
 
   it("uses the shared semantic formatter for Value and nested Condition summaries", () => {
     expect(describeDailyValue(candidateReturn)).toContain("126-observation return");
-    expect(describeConditionV2(strategy.selection.eligibility!)).toBe("ALL · 1 conditions");
+    expect(describeConditionV2(strategy.selection!.eligibility!)).toBe("ALL · 1 conditions");
+  });
+
+  it("opens Program-native revisions without assuming a compatibility Selection", () => {
+    const programStrategy: CanonicalStrategyV2 = {
+      ...strategy,
+      selection: null,
+      program: {
+        semantic_id: "program",
+        clocks: [{
+          id: "daily-close",
+          timeframe: "daily",
+          boundary: "close",
+          timezone: "UTC",
+          completed_only: true,
+        }],
+        initial_state: {},
+        statements: [{ kind: "allocate", semantic_id: "allocate" }],
+      },
+    };
+    const markup = renderToStaticMarkup(<V2StrategyEditor
+      persisted={{
+        ...detail,
+        current_revision: {
+          ...detail.current_revision,
+          canonical_strategy: programStrategy,
+        },
+      }}
+      onHome={() => undefined}
+    />);
+    expect(markup).toContain("Semantic Program Core");
+    expect(markup).toContain("1 typed Program statements");
+    expect(markup).not.toContain("All candidates qualify");
   });
 });
