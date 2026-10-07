@@ -14,6 +14,7 @@ from ruletrade.strategy.v2.models import (
     ConditionV2,
     LiteralValue,
     NotConditionV2,
+    StateConditionV2,
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind, infer_daily_type, plan_daily_value
@@ -213,7 +214,7 @@ def validate_comparison(
 def condition_limits(condition: ConditionV2) -> tuple[int, int, int]:
     """Return depth, boolean child maximum, and total nodes."""
 
-    if isinstance(condition, ComparisonV2):
+    if isinstance(condition, (ComparisonV2, StateConditionV2)):
         return 1, 0, 1
     if isinstance(condition, NotConditionV2):
         depth, width, total = condition_limits(condition.child)
@@ -238,6 +239,12 @@ def validate_condition(
         diagnostics.append(SemanticDiagnostic("condition_node_limit", "condition", "A Condition supports at most forty nodes."))
     if isinstance(condition, ComparisonV2):
         diagnostics.extend(validate_comparison(condition, role, bound_candidate_id=bound_candidate_id))
+    elif isinstance(condition, StateConditionV2):
+        if role != SemanticRole.PREDICATE:
+            diagnostics.append(SemanticDiagnostic(
+                "state_condition_role_forbidden", "condition",
+                "Program state may gate Control, Event, transitions, guards, and overrides; it cannot filter Candidates.",
+            ))
     elif isinstance(condition, BooleanGroupV2):
         for child in condition.children:
             diagnostics.extend(validate_condition(child, role, bound_candidate_id=bound_candidate_id))
@@ -259,6 +266,8 @@ def _daily_nodes(value: ValueExpressionV2) -> tuple[DailyValueNode, ...]:
 
 
 def _condition_values(condition: ConditionV2) -> tuple[ValueExpressionV2, ...]:
+    if isinstance(condition, StateConditionV2):
+        return ()
     if isinstance(condition, ComparisonV2):
         return (condition.left, condition.right)
     if isinstance(condition, NotConditionV2):
