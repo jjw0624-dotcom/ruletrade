@@ -23,7 +23,7 @@ def adjusted_close() -> DailyValueNode:
 
 def test_adjusted_close_probe_preserves_semantic_identity() -> None:
     source = lower_adjusted_close_probe(adjusted_close())
-    assert "RuleTradeDailyValueProbe" in source
+    assert "RuleTradeGeneratedAlgorithm" in source
     assert "qqq-close" in source
     assert "RULETRADE_DAILY_VALUE" in source
 
