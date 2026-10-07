@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v2.models import CanonicalStrategy
 
 
-def serialize_source_snapshot(strategy: CanonicalStrategyV1) -> str:
+def serialize_source_snapshot(strategy: CanonicalStrategy) -> str:
     """Serialize the complete validated Canonical source, excluding no source fields."""
 
     return json.dumps(
