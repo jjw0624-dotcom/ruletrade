@@ -16,7 +16,8 @@ A v2 Canonical revision may contain:
 - both during the explicit transition.
 
 At least one must exist. Program-native semantic intents address stable statement
-IDs. A compatibility Selection is not silently converted into a Program.
+IDs, including nested primary/override/fallback Allocation statements; replacement
+must preserve the addressed statement kind. A compatibility Selection is not silently converted into a Program.
 
 ## Program vocabulary
 
