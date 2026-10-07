@@ -131,7 +131,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
     clocks = {clock.id: clock for clock in program.clocks}
     statement_ids: set[str] = set()
     event_ids: set[str] = set()
-    selection_outputs: set[str] = set()
+    declared_selection_outputs: set[str] = set()
 
     def condition(condition, path: str, role: SemanticRole = SemanticRole.PREDICATE, binding_id: str | None = None) -> None:
         diagnostics.extend(validate_condition(condition, role, bound_candidate_id=binding_id))
@@ -148,36 +148,39 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                 "unknown_program_clock", path, f"Program clock {clock_id!r} is not defined.",
             ))
 
-    def allocation(statement: AllocationStatementV2, path: str) -> None:
+    def allocation(statement: AllocationStatementV2, path: str, available_outputs: set[str]) -> None:
         clock_ref(statement.clock_id, f"{path}.clock_id")
         for index, leg in enumerate(statement.legs):
-            if leg.target.kind == "selection" and leg.target.ref not in selection_outputs:
+            if leg.target.kind == "selection" and leg.target.ref not in available_outputs:
                 diagnostics.append(SemanticDiagnostic(
                     "unknown_selection_output",
                     f"{path}.legs[{index}].target.ref",
                     "Allocation must reference a Selection output defined earlier in program order.",
                 ))
 
-    def visit(statement: ProgramStatementV2, path: str) -> None:
+    def register_statement(statement: AllocationStatementV2 | ProgramStatementV2, path: str) -> None:
         if statement.semantic_id in statement_ids:
             diagnostics.append(SemanticDiagnostic(
                 "duplicate_program_semantic_id", path, "Program semantic ids must be unique.",
             ))
         statement_ids.add(statement.semantic_id)
+
+    def visit(statement: ProgramStatementV2, path: str, available_outputs: set[str]) -> set[str]:
+        register_statement(statement, path)
         if isinstance(statement, UnresolvedStatementV2):
             diagnostics.append(SemanticDiagnostic(
                 "unresolved_semantics", path,
                 f"{statement.category}: {statement.reason}. Fuzzy text remains draft-only.",
             ))
-            return
+            return available_outputs
         if isinstance(statement, SelectionStatementV2):
             clock_ref(statement.clock_id, f"{path}.clock_id")
-            if statement.output_id in selection_outputs:
+            if statement.output_id in declared_selection_outputs:
                 diagnostics.append(SemanticDiagnostic(
                     "duplicate_selection_output", f"{path}.output_id",
                     "Selection output ids must be unique.",
                 ))
-            selection_outputs.add(statement.output_id)
+            declared_selection_outputs.add(statement.output_id)
             if statement.selection.eligibility is not None:
                 condition(statement.selection.eligibility, f"{path}.selection.eligibility", SemanticRole.ELIGIBILITY, statement.selection.binding.id)
             try:
@@ -195,18 +198,20 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                         "ranking_not_candidate_scalar", f"{path}.selection.ranking",
                         "Selection ranking must yield one comparable scalar per Candidate.",
                     ))
-            return
+            return available_outputs | {statement.output_id}
         if isinstance(statement, AllocationStatementV2):
-            allocation(statement, path)
-            return
+            allocation(statement, path, available_outputs)
+            return available_outputs
         if isinstance(statement, ConditionalStatementV2):
             clock_ref(statement.clock_id, f"{path}.clock_id")
             condition(statement.condition, f"{path}.condition")
+            then_outputs = set(available_outputs)
             for index, child in enumerate(statement.then_statements):
-                visit(child, f"{path}.then[{index}]")
+                then_outputs = visit(child, f"{path}.then[{index}]", then_outputs)
+            otherwise_outputs = set(available_outputs)
             for index, child in enumerate(statement.otherwise_statements):
-                visit(child, f"{path}.otherwise[{index}]")
-            return
+                otherwise_outputs = visit(child, f"{path}.otherwise[{index}]", otherwise_outputs)
+            return available_outputs | (then_outputs & otherwise_outputs)
         if isinstance(statement, EventStatementV2):
             clock_ref(statement.event.clock_id, f"{path}.event.clock_id")
             if statement.event.semantic_id in event_ids:
@@ -216,9 +221,10 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                 ))
             event_ids.add(statement.event.semantic_id)
             condition(statement.event.condition, f"{path}.event.condition")
+            event_outputs = set(available_outputs)
             for index, child in enumerate(statement.statements):
-                visit(child, f"{path}.statements[{index}]")
-            return
+                event_outputs = visit(child, f"{path}.statements[{index}]", event_outputs)
+            return available_outputs
         if isinstance(statement, StateTransitionStatementV2):
             clock_ref(statement.transition.clock_id, f"{path}.transition.clock_id")
             condition(statement.transition.when, f"{path}.transition.when")
@@ -227,7 +233,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "undeclared_state", f"{path}.transition.state_key",
                     "State transitions require an explicitly initialized state key.",
                 ))
-            return
+            return available_outputs
         if isinstance(statement, GuardedAllocationStatementV2):
             if statement.guard is not None:
                 condition(statement.guard, f"{path}.guard")
@@ -237,15 +243,20 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "duplicate_override_priority", f"{path}.overrides",
                     "Override priorities must be unique; highest priority wins.",
                 ))
-            allocation(statement.primary, f"{path}.primary")
+            register_statement(statement.primary, f"{path}.primary")
+            allocation(statement.primary, f"{path}.primary", available_outputs)
             for index, override in enumerate(statement.overrides):
                 condition(override.when, f"{path}.overrides[{index}].when")
-                allocation(override.action, f"{path}.overrides[{index}].action")
+                register_statement(override.action, f"{path}.overrides[{index}].action")
+                allocation(override.action, f"{path}.overrides[{index}].action", available_outputs)
             if statement.fallback is not None:
-                allocation(statement.fallback, f"{path}.fallback")
+                register_statement(statement.fallback, f"{path}.fallback")
+                allocation(statement.fallback, f"{path}.fallback", available_outputs)
+            return available_outputs
 
+    available_outputs: set[str] = set()
     for index, statement in enumerate(program.statements):
-        visit(statement, f"program.statements[{index}]")
+        available_outputs = visit(statement, f"program.statements[{index}]", available_outputs)
 
     for value in program_values(program):
         if isinstance(value, CrossSectionalValueV2):
