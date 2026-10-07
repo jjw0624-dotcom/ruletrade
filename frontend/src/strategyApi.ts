@@ -1,8 +1,10 @@
 import type { CanonicalStrategyV1 } from "./domain/canonical";
+import type { CanonicalStrategyV2 } from "./domain/canonicalV2";
+export type CanonicalStrategy = CanonicalStrategyV1 | CanonicalStrategyV2;
 import { jsonBody, readApiErrorDetail } from "./apiError";
 
 export interface StrategyRecord { id: string; name: string; created_at: string; updated_at: string; current_revision_id: string; archived_at: string | null }
-export interface RevisionRecord { id: string; strategy_id: string; parent_revision_id: string | null; canonical_strategy: CanonicalStrategyV1; source_hash: string; schema_version: string; created_at: string }
+export interface RevisionRecord { id: string; strategy_id: string; parent_revision_id: string | null; canonical_strategy: CanonicalStrategy; source_hash: string; schema_version: string; created_at: string }
 export interface RevisionSummary extends Omit<RevisionRecord, "canonical_strategy"> {}
 export interface StrategyDetail { strategy: StrategyRecord; current_revision: RevisionRecord }
 export interface SaveRevisionResponse { created: boolean; strategy: StrategyRecord; revision: RevisionRecord }
@@ -22,10 +24,10 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 export const strategyApi = {
   list: (fetcher?: typeof fetch) => request<{ items: StrategyRecord[] }>("/v1/strategies", {}, fetcher),
   get: (id: string, fetcher?: typeof fetch, signal?: AbortSignal) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, { signal }, fetcher),
-  create: (name: string, canonical: CanonicalStrategyV1, fetcher?: typeof fetch) => request<StrategyDetail>("/v1/strategies", jsonBody("POST", { name, canonical_strategy: canonical }), fetcher),
+  create: (name: string, canonical: CanonicalStrategy, fetcher?: typeof fetch) => request<StrategyDetail>("/v1/strategies", jsonBody("POST", { name, canonical_strategy: canonical }), fetcher),
   rename: (id: string, name: string, fetcher?: typeof fetch) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, jsonBody("PATCH", { name }), fetcher),
   archive: (id: string, fetcher?: typeof fetch) => request<void>(`/v1/strategies/${encodeURIComponent(id)}`, { method: "DELETE" }, fetcher),
-  save: (id: string, parentId: string, canonical: CanonicalStrategyV1, fetcher?: typeof fetch) => request<SaveRevisionResponse>(`/v1/strategies/${encodeURIComponent(id)}/revisions`, jsonBody("POST", { expected_parent_revision_id: parentId, canonical_strategy: canonical }), fetcher),
+  save: (id: string, parentId: string, canonical: CanonicalStrategy, fetcher?: typeof fetch) => request<SaveRevisionResponse>(`/v1/strategies/${encodeURIComponent(id)}/revisions`, jsonBody("POST", { expected_parent_revision_id: parentId, canonical_strategy: canonical }), fetcher),
   revisions: (id: string, fetcher?: typeof fetch) => request<{ items: RevisionSummary[] }>(`/v1/strategies/${encodeURIComponent(id)}/revisions`, {}, fetcher),
   revision: (id: string, revisionId: string, fetcher?: typeof fetch) => request<RevisionRecord>(`/v1/strategies/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}`, {}, fetcher),
 };
@@ -36,6 +38,6 @@ function normalize(value: unknown): unknown {
   return value;
 }
 
-export function sameCanonicalSnapshot(a: CanonicalStrategyV1, b: CanonicalStrategyV1): boolean {
+export function sameCanonicalSnapshot(a: CanonicalStrategy, b: CanonicalStrategy): boolean {
   return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
 }
