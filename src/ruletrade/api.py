@@ -149,7 +149,8 @@ from ruletrade.strategy.v2.authoring import (
 )
 from ruletrade.strategy.v2.daily_provider import DatasetDailySnapshotProvider, DailyDatasetProviderError
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
-from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
 from ruletrade.strategy.v2.semantic_types import FrozenModel
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v1.value_semantics import (
@@ -784,6 +785,42 @@ def evaluate_canonical_v2_selection(request: EvaluateV2SelectionRequest) -> dict
         raise HTTPException(
             status_code=422,
             detail={"code": "v2_selection_execution_failed", "message": str(exc)},
+        ) from exc
+    return asdict(result)
+
+
+class EvaluateSemanticProgramRequest(FrozenModel):
+    program: SemanticProgramV2
+    domains: dict[str, tuple[str, ...]]
+    dataset_id: str = "synthetic_prices"
+    cutoff: str | None = None
+    revision_id: str | None = None
+    prior_state: dict[str, str] | None = None
+
+
+@app.post("/v2/canonical/programs/evaluate")
+def evaluate_semantic_program(request: EvaluateSemanticProgramRequest) -> dict[str, object]:
+    try:
+        snapshot = DatasetDailySnapshotProvider(registry).load_snapshot(
+            request.dataset_id, request.domains,
+        )
+        cutoff_index = None if request.cutoff is None else snapshot.dates.index(request.cutoff)
+        result = execute_program_v2(
+            request.program,
+            snapshot,
+            cutoff_index=cutoff_index,
+            revision_id=request.revision_id,
+            prior_state=request.prior_state,
+        )
+    except (
+        DailyDatasetProviderError,
+        ProgramExecutionError,
+        DatasetError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "semantic_program_execution_failed", "message": str(exc)},
         ) from exc
     return asdict(result)
 
