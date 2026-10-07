@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -146,7 +147,10 @@ from ruletrade.strategy.v2.authoring import (
     apply_v2_authoring,
     authoring_capabilities as v2_authoring_capabilities,
 )
+from ruletrade.strategy.v2.daily_provider import DatasetDailySnapshotProvider, DailyDatasetProviderError
+from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.semantic_types import FrozenModel
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v1.value_semantics import (
     DatasetValueEvaluator,
@@ -753,6 +757,35 @@ def apply_canonical_v2_authoring(
             status_code=409 if exc.code == "stale_authoring_source" else 422,
             detail={"code": exc.code, "path": exc.path, "message": str(exc)},
         ) from exc
+
+
+class EvaluateV2SelectionRequest(FrozenModel):
+    strategy: CanonicalStrategyV2
+    dataset_id: str = "synthetic_prices"
+    cutoff: str | None = None
+
+
+@app.post("/v2/canonical/strategies/selection/evaluate")
+def evaluate_canonical_v2_selection(request: EvaluateV2SelectionRequest) -> dict[str, object]:
+    domains: dict[str, tuple[str, ...]] = {}
+    for asset_set in request.strategy.definitions.asset_sets:
+        domains[asset_set.id] = tuple(asset_set.assets)
+    for group in request.strategy.definitions.groups:
+        members = next(
+            (tuple(item.assets) for item in request.strategy.definitions.asset_sets if item.id == group.asset_set_ref),
+            (),
+        )
+        domains[group.id] = members
+    try:
+        snapshot = DatasetDailySnapshotProvider(registry).load_snapshot(request.dataset_id, domains)
+        cutoff_index = None if request.cutoff is None else snapshot.dates.index(request.cutoff)
+        result = execute_selection_v2(request.strategy, snapshot, cutoff_index=cutoff_index)
+    except (DailyDatasetProviderError, V2ExecutionError, DatasetError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "v2_selection_execution_failed", "message": str(exc)},
+        ) from exc
+    return asdict(result)
 
 
 @app.post("/v2/canonical/strategies/validate")
