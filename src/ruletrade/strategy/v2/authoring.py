@@ -148,7 +148,12 @@ def _replace_program_statement(
     semantic_id: str,
     replacement: ProgramStatementV2,
 ) -> SemanticProgramV2:
-    from ruletrade.strategy.v2.models import ConditionalStatementV2, EventStatementV2
+    from ruletrade.strategy.v2.models import (
+        AllocationStatementV2,
+        ConditionalStatementV2,
+        EventStatementV2,
+        GuardedAllocationStatementV2,
+    )
 
     matches = 0
 
@@ -165,6 +170,26 @@ def _replace_program_statement(
         if isinstance(statement, EventStatementV2):
             return statement.model_copy(update={
                 "statements": tuple(visit(item) for item in statement.statements),
+            })
+        if isinstance(statement, GuardedAllocationStatementV2):
+            def allocation(item: AllocationStatementV2) -> AllocationStatementV2:
+                nonlocal matches
+                if item.semantic_id != semantic_id:
+                    return item
+                matches += 1
+                if not isinstance(replacement, AllocationStatementV2):
+                    raise V2AuthoringError(
+                        "program_statement_kind_mismatch",
+                        "A nested Allocation address requires an Allocation replacement.",
+                    )
+                return replacement
+
+            return statement.model_copy(update={
+                "primary": allocation(statement.primary),
+                "overrides": tuple(override.model_copy(update={
+                    "action": allocation(override.action),
+                }) for override in statement.overrides),
+                "fallback": None if statement.fallback is None else allocation(statement.fallback),
             })
         return statement
 
