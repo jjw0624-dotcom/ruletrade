@@ -181,3 +181,43 @@ def test_typed_comparison_and_three_valued_boolean_short_circuit() -> None:
     assert combine_truth("all", "false", "unknown") == "false"
     assert combine_truth("any", "true", "unknown") == "true"
     assert combine_truth("not", "unknown") == "unknown"
+
+
+def test_history_planner_preserves_nested_readiness_and_distinct_seed_checkpoint() -> None:
+    close = observe("close", SubjectKind.CANDIDATE, binding_id="candidate")
+    rsi = DailyValueNode(
+        semantic_id="rsi-14",
+        kind="rsi_wilder_lean_compat",
+        operands=(close,),
+        observations=14,
+    )
+    plan = plan_daily_value(
+        DailyValueNode(
+            semantic_id="rsi-history",
+            kind="history",
+            operands=(rsi,),
+            observations=63,
+        ),
+        binding_id="candidate",
+    )
+    assert plan.history.minimum_history_lower_bound == 77
+    assert plan.history.seed_anchor_required
+    assert plan.history.checkpoint_identity_required
+
+    ema = DailyValueNode(
+        semantic_id="ema-50",
+        kind="ema",
+        operands=(close,),
+        observations=50,
+    )
+    ema_history = plan_daily_value(
+        DailyValueNode(
+            semantic_id="ema-history",
+            kind="history",
+            operands=(ema,),
+            observations=63,
+        ),
+        binding_id="candidate",
+    )
+    assert ema_history.history.minimum_history_lower_bound == 112
+    assert ema_history.history.seed_anchor_required

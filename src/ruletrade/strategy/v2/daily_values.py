@@ -463,36 +463,71 @@ class DailyValueEvaluator:
 
 
 def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> TypedValuePlan:
+    """Plan readiness separately from recursive replay state.
+
+    minimum_history_lower_bound is the smallest completed-close prefix that can
+    yield the requested final Value. seed_anchor_required means EMA/RSI replay
+    additionally needs a pinned prior state/checkpoint to reproduce an
+    already-warmed stream exactly.
+    """
+
     semantic_type = infer_daily_type(node, binding_id=binding_id)
     fields: set[str] = set()
     versions: set[str] = set()
-    minimum = 0
-    seed_anchor = False
 
-    def visit(value: DailyValueNode) -> None:
-        nonlocal minimum, seed_anchor
-        for child in value.operands:
-            visit(child)
+    def visit(value: DailyValueNode) -> tuple[int, bool]:
+        if value.kind == "literal":
+            return 0, False
         if value.kind == "observe":
             fields.add(f"{value.field.value}:{value.basis.value}")
-            minimum = max(minimum, 1)
-        elif value.kind == "trailing_return":
-            minimum = max(minimum, (value.observations or 0) + 1)
+            return 1, False
+        child_requirements = [visit(child) for child in value.operands]
+        child_minimum = max((item[0] for item in child_requirements), default=0)
+        child_checkpoint = any(item[1] for item in child_requirements)
+        window = value.observations or 0
+
+        if value.kind == "current":
+            return child_minimum, child_checkpoint
+        if value.kind == "trailing_return":
             versions.add("trailing_return@1")
-        elif value.kind in {"sma", "ema", "rsi_wilder_lean_compat", "realized_volatility"}:
-            minimum = max(minimum, (value.observations or 0) + 1)
-            seed_anchor = seed_anchor or value.kind in {"ema", "rsi_wilder_lean_compat"}
+            return child_minimum + window, child_checkpoint
+        if value.kind in {"sma", "realized_volatility"}:
             versions.add(f"{value.kind}@1")
-        elif value.kind == "history":
-            minimum += (value.observations or 0) + value.skip
-        elif value.kind == "reduce":
+            return child_minimum + window - 1, child_checkpoint
+        if value.kind == "ema":
+            versions.add("ema@1")
+            return child_minimum + window - 1, True
+        if value.kind == "rsi_wilder_lean_compat":
+            versions.add("rsi_wilder_lean_compat@1")
+            # RSI(n) consumes n changes, hence n extra completed closes.
+            return child_minimum + window, True
+        if value.kind == "history":
+            # n requested outputs reach back n-1 output positions; skip moves
+            # that window earlier while recursive child readiness is retained.
+            return child_minimum + max(0, window - 1) + value.skip, child_checkpoint
+        if value.kind == "reduce":
             versions.add(f"reduce.{value.reduction.value}@1")
-        elif value.kind == "arithmetic":
+            return child_minimum, child_checkpoint
+        if value.kind == "arithmetic":
             versions.add(f"arithmetic.{value.arithmetic}@1")
+            return child_minimum, child_checkpoint
+        raise DailyValueError(f"unsupported_value_kind: {value.kind}")
 
-    visit(node)
-    return TypedValuePlan(node.semantic_id, node.content_hash, semantic_type, tuple(sorted(fields)), HistoryRequirement(minimum, seed_anchor_required=seed_anchor, checkpoint_identity_required=seed_anchor), tuple(sorted(versions)), False)
-
+    minimum, checkpoint = visit(node)
+    history = HistoryRequirement(
+        minimum,
+        seed_anchor_required=checkpoint,
+        checkpoint_identity_required=checkpoint,
+    )
+    return TypedValuePlan(
+        node.semantic_id,
+        node.content_hash,
+        semantic_type,
+        tuple(sorted(fields)),
+        history,
+        tuple(sorted(versions)),
+        False,
+    )
 
 def format_daily_value(node: DailyValueNode) -> str:
     if node.kind == "literal":
