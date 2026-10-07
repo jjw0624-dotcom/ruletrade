@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CanonicalStrategyV2, V2AuthoringOperation } from "../domain/canonicalV2";
 import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
-import type { StrategyDetail } from "../strategyApi";
+import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi } from "../v2AuthoringApi";
 import { V2ConditionComposer, V2ValueComposer } from "./V2SemanticComposer";
@@ -9,11 +9,11 @@ import { V2ConditionComposer, V2ValueComposer } from "./V2SemanticComposer";
 type View = "summary" | "flow" | "blocky" | "rules";
 
 export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
-  persisted: StrategyDetail;
+  persisted: StrategyDetailV2;
   onHome: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const initial = persisted.current_revision.canonical_strategy as CanonicalStrategyV2;
+  const initial = persisted.current_revision.canonical_strategy;
   const [canonical, setCanonical] = useState(initial);
   const [revisionId, setRevisionId] = useState(persisted.current_revision.id);
   const [sourceHash, setSourceHash] = useState(persisted.current_revision.source_hash);
@@ -45,7 +45,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     setStatus("updating"); setMessage("Saving revision…");
     try {
       const response = await strategyApi.save(persisted.strategy.id, revisionId, canonical);
-      setCanonical(response.revision.canonical_strategy as CanonicalStrategyV2);
+      setCanonical(response.revision.canonical_strategy);
       setRevisionId(response.revision.id);
       setSourceHash(response.revision.source_hash);
       setDirty(false); setStatus("saved"); setMessage("Saved");
