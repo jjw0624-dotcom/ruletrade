@@ -263,3 +263,32 @@ def test_choose_all_shortage_is_distinct_from_selection_fallback() -> None:
     assert result.complete is False
     assert result.selected_assets == ("QQQ",)
     assert result.evidence.fallback_used is False
+
+
+def test_v2_selection_execution_api_uses_repository_dataset_and_returns_evidence() -> None:
+    strategy = strategy_v2()
+    ranking = candidate_return(2, "api-ranking")
+    strategy = strategy.model_copy(update={
+        "definitions": StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinition(id="growth_assets", assets=["QQQ", "VOO"]),),
+            groups=(GroupDefinition(id="growth", name="Growth", asset_set_ref="growth_assets"),),
+            asset_axis=asset_axis("growth"),
+        ),
+        "selection": strategy.selection.model_copy(update={
+            "ranking": ranking,
+            "eligibility": None,
+            "count": 1,
+            "shortage_policy": "choose_all",
+        }),
+    })
+    with TestClient(app) as client:
+        response = client.post(
+            "/v2/canonical/strategies/selection/evaluate",
+            json={"strategy": strategy.model_dump(mode="json"), "dataset_id": "synthetic_prices"},
+        )
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert len(result["selected_assets"]) == 1
+    assert result["evidence"]["requested_members"] == ["QQQ", "VOO"]
+    assert result["evidence"]["ranking_observations"][0]["expression_hash"]
+    assert result["evidence"]["ranking_observations"][0]["operator_versions"] == ["trailing_return@1"]
