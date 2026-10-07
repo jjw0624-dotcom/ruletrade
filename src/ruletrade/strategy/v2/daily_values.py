@@ -527,12 +527,20 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
     semantic_type = infer_daily_type(node, binding_id=binding_id)
     fields: set[str] = set()
     versions: set[str] = set()
+    backend_lowerable = True
 
     def visit(value: DailyValueNode) -> tuple[int, bool]:
+        nonlocal backend_lowerable
         if value.kind == "literal":
+            backend_lowerable = False
             return 0, False
         if value.kind == "observe":
             fields.add(f"{value.field.value}:{value.basis.value}")
+            backend_lowerable = backend_lowerable and (
+                value.subject_kind == SubjectKind.ASSET
+                and value.field == MarketField.CLOSE
+                and value.basis == PriceBasis.ADJUSTED
+            )
             return 1, False
         child_requirements = [visit(child) for child in value.operands]
         child_minimum = max((item[0] for item in child_requirements), default=0)
@@ -555,13 +563,16 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
             # RSI(n) consumes n changes, hence n extra completed closes.
             return child_minimum + window, True
         if value.kind == "history":
-            # n requested outputs reach back n-1 output positions; skip moves
-            # that window earlier while recursive child readiness is retained.
+            # History/reduction/arithmetic are reference-executable Work 2
+            # semantics but are not yet direct probe roots.
+            backend_lowerable = False
             return child_minimum + max(0, window - 1) + value.skip, child_checkpoint
         if value.kind == "reduce":
+            backend_lowerable = False
             versions.add(f"reduce.{value.reduction.value}@1")
             return child_minimum, child_checkpoint
         if value.kind == "arithmetic":
+            backend_lowerable = False
             versions.add(f"arithmetic.{value.arithmetic}@1")
             return child_minimum, child_checkpoint
         raise DailyValueError(f"unsupported_value_kind: {value.kind}")
@@ -579,7 +590,7 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
         tuple(sorted(fields)),
         history,
         tuple(sorted(versions)),
-        False,
+        backend_lowerable,
     )
 
 def format_daily_value(node: DailyValueNode) -> str:
