@@ -422,6 +422,16 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "daily.arithmetic@1": reference_only,
         "daily.absolute@1": reference_only,
         "daily.comparison_truth@1": reference_only,
+        # Program Core semantics are reference-executable and persistable, but
+        # remain outside generalized UI and maintained LEAN lowering.
+        "program.cross_sectional@1": reference_only,
+        "program.score@1": reference_only,
+        "program.event@1": reference_only,
+        "program.state_transition@1": reference_only,
+        "program.event_relative@1": reference_only,
+        "program.multi_clock@1": reference_only,
+        "program.allocation@1": reference_only,
+        "program.policy_precedence@1": reference_only,
         # The maintained provider exposes neither these fields nor PIT identity.
         "daily.raw_ohlc@1": provider_blocked,
         "daily.volume_raw_shares@1": provider_blocked,
