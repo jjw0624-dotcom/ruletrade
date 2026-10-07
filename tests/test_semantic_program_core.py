@@ -531,3 +531,26 @@ def test_program_native_canonical_round_trip_and_capability_ledger() -> None:
     assert ledger["program.cross_sectional@1"].reference_evaluable is True
     assert ledger["program.cross_sectional@1"].backend_lowerable is False
     assert ledger["program.cross_sectional@1"].production_ready is False
+
+
+def test_selection_outputs_require_definite_program_order_and_nested_ids_are_unique() -> None:
+    conditional_selection = ConditionalStatementV2(
+        semantic_id="conditional-selection",
+        condition=condition_over("105"),
+        then_statements=(SelectionStatementV2(
+            semantic_id="branch-selection",
+            selection=selection(),
+            output_id="branch-output",
+        ),),
+    )
+    outside_allocation = equal_selection_allocation("branch-output")
+    issues = validate_program_v2(program(conditional_selection, outside_allocation))
+    assert "unknown_selection_output" in {item.code for item in issues}
+
+    duplicate_nested = GuardedAllocationStatementV2(
+        semantic_id="policy",
+        primary=asset_allocation("QQQ", "duplicate-allocation"),
+        fallback=asset_allocation("TLT", "duplicate-allocation"),
+    )
+    issues = validate_program_v2(program(duplicate_nested))
+    assert "duplicate_program_semantic_id" in {item.code for item in issues}
