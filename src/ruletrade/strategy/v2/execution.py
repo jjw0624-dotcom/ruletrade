@@ -72,6 +72,8 @@ class SelectionExecutionV2:
 
 def _members(strategy: CanonicalStrategyV2, snapshot: DailyMarketSnapshot) -> tuple[str, ...]:
     selection = strategy.selection
+    if selection is None:
+        raise V2ExecutionError("compatibility_selection_missing")
     if selection.universe_id in snapshot.domains:
         return snapshot.domains[selection.universe_id]
     group = next((item for item in strategy.definitions.groups if item.id == selection.universe_id), None)
@@ -145,6 +147,8 @@ def execute_selection_v2(
     if issues:
         raise V2ExecutionError("; ".join(f"{item.path}: {item.code}" for item in issues))
     selection = strategy.selection
+    if selection is None:
+        raise V2ExecutionError("compatibility_selection_missing; execute Semantic Program instead")
     evaluator = DailyValueEvaluator(snapshot, cutoff_index=cutoff_index)
     members = _members(strategy, snapshot)
     eligible: list[str] = []
