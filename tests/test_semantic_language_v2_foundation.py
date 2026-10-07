@@ -183,9 +183,9 @@ def test_migration_is_explicit_and_refuses_unproven_equivalence() -> None:
     assert candidate.source_revision_id == "revision-v1"
 
 
-def test_capabilities_do_not_pretend_rsi_is_ready() -> None:
+def test_capabilities_promote_only_explicit_verified_profiles() -> None:
     capabilities = v2_capabilities()
-    assert not capabilities["candidate.trailing_return"].production_ready
+    assert capabilities["candidate.trailing_return"].production_ready
     assert not capabilities["indicator.rsi"].parseable
 
 
@@ -203,8 +203,8 @@ def test_daily_value_capability_ledger_separates_verified_runtime_from_authoring
         assert capability.provider_available
         assert capability.backend_lowerable
         assert capability.verified_profile
-        assert not capability.authoring_reachable
-        assert not capability.production_ready
+        assert capability.authoring_reachable
+        assert capability.production_ready
 
     assert not capabilities["daily.volume_raw_shares@1"].provider_available
     assert not capabilities["daily.raw_ohlc@1"].provider_available
