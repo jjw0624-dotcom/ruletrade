@@ -57,7 +57,7 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
       }} /></label>;
   }
   const subjectKind = observe?.subject_kind ?? (role === "eligibility" || role === "ranking" ? "candidate" : "asset");
-  const subjectId = subjectKind === "candidate" ? strategy.selection.binding.id : observe?.subject_id ?? assets[0] ?? "";
+  const subjectId = subjectKind === "candidate" ? strategy.selection!.binding.id : observe?.subject_id ?? assets[0] ?? "";
   const subject: DailyValueNode = observe ?? {
     semantic_id: `${value.semantic_id}-source`,
     kind: "observe",
@@ -82,7 +82,7 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
     </button>
     {open && <div className="value-editor">
       <fieldset><legend>What is this value about?</legend><div className="semantic-choice-row">
-        {(role === "eligibility" || role === "ranking") && <button type="button" aria-pressed={subjectKind === "candidate"} onClick={() => emit(operation, withSubject(subject, "candidate", strategy.selection.binding.id))}>Current candidate</button>}
+        {(role === "eligibility" || role === "ranking") && <button type="button" aria-pressed={subjectKind === "candidate"} onClick={() => emit(operation, withSubject(subject, "candidate", strategy.selection!.binding.id))}>Current candidate</button>}
         <button type="button" aria-pressed={subjectKind === "asset"} onClick={() => emit(operation, withSubject(subject, "asset", assets[0] ?? ""))}>Specific asset</button>
         <button type="button" aria-pressed={subjectKind === "group_members"} onClick={() => emit(operation, withSubject(subject, "group_members", strategy.definitions.groups[0]?.id ?? ""))}>Static Group members</button>
       </div></fieldset>
