@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { CanonicalStrategyV2, ComparisonV2, ConditionV2, DailyValueNode } from "../domain/canonicalV2";
 import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
 
@@ -106,10 +106,6 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
   </div>;
 }
 
-function replaceChild(group: ConditionV2, index: number, child: ConditionV2): ConditionV2 {
-  if (group.kind !== "all" && group.kind !== "any") return group;
-  return { ...group, children: group.children.map((item, position) => position === index ? child : item) };
-}
 
 export function V2ConditionComposer({ condition, strategy, role, onChange, onWorking }: {
   condition: ConditionV2;
@@ -126,7 +122,7 @@ export function V2ConditionComposer({ condition, strategy, role, onChange, onWor
     {active === `${item.semantic_id}:left` && <V2ValueComposer value={item.left} strategy={strategy} role={role} onWorking={onWorking} onChange={(left) => onChange({ ...item, left })} />}
     {active === `${item.semantic_id}:right` && <V2ValueComposer value={item.right} strategy={strategy} role={role} literal={item.right.kind === "literal"} onWorking={onWorking} onChange={(right) => onChange({ ...item, right })} />}
   </div>;
-  const tree = (item: ConditionV2): JSX.Element => {
+  const tree = (item: ConditionV2): ReactNode => {
     if (item.kind === "comparison") return comparison(item);
     if (item.kind === "not") return <section className="condition-group" key={item.semantic_id}><strong>NOT</strong>{tree(item.child)}</section>;
     return <section className="condition-group" key={item.semantic_id}><header><strong>{item.kind === "all" ? "ALL of these" : "ANY of these"}</strong></header>
