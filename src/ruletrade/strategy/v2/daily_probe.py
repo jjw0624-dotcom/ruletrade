@@ -17,6 +17,7 @@ _OPERATOR_ABSOLUTE_TOLERANCES = {
     # uses arbitrary-precision Decimal division. This is serialization precision,
     # not a return-definition difference.
     ("trailing_return", "1"): Decimal("1e-27"),
+    ("sma", "1"): Decimal("1e-27"),
 }
 
 
@@ -93,7 +94,7 @@ def _csharp_string(value: str) -> str:
 
 def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
     current = value
-    while current.kind == "trailing_return":
+    while current.kind in {"trailing_return", "sma"}:
         current = current.operands[0]
     if not (
         current.kind == "observe"
@@ -114,6 +115,7 @@ def lower_daily_value_probe(value: DailyValueNode) -> str:
     if value.kind == "observe":
         operator_id, operator_version = "adjusted_close", "1"
         state = ""
+        setup = ""
         evaluate = """
         if (!data.Bars.TryGetValue(_symbol, out var bar))
         {
@@ -127,6 +129,7 @@ def lower_daily_value_probe(value: DailyValueNode) -> str:
             raise DailyProbeLoweringError("trailing_return requires a positive observation period")
         operator_id, operator_version = "trailing_return", "1"
         state = f"    private readonly RollingWindow<decimal> _closes = new RollingWindow<decimal>({period + 1});"
+        setup = ""
         evaluate = f"""
         if (!data.Bars.TryGetValue(_symbol, out var bar))
         {{
@@ -140,6 +143,26 @@ def lower_daily_value_probe(value: DailyValueNode) -> str:
             return;
         }}
         Emit(observedAt, "available", bar.Close / _closes[{period}] - 1m, null);"""
+    elif value.kind == "sma":
+        period = value.observations or 0
+        if period < 1:
+            raise DailyProbeLoweringError("sma requires a positive observation period")
+        operator_id, operator_version = "sma", "1"
+        state = "    private SimpleMovingAverage _indicator;"
+        setup = f"        _indicator = new SimpleMovingAverage({period});"
+        evaluate = """
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }
+        _indicator.Update(Time, bar.Close);
+        if (!_indicator.IsReady)
+        {
+            Emit(observedAt, "not_ready", null, "insufficient_history");
+            return;
+        }
+        Emit(observedAt, "available", _indicator.Current.Value, null);"""
     else:
         raise DailyProbeLoweringError(f"unsupported DailyValue lowering: {value.kind}")
 
@@ -161,6 +184,7 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
         SetStartDate(2024, 1, 1);
         SetEndDate(2024, 12, 31);
         _symbol = AddEquity({ticker}, Resolution.Daily).Symbol;
+{setup}
     }}
 
     private void Emit(string observedAt, string status, decimal? value, string reason)
