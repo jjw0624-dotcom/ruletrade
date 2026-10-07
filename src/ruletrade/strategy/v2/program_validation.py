@@ -234,7 +234,11 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
 
     for value in program_values(program):
         if isinstance(value, CrossSectionalValueV2):
-            if value.source.subject_kind != SubjectKind.CANDIDATE:
+            candidate_sources = [
+                node for node in daily_nodes_for_value(value.source)
+                if node.subject_kind == SubjectKind.CANDIDATE
+            ]
+            if not candidate_sources:
                 diagnostics.append(SemanticDiagnostic(
                     "cross_section_requires_candidate",
                     value.semantic_id,
