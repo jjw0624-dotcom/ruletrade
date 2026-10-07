@@ -3,6 +3,12 @@
 from ruletrade.strategy.v2.authoring import apply_v2_authoring, authoring_capabilities
 from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan, lower_v2_to_v1
 from ruletrade.strategy.v2.execution import evaluate_predicate_v2, execute_selection_v2
+from ruletrade.strategy.v2.program_execution import execute_program_v2
+from ruletrade.strategy.v2.program_validation import (
+    CorpusDisposition,
+    classify_corpus_case,
+    validate_program_v2,
+)
 from ruletrade.strategy.v2.daily_provider import (
     DailyDatasetContract,
     DailyDatasetProviderError,
@@ -19,15 +25,20 @@ from ruletrade.strategy.v2.daily_values import (
     plan_daily_value,
 )
 from ruletrade.strategy.v2.migration import MigrationCandidate, upgrade_v1_to_v2
-from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
 from ruletrade.strategy.v2.validation import OP_SPECS, SemanticDiagnostic, SemanticRole, validate_strategy_v2
 
 __all__ = [
     "CanonicalStrategyV2",
+    "SemanticProgramV2",
     "apply_v2_authoring",
     "authoring_capabilities",
     "evaluate_predicate_v2",
     "execute_selection_v2",
+    "execute_program_v2",
+    "validate_program_v2",
+    "classify_corpus_case",
+    "CorpusDisposition",
     "DailyDatasetContract",
     "DailyDatasetProviderError",
     "DailyFieldAvailability",
