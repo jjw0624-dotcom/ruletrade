@@ -292,7 +292,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         historical_safe=True,
         reference_evaluable=True,
         backend_lowerable=True,
-        authoring_reachable=True,
+        authoring_reachable=False,
         verified_profile=True,
     )
     reference_only = OperationCapability(
