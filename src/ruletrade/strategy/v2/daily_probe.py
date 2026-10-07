@@ -18,6 +18,8 @@ _OPERATOR_ABSOLUTE_TOLERANCES = {
     # not a return-definition difference.
     ("trailing_return", "1"): Decimal("1e-27"),
     ("sma", "1"): Decimal("1e-27"),
+    ("ema", "1"): Decimal("1e-18"),
+    ("rsi_wilder_lean_compat", "1"): Decimal("1e-12"),
 }
 
 
@@ -94,7 +96,7 @@ def _csharp_string(value: str) -> str:
 
 def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
     current = value
-    while current.kind in {"trailing_return", "sma"}:
+    while current.kind in {"trailing_return", "sma", "ema", "rsi_wilder_lean_compat"}:
         current = current.operands[0]
     if not (
         current.kind == "observe"
@@ -150,6 +152,46 @@ def lower_daily_value_probe(value: DailyValueNode) -> str:
         operator_id, operator_version = "sma", "1"
         state = "    private SimpleMovingAverage _indicator;"
         setup = f"        _indicator = new SimpleMovingAverage({period});"
+        evaluate = """
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }
+        _indicator.Update(Time, bar.Close);
+        if (!_indicator.IsReady)
+        {
+            Emit(observedAt, "not_ready", null, "insufficient_history");
+            return;
+        }
+        Emit(observedAt, "available", _indicator.Current.Value, null);"""
+    elif value.kind == "ema":
+        period = value.observations or 0
+        if period < 1:
+            raise DailyProbeLoweringError("ema requires a positive observation period")
+        operator_id, operator_version = "ema", "1"
+        state = "    private ExponentialMovingAverage _indicator;"
+        setup = f"        _indicator = new ExponentialMovingAverage({period});"
+        evaluate = """
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }
+        _indicator.Update(Time, bar.Close);
+        if (!_indicator.IsReady)
+        {
+            Emit(observedAt, "not_ready", null, "insufficient_history");
+            return;
+        }
+        Emit(observedAt, "available", _indicator.Current.Value, null);"""
+    elif value.kind == "rsi_wilder_lean_compat":
+        period = value.observations or 0
+        if period < 1:
+            raise DailyProbeLoweringError("rsi requires a positive observation period")
+        operator_id, operator_version = "rsi_wilder_lean_compat", "1"
+        state = "    private RelativeStrengthIndex _indicator;"
+        setup = f"        _indicator = new RelativeStrengthIndex({period}, MovingAverageType.Wilders);"
         evaluate = """
         if (!data.Bars.TryGetValue(_symbol, out var bar))
         {
