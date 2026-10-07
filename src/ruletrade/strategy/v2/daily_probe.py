@@ -110,11 +110,20 @@ def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
     return current
 
 
-def lower_daily_value_probe(value: DailyValueNode) -> str:
-    """Lower the verified adjusted-close subset to the maintained LEAN runtime."""
+def lower_daily_value_probe(
+    value: DailyValueNode,
+    *,
+    requested_date: str | None = None,
+) -> str:
+    """Lower the verified adjusted-close subset to the maintained LEAN runtime.
+
+    A requested date emits exactly one record. A missing completed bar is
+    explicit instead of being inferred from an absent log line.
+    """
     observe = _asset_adjusted_close_operand(value)
     semantic_id = _csharp_string(value.semantic_id)
     ticker = _csharp_string(observe.subject_id or "")
+    requested = "null" if requested_date is None else _csharp_string(requested_date)
     if value.kind == "observe":
         operator_id, operator_version = "adjusted_close", "1"
         state = ""
@@ -255,7 +264,9 @@ using QuantConnect.Indicators;
 public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 {{
     private Symbol _symbol;
+    private bool _emitted;
     private const char Quote = (char)34;
+    private const string RequestedDate = {requested};
 {state}
 
     public override void Initialize()
@@ -285,16 +296,33 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
     public override void OnData(Slice data)
     {{
         var observedAt = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (RequestedDate != null && observedAt != RequestedDate)
+        {{
+            return;
+        }}
+        _emitted = true;
 {evaluate}
+    }}
+
+    public override void OnEndOfAlgorithm()
+    {{
+        if (RequestedDate != null && !_emitted)
+        {{
+            Emit(RequestedDate, "unavailable", null, "missing_completed_bar");
+        }}
     }}
 }}
 """
 
 
-def lower_adjusted_close_probe(value: DailyValueNode) -> str:
+def lower_adjusted_close_probe(
+    value: DailyValueNode,
+    *,
+    requested_date: str | None = None,
+) -> str:
     if value.kind != "observe":
         raise DailyProbeLoweringError("only asset adjusted-close observe@1 is lowerable")
-    return lower_daily_value_probe(value)
+    return lower_daily_value_probe(value, requested_date=requested_date)
 
 
 def parse_daily_probe_observations(log_text: str) -> tuple[DailyProbeObservation, ...]:
