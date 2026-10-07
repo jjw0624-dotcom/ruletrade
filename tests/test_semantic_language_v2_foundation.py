@@ -187,3 +187,27 @@ def test_capabilities_do_not_pretend_rsi_is_ready() -> None:
     capabilities = v2_capabilities()
     assert not capabilities["candidate.trailing_return"].production_ready
     assert not capabilities["indicator.rsi"].parseable
+
+
+def test_daily_value_capability_ledger_separates_verified_runtime_from_authoring() -> None:
+    capabilities = v2_capabilities()
+    for operation in (
+        "daily.adjusted_close@1",
+        "daily.trailing_return@1",
+        "daily.sma@1",
+        "daily.ema@1",
+        "daily.rsi_wilder_lean_compat@1",
+        "daily.realized_volatility@1",
+    ):
+        capability = capabilities[operation]
+        assert capability.provider_available
+        assert capability.backend_lowerable
+        assert capability.verified_profile
+        assert not capability.authoring_reachable
+        assert not capability.production_ready
+
+    assert not capabilities["daily.volume_raw_shares@1"].provider_available
+    assert not capabilities["daily.raw_ohlc@1"].provider_available
+    assert not capabilities["daily.pit_membership@1"].provider_available
+    assert capabilities["daily.history@1"].reference_evaluable
+    assert not capabilities["daily.history@1"].backend_lowerable
