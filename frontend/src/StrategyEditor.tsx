@@ -31,7 +31,7 @@ import { useBacktestRun } from "./hooks/useBacktestRun";
 import { useAuthoring } from "./hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "./store/editorStore";
 import { StrategyBuilderWorkspace } from "./components/StrategyBuilderWorkspace";
-import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionSummary, type StrategyDetail } from "./strategyApi";
+import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionSummary, type StrategyDetailV1 } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
 import {
   marketDataApi,
@@ -39,7 +39,7 @@ import {
   type MarketDataPreflight,
 } from "./marketDataApi";
 
-export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, sourceFocus, onHome = () => undefined }: { example: StrategyExample; persisted?: StrategyDetail; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null; onHome?: () => void }) {
+export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, sourceFocus, onHome = () => undefined }: { example: StrategyExample; persisted?: StrategyDetailV1; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null; onHome?: () => void }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
   const structural = useAuthoring();
