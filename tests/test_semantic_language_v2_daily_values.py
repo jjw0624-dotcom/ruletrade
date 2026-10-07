@@ -87,7 +87,7 @@ def test_return_sma_ema_rsi_and_volatility_have_deterministic_completed_daily_va
     sma = DailyValueNode(semantic_id="sma-3", kind="sma", operands=(close,), observations=3)
     ema = DailyValueNode(semantic_id="ema-3", kind="ema", operands=(close,), observations=3)
     rsi = DailyValueNode(semantic_id="rsi-2", kind="rsi_wilder_lean_compat", operands=(close,), observations=2)
-    volatility = DailyValueNode(semantic_id="vol-3", kind="realized_volatility", operands=(close,), observations=3)
+    volatility = DailyValueNode(semantic_id="vol-3", kind="realized_volatility", operands=(observe("flat-close", SubjectKind.ASSET, "BBB"),), observations=3)
     assert evaluator.evaluate(trailing).scalar() == Decimal("17") / Decimal("14") - 1
     assert evaluator.evaluate(sma).scalar() == Decimal(16)
     assert evaluator.evaluate(ema).scalar() == Decimal("16")

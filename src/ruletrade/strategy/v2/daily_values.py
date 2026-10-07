@@ -503,6 +503,8 @@ def format_daily_value(node: DailyValueNode) -> str:
         return f"{subject}'s {field}"
     if node.kind == "current":
         return f"current {format_daily_value(node.operands[0])}"
+    if node.kind == "history":
+        return f"{node.observations}-observation history of {format_daily_value(node.operands[0])}"
     if node.kind in {"sma", "ema", "trailing_return", "rsi_wilder_lean_compat"}:
         label = "RSI" if node.kind == "rsi_wilder_lean_compat" else node.kind.upper()
         return f"{node.observations}-observation {label} of {format_daily_value(node.operands[0])}"
