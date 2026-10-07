@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from ruletrade.strategy.v1.models import AssetSetDefinition, StrategyMetadata
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueNode,
@@ -17,6 +18,7 @@ from ruletrade.strategy.v2.models import (
     AllocationTargetV2,
     BooleanGroupV2,
     CandidateBinding,
+    CanonicalStrategyV2,
     ComparisonV2,
     ConditionalStatementV2,
     CrossSectionalValueV2,
@@ -34,6 +36,7 @@ from ruletrade.strategy.v2.models import (
     StateTransitionStatementV2,
     StateTransitionV2,
     StateConditionV2,
+    StrategyDefinitionsV2,
     UnresolvedStatementV2,
 )
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
@@ -42,7 +45,8 @@ from ruletrade.strategy.v2.program_validation import (
     classify_corpus_case,
     validate_program_v2,
 )
-from ruletrade.strategy.v2.semantic_types import Clock, Quantity, Unit
+from ruletrade.strategy.v2.semantic_types import Axis, Clock, Quantity, Unit
+from ruletrade.strategy.v2.validation import validate_strategy_v2, v2_capabilities
 
 
 def snapshot() -> DailyMarketSnapshot:
@@ -489,3 +493,27 @@ def test_group_allocation_expands_members_and_event_anchor_is_returned() -> None
     ))
     event_result = execute_program_v2(event_program, snapshot(), cutoff_index=1)
     assert event_result.event_cutoffs == {"risk-on-event": 1}
+
+
+def test_program_native_canonical_round_trip_and_capability_ledger() -> None:
+    core = program(asset_allocation("QQQ", "all-in-qqq"))
+    canonical = CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Program-native"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinition(id="growth", assets=["QQQ", "VGT", "SOXX"]),),
+            groups=(),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1"},
+        program=core,
+    )
+    payload = canonical.model_dump(mode="json")
+    reopened = CanonicalStrategyV2.model_validate(payload)
+    assert reopened.selection is None
+    assert reopened.program == core
+    assert validate_strategy_v2(reopened) == ()
+    ledger = v2_capabilities()
+    assert ledger["program.cross_sectional@1"].reference_evaluable is True
+    assert ledger["program.cross_sectional@1"].backend_lowerable is False
+    assert ledger["program.cross_sectional@1"].production_ready is False
