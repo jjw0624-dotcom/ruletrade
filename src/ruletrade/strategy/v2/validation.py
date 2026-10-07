@@ -127,7 +127,11 @@ OP_SPECS: dict[str, OpSpec] = {
 def infer_value_type(expression: ValueExpressionV2, *, binding_id: str | None = None) -> SemanticType:
     if isinstance(expression, DailyValueNode):
         return infer_daily_type(expression, binding_id=binding_id)
-    return expression.semantic_type
+    semantic_type = getattr(expression, "semantic_type", None)
+    if semantic_type is not None:
+        return semantic_type
+    from ruletrade.strategy.v2.program_validation import infer_program_value_type
+    return infer_program_value_type(expression, binding_id=binding_id)
 
 
 def _history_requirement(expression: ValueExpressionV2) -> HistoryRequirement:
@@ -140,6 +144,10 @@ def _history_requirement(expression: ValueExpressionV2) -> HistoryRequirement:
         return HistoryRequirement(0)
     if isinstance(expression, DailyValueNode):
         return plan_daily_value(expression).history
+    from ruletrade.strategy.v2.program_validation import daily_nodes_for_value
+    nodes = daily_nodes_for_value(expression)
+    if nodes:
+        return HistoryRequirement(max(plan_daily_value(node).history.minimum_history_lower_bound for node in nodes))
     raise TypeError(f"unknown v2 expression: {type(expression)!r}")
 
 
@@ -168,7 +176,12 @@ def validate_comparison(
         elif isinstance(expression, (CandidateTrailingReturnValue, CandidateCurrentPriceValue)):
             bindings = (expression.binding_id,)
         else:
-            bindings = ()
+            from ruletrade.strategy.v2.program_validation import daily_nodes_for_value
+            bindings = tuple(
+                binding
+                for node in daily_nodes_for_value(expression)
+                for binding in _daily_candidate_ids(node)
+            )
         for candidate_id in bindings:
             if role == SemanticRole.PREDICATE:
                 diagnostics.append(SemanticDiagnostic(
