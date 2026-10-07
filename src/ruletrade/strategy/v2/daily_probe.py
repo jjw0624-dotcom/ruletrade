@@ -29,41 +29,73 @@ class DailyProbeObservation:
 
 
 def _csharp_string(value: str) -> str:
-    """Return one ordinary C# string literal without relying on JSON escaping."""
-    return '"' + (
-        value.replace("\\", "\\\\")
-        .replace('"', '\\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-    ) + '"'
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
 
-def lower_adjusted_close_probe(value: DailyValueNode) -> str:
-    """Generate a maintained-QCAlgorithm probe for one adjusted-close Value.
-
-    This deliberately proves the first observation path only. Other DailyValue
-    operators are rejected until their typed lowering is implemented.
-    """
+def _asset_adjusted_close_operand(value: DailyValueNode) -> DailyValueNode:
+    current = value
+    while current.kind == "trailing_return":
+        current = current.operands[0]
     if not (
-        value.kind == "observe"
-        and value.subject_kind == SubjectKind.ASSET
-        and value.field == MarketField.CLOSE
-        and value.basis == PriceBasis.ADJUSTED
-        and value.subject_id
+        current.kind == "observe"
+        and current.subject_kind == SubjectKind.ASSET
+        and current.field == MarketField.CLOSE
+        and current.basis == PriceBasis.ADJUSTED
+        and current.subject_id
     ):
-        raise DailyProbeLoweringError("only asset adjusted-close observe@1 is lowerable")
+        raise DailyProbeLoweringError("only asset adjusted-close DailyValue expressions are lowerable")
+    return current
+
+
+def lower_daily_value_probe(value: DailyValueNode) -> str:
+    """Lower the verified adjusted-close subset to the maintained LEAN runtime."""
+    observe = _asset_adjusted_close_operand(value)
     semantic_id = _csharp_string(value.semantic_id)
-    ticker = _csharp_string(value.subject_id)
+    ticker = _csharp_string(observe.subject_id or "")
+    if value.kind == "observe":
+        operator_id, operator_version = "adjusted_close", "1"
+        state = ""
+        evaluate = """
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }
+        Emit(observedAt, "available", bar.Close, null);"""
+    elif value.kind == "trailing_return":
+        period = value.observations or 0
+        if period < 1:
+            raise DailyProbeLoweringError("trailing_return requires a positive observation period")
+        operator_id, operator_version = "trailing_return", "1"
+        state = f"    private readonly RollingWindow<decimal> _closes = new RollingWindow<decimal>({period + 1});"
+        evaluate = f"""
+        if (!data.Bars.TryGetValue(_symbol, out var bar))
+        {{
+            Emit(observedAt, "unavailable", null, "missing_bar");
+            return;
+        }}
+        _closes.Add(bar.Close);
+        if (!_closes.IsReady)
+        {{
+            Emit(observedAt, "not_ready", null, "insufficient_history");
+            return;
+        }}
+        Emit(observedAt, "available", bar.Close / _closes[{period}] - 1m, null);"""
+    else:
+        raise DailyProbeLoweringError(f"unsupported DailyValue lowering: {value.kind}")
+
     return f"""using System;
 using System.Globalization;
 using QuantConnect;
 using QuantConnect.Algorithm;
 using QuantConnect.Data;
+using QuantConnect.Indicators;
 
 public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 {{
     private Symbol _symbol;
     private const char Quote = (char)34;
+{state}
 
     public override void Initialize()
     {{
@@ -72,32 +104,36 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
         _symbol = AddEquity({ticker}, Resolution.Daily).Symbol;
     }}
 
+    private void Emit(string observedAt, string status, decimal? value, string reason)
+    {{
+        var valueJson = value.HasValue
+            ? Quote + value.Value.ToString("G29", CultureInfo.InvariantCulture) + Quote
+            : "null";
+        var reasonJson = reason == null ? "null" : Quote + reason + Quote;
+        Debug("RULETRADE_DAILY_VALUE|{{"
+            + Quote + "semantic_id" + Quote + ":" + Quote + {semantic_id} + Quote
+            + "," + Quote + "operator_id" + Quote + ":" + Quote + "{operator_id}" + Quote
+            + "," + Quote + "operator_version" + Quote + ":" + Quote + "{operator_version}" + Quote
+            + "," + Quote + "observed_at" + Quote + ":" + Quote + observedAt + Quote
+            + "," + Quote + "status" + Quote + ":" + Quote + status + Quote
+            + "," + Quote + "value" + Quote + ":" + valueJson
+            + "," + Quote + "reason" + Quote + ":" + reasonJson + "}}");
+    }}
+
     public override void OnData(Slice data)
     {{
         var observedAt = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        if (!data.Bars.TryGetValue(_symbol, out var bar))
-        {{
-            Debug("RULETRADE_DAILY_VALUE|{{"
-                + Quote + "semantic_id" + Quote + ":" + Quote + {semantic_id} + Quote
-                + "," + Quote + "operator_id" + Quote + ":" + Quote + "adjusted_close" + Quote
-                + "," + Quote + "operator_version" + Quote + ":" + Quote + "1" + Quote
-                + "," + Quote + "observed_at" + Quote + ":" + Quote + observedAt + Quote
-                + "," + Quote + "status" + Quote + ":" + Quote + "unavailable" + Quote
-                + "," + Quote + "value" + Quote + ":null"
-                + "," + Quote + "reason" + Quote + ":" + Quote + "missing_bar" + Quote + "}}");
-            return;
-        }}
-        Debug("RULETRADE_DAILY_VALUE|{{"
-            + Quote + "semantic_id" + Quote + ":" + Quote + {semantic_id} + Quote
-            + "," + Quote + "operator_id" + Quote + ":" + Quote + "adjusted_close" + Quote
-            + "," + Quote + "operator_version" + Quote + ":" + Quote + "1" + Quote
-            + "," + Quote + "observed_at" + Quote + ":" + Quote + observedAt + Quote
-            + "," + Quote + "status" + Quote + ":" + Quote + "available" + Quote
-            + "," + Quote + "value" + Quote + ":" + Quote + bar.Close.ToString("G29", CultureInfo.InvariantCulture) + Quote
-            + "," + Quote + "reason" + Quote + ":null}}");
+{evaluate}
     }}
 }}
 """
+
+
+def lower_adjusted_close_probe(value: DailyValueNode) -> str:
+    """Compatibility entry point for the first verified current-value probe."""
+    if value.kind != "observe":
+        raise DailyProbeLoweringError("only asset adjusted-close observe@1 is lowerable")
+    return lower_daily_value_probe(value)
 
 
 def parse_daily_probe_observations(log_text: str) -> tuple[DailyProbeObservation, ...]:
@@ -106,14 +142,14 @@ def parse_daily_probe_observations(log_text: str) -> tuple[DailyProbeObservation
         payload = json.loads(match.group("payload"))
         if payload["status"] not in {"available", "unavailable", "not_ready"}:
             raise ValueError("invalid daily probe status")
-        value = payload.get("value")
+        parsed_value = payload.get("value")
         observations.append(DailyProbeObservation(
             semantic_id=payload["semantic_id"],
             operator_id=payload["operator_id"],
             operator_version=payload["operator_version"],
             observed_at=payload["observed_at"],
             status=payload["status"],
-            value=Decimal(value) if value is not None else None,
+            value=Decimal(parsed_value) if parsed_value is not None else None,
             reason=payload.get("reason"),
         ))
     return tuple(observations)
