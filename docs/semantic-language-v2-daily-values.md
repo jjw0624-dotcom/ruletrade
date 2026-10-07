@@ -105,6 +105,33 @@ identity. Reference cells retain unavailable reasons and observation dates;
 this is the input needed by later Decision/Evidence materialization, not a
 second persistence model.
 
+## K07 Interpretation A stress case
+
+The reference suite represents and evaluates the authorized Profile A portion:
+
+- raw price at least USD 5;
+- current raw-share volume at least 2.5 times the prior 252-observation mean;
+- absolute current one-observation return within 5% of the prior
+  252-observation mean absolute return;
+- ranking by 126-observation adjusted-close return.
+
+The deterministic four-asset case selects B then A. It proves History, skip,
+Time reduction, bounded absolute/arithmetic, comparison, ALL composition, and
+ranking Value semantics. It does not claim market-wide execution: raw price and
+volume remain provider-blocked, and monthly contribution Effects are deferred
+to Profile B.
+
+## Computation sharing and provenance
+
+Memoization is scoped by snapshot ID, cutoff, clock, semantic content, lexical
+binding, and Candidate identity. Semantic addresses are removed recursively
+from the computation hash but accumulated in result provenance, so equivalent
+closed expressions share work without losing their distinct Evidence paths.
+
+`DailyValueProvenance` records expression hash, all semantic addresses,
+snapshot/cutoff/clock, operator versions, fields, windows, reduction axis,
+coverage policy, and requested/available/missing member sets.
+
 ## Validation commands
 
 Normal CI runs full repository validation, generated C#/LEAN compilation, and
