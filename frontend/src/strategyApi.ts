@@ -25,13 +25,13 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 
 export const strategyApi = {
   list: (fetcher?: typeof fetch) => request<{ items: StrategyRecord[] }>("/v1/strategies", {}, fetcher),
-  get: (id: string, fetcher?: typeof fetch, signal?: AbortSignal) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, { signal }, fetcher),
-  create: (name: string, canonical: CanonicalStrategy, fetcher?: typeof fetch) => request<StrategyDetail>("/v1/strategies", jsonBody("POST", { name, canonical_strategy: canonical }), fetcher),
-  rename: (id: string, name: string, fetcher?: typeof fetch) => request<StrategyDetail>(`/v1/strategies/${encodeURIComponent(id)}`, jsonBody("PATCH", { name }), fetcher),
+  get: <T extends CanonicalStrategy = CanonicalStrategy>(id: string, fetcher?: typeof fetch, signal?: AbortSignal) => request<StrategyDetail<T>>(`/v1/strategies/${encodeURIComponent(id)}`, { signal }, fetcher),
+  create: <T extends CanonicalStrategy>(name: string, canonical: T, fetcher?: typeof fetch) => request<StrategyDetail<T>>("/v1/strategies", jsonBody("POST", { name, canonical_strategy: canonical }), fetcher),
+  rename: <T extends CanonicalStrategy = CanonicalStrategy>(id: string, name: string, fetcher?: typeof fetch) => request<StrategyDetail<T>>(`/v1/strategies/${encodeURIComponent(id)}`, jsonBody("PATCH", { name }), fetcher),
   archive: (id: string, fetcher?: typeof fetch) => request<void>(`/v1/strategies/${encodeURIComponent(id)}`, { method: "DELETE" }, fetcher),
   save: <T extends CanonicalStrategy>(id: string, parentId: string, canonical: T, fetcher?: typeof fetch) => request<SaveRevisionResponse<T>>(`/v1/strategies/${encodeURIComponent(id)}/revisions`, jsonBody("POST", { expected_parent_revision_id: parentId, canonical_strategy: canonical }), fetcher),
   revisions: (id: string, fetcher?: typeof fetch) => request<{ items: RevisionSummary[] }>(`/v1/strategies/${encodeURIComponent(id)}/revisions`, {}, fetcher),
-  revision: (id: string, revisionId: string, fetcher?: typeof fetch) => request<RevisionRecord>(`/v1/strategies/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}`, {}, fetcher),
+  revision: <T extends CanonicalStrategy = CanonicalStrategy>(id: string, revisionId: string, fetcher?: typeof fetch) => request<RevisionRecord<T>>(`/v1/strategies/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}`, {}, fetcher),
 };
 
 function normalize(value: unknown): unknown {
