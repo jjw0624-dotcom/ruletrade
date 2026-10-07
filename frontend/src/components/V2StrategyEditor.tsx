@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CanonicalStrategyV2, V2AuthoringOperation } from "../domain/canonicalV2";
+import type { V2AuthoringOperation } from "../domain/canonicalV2";
 import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
@@ -24,6 +24,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [message, setMessage] = useState("Saved");
   const [result, setResult] = useState<V2SelectionExecution | null>(null);
   const sequence = useRef(0);
+  const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   const apply = async (operation: V2AuthoringOperation) => {
@@ -67,7 +68,6 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   };
   const universe = canonical.definitions.groups.find((group) => group.id === canonical.selection.universe_id);
   const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? canonical.selection.universe_id));
-  const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
 
   return <section className="strategy-builder-workspace v2-strategy-workspace" data-canonical-version="v2">
     <header className="builder-chrome">
