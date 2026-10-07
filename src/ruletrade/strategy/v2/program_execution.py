@@ -51,6 +51,10 @@ class ProgramDecisionEvidence:
 
 @dataclass(frozen=True)
 class ProgramExecutionResult:
+    revision_id: str | None
+    program_semantic_id: str
+    snapshot_id: str
+    cutoff: str
     state: dict[str, str]
     selection_outputs: dict[str, tuple[str, ...]]
     target_weights: dict[str, Decimal]
@@ -60,17 +64,25 @@ class ProgramExecutionResult:
 
 
 class _Runtime:
-    def __init__(self, program: SemanticProgramV2, snapshot: DailyMarketSnapshot, cutoff: int) -> None:
+    def __init__(
+        self,
+        program: SemanticProgramV2,
+        snapshot: DailyMarketSnapshot,
+        cutoff: int,
+        *,
+        prior_state: dict[str, str] | None = None,
+        event_cutoffs: dict[str, int] | None = None,
+    ) -> None:
         self.program = program
         self.snapshot = snapshot
         self.cutoff = cutoff
-        self.state = dict(program.initial_state)
+        self.state = dict(program.initial_state if prior_state is None else prior_state)
         self.selections: dict[str, tuple[str, ...]] = {}
         self.target_weights: dict[str, Decimal] = {}
         self.retained = False
         self.evidence: list[ProgramDecisionEvidence] = []
         self.observations: list[ProgramValueObservation] = []
-        self.event_cutoffs: dict[str, int] = {}
+        self.event_cutoffs: dict[str, int] = dict(event_cutoffs or {})
 
     @property
     def observed_at(self) -> str:
@@ -461,14 +473,25 @@ def execute_program_v2(
     snapshot: DailyMarketSnapshot,
     *,
     cutoff_index: int | None = None,
+    revision_id: str | None = None,
+    prior_state: dict[str, str] | None = None,
+    event_cutoffs: dict[str, int] | None = None,
 ) -> ProgramExecutionResult:
     issues = validate_program_v2(program)
     if issues:
         raise ProgramExecutionError("; ".join(f"{item.path}: {item.code}" for item in issues))
     cutoff = len(snapshot.dates) - 1 if cutoff_index is None else cutoff_index
-    runtime = _Runtime(program, snapshot, cutoff)
+    runtime = _Runtime(
+        program, snapshot, cutoff,
+        prior_state=prior_state,
+        event_cutoffs=event_cutoffs,
+    )
     runtime.statements(program.statements)
     return ProgramExecutionResult(
+        revision_id=revision_id,
+        program_semantic_id=program.semantic_id,
+        snapshot_id=snapshot.snapshot_id,
+        cutoff=snapshot.dates[cutoff],
         state=runtime.state,
         selection_outputs=runtime.selections,
         target_weights=runtime.target_weights,
