@@ -258,6 +258,7 @@ def test_event_rising_edge_and_event_relative_reference_use_exact_anchor() -> No
     after = execute_program_v2(core, snapshot(), cutoff_index=2)
     assert "event-choice" not in before.selection_outputs
     assert triggered.selection_outputs["event-choice"] == ("QQQ",)
+    assert triggered.event_truths == {"risk-on-event": "true"}
     assert "event-choice" not in after.selection_outputs
     assert any(item.semantic_id == "event-close" and item.observed_at == "2026-01-02" for item in triggered.value_observations)
 
@@ -295,6 +296,11 @@ def test_multi_clock_runs_only_at_completed_boundary() -> None:
     )
     assert "weekly-choice" not in execute_program_v2(weekly, snapshot(), cutoff_index=0).selection_outputs
     assert "weekly-choice" in execute_program_v2(weekly, snapshot(), cutoff_index=1).selection_outputs
+    assert "weekly-choice" not in execute_program_v2(weekly, snapshot()).selection_outputs
+    fixture_boundary = weekly.model_copy(update={
+        "clocks": (weekly.clocks[0].model_copy(update={"terminal_boundary_policy": "fixture_end_is_boundary"}),),
+    })
+    assert "weekly-choice" in execute_program_v2(fixture_boundary, snapshot()).selection_outputs
 
 
 def test_control_executes_only_selected_branch_and_unknown_retains() -> None:
