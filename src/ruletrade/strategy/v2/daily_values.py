@@ -297,15 +297,8 @@ def _transform(kind: str, period: int, series: tuple[Decimal | None, ...]) -> tu
                         / (Decimal(1) + average_gain / average_loss)
                     )
             else:
-                previous_values = [
-                    value for value in series[:end] if value is not None
-                ]
-                previous_rsi_stream = _transform(
-                    "rsi_wilder_lean_compat", period, tuple(previous_values)
-                )
-                # Reconstruct Wilder's two continuing averages. This branch is
-                # intentionally iterative below; the temporary recursion is
-                # replaced before returning so semantic behavior remains clear.
+                # LEAN's Wilder profile keeps the smoothed gain/loss state from
+                # the first ready observation; it is not a rolling simple mean.
                 changes = [
                     series[index] - series[index - 1]
                     for index in range(1, period + 1)
