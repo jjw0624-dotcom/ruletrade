@@ -165,8 +165,17 @@ class NotConditionV2(FrozenModel):
     child: "ConditionV2"
 
 
+class StateConditionV2(FrozenModel):
+    """An explicit Program-state predicate; never valid as Selection Eligibility."""
+
+    kind: Literal["state_equals"] = "state_equals"
+    semantic_id: Identifier
+    state_key: Identifier
+    expected: str
+
+
 ConditionV2: TypeAlias = Annotated[
-    ComparisonV2 | BooleanGroupV2 | NotConditionV2,
+    ComparisonV2 | BooleanGroupV2 | NotConditionV2 | StateConditionV2,
     Field(discriminator="kind"),
 ]
 
@@ -400,6 +409,7 @@ class CanonicalStrategyV2(FrozenModel):
 
 BooleanGroupV2.model_rebuild()
 NotConditionV2.model_rebuild()
+StateConditionV2.model_rebuild()
 SelectionV2.model_rebuild()
 EventStatementV2.model_rebuild()
 ConditionalStatementV2.model_rebuild()
