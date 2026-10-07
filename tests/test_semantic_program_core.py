@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from ruletrade.strategy.v1.models import AssetSetDefinition, StrategyMetadata
+from ruletrade.strategy.v2.authoring import V2AuthoringError, _replace_program_statement
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueNode,
@@ -616,3 +617,30 @@ def test_program_value_provenance_hashes_content_not_semantic_address() -> None:
     assert observed_hash(base) != observed_hash(base.model_copy(update={
         "semantic_id": "rank-direction-change", "direction": "ascending",
     }))
+
+
+def test_program_authoring_addresses_nested_allocations_without_ambiguity() -> None:
+    policy = GuardedAllocationStatementV2(
+        semantic_id="addressable-policy",
+        primary=asset_allocation("QQQ", "addressable-primary"),
+        fallback=asset_allocation("TLT", "addressable-fallback"),
+    )
+    core = program(policy)
+    replacement = asset_allocation("SOXX", "replacement-allocation")
+    changed = _replace_program_statement(core, "addressable-fallback", replacement)
+    changed_policy = changed.statements[0]
+    assert isinstance(changed_policy, GuardedAllocationStatementV2)
+    assert changed_policy.fallback == replacement
+    assert changed_policy.primary == policy.primary
+
+    with pytest.raises(V2AuthoringError, match="Allocation replacement"):
+        _replace_program_statement(
+            core,
+            "addressable-primary",
+            UnresolvedStatementV2(
+                semantic_id="wrong-kind",
+                source_text="unresolved",
+                category="unsupported_semantics",
+                reason="wrong replacement kind",
+            ),
+        )
