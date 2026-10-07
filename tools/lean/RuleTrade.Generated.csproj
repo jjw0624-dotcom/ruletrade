@@ -18,6 +18,10 @@
       <HintPath>$(LeanRoot)/Launcher/bin/Debug/QuantConnect.Algorithm.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="QuantConnect.Indicators">
+      <HintPath>$(LeanRoot)/Launcher/bin/Debug/QuantConnect.Indicators.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Python.Runtime">
       <HintPath>$(LeanRoot)/Launcher/bin/Debug/Python.Runtime.dll</HintPath>
       <Private>false</Private>
