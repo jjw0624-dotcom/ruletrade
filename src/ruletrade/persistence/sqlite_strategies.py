@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v2.models import parse_canonical_strategy
 
 SCHEMA_VERSION = 8
 
@@ -821,7 +821,7 @@ class SQLiteStrategyRepository:
             id=row["id"],
             strategy_id=row["strategy_id"],
             parent_revision_id=row["parent_revision_id"],
-            canonical_strategy=CanonicalStrategyV1.model_validate_json(row["canonical_json"]),
+            canonical_strategy=parse_canonical_strategy(__import__("json").loads(row["canonical_json"])),
             source_hash=row["source_hash"],
             schema_version=row["schema_version"],
             created_at=_parse_timestamp(row["created_at"]),
