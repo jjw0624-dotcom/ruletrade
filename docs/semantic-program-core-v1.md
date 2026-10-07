@@ -25,7 +25,7 @@ IDs. A compatibility Selection is not silently converted into a Program.
 | Value | `DailyValueNode` | Work 2 typed daily semantics remain unchanged. |
 | Cross-section | `CrossSectionalValueV2` | Deterministic rank, percentile, quantile, or bucket over one named domain. Missing members do not receive a rank. Ties use stable member identity. |
 | Score | `ScoreValueV2` | Explicit weighted terms; missing policy is either require-all or renormalize-available. |
-| Condition | `ComparisonV2`, ALL, ANY, NOT | Three-valued Truth; Candidate references require lexical Selection binding. |
+| Condition | `ComparisonV2`, `StateConditionV2`, ALL, ANY, NOT | Three-valued Truth; Candidate references require lexical Selection binding; declared state is Program-only and cannot filter Eligibility. |
 | Selection | `SelectionStatementV2` | Produces a named target set. Shortage and Selection fallback remain distinct. |
 | Control | `ConditionalStatementV2` | Evaluates only the selected branch. Unknown explicitly retains or routes to OTHERWISE. |
 | Event | `EventStatementV2` | Rising edge, falling edge, or while-true at a named clock. |
@@ -60,9 +60,9 @@ Truth. Unknown is not treated as true.
 
 State keys must be declared in `initial_state`. A transition checks its optional
 from-state and Condition before mutation. Callers may supply prior persisted state;
-the Program result returns the next state. State is not inferred from holdings.
+the Program result returns the next state. `StateConditionV2` makes state-driven Control explicit and rejects undeclared keys. State is not inferred from holdings.
 
-Event-relative references require a declared Event identity and an integer
+The execution checkpoint returns both the latest Event cutoffs and current Event Truths; callers feed them into the next decision so edge identity is durable across runs. Event-relative references require a declared Event identity and an integer
 observation offset. Missing event history or an out-of-range offset produces an
 unavailable Value, never zero.
 
@@ -73,7 +73,7 @@ Every clock has a timeframe, completed-close boundary, timezone, and
 
 The reference runtime supports deterministic daily, weekly, and monthly boundary
 gating over the pinned daily calendar. It does not fabricate intraday bars or
-implicitly align incomplete observations. Cross-clock Value alignment beyond
+implicitly align incomplete observations. A terminal fixture row is not assumed to close a week or month unless the clock explicitly declares `fixture_end_is_boundary`; production defaults to `not_due`. Cross-clock Value alignment beyond
 as-of completed observations remains an explicit future profile.
 
 ## Allocation precedence
@@ -104,7 +104,7 @@ Reference execution records:
 - executed statement semantic IDs;
 - decision kind and outcome;
 - Value semantic ID, candidate, observed value/reason, timestamp, and expression hash;
-- selected outputs, resulting target weights, retained-holdings outcome, and next state.
+- selected outputs, resulting target weights, retained-holdings outcome, next state, Event cutoffs, and Event Truth checkpoints.
 
 Unselected Control branches emit no branch-local events or Value observations.
 
