@@ -18,20 +18,34 @@ from ruletrade.strategy.v2.daily_values import (
 from ruletrade.strategy.v2.semantic_types import Clock
 
 
-def main() -> None:
-    fixture = Path("tests/fixtures/lean-filter-data")
-    symbol = "QQQ"
-    dates, closes = load_aligned_daily_closes(fixture, (symbol,), fixture_name="daily-value-probe")
+# LEAN's US equity daily ZIP stores price fields as integer ticks with four
+# implied decimal places. LEAN decodes bar.Close to dollars before the probe
+# sees it, so the reference adapter must apply the same fixture encoding rule.
+_LEAN_EQUITY_DAILY_PRICE_SCALE = Decimal("10000")
+
+
+def _adjusted_close_snapshot(fixture: Path, symbol: str) -> DailyMarketSnapshot:
+    dates, encoded_closes = load_aligned_daily_closes(
+        fixture, (symbol,), fixture_name="daily-value-probe"
+    )
     normalized_dates = tuple(f"{value[:4]}-{value[4:6]}-{value[6:8]}" for value in dates)
-    snapshot = DailyMarketSnapshot(
+    closes = tuple(value / _LEAN_EQUITY_DAILY_PRICE_SCALE for value in encoded_closes[symbol])
+    return DailyMarketSnapshot(
         snapshot_id="lean-filter-data:qqq:adjusted-close-observation@1",
         clock=Clock(id="daily-close"),
         dates=normalized_dates,
         domains={"probe": (symbol,)},
-        # The fixture has no corporate action; this is an adjusted-close
-        # plumbing proof, not a raw/adjusted divergence proof.
-        series={symbol: {"close:adjusted": tuple(closes[symbol])}},
+        # This fixture contains no corporate-action divergence. The conversion
+        # proves LEAN's four-decimal daily ZIP encoding, not general
+        # raw-versus-adjusted corporate-action normalization parity.
+        series={symbol: {"close:adjusted": closes}},
     )
+
+
+def main() -> None:
+    fixture = Path("tests/fixtures/lean-filter-data")
+    symbol = "QQQ"
+    snapshot = _adjusted_close_snapshot(fixture, symbol)
     value = DailyValueNode(
         semantic_id="probe-qqq-adjusted-close",
         kind="observe",
@@ -58,6 +72,7 @@ def main() -> None:
         "lean": str(observed.value),
         "delta": str(abs((observed.value or Decimal(0)) - reference)),
         "fixture": str(fixture),
+        "fixture_price_scale": str(_LEAN_EQUITY_DAILY_PRICE_SCALE),
     }, sort_keys=True))
 
 
