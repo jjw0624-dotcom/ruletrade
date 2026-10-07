@@ -138,6 +138,16 @@ from ruletrade.strategy.v1.semantics import (
     project_semantic_composition,
 )
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategy.v2.authoring import (
+    ApplyV2AuthoringRequest,
+    ApplyV2AuthoringResponse,
+    V2AuthoringCapability,
+    V2AuthoringError,
+    apply_v2_authoring,
+    authoring_capabilities as v2_authoring_capabilities,
+)
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v1.value_semantics import (
     DatasetValueEvaluator,
     SemanticValueEvidence,
@@ -719,6 +729,45 @@ def validate_canonical_strategy_v1(
         "strategy": spec.model_dump(mode="json"),
     }
 
+
+
+@app.get(
+    "/v2/canonical/authoring/capabilities",
+    response_model=tuple[V2AuthoringCapability, ...],
+)
+def canonical_v2_authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
+    return v2_authoring_capabilities()
+
+
+@app.post(
+    "/v2/canonical/authoring/apply",
+    response_model=ApplyV2AuthoringResponse,
+)
+def apply_canonical_v2_authoring(
+    request: ApplyV2AuthoringRequest,
+) -> ApplyV2AuthoringResponse:
+    try:
+        return apply_v2_authoring(request)
+    except V2AuthoringError as exc:
+        raise HTTPException(
+            status_code=409 if exc.code == "stale_authoring_source" else 422,
+            detail={"code": exc.code, "path": exc.path, "message": str(exc)},
+        ) from exc
+
+
+@app.post("/v2/canonical/strategies/validate")
+def validate_canonical_strategy_v2(spec: CanonicalStrategyV2) -> dict[str, object]:
+    issues = validate_strategy_v2(spec)
+    if issues:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": issue.code, "path": issue.path, "message": issue.message} for issue in issues],
+        )
+    return {
+        "valid": True,
+        "strategy_hash": strategy_hash(spec),
+        "strategy": spec.model_dump(mode="json"),
+    }
 
 @app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
 def execute_lean_backtest(
