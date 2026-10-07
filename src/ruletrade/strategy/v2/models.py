@@ -247,6 +247,7 @@ class ProgramClockV2(FrozenModel):
     boundary: Literal["close"] = "close"
     timezone: str = "UTC"
     completed_only: Literal[True] = True
+    terminal_boundary_policy: Literal["not_due", "fixture_end_is_boundary"] = "not_due"
 
 
 class EventDefinitionV2(FrozenModel):
