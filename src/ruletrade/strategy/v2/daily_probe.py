@@ -11,6 +11,13 @@ from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, Pric
 
 _PREFIX = "RULETRADE_DAILY_VALUE|"
 _PATTERN = re.compile(re.escape(_PREFIX) + r"(?P<payload>\{.*?\})(?:\r?$)", re.MULTILINE)
+_OPERATOR_ABSOLUTE_TOLERANCES = {
+    ("adjusted_close", "1"): Decimal(0),
+    # LEAN decimal calculations are serialized through G29, while the reference
+    # uses arbitrary-precision Decimal division. This is serialization precision,
+    # not a return-definition difference.
+    ("trailing_return", "1"): Decimal("1e-27"),
+}
 
 
 class DailyProbeLoweringError(ValueError):
@@ -26,6 +33,58 @@ class DailyProbeObservation:
     status: str
     value: Decimal | None
     reason: str | None = None
+
+
+@dataclass(frozen=True)
+class DailyValueDifferential:
+    semantic_id: str
+    reference: DailyProbeObservation
+    lean: DailyProbeObservation
+    absolute_tolerance: Decimal
+    numeric_delta: Decimal | None
+    status_match: bool
+    timestamp_match: bool
+    value_match: bool
+    passed: bool
+    reason: str | None
+
+
+def compare_daily_observations(
+    reference: DailyProbeObservation,
+    lean: DailyProbeObservation,
+) -> DailyValueDifferential:
+    if (reference.operator_id, reference.operator_version) != (
+        lean.operator_id, lean.operator_version
+    ):
+        return DailyValueDifferential(
+            reference.semantic_id, reference, lean, Decimal(0), None, False, False, False, False,
+            "operator_identity_mismatch",
+        )
+    tolerance = _OPERATOR_ABSOLUTE_TOLERANCES.get(
+        (reference.operator_id, reference.operator_version)
+    )
+    if tolerance is None:
+        raise ValueError("unregistered_operator_tolerance")
+    status_match = reference.status == lean.status
+    timestamp_match = reference.observed_at == lean.observed_at
+    if reference.value is None or lean.value is None:
+        numeric_delta = None
+        value_match = reference.value is None and lean.value is None
+    else:
+        numeric_delta = abs(reference.value - lean.value)
+        value_match = numeric_delta <= tolerance
+    identity_match = reference.semantic_id == lean.semantic_id
+    passed = identity_match and status_match and timestamp_match and value_match
+    reason = None if passed else (
+        "semantic_identity_mismatch" if not identity_match else
+        "status_mismatch" if not status_match else
+        "timestamp_mismatch" if not timestamp_match else
+        "value_mismatch"
+    )
+    return DailyValueDifferential(
+        reference.semantic_id, reference, lean, tolerance, numeric_delta,
+        status_match, timestamp_match, value_match, passed, reason,
+    )
 
 
 def _csharp_string(value: str) -> str:
@@ -130,7 +189,6 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 
 
 def lower_adjusted_close_probe(value: DailyValueNode) -> str:
-    """Compatibility entry point for the first verified current-value probe."""
     if value.kind != "observe":
         raise DailyProbeLoweringError("only asset adjusted-close observe@1 is lowerable")
     return lower_daily_value_probe(value)
