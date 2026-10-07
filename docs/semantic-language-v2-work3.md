@@ -1,3 +1,10 @@
+> **Roadmap status (2026-10-08):** This document records the initial Work 3
+> implementation direction. The 169-case natural-language strategy corpus showed
+> that Semantic Program Core closure must precede further generalized authoring UI.
+> See [semantic-program-core-closure-audit.md](semantic-program-core-closure-audit.md).
+> Existing foundations are retained, but this document is not a claim of Work 3
+> acceptance.
+
 # Semantic Language v2 — Profile A Work 3
 
 ## Boundary
