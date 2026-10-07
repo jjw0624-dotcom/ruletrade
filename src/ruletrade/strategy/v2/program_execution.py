@@ -26,10 +26,26 @@ from ruletrade.strategy.v2.models import (
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.program_validation import validate_program_v2
+from ruletrade.strategy.v2.semantic_types import semantic_content_hash
 
 
 class ProgramExecutionError(ValueError):
     pass
+
+
+def _value_content_hash(value: ValueExpressionV2) -> str:
+    def without_addresses(payload: object) -> object:
+        if isinstance(payload, dict):
+            return {
+                key: without_addresses(item)
+                for key, item in payload.items()
+                if key != "semantic_id"
+            }
+        if isinstance(payload, list):
+            return [without_addresses(item) for item in payload]
+        return payload
+
+    return semantic_content_hash(without_addresses(value.model_dump(mode="json")))
 
 
 @dataclass(frozen=True)
@@ -140,7 +156,7 @@ class _Runtime:
             if anchor is None:
                 return ProgramValueObservation(
                     value.semantic_id, candidate, None, "event_not_observed",
-                    self.observed_at, value.source.content_hash,
+                    self.observed_at, _value_content_hash(value),
                 )
             observation = self._daily(
                 value.source, candidate, binding_id,
@@ -148,7 +164,7 @@ class _Runtime:
             )
             relative = ProgramValueObservation(
                 value.semantic_id, candidate, observation.value, observation.reason,
-                observation.observed_at, observation.expression_hash,
+                observation.observed_at, _value_content_hash(value),
             )
             self.observations.append(relative)
             return relative
@@ -190,7 +206,7 @@ class _Runtime:
                 reason = None
             observation = ProgramValueObservation(
                 value.semantic_id, candidate, result, reason, self.observed_at,
-                value.source.content_hash,
+                _value_content_hash(value),
             )
             self.observations.append(observation)
             return observation
@@ -198,12 +214,10 @@ class _Runtime:
             total = Decimal(0)
             available_weight = Decimal(0)
             missing = False
-            hashes: list[str] = []
             for term in value.terms:
                 item = self.value(
                     term.value, candidate=candidate, binding_id=binding_id, members=members,
                 )
-                hashes.append(item.expression_hash)
                 if item.value is None:
                     missing = True
                     continue
@@ -218,7 +232,7 @@ class _Runtime:
                 reason = None
             observation = ProgramValueObservation(
                 value.semantic_id, candidate, result, reason, self.observed_at,
-                "|".join(hashes),
+                _value_content_hash(value),
             )
             self.observations.append(observation)
             return observation
@@ -227,7 +241,7 @@ class _Runtime:
         if semantic_type is not None and literal is not None:
             return ProgramValueObservation(
                 value.semantic_id, candidate, Decimal(literal), None,
-                self.observed_at, f"legacy:{value.semantic_id}",
+                self.observed_at, _value_content_hash(value),
             )
         raise ProgramExecutionError(f"unsupported_program_value: {type(value).__name__}")
 
