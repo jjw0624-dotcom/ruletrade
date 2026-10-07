@@ -290,6 +290,11 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
 
     private void Emit(string observedAt, string status, decimal? value, string reason)
     {{
+        if (RequestedDate != null && observedAt != RequestedDate)
+        {{
+            return;
+        }}
+        _emitted = true;
         var valueJson = value.HasValue
             ? Quote + value.Value.ToString("G29", CultureInfo.InvariantCulture) + Quote
             : "null";
@@ -307,11 +312,6 @@ public class RuleTradeGeneratedAlgorithm : QCAlgorithm
     public override void OnData(Slice data)
     {{
         var observedAt = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        if (RequestedDate != null && observedAt != RequestedDate)
-        {{
-            return;
-        }}
-        _emitted = true;
 {evaluate}
     }}
 
