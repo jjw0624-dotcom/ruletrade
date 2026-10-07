@@ -491,7 +491,7 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
             versions.add(f"arithmetic.{value.arithmetic}@1")
 
     visit(node)
-    return TypedValuePlan(node.semantic_id, node.content_hash, semantic_type, tuple(sorted(fields)), HistoryRequirement(minimum, seed_anchor_required=seed_anchor, checkpoint_identity_required=seed_anchor), tuple(sorted(versions)), node.kind in {"literal", "observe", "current", "trailing_return"})
+    return TypedValuePlan(node.semantic_id, node.content_hash, semantic_type, tuple(sorted(fields)), HistoryRequirement(minimum, seed_anchor_required=seed_anchor, checkpoint_identity_required=seed_anchor), tuple(sorted(versions)), False)
 
 
 def format_daily_value(node: DailyValueNode) -> str:
