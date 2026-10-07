@@ -1,6 +1,8 @@
 """RuleTrade Semantic Strategy Language v2 foundation."""
 
+from ruletrade.strategy.v2.authoring import apply_v2_authoring, authoring_capabilities
 from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan, lower_v2_to_v1
+from ruletrade.strategy.v2.execution import evaluate_predicate_v2, execute_selection_v2
 from ruletrade.strategy.v2.daily_provider import (
     DailyDatasetContract,
     DailyDatasetProviderError,
@@ -22,6 +24,10 @@ from ruletrade.strategy.v2.validation import OP_SPECS, SemanticDiagnostic, Seman
 
 __all__ = [
     "CanonicalStrategyV2",
+    "apply_v2_authoring",
+    "authoring_capabilities",
+    "evaluate_predicate_v2",
+    "execute_selection_v2",
     "DailyDatasetContract",
     "DailyDatasetProviderError",
     "DailyFieldAvailability",
