@@ -721,23 +721,49 @@ def plan_daily_value(node: DailyValueNode, *, binding_id: str | None = None) -> 
     )
 
 def format_daily_value(node: DailyValueNode) -> str:
+    """Shared financial wording for DailyValue projections."""
     if node.kind == "literal":
         return f"{node.value} {node.unit.value}"
     if node.kind == "observe":
-        subject = "Candidate" if node.subject_kind == SubjectKind.CANDIDATE else (node.subject_id or "Asset")
-        field = "volume" if node.field == MarketField.VOLUME else f"{node.basis.value} {node.field.value}"
+        if node.subject_kind == SubjectKind.CANDIDATE:
+            subject = "Candidate"
+        elif node.subject_kind == SubjectKind.GROUP_MEMBERS:
+            subject = f"{node.subject_id} members"
+        else:
+            subject = node.subject_id or "Asset"
+        field = (
+            "volume"
+            if node.field == MarketField.VOLUME
+            else f"{node.basis.value} {node.field.value}"
+        )
         return f"{subject}'s {field}"
+    source = format_daily_value(node.operands[0])
     if node.kind == "current":
-        return f"current {format_daily_value(node.operands[0])}"
+        return f"current {source}"
     if node.kind == "absolute":
-        return f"absolute {format_daily_value(node.operands[0])}"
+        return f"absolute {source}"
     if node.kind == "history":
-        return f"{node.observations}-observation history of {format_daily_value(node.operands[0])}"
-    if node.kind in {"sma", "ema", "trailing_return", "rsi_wilder_lean_compat"}:
-        label = "RSI" if node.kind == "rsi_wilder_lean_compat" else node.kind.upper()
-        return f"{node.observations}-observation {label} of {format_daily_value(node.operands[0])}"
+        return f"{node.observations}-observation history of {source}"
+    if node.kind == "trailing_return":
+        return f"{source} · {node.observations}-observation return"
+    if node.kind == "sma":
+        return f"{source} · {node.observations}-observation SMA"
+    if node.kind == "ema":
+        return f"{source} · {node.observations}-observation EMA"
+    if node.kind == "rsi_wilder_lean_compat":
+        return f"{source} · RSI({node.observations})"
+    if node.kind == "realized_volatility":
+        return f"{source} · {node.observations}-observation realized volatility"
     if node.kind == "reduce":
-        return f"{node.reduction.value} {node.axis.value} of {format_daily_value(node.operands[0])}"
+        return f"{node.reduction.value} across {node.axis.value} of {source}"
+    if node.kind == "arithmetic":
+        symbol = {
+            "add": "+",
+            "subtract": "−",
+            "multiply": "×",
+            "divide": "÷",
+        }[node.arithmetic or ""]
+        return f"{source} {symbol} {format_daily_value(node.operands[1])}"
     return node.kind
 
 
