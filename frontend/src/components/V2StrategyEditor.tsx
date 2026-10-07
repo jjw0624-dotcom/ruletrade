@@ -4,6 +4,7 @@ import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi } from "../v2AuthoringApi";
+import { executeV2Selection, type V2SelectionExecution } from "../v2ExecutionApi";
 import { V2ConditionComposer, V2ValueComposer } from "./V2SemanticComposer";
 
 type View = "summary" | "flow" | "blocky" | "rules";
@@ -21,6 +22,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [view, setView] = useState<View>("summary");
   const [status, setStatus] = useState<"saved" | "updating" | "invalid" | "unfinished">("saved");
   const [message, setMessage] = useState("Saved");
+  const [result, setResult] = useState<V2SelectionExecution | null>(null);
   const sequence = useRef(0);
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
@@ -53,6 +55,16 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Save failed.");
     }
   };
+  const run = async () => {
+    if (unavailable) return;
+    setStatus("updating"); setMessage("Testing typed v2 Selection…");
+    try {
+      const next = await executeV2Selection(canonical);
+      setResult(next); setStatus("saved"); setMessage("Test complete");
+    } catch (reason) {
+      setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Test failed.");
+    }
+  };
   const universe = canonical.definitions.groups.find((group) => group.id === canonical.selection.universe_id);
   const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? canonical.selection.universe_id));
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
@@ -64,9 +76,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
         {(["summary", "flow", "blocky", "rules"] as View[]).map((item) => <button key={item} aria-pressed={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
       </div>
       <div className="builder-identity"><strong>{persisted.strategy.name}</strong><small>{dirty ? "Unsaved changes" : "Saved v2 Strategy"}</small></div>
-      <div className="builder-actions"><button className="secondary-button" disabled={!dirty || unavailable} onClick={() => void save()}>Save</button><button className="primary-button" disabled={unavailable} title={unavailable ? message : undefined}>Test ▶</button></div>
+      <div className="builder-actions"><button className="secondary-button" disabled={!dirty || unavailable} onClick={() => void save()}>Save</button><button className="primary-button" disabled={unavailable} title={unavailable ? message : undefined} onClick={() => void run()}>Test ▶</button></div>
     </header>
-    <div className="builder-messages"><div className={`semantic-edit-feedback ${status}`} role="status">{message}</div></div>
+    <div className="builder-messages"><div className={`semantic-edit-feedback ${status}`} role="status">{message}</div>{result && <section className="v2-test-result" aria-label="v2 Selection result"><strong>{result.complete ? "Selection complete" : "Selection incomplete"}</strong><p>Selected: {result.selected_assets.join(", ") || "none"}</p><p>Eligible: {result.evidence.eligible_members.length} / {result.evidence.requested_members.length} · Unknown: {result.evidence.unknown_members.length}</p>{result.evidence.fallback_used && <p>Selection fallback used: {result.evidence.fallback_asset}</p>}</section>}</div>
     <div className="builder-core inspector-open">
       <main className="representation-workspace">
         {view === "summary" && <section className="representation-layer v2-summary"><span className="eyebrow">Profile A · Semantic Language v2</span><h1>{canonical.metadata.name}</h1><p>Selection is authored from complete typed Values and persisted as an explicit v2 revision.</p></section>}
