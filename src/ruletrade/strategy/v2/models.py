@@ -125,6 +125,15 @@ class ScoreValueV2(FrozenModel):
     terms: tuple[ScoreTermV2, ...] = Field(min_length=1, max_length=20)
     missing_policy: Literal["require_all", "renormalize_available"] = "require_all"
 
+    @model_validator(mode="after")
+    def validate_terms(self) -> "ScoreValueV2":
+        term_ids = [term.semantic_id for term in self.terms]
+        if len(term_ids) != len(set(term_ids)):
+            raise ValueError("Score term semantic ids must be unique")
+        if not any(term.weight != 0 for term in self.terms):
+            raise ValueError("Score requires at least one non-zero weight")
+        return self
+
 
 class EventRelativeValueV2(FrozenModel):
     kind: Literal["event_relative"] = "event_relative"
