@@ -12,8 +12,23 @@ Conditions into statements, and provide one stable input to validation, executio
 projection, persistence, and Evidence.
 
 The existing PR work remains useful, but the current top-level v2 envelope is
-Selection-shaped rather than Program-shaped. The next batch must close that core
-boundary before UI breadth increases.
+Selection-shaped rather than Program-shaped. This PR closes that core boundary before UI breadth increases.
+
+## Closure outcome
+
+The audit's core adaptation is now implemented in this PR. The original
+Selection-shaped fields remain an explicit compatibility boundary; Program-native
+revisions use `SemanticProgramV2` and are not reconstructed from legacy fields.
+
+| Contract | Status |
+|---|---|
+| Program root and typed statements | Closed with stable semantic IDs and explicit compatibility snapshots. |
+| Recursive validation | Closed for lexical Candidate scope, Program state, clocks, provider truth, statement identity, and definite Selection-output dataflow. |
+| Reference execution | Closed for cross-section/score, T/F/U Control, Events, state transitions, multi-clock gating, allocation, and policy precedence. |
+| Persistence and authoring | Closed for versioned JSON round-trip, semantic hashing, source-hash CAS, whole Program replacement, and nested statement addresses. |
+| Evidence readiness | Closed with revision/program/snapshot/cutoff identity, executed-path statement events, exact Value observations, Event checkpoints, and composed-expression hashes. |
+| Corpus boundary | Closed as an explicit representable/provider-blocked/unresolved/deferred classifier. Representative counterexamples are pinned; this is not a natural-language parser. |
+| Projection/UI breadth | Intentionally deferred. Program-native frontend transport is safe and read-only rather than inventing generalized controls. |
 
 ## KEEP
 
@@ -66,8 +81,7 @@ closed. Existing code is retained for evaluation and reuse.
 
 ## Program Core closure entry contract
 
-The next implementation slice in this PR should establish, before further UI
-breadth:
+The implemented closure establishes, before further UI breadth:
 
 1. A versioned, representation-neutral Program root with stable semantic IDs.
 2. Typed statement/control/effect nodes that reuse `DailyValueNode`,
