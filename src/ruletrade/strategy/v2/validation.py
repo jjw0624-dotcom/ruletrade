@@ -1,0 +1,219 @@
+"""Type, role, readiness, and operation contracts for CanonicalStrategyV2."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Literal
+
+from ruletrade.strategy.v2.models import (
+    CandidateCurrentPriceValue,
+    CandidateTrailingReturnValue,
+    CanonicalStrategyV2,
+    ComparisonV2,
+    LiteralValue,
+    ValueExpressionV2,
+)
+from ruletrade.strategy.v2.semantic_types import (
+    HistoryRequirement,
+    Quantity,
+    SemanticDType,
+    SemanticType,
+    SemanticTypeError,
+    Unit,
+    require_compatible_values,
+)
+
+
+class SemanticRole(StrEnum):
+    PREDICATE = "predicate"
+    ELIGIBILITY = "eligibility"
+    RANKING = "ranking"
+    ALLOCATION_INPUT = "allocation_input"
+    RESEARCH_PREVIEW = "research_preview"
+
+
+class ValueValidity(StrEnum):
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    NOT_EVALUATED = "not_evaluated"
+
+
+@dataclass(frozen=True)
+class SemanticDiagnostic:
+    code: str
+    path: str
+    message: str
+
+
+@dataclass(frozen=True)
+class OperationCapability:
+    parseable: bool
+    type_valid: bool
+    role_valid: bool
+    provider_available: bool
+    historical_safe: bool
+    reference_evaluable: bool
+    backend_lowerable: bool
+    authoring_reachable: bool
+    verified_profile: bool
+
+    @property
+    def production_ready(self) -> bool:
+        return all((
+            self.parseable, self.type_valid, self.role_valid, self.provider_available,
+            self.historical_safe, self.reference_evaluable, self.backend_lowerable,
+            self.authoring_reachable, self.verified_profile,
+        ))
+
+
+@dataclass(frozen=True)
+class OpSpec:
+    id: str
+    semantic_version: str
+    accepted_roles: tuple[SemanticRole, ...]
+    natural_clock: str
+    history_requirement: HistoryRequirement
+    required_data_fields: tuple[str, ...]
+    purity: Literal["pure", "effect"]
+    reference_evaluator: str | None
+    backend_lowering: str | None
+    evidence_formatter: str
+
+
+OP_SPECS: dict[str, OpSpec] = {
+    "candidate.trailing_return": OpSpec(
+        id="candidate.trailing_return",
+        semantic_version="1",
+        accepted_roles=(SemanticRole.ELIGIBILITY, SemanticRole.RANKING, SemanticRole.RESEARCH_PREVIEW),
+        natural_clock="daily-close",
+        history_requirement=HistoryRequirement(minimum_history_lower_bound=2),
+        required_data_fields=("adjusted_close",),
+        purity="pure",
+        reference_evaluator="ruletrade.v1.trailing_return",
+        backend_lowering="ruletrade.v1.trailing_return_indicator@1",
+        evidence_formatter="trailing_return",
+    ),
+    "candidate.current_price": OpSpec(
+        id="candidate.current_price",
+        semantic_version="1",
+        accepted_roles=(SemanticRole.ELIGIBILITY, SemanticRole.RANKING, SemanticRole.RESEARCH_PREVIEW),
+        natural_clock="daily-close",
+        history_requirement=HistoryRequirement(minimum_history_lower_bound=1),
+        required_data_fields=("adjusted_close",),
+        purity="pure",
+        reference_evaluator="ruletrade.v1.current_price",
+        backend_lowering="ruletrade.v1.current_price",
+        evidence_formatter="current_price",
+    ),
+    "compare": OpSpec(
+        id="compare",
+        semantic_version="1",
+        accepted_roles=(SemanticRole.PREDICATE, SemanticRole.ELIGIBILITY, SemanticRole.RESEARCH_PREVIEW),
+        natural_clock="inherited",
+        history_requirement=HistoryRequirement(minimum_history_lower_bound=0),
+        required_data_fields=(),
+        purity="pure",
+        reference_evaluator=None,
+        backend_lowering="ruletrade.v1.comparison",
+        evidence_formatter="comparison",
+    ),
+}
+
+
+def infer_value_type(expression: ValueExpressionV2) -> SemanticType:
+    return expression.semantic_type
+
+
+def _history_requirement(expression: ValueExpressionV2) -> HistoryRequirement:
+    if isinstance(expression, CandidateTrailingReturnValue):
+        # n-observation return needs n + 1 completed closes.
+        return HistoryRequirement(expression.lookback_observations + 1)
+    if isinstance(expression, CandidateCurrentPriceValue):
+        return HistoryRequirement(1)
+    if isinstance(expression, LiteralValue):
+        return HistoryRequirement(0)
+    raise TypeError(f"unknown v2 expression: {type(expression)!r}")
+
+
+def validate_comparison(
+    comparison: ComparisonV2,
+    role: SemanticRole,
+    *,
+    bound_candidate_id: str | None,
+) -> tuple[SemanticDiagnostic, ...]:
+    diagnostics: list[SemanticDiagnostic] = []
+    for path, expression in (("left", comparison.left), ("right", comparison.right)):
+        if isinstance(expression, (CandidateTrailingReturnValue, CandidateCurrentPriceValue)):
+            if role == SemanticRole.PREDICATE:
+                diagnostics.append(SemanticDiagnostic(
+                    "unbound_candidate", path,
+                    "Candidate values are legal only inside an Eligibility/Ranking lexical binding.",
+                ))
+            elif expression.binding_id != bound_candidate_id:
+                diagnostics.append(SemanticDiagnostic(
+                    "unbound_candidate", path,
+                    "Candidate value does not belong to this Selection binder.",
+                ))
+    try:
+        axes = require_compatible_values(infer_value_type(comparison.left), infer_value_type(comparison.right))
+    except SemanticTypeError as exc:
+        diagnostics.append(SemanticDiagnostic(str(exc).split(":", 1)[0], "comparison", str(exc)))
+        return tuple(diagnostics)
+
+    if role == SemanticRole.PREDICATE and axes:
+        diagnostics.append(SemanticDiagnostic(
+            "requires_scalar_predicate", "comparison",
+            "A Predicate must resolve to scalar Truth; reduce Asset/Time explicitly.",
+        ))
+    return tuple(diagnostics)
+
+
+def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnostic, ...]:
+    diagnostics: list[SemanticDiagnostic] = []
+    selection = strategy.selection
+    if selection.eligibility is not None:
+        diagnostics.extend(validate_comparison(
+            selection.eligibility, SemanticRole.ELIGIBILITY,
+            bound_candidate_id=selection.binding.id,
+        ))
+    rank_type = infer_value_type(selection.ranking)
+    if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER}:
+        diagnostics.append(SemanticDiagnostic(
+            "ranking_not_comparable", "selection.ranking", "Ranking must yield a comparable Candidate scalar."
+        ))
+    return tuple(diagnostics)
+
+
+def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequirement:
+    requirements = [_history_requirement(strategy.selection.ranking)]
+    if strategy.selection.eligibility is not None:
+        requirements.extend((
+            _history_requirement(strategy.selection.eligibility.left),
+            _history_requirement(strategy.selection.eligibility.right),
+        ))
+    return HistoryRequirement(max(item.minimum_history_lower_bound for item in requirements))
+
+
+def v2_capabilities() -> dict[str, OperationCapability]:
+    """Truthful Profile-A capability ledger.
+
+    RSI/volume/volatility deliberately remain absent: this vertical slice must
+    not advertise a Registry token as an executable production feature.
+    """
+
+    executable_bridge = OperationCapability(
+        parseable=True, type_valid=True, role_valid=True,
+        provider_available=True, historical_safe=True,
+        reference_evaluable=True, backend_lowerable=True,
+        authoring_reachable=False, verified_profile=False,
+    )
+    return {
+        "candidate.trailing_return": executable_bridge,
+        "candidate.current_price": executable_bridge,
+        "indicator.rsi": OperationCapability(
+            parseable=False, type_valid=False, role_valid=False,
+            provider_available=False, historical_safe=False,
+            reference_evaluable=False, backend_lowerable=False,
+            authoring_reachable=False, verified_profile=False,
+        ),
+    }
