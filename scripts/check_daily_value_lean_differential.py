@@ -6,7 +6,12 @@ from pathlib import Path
 
 from ruletrade.backtests.lean_runner import DockerLeanRunner
 from ruletrade.compiler.lean.e2e import load_aligned_daily_closes
-from ruletrade.strategy.v2.daily_probe import lower_daily_value_probe, parse_daily_probe_observations
+from ruletrade.strategy.v2.daily_probe import (
+    DailyProbeObservation,
+    compare_daily_observations,
+    lower_daily_value_probe,
+    parse_daily_probe_observations,
+)
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueEvaluator,
@@ -36,34 +41,35 @@ def _adjusted_close_snapshot(fixture: Path, symbol: str) -> DailyMarketSnapshot:
     )
 
 
-def _compare(value: DailyValueNode, snapshot: DailyMarketSnapshot) -> dict[str, str]:
-    reference_result = DailyValueEvaluator(snapshot).evaluate(value)
-    reference = reference_result.scalar()
-    expected_status = "available" if reference is not None else "not_ready"
+def _compare(value: DailyValueNode, snapshot: DailyMarketSnapshot) -> dict[str, str | bool | None]:
+    reference_value = DailyValueEvaluator(snapshot).evaluate(value).scalar()
+    operator_id = "adjusted_close" if value.kind == "observe" else "trailing_return"
+    reference = DailyProbeObservation(
+        semantic_id=value.semantic_id,
+        operator_id=operator_id,
+        operator_version="1",
+        observed_at=snapshot.dates[-1],
+        status="available" if reference_value is not None else "not_ready",
+        value=reference_value,
+        reason=None if reference_value is not None else "insufficient_history",
+    )
     artifact = DockerLeanRunner().run(lower_daily_value_probe(value), dataset_id="filter-synthetic")
     observations = parse_daily_probe_observations(artifact.log_text)
     if not observations:
         raise RuntimeError("LEAN probe emitted no structured daily observation")
-    observed = observations[-1]
-    expected_at = snapshot.dates[-1]
-    if (
-        observed.semantic_id != value.semantic_id
-        or observed.operator_id != ("adjusted_close" if value.kind == "observe" else "trailing_return")
-        or observed.operator_version != "1"
-        or observed.observed_at != expected_at
-        or observed.status != expected_status
-    ):
-        raise RuntimeError(f"daily observation metadata mismatch: reference={expected_at}/{expected_status} lean={observed}")
-    if observed.value != reference:
-        raise RuntimeError(f"daily value mismatch for {value.semantic_id}: reference={reference} lean={observed.value}")
+    differential = compare_daily_observations(reference, observations[-1])
+    if not differential.passed:
+        raise RuntimeError(f"daily differential failed: {differential}")
     return {
-        "semantic_id": observed.semantic_id,
-        "operator_id": observed.operator_id,
-        "observed_at": observed.observed_at,
-        "status": observed.status,
-        "reference": str(reference),
-        "lean": str(observed.value),
-        "delta": str(abs((observed.value or Decimal(0)) - (reference or Decimal(0)))),
+        "semantic_id": differential.semantic_id,
+        "operator_id": differential.reference.operator_id,
+        "observed_at": differential.lean.observed_at,
+        "status": differential.lean.status,
+        "reference": str(differential.reference.value),
+        "lean": str(differential.lean.value),
+        "delta": str(differential.numeric_delta),
+        "tolerance": str(differential.absolute_tolerance),
+        "passed": differential.passed,
     }
 
 
@@ -85,11 +91,10 @@ def main() -> None:
         operands=(close,),
         observations=5,
     )
-    results = [_compare(close, snapshot), _compare(trailing, snapshot)]
     print(json.dumps({
         "fixture": str(fixture),
         "fixture_price_scale": str(_LEAN_EQUITY_DAILY_PRICE_SCALE),
-        "results": results,
+        "results": [_compare(close, snapshot), _compare(trailing, snapshot)],
     }, sort_keys=True))
 
 
