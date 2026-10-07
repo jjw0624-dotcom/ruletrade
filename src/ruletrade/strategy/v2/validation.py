@@ -252,6 +252,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "daily.reduce.asset@1": reference_only,
         "daily.reduce.time@1": reference_only,
         "daily.arithmetic@1": reference_only,
+        "daily.absolute@1": reference_only,
         "daily.comparison_truth@1": reference_only,
         # The maintained provider exposes neither these fields nor PIT identity.
         "daily.raw_ohlc@1": provider_blocked,
