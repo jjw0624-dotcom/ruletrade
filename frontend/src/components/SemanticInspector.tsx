@@ -89,7 +89,7 @@ function PredicateInspectorControl({ componentId, structural }: { componentId: s
   />;
 }
 
-export function SemanticInspector({
+function CanonicalV1SemanticInspector({
   projection,
   structural,
   evidence,
@@ -251,4 +251,18 @@ export function SemanticInspector({
     <header><span className="eyebrow">Inspector</span><button aria-label="Close Inspector" onClick={close}>×</button></header>
     <div className="semantic-inspector-content">{content}{structural.error && <p className="structural-error" role="alert">{structural.error.message}</p>}{evidence}</div>
   </aside>;
+}
+
+export function SemanticInspector(props: ({
+  projection: ConceptualFlowProjection;
+  structural: StructuralAuthoringController;
+  evidence?: ReactNode;
+} | {
+  semanticProgram: { content: ReactNode; onDiscardDraft?: () => void };
+})) {
+  if ("semanticProgram" in props) return <aside className="semantic-inspector" aria-label="Semantic Inspector">
+    <header><span className="eyebrow">Inspector</span>{props.semanticProgram.onDiscardDraft && <button type="button" className="text-button danger" onClick={props.semanticProgram.onDiscardDraft}>Discard draft</button>}</header>
+    {props.semanticProgram.content}
+  </aside>;
+  return <CanonicalV1SemanticInspector {...props} />;
 }

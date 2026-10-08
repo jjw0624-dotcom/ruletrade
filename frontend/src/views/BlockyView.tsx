@@ -13,6 +13,9 @@ import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../do
 import { classifyWorkingProgram, controlCommitIntent, hasUnresolvedLogicDraft, logicWorkingProgramSignature, type LogicWorkingProgram } from "../domain/logicDraft";
 import type { ConditionExpression } from "../domain/canonical";
 import { describeConditionExpression } from "../domain/valueSemantics";
+import type { ProgramStatementV2 } from "../domain/canonicalV2";
+import { SemanticProgramBlockyProjection } from "../components/SemanticProgramBlockyProjection";
+import type { ReactNode } from "react";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
@@ -104,7 +107,7 @@ function connectValue(parent: Blockly.BlockSvg, input: string, child: Blockly.Bl
   if (connection && child.outputConnection) connection.connect(child.outputConnection);
 }
 
-export function BlockyView({ structural, initialProjection = null }: { structural: StructuralAuthoringController; initialProjection?: SemanticCompositionProjection | null }) {
+function CanonicalV1BlockyView({ structural, initialProjection = null }: { structural: StructuralAuthoringController; initialProjection?: SemanticCompositionProjection | null }) {
   const { state, dispatch } = useStrategyEditor();
   const host = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
@@ -355,6 +358,19 @@ export function BlockyView({ structural, initialProjection = null }: { structura
     </div>}
     {(notice || structural.error) && <p role="alert" className="structural-error blocky-notice">{notice ?? structural.error?.message}</p>}
   </div>;
+}
+
+export type SemanticProgramBlockyProps = {
+  statements: ProgramStatementV2[];
+  selectedId: string | null;
+  onSelect: (semanticId: string | null) => void;
+  empty: ReactNode;
+};
+
+/** The production Blocky entry point shared by both semantic backends. */
+export function BlockyView(props: ({ structural: StructuralAuthoringController; initialProjection?: SemanticCompositionProjection | null }) | { semanticProgram: SemanticProgramBlockyProps }) {
+  if ("semanticProgram" in props) return <SemanticProgramBlockyProjection {...props.semanticProgram} />;
+  return <CanonicalV1BlockyView {...props} />;
 }
 
 function createModifierBlock(canvas: Blockly.WorkspaceSvg, modifier: ProgramModifier, structural: StructuralAuthoringController, busy: MutableRefObject<boolean>, rejected: () => void): Blockly.BlockSvg {

@@ -5,7 +5,21 @@ from decimal import Decimal
 import pytest
 
 from ruletrade.strategy.v1.models import AssetSetDefinition, StrategyMetadata
-from ruletrade.strategy.v2.authoring import V2AuthoringError, _replace_program_statement
+from ruletrade.hashing import strategy_hash
+from ruletrade.strategy.v2.authoring import (
+    ApplyV2AuthoringRequest,
+    FormalizeProgramStatement,
+    FormalizeDraftPhrase,
+    InsertProgramStatement,
+    MoveProgramStatement,
+    RemoveProgramStatement,
+    SetProgramCondition,
+    SetProgramSelection,
+    SetProgramValue,
+    V2AuthoringError,
+    _replace_program_statement,
+    apply_v2_authoring,
+)
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueNode,
@@ -644,6 +658,182 @@ def test_program_authoring_addresses_nested_allocations_without_ambiguity() -> N
                 reason="wrong replacement kind",
             ),
         )
+
+
+def _program_canonical(core: SemanticProgramV2) -> CanonicalStrategyV2:
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Authorable Program"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinition(id="growth", assets=["QQQ", "VGT", "SOXX"]),),
+            groups=(),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1", "daily.trailing_return": "1"},
+        program=core,
+    )
+
+
+def _author(strategy: CanonicalStrategyV2, operation):
+    return apply_v2_authoring(ApplyV2AuthoringRequest(
+        strategy=strategy,
+        expected_source_hash=strategy_hash(strategy),
+        operation=operation,
+    )).strategy
+
+
+def test_program_authoring_insert_move_remove_uses_semantic_parent_addresses() -> None:
+    control = ConditionalStatementV2(
+        semantic_id="control-address",
+        condition=condition_over("105"),
+        then_statements=(asset_allocation("QQQ", "then-allocation"),),
+        otherwise_statements=(asset_allocation("TLT", "else-allocation"),),
+    )
+    canonical = _program_canonical(program(control, asset_allocation("SOXX", "root-allocation")))
+    inserted = asset_allocation("VGT", "inserted-allocation")
+    canonical = _author(canonical, InsertProgramStatement(
+        kind="insert_program_statement",
+        statement=inserted,
+        parent_semantic_id="control-address",
+        branch="then",
+        index=1,
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.then_statements] == [
+        "then-allocation", "inserted-allocation",
+    ]
+
+    canonical = _author(canonical, MoveProgramStatement(
+        kind="move_program_statement",
+        semantic_id="root-allocation",
+        parent_semantic_id="control-address",
+        branch="otherwise",
+        index=0,
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.otherwise_statements] == [
+        "root-allocation", "else-allocation",
+    ]
+
+    canonical = _author(canonical, RemoveProgramStatement(
+        kind="remove_program_statement", semantic_id="inserted-allocation",
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.then_statements] == ["then-allocation"]
+
+
+def test_program_authoring_edits_selection_fields_without_array_addresses() -> None:
+    selected = SelectionStatementV2(
+        semantic_id="selection-statement",
+        selection=selection(),
+        output_id="chosen",
+    )
+    canonical = _program_canonical(program(selected, equal_selection_allocation()))
+    changed_selection = selected.selection.model_copy(update={
+        "count": 1,
+        "shortage_policy": "choose_all",
+    })
+    canonical = _author(canonical, SetProgramSelection(
+        kind="set_program_selection",
+        semantic_id="selection-statement",
+        selection=changed_selection,
+    ))
+    canonical = _author(canonical, SetProgramCondition(
+        kind="set_program_condition",
+        semantic_id="selection-statement",
+        role="selection_eligibility",
+        condition=condition_over("110"),
+    ))
+    new_rank = candidate_return().model_copy(update={"observations": 2})
+    canonical = _author(canonical, SetProgramValue(
+        kind="set_program_value",
+        semantic_id="selection-statement",
+        role="selection_ranking",
+        value=new_rank,
+    ))
+    statement = canonical.program.statements[0]
+    assert isinstance(statement, SelectionStatementV2)
+    assert statement.selection.count == 1
+    assert statement.selection.shortage_policy == "choose_all"
+    assert statement.selection.eligibility.semantic_id == "qqq-over-110"
+    assert statement.selection.ranking.semantic_id == "candidate-return"
+    assert statement.selection.ranking.observations == 2
+    assert validate_strategy_v2(canonical) == ()
+
+
+def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "only-allocation")))
+    request = ApplyV2AuthoringRequest(
+        strategy=canonical,
+        expected_source_hash=strategy_hash(canonical),
+        operation=SetProgramValue(
+            kind="set_program_value",
+            semantic_id="only-allocation",
+            role="selection_ranking",
+            value=candidate_return("invalid-rank"),
+        ),
+    )
+    with pytest.raises(V2AuthoringError, match="invalid for this statement"):
+        apply_v2_authoring(request)
+    with pytest.raises(V2AuthoringError, match="changed"):
+        apply_v2_authoring(request.model_copy(update={"expected_source_hash": "stale"}))
+    assert canonical.program.statements[0].semantic_id == "only-allocation"
+
+
+def test_program_authoring_rejects_silent_semantic_identity_retargeting() -> None:
+    selected = SelectionStatementV2(
+        semantic_id="selection-address", selection=selection(), output_id="selected",
+    )
+    canonical = _program_canonical(program(selected))
+    with pytest.raises(V2AuthoringError, match="preserve semantic identity"):
+        _author(canonical, SetProgramValue(
+            kind="set_program_value", semantic_id="selection-address",
+            role="selection_ranking", value=candidate_return("different-address"),
+        ))
+
+
+def test_unresolved_formalization_is_one_atomic_provenance_preserving_intent() -> None:
+    unresolved = UnresolvedStatementV2(
+        semantic_id="strong-breakout",
+        source_text="strong breakout",
+        category="fuzzy_term",
+        reason="Requires an explicit Condition.",
+    )
+    canonical = _program_canonical(program(unresolved))
+    replacement = asset_allocation("QQQ", "formalized-breakout-policy")
+    canonical = _author(canonical, FormalizeProgramStatement(
+        kind="formalize_program_statement",
+        semantic_id="strong-breakout",
+        replacement=replacement,
+        interpretation="Allocate to QQQ under the manually defined breakout policy.",
+    ))
+    assert canonical.program.statements == (replacement,)
+    provenance = canonical.program.formalizations[0]
+    assert provenance.source_phrase == "strong breakout"
+    assert provenance.status == "formalized"
+    assert provenance.semantic_ids == ("formalized-breakout-policy",)
+
+
+def test_working_phrase_formalizes_atomically_without_persisting_unresolved_canonical() -> None:
+    canonical = _program_canonical(program(asset_allocation("TLT", "existing-policy")))
+    replacement = asset_allocation("QQQ", "explicit-breakout-policy")
+    canonical = _author(canonical, FormalizeDraftPhrase(
+        kind="formalize_draft_phrase",
+        source_phrase="strong breakout",
+        replacement=replacement,
+        interpretation="Allocate to QQQ under the user's explicit supported Condition.",
+        parent_semantic_id=None,
+        branch="root",
+        index=None,
+    ))
+    assert [item.semantic_id for item in canonical.program.statements] == [
+        "existing-policy", "explicit-breakout-policy",
+    ]
+    assert canonical.program.formalizations[0].source_phrase == "strong breakout"
+    assert canonical.program.formalizations[0].status == "formalized"
 
 
 def test_state_driven_event_edge_uses_incoming_not_already_mutated_state() -> None:
