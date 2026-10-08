@@ -4,7 +4,7 @@ import { BacktestSetup } from "./components/BacktestSetup";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { AssetWorkspace } from "./components/AssetWorkspace";
-import type { ValueExpression } from "./domain/canonical";
+import type { CanonicalStrategyV1, ValueExpression } from "./domain/canonical";
 import { assetMembershipAuthoringTargets, type AssetMembershipAuthoringTarget } from "./domain/assetWorkspaceAuthoring";
 import { RuleEvidenceHistory } from "./components/RuleEvidenceHistory";
 import { WorkspaceActivity } from "./components/WorkspaceDashboard";
@@ -31,7 +31,7 @@ import { useBacktestRun } from "./hooks/useBacktestRun";
 import { useAuthoring } from "./hooks/useStructuralAuthoring";
 import { useStrategyEditor } from "./store/editorStore";
 import { StrategyBuilderWorkspace } from "./components/StrategyBuilderWorkspace";
-import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionSummary, type StrategyDetail } from "./strategyApi";
+import { sameCanonicalSnapshot, strategyApi, StrategyApiError, type RevisionRecord, type RevisionSummary, type SaveRevisionResponse, type StrategyDetailV1 } from "./strategyApi";
 import { backtestRunApi, BacktestRunApiError, type BacktestRunRecord } from "./backtestRunApi";
 import {
   marketDataApi,
@@ -39,7 +39,7 @@ import {
   type MarketDataPreflight,
 } from "./marketDataApi";
 
-export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, sourceFocus, onHome = () => undefined }: { example: StrategyExample; persisted?: StrategyDetail; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null; onHome?: () => void }) {
+export function StrategyEditor({ example, persisted, confirmation, initialTestOpen = false, onDirtyChange, sourceFocus, onHome = () => undefined }: { example: StrategyExample; persisted?: StrategyDetailV1; confirmation?: string | null; initialTestOpen?: boolean; onDirtyChange?: (dirty: boolean) => void; onArchived?: () => void; sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null; onHome?: () => void }) {
   const { state, dispatch } = useStrategyEditor();
   const backtest = useBacktestRun();
   const structural = useAuthoring();
@@ -154,10 +154,16 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
     if (viewInFlow) dispatch({ type: "set_active_view", view: "flow" });
   }
 
-  async function acceptAdoption(response: Awaited<ReturnType<typeof strategyApi.save>>) {
+  async function acceptAdoption(response: SaveRevisionResponse) {
+    if (!("graph" in response.revision.canonical_strategy)) {
+      setSaveStatus("error");
+      setSaveMessage("This v1 editor cannot adopt a v2 revision.");
+      return;
+    }
+    const revision = response.revision as RevisionRecord<CanonicalStrategyV1>;
     setStrategy(response.strategy);
-    setBase(response.revision);
-    dispatch({ type: "replace_canonical", canonical: response.revision.canonical_strategy });
+    setBase(revision);
+    dispatch({ type: "replace_canonical", canonical: revision.canonical_strategy });
     setSaveStatus("saved");
     setSaveMessage("This change is now part of your strategy. You can test it again now.");
   }
@@ -165,7 +171,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
   async function openLatest() {
     if (!strategy) return;
     try {
-      const latest = await strategyApi.get(strategy.id);
+      const latest = await strategyApi.get<CanonicalStrategyV1>(strategy.id);
       setStrategy(latest.strategy);
       setBase(latest.current_revision);
       dispatch({ type: "replace_canonical", canonical: latest.current_revision.canonical_strategy });
@@ -261,7 +267,7 @@ export function StrategyEditor({ example, persisted, confirmation, initialTestOp
 
   async function reloadLatest() {
     if (!strategy || !window.confirm("Reload the latest saved revision? Your unsaved edits will be replaced.")) return;
-    try { const latest = await strategyApi.get(strategy.id); setStrategy(latest.strategy); setBase(latest.current_revision); dispatch({ type: "replace_canonical", canonical: latest.current_revision.canonical_strategy }); setSaveStatus("idle"); setSaveMessage(null); }
+    try { const latest = await strategyApi.get<CanonicalStrategyV1>(strategy.id); setStrategy(latest.strategy); setBase(latest.current_revision); dispatch({ type: "replace_canonical", canonical: latest.current_revision.canonical_strategy }); setSaveStatus("idle"); setSaveMessage(null); }
     catch (reason) { setSaveStatus("error"); setSaveMessage(reason instanceof Error ? reason.message : "We couldn't reload this strategy."); }
   }
 

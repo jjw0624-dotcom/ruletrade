@@ -28,6 +28,8 @@ from ruletrade.strategies.models import (
 from ruletrade.strategies.serialization import serialize_source_snapshot
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategy.v2.models import CanonicalStrategy, CanonicalStrategyV2, parse_canonical_strategy
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 
 class StrategyService:
@@ -50,7 +52,7 @@ class StrategyService:
     def create_strategy(
         self,
         name: str,
-        source: CanonicalStrategyV1 | Mapping[str, Any],
+        source: CanonicalStrategy | Mapping[str, Any],
     ) -> StrategyDetail:
         canonical = self.validate_source(source)
         timestamp = self._clock()
@@ -128,7 +130,7 @@ class StrategyService:
         self,
         strategy_id: str,
         expected_parent_revision_id: str,
-        source: CanonicalStrategyV1 | Mapping[str, Any],
+        source: CanonicalStrategy | Mapping[str, Any],
     ) -> SaveRevisionResponse:
         canonical = self.validate_source(source)
         timestamp = self._clock()
@@ -166,7 +168,7 @@ class StrategyService:
         candidate_id: str,
         strategy_id: str,
         expected_parent_revision_id: str,
-        source: CanonicalStrategyV1 | Mapping[str, Any],
+        source: CanonicalStrategy | Mapping[str, Any],
     ) -> SaveRevisionResponse:
         """Append an immutable Candidate source through the normal Revision boundary."""
         canonical = self.validate_source(source)
@@ -209,14 +211,10 @@ class StrategyService:
 
     @staticmethod
     def validate_source(
-        source: CanonicalStrategyV1 | Mapping[str, Any],
-    ) -> CanonicalStrategyV1:
+        source: CanonicalStrategy | Mapping[str, Any],
+    ) -> CanonicalStrategy:
         try:
-            canonical = (
-                source
-                if isinstance(source, CanonicalStrategyV1)
-                else CanonicalStrategyV1.model_validate(source)
-            )
+            canonical = parse_canonical_strategy(source if isinstance(source, Mapping) else source)
         except ValidationError as exc:
             issues = tuple(
                 SourceIssue(
@@ -227,7 +225,11 @@ class StrategyService:
             )
             raise InvalidStrategySourceError(issues) from exc
 
-        semantic_issues = collect_semantic_issues(canonical)
+        semantic_issues = (
+            collect_semantic_issues(canonical)
+            if isinstance(canonical, CanonicalStrategyV1)
+            else validate_strategy_v2(canonical)
+        )
         if semantic_issues:
             raise InvalidStrategySourceError(
                 tuple(SourceIssue(issue.path, issue.message) for issue in semantic_issues)
