@@ -10,6 +10,8 @@ from decimal import Decimal
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.strategy.v1.models import (
     AssetSetDefinition,
+    ArithmeticExpression,
+    BooleanExpression,
     CandidateExpression,
     CanonicalStrategyV1,
     ComparisonExpression,
@@ -19,7 +21,9 @@ from ruletrade.strategy.v1.models import (
     GroupDefinition,
     IndicatorExpression,
     LiteralExpression,
+    NotExpression,
     PortReference,
+    RollingAggregateExpression,
     StrategyDefinitions,
     StrategyGraph,
     UniverseDefinition,
@@ -29,10 +33,14 @@ from ruletrade.strategy.v2.models import (
     CandidateCurrentPriceValue,
     CandidateTrailingReturnValue,
     CanonicalStrategyV2,
+    BooleanGroupV2,
     ComparisonV2,
+    ConditionV2,
     LiteralValue,
+    NotConditionV2,
     ValueExpressionV2,
 )
+from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 
@@ -44,7 +52,46 @@ def _port(component_id: str, port: str) -> PortReference:
     return PortReference(component_id=component_id, port=port)
 
 
+def _daily_value(expression: DailyValueNode):
+    if expression.kind == "literal":
+        value_type = {
+            ("return", "ratio"): "percentage",
+            ("price", "USD/share"): "money_per_share",
+            ("oscillator", "points"): "decimal",
+            ("score", "ratio"): "decimal",
+        }.get((expression.quantity.value, expression.unit.value))
+        if value_type is None:
+            raise V2LoweringError("typed literal has no maintained v1 lowering")
+        return LiteralExpression(value_type=value_type, value=expression.value)
+    if expression.kind == "observe":
+        if expression.subject_kind != SubjectKind.CANDIDATE or expression.field != MarketField.CLOSE or expression.basis != PriceBasis.ADJUSTED:
+            raise V2LoweringError("maintained v1 bridge supports Candidate adjusted close only")
+        from ruletrade.strategy.v1.models import CurrentExpression, MarketSeriesExpression
+        return CurrentExpression(series=MarketSeriesExpression(field="price", subject=CandidateExpression()))
+    if expression.kind == "trailing_return":
+        return IndicatorExpression(
+            indicator_id="trailing_return_indicator@1", asset=CandidateExpression(),
+            parameters={"lookback_bars": expression.observations},
+        )
+    if expression.kind == "sma":
+        from ruletrade.strategy.v1.models import MarketSeriesExpression
+        return RollingAggregateExpression(
+            operator="mean",
+            series=MarketSeriesExpression(field="price", subject=CandidateExpression()),
+            window_observations=expression.observations or 1,
+        )
+    if expression.kind == "arithmetic":
+        return ArithmeticExpression(
+            operator=expression.arithmetic,
+            left=_daily_value(expression.operands[0]),
+            right=_daily_value(expression.operands[1]),
+        )
+    raise V2LoweringError(f"DailyValue {expression.kind} executes through the v2 typed runtime, not the legacy bridge")
+
+
 def _value(expression: ValueExpressionV2):
+    if isinstance(expression, DailyValueNode):
+        return _daily_value(expression)
     if isinstance(expression, CandidateTrailingReturnValue):
         return IndicatorExpression(
             indicator_id="trailing_return_indicator@1",
@@ -67,8 +114,15 @@ def _value(expression: ValueExpressionV2):
     raise V2LoweringError(f"unsupported v2 value: {type(expression)!r}")
 
 
-def _comparison(value: ComparisonV2) -> ComparisonExpression:
-    return ComparisonExpression(operator=value.operator, left=_value(value.left), right=_value(value.right))
+def _condition(value: ConditionV2):
+    if isinstance(value, ComparisonV2):
+        return ComparisonExpression(operator=value.operator, left=_value(value.left), right=_value(value.right))
+    if isinstance(value, NotConditionV2):
+        return NotExpression(operand=_condition(value.child))
+    return BooleanExpression(
+        operator="and" if value.kind == "all" else "or",
+        operands=[_condition(child) for child in value.children],
+    )
 
 
 def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
@@ -93,7 +147,7 @@ def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
             id="eligible",
             primitive="filter@1",
             config={"operator": "gt", "threshold": Decimal(0)},
-            condition=_comparison(selection.eligibility) if selection.eligibility else None,
+            condition=_condition(selection.eligibility) if selection.eligibility else None,
         ),
         Component(
             id="rank",

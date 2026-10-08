@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -146,6 +147,22 @@ from ruletrade.strategy.v1.value_semantics import (
     ValueEvaluationRequest,
     value_capabilities,
 )
+from ruletrade.strategy.v2.authoring import (
+    ApplyV2AuthoringRequest,
+    ApplyV2AuthoringResponse,
+    V2AuthoringCapability,
+    V2AuthoringError,
+    apply_v2_authoring,
+)
+from ruletrade.strategy.v2.authoring import (
+    authoring_capabilities as v2_authoring_capabilities,
+)
+from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
+from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
+from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.semantic_types import FrozenModel
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 logger = logging.getLogger(__name__)
 
@@ -720,6 +737,120 @@ def validate_canonical_strategy_v1(
     }
 
 
+
+@app.get(
+    "/v2/canonical/authoring/capabilities",
+    response_model=tuple[V2AuthoringCapability, ...],
+)
+def canonical_v2_authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
+    return v2_authoring_capabilities()
+
+
+@app.post(
+    "/v2/canonical/authoring/apply",
+    response_model=ApplyV2AuthoringResponse,
+)
+def apply_canonical_v2_authoring(
+    request: ApplyV2AuthoringRequest,
+) -> ApplyV2AuthoringResponse:
+    try:
+        return apply_v2_authoring(request)
+    except V2AuthoringError as exc:
+        raise HTTPException(
+            status_code=409 if exc.code == "stale_authoring_source" else 422,
+            detail={"code": exc.code, "path": exc.path, "message": str(exc)},
+        ) from exc
+
+
+class EvaluateV2SelectionRequest(FrozenModel):
+    strategy: CanonicalStrategyV2
+    dataset_id: str = "synthetic_prices"
+    cutoff: str | None = None
+
+
+@app.post("/v2/canonical/strategies/selection/evaluate")
+def evaluate_canonical_v2_selection(request: EvaluateV2SelectionRequest) -> dict[str, object]:
+    domains: dict[str, tuple[str, ...]] = {}
+    for asset_set in request.strategy.definitions.asset_sets:
+        domains[asset_set.id] = tuple(asset_set.assets)
+    for group in request.strategy.definitions.groups:
+        members = next(
+            (tuple(item.assets) for item in request.strategy.definitions.asset_sets if item.id == group.asset_set_ref),
+            (),
+        )
+        domains[group.id] = members
+    try:
+        snapshot = DatasetDailySnapshotProvider(registry).load_snapshot(request.dataset_id, domains)
+        cutoff_index = None if request.cutoff is None else snapshot.dates.index(request.cutoff)
+        result = execute_selection_v2(request.strategy, snapshot, cutoff_index=cutoff_index)
+    except (DailyDatasetProviderError, V2ExecutionError, DatasetError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "v2_selection_execution_failed", "message": str(exc)},
+        ) from exc
+    return asdict(result)
+
+
+class EvaluateSemanticProgramRequest(FrozenModel):
+    program: SemanticProgramV2
+    domains: dict[str, tuple[str, ...]]
+    dataset_id: str = "synthetic_prices"
+    cutoff: str | None = None
+    revision_id: str | None = None
+    prior_state: dict[str, str] | None = None
+    event_cutoffs: dict[str, int] | None = None
+    prior_event_truths: dict[str, str] | None = None
+    event_counts: dict[str, int] | None = None
+    state_entered_cutoffs: dict[str, int] | None = None
+    remembered_values: dict[str, Decimal] | None = None
+
+
+@app.post("/v2/canonical/programs/evaluate")
+def evaluate_semantic_program(request: EvaluateSemanticProgramRequest) -> dict[str, object]:
+    try:
+        snapshot = DatasetDailySnapshotProvider(registry).load_snapshot(
+            request.dataset_id, request.domains,
+        )
+        cutoff_index = None if request.cutoff is None else snapshot.dates.index(request.cutoff)
+        result = execute_program_v2(
+            request.program,
+            snapshot,
+            cutoff_index=cutoff_index,
+            revision_id=request.revision_id,
+            prior_state=request.prior_state,
+            event_cutoffs=request.event_cutoffs,
+            prior_event_truths=request.prior_event_truths,
+            event_counts=request.event_counts,
+            state_entered_cutoffs=request.state_entered_cutoffs,
+            remembered_values=request.remembered_values,
+        )
+    except (
+        DailyDatasetProviderError,
+        ProgramExecutionError,
+        DatasetError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "semantic_program_execution_failed", "message": str(exc)},
+        ) from exc
+    return asdict(result)
+
+
+@app.post("/v2/canonical/strategies/validate")
+def validate_canonical_strategy_v2(spec: CanonicalStrategyV2) -> dict[str, object]:
+    issues = validate_strategy_v2(spec)
+    if issues:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": issue.code, "path": issue.path, "message": issue.message} for issue in issues],
+        )
+    return {
+        "valid": True,
+        "strategy_hash": strategy_hash(spec),
+        "strategy": spec.model_dump(mode="json"),
+    }
+
 @app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
 def execute_lean_backtest(
     request: LeanBacktestRequest,
@@ -979,3 +1110,4 @@ def read_persisted_revision(
     service: Annotated[StrategyService, Depends(get_strategy_service)],
 ) -> RevisionRecord:
     return service.get_revision(strategy_id, revision_id)
+

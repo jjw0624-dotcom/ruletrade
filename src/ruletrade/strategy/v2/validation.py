@@ -8,11 +8,18 @@ from typing import Literal
 from ruletrade.strategy.v2.models import (
     CandidateCurrentPriceValue,
     CandidateTrailingReturnValue,
+    BooleanGroupV2,
     CanonicalStrategyV2,
     ComparisonV2,
+    ConditionV2,
     LiteralValue,
+    NotConditionV2,
+    StateConditionV2,
+    NOfMConditionV2,
+    EventWindowConditionV2,
     ValueExpressionV2,
 )
+from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind, infer_daily_type, plan_daily_value
 from ruletrade.strategy.v2.semantic_types import (
     HistoryRequirement,
     Quantity,
@@ -120,8 +127,14 @@ OP_SPECS: dict[str, OpSpec] = {
 }
 
 
-def infer_value_type(expression: ValueExpressionV2) -> SemanticType:
-    return expression.semantic_type
+def infer_value_type(expression: ValueExpressionV2, *, binding_id: str | None = None) -> SemanticType:
+    if isinstance(expression, DailyValueNode):
+        return infer_daily_type(expression, binding_id=binding_id)
+    semantic_type = getattr(expression, "semantic_type", None)
+    if semantic_type is not None:
+        return semantic_type
+    from ruletrade.strategy.v2.program_validation import infer_program_value_type
+    return infer_program_value_type(expression, binding_id=binding_id)
 
 
 def _history_requirement(expression: ValueExpressionV2) -> HistoryRequirement:
@@ -132,7 +145,24 @@ def _history_requirement(expression: ValueExpressionV2) -> HistoryRequirement:
         return HistoryRequirement(1)
     if isinstance(expression, LiteralValue):
         return HistoryRequirement(0)
+    if isinstance(expression, DailyValueNode):
+        return plan_daily_value(expression).history
+    from ruletrade.strategy.v2.program_validation import daily_nodes_for_value
+    nodes = daily_nodes_for_value(expression)
+    if nodes:
+        return HistoryRequirement(max(plan_daily_value(node).history.minimum_history_lower_bound for node in nodes))
     raise TypeError(f"unknown v2 expression: {type(expression)!r}")
+
+
+def _daily_candidate_ids(expression: DailyValueNode) -> tuple[str, ...]:
+    result: list[str] = []
+    stack = [expression]
+    while stack:
+        node = stack.pop()
+        if node.subject_kind == SubjectKind.CANDIDATE and node.binding_id:
+            result.append(node.binding_id)
+        stack.extend(node.operands)
+    return tuple(result)
 
 
 def validate_comparison(
@@ -143,20 +173,35 @@ def validate_comparison(
 ) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
     for path, expression in (("left", comparison.left), ("right", comparison.right)):
-        if isinstance(expression, (CandidateTrailingReturnValue, CandidateCurrentPriceValue)):
+        bindings: tuple[str, ...]
+        if isinstance(expression, DailyValueNode):
+            bindings = _daily_candidate_ids(expression)
+        elif isinstance(expression, (CandidateTrailingReturnValue, CandidateCurrentPriceValue)):
+            bindings = (expression.binding_id,)
+        else:
+            from ruletrade.strategy.v2.program_validation import daily_nodes_for_value
+            bindings = tuple(
+                binding
+                for node in daily_nodes_for_value(expression)
+                for binding in _daily_candidate_ids(node)
+            )
+        for candidate_id in bindings:
             if role == SemanticRole.PREDICATE:
                 diagnostics.append(SemanticDiagnostic(
                     "unbound_candidate", path,
                     "Candidate values are legal only inside an Eligibility/Ranking lexical binding.",
                 ))
-            elif expression.binding_id != bound_candidate_id:
+            elif candidate_id != bound_candidate_id:
                 diagnostics.append(SemanticDiagnostic(
                     "unbound_candidate", path,
                     "Candidate value does not belong to this Selection binder.",
                 ))
     try:
-        axes = require_compatible_values(infer_value_type(comparison.left), infer_value_type(comparison.right))
-    except SemanticTypeError as exc:
+        axes = require_compatible_values(
+            infer_value_type(comparison.left, binding_id=bound_candidate_id),
+            infer_value_type(comparison.right, binding_id=bound_candidate_id),
+        )
+    except (SemanticTypeError, ValueError) as exc:
         diagnostics.append(SemanticDiagnostic(str(exc).split(":", 1)[0], "comparison", str(exc)))
         return tuple(diagnostics)
 
@@ -168,31 +213,156 @@ def validate_comparison(
     return tuple(diagnostics)
 
 
-def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnostic, ...]:
+def condition_limits(condition: ConditionV2) -> tuple[int, int, int]:
+    """Return depth, boolean child maximum, and total nodes."""
+
+    if isinstance(condition, (ComparisonV2, StateConditionV2, EventWindowConditionV2)):
+        return 1, 0, 1
+    if isinstance(condition, NotConditionV2):
+        depth, width, total = condition_limits(condition.child)
+        return depth + 1, width, total + 1
+    children = [condition_limits(child) for child in condition.children]
+    return 1 + max(item[0] for item in children), max(len(condition.children), *(item[1] for item in children)), 1 + sum(item[2] for item in children)
+
+
+def validate_condition(
+    condition: ConditionV2,
+    role: SemanticRole,
+    *,
+    bound_candidate_id: str | None,
+) -> tuple[SemanticDiagnostic, ...]:
+    depth, width, total = condition_limits(condition)
     diagnostics: list[SemanticDiagnostic] = []
-    selection = strategy.selection
-    if selection.eligibility is not None:
-        diagnostics.extend(validate_comparison(
-            selection.eligibility, SemanticRole.ELIGIBILITY,
-            bound_candidate_id=selection.binding.id,
-        ))
-    rank_type = infer_value_type(selection.ranking)
-    if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER}:
-        diagnostics.append(SemanticDiagnostic(
-            "ranking_not_comparable", "selection.ranking", "Ranking must yield a comparable Candidate scalar."
-        ))
+    if depth > 4:
+        diagnostics.append(SemanticDiagnostic("condition_depth_limit", "condition", "Boolean conditions support at most four nested levels."))
+    if width > 12:
+        diagnostics.append(SemanticDiagnostic("condition_width_limit", "condition", "A Boolean group supports at most twelve clauses."))
+    if total > 40:
+        diagnostics.append(SemanticDiagnostic("condition_node_limit", "condition", "A Condition supports at most forty nodes."))
+    if isinstance(condition, ComparisonV2):
+        diagnostics.extend(validate_comparison(condition, role, bound_candidate_id=bound_candidate_id))
+    elif isinstance(condition, (StateConditionV2, EventWindowConditionV2)):
+        if role != SemanticRole.PREDICATE:
+            diagnostics.append(SemanticDiagnostic(
+                "state_condition_role_forbidden", "condition",
+                "Program state may gate Control, Event, transitions, guards, and overrides; it cannot filter Candidates.",
+            ))
+    elif isinstance(condition, (BooleanGroupV2, NOfMConditionV2)):
+        for child in condition.children:
+            diagnostics.extend(validate_condition(child, role, bound_candidate_id=bound_candidate_id))
+    else:
+        diagnostics.extend(validate_condition(condition.child, role, bound_candidate_id=bound_candidate_id))
     return tuple(diagnostics)
 
 
-def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequirement:
-    requirements = [_history_requirement(strategy.selection.ranking)]
-    if strategy.selection.eligibility is not None:
-        requirements.extend((
-            _history_requirement(strategy.selection.eligibility.left),
-            _history_requirement(strategy.selection.eligibility.right),
-        ))
-    return HistoryRequirement(max(item.minimum_history_lower_bound for item in requirements))
+def _daily_nodes(value: ValueExpressionV2) -> tuple[DailyValueNode, ...]:
+    if not isinstance(value, DailyValueNode):
+        return ()
+    nodes: list[DailyValueNode] = []
+    stack = [value]
+    while stack:
+        node = stack.pop()
+        nodes.append(node)
+        stack.extend(node.operands)
+    return tuple(nodes)
 
+
+def _condition_values(condition: ConditionV2) -> tuple[ValueExpressionV2, ...]:
+    if isinstance(condition, (StateConditionV2, EventWindowConditionV2)):
+        return ()
+    if isinstance(condition, ComparisonV2):
+        return (condition.left, condition.right)
+    if isinstance(condition, NotConditionV2):
+        return _condition_values(condition.child)
+    return tuple(value for child in condition.children for value in _condition_values(child))
+
+
+def validate_strategy_v2(strategy: CanonicalStrategyV2) -> tuple[SemanticDiagnostic, ...]:
+    diagnostics: list[SemanticDiagnostic] = []
+    values: list[ValueExpressionV2] = []
+    group_ids = {group.id for group in strategy.definitions.groups}
+    asset_set_ids = {item.id for item in strategy.definitions.asset_sets}
+
+    selection = strategy.selection
+    if selection is not None:
+        if selection.eligibility is not None:
+            diagnostics.extend(validate_condition(
+                selection.eligibility, SemanticRole.ELIGIBILITY,
+                bound_candidate_id=selection.binding.id,
+            ))
+        try:
+            rank_type = infer_value_type(selection.ranking, binding_id=selection.binding.id)
+        except (SemanticTypeError, ValueError) as exc:
+            diagnostics.append(SemanticDiagnostic(
+                str(exc).split(":", 1)[0], "selection.ranking", str(exc),
+            ))
+        else:
+            if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER} or rank_type.axes:
+                diagnostics.append(SemanticDiagnostic(
+                    "ranking_not_comparable", "selection.ranking",
+                    "Ranking must yield one comparable scalar per Candidate.",
+                ))
+        if selection.universe_id not in group_ids | asset_set_ids:
+            diagnostics.append(SemanticDiagnostic(
+                "unknown_selection_universe", "selection.universe_id",
+                "Selection FROM must reference an explicit AssetSet or static Group.",
+            ))
+        values.append(selection.ranking)
+        if selection.eligibility is not None:
+            values.extend(_condition_values(selection.eligibility))
+
+    if strategy.predicate is not None:
+        diagnostics.extend(validate_condition(
+            strategy.predicate, SemanticRole.PREDICATE, bound_candidate_id=None,
+        ))
+        values.extend(_condition_values(strategy.predicate))
+
+    for value in values:
+        for node in _daily_nodes(value):
+            if node.kind == "observe" and not (
+                node.field == MarketField.CLOSE and node.basis == PriceBasis.ADJUSTED
+            ):
+                diagnostics.append(SemanticDiagnostic(
+                    "provider_capability_unavailable", node.semantic_id,
+                    "The maintained provider supports adjusted close only; raw OHLC and Volume are unavailable.",
+                ))
+            if node.subject_kind == SubjectKind.GROUP_MEMBERS and node.subject_id not in group_ids:
+                diagnostics.append(SemanticDiagnostic(
+                    "unknown_static_group", node.semantic_id,
+                    "Group-member Values must reference a persisted static Group.",
+                ))
+
+    if strategy.program is not None:
+        from ruletrade.strategy.v2.program_validation import validate_program_v2
+        diagnostics.extend(validate_program_v2(strategy.program))
+    return tuple(diagnostics)
+
+def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequirement:
+    requirements: list[HistoryRequirement] = []
+
+    def visit(condition: ConditionV2) -> None:
+        if isinstance(condition, ComparisonV2):
+            requirements.extend((_history_requirement(condition.left), _history_requirement(condition.right)))
+        elif isinstance(condition, BooleanGroupV2):
+            for child in condition.children:
+                visit(child)
+        else:
+            visit(condition.child)
+
+    if strategy.selection is not None:
+        requirements.append(_history_requirement(strategy.selection.ranking))
+        if strategy.selection.eligibility is not None:
+            visit(strategy.selection.eligibility)
+    if strategy.predicate is not None:
+        visit(strategy.predicate)
+    if strategy.program is not None:
+        from ruletrade.strategy.v2.program_validation import daily_nodes_for_value, program_values
+        for value in program_values(strategy.program):
+            for node in daily_nodes_for_value(value):
+                requirements.append(_history_requirement(node))
+    if not requirements:
+        return HistoryRequirement(minimum_history_lower_bound=0)
+    return HistoryRequirement(max(item.minimum_history_lower_bound for item in requirements))
 
 def v2_capabilities() -> dict[str, OperationCapability]:
     """Truthful Profile-A capability ledger.
@@ -211,7 +381,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         historical_safe=True,
         reference_evaluable=True,
         backend_lowerable=True,
-        authoring_reachable=False,
+        authoring_reachable=True,
         verified_profile=True,
     )
     reference_only = OperationCapability(
@@ -254,6 +424,23 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "daily.arithmetic@1": reference_only,
         "daily.absolute@1": reference_only,
         "daily.comparison_truth@1": reference_only,
+        "program.cross_sectional@1": reference_only,
+        "program.cross_sectional_aggregate@1": reference_only,
+        "program.cross_sectional_normalization@1": reference_only,
+        "program.score@1": reference_only,
+        "program.condition_points@1": reference_only,
+        "program.n_of_m@1": reference_only,
+        "program.event@1": reference_only,
+        "program.scheduled_event@1": reference_only,
+        "program.state_transition@1": reference_only,
+        "program.remembered_value@1": reference_only,
+        "program.sequence_window@1": reference_only,
+        "program.event_relative@1": reference_only,
+        "program.multi_clock@1": reference_only,
+        "program.allocation@1": reference_only,
+        "program.score_allocation@1": reference_only,
+        "program.allocation_bounds@1": reference_only,
+        "program.policy_precedence@1": reference_only,
         # The maintained provider exposes neither these fields nor PIT identity.
         "daily.raw_ohlc@1": provider_blocked,
         "daily.volume_raw_shares@1": provider_blocked,
@@ -272,4 +459,3 @@ def v2_capabilities() -> dict[str, OperationCapability]:
             verified_profile=False,
         ),
     }
-
