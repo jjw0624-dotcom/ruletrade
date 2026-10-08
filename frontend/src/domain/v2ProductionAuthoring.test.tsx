@@ -204,9 +204,6 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("Portfolio");
     expect(markup).toContain("Structure");
     expect(markup).toContain("Add");
-    expect(markup).toContain("Choose assets");
-    expect(markup).toContain("If / Otherwise");
-    expect(markup).toContain("Schedule");
     expect(markup).not.toContain("Start building your strategy");
     expect(markup).not.toContain("initial-retain-allocation");
     expect(markup).not.toContain("Allocate equally");

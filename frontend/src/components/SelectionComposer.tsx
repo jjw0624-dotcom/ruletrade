@@ -36,9 +36,9 @@ export function SelectionComposer(props: SelectionComposerProps) {
     <header className="semantic-section-header"><div><span className="eyebrow">Selection</span><strong>Choose {props.count}</strong></div></header>
     {(props.universeEditor || (props.strategy && props.universeComponentId)) && <section className="selection-section"><span className="eyebrow">FROM</span>
       {props.universeEditor}
-      {props.universeChoices && props.universeId && props.onUniverseChange
+      {!props.universeEditor && props.universeChoices && props.universeId && props.onUniverseChange
         ? <select aria-label="Selection universe" value={props.universeId} disabled={props.disabled} onChange={(event) => props.onUniverseChange?.(event.target.value)}>{props.universeChoices.map((id) => <option key={id} value={id}>{props.strategy?.definitions.universes?.find((item) => item.id === id)?.name ?? id}</option>)}</select>
-        : <strong>{describeUniverse(props.strategy, props.universeComponentId) ?? "Explicit universe"}</strong>}
+        : !props.universeEditor && props.strategy && props.universeComponentId ? <strong>{describeUniverse(props.strategy, props.universeComponentId) ?? "Explicit universe"}</strong> : null}
       {props.universeMembersEditor && <details className="semantic-subeditor"><summary>Edit universe members</summary>{props.universeMembersEditor}</details>}
     </section>}
     <section className="selection-section"><span className="eyebrow">WHERE</span><strong>{props.eligibilitySummary ?? "All candidates qualify"}</strong>{props.eligibilityEditor}</section>

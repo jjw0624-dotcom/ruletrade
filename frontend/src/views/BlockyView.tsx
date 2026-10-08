@@ -16,6 +16,7 @@ import { describeConditionExpression } from "../domain/valueSemantics";
 import type { ProgramStatementV2 } from "../domain/canonicalV2";
 import { SemanticProgramBlockyProjection } from "../components/SemanticProgramBlockyProjection";
 import { registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
+export { registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
 
 export const blocklyViewportOptions = {
   move: { scrollbars: true, drag: true, wheel: true },
