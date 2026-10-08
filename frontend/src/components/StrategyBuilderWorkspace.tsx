@@ -111,7 +111,7 @@ function LegacyStrategyBuilderWorkspace({
     </main>
     {showInspector && <SemanticInspector projection={projection} structural={structural} evidence={inspectorEvidence} />}
   </div>;
-  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2">
+  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2" data-production-builder-shell="true" data-builder-adapter="canonical-v1">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
       <div className="representation-switcher" aria-label="Strategy representation">
@@ -175,7 +175,7 @@ export interface ProgramWorkspaceProps {
 
 function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
-  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2" data-production-builder-shell="true" data-program-native="true">
+  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2" data-production-builder-shell="true" data-builder-adapter="semantic-program-v2" data-program-native="true">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
       <div className="representation-switcher" aria-label="Strategy representation">
