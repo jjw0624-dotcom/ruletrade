@@ -238,7 +238,7 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
-        <Tabs.Content value="blocks" className="blocks-panel"><div className="blocky-program-toolbox">
+        <Tabs.Content value="blocks" forceMount className="blocks-panel"><div className="blocky-program-toolbox">
           <nav className="blocky-toolbox-categories" aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
           <section className="blocky-toolbox-library" aria-label={`${category} blocks`} data-scroll-container="bounded">{displayed.map((tool) => <article className={`blocky-toolbox-entry ${tool.disabled ? "unsupported" : "available"}`} key={tool.id}><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}><strong>{tool.label}</strong><small>{tool.disabled ? tool.description : "Available"}</small></button></article>)}</section>
         </div></Tabs.Content>
