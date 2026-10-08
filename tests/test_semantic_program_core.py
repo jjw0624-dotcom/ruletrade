@@ -644,3 +644,37 @@ def test_program_authoring_addresses_nested_allocations_without_ambiguity() -> N
                 reason="wrong replacement kind",
             ),
         )
+
+
+def test_state_driven_event_edge_uses_incoming_not_already_mutated_state() -> None:
+    enter_risk_on = StateTransitionStatementV2(
+        semantic_id="enter-risk-on-before-event",
+        transition=StateTransitionV2(
+            semantic_id="risk-on-before-event-transition",
+            state_key="regime",
+            from_value="risk_off",
+            to_value="risk_on",
+            when=condition_over("105"),
+        ),
+    )
+    state_event = EventStatementV2(
+        semantic_id="state-event-handler",
+        event=EventDefinitionV2(
+            semantic_id="state-risk-on-event",
+            clock_id="daily-close",
+            condition=StateConditionV2(
+                semantic_id="state-is-risk-on",
+                state_key="regime",
+                expected="risk_on",
+            ),
+            trigger="rising_edge",
+        ),
+        statements=(asset_allocation("QQQ", "state-event-allocation"),),
+    )
+    result = execute_program_v2(
+        program(enter_risk_on, state_event), snapshot(), cutoff_index=1,
+        prior_state={"regime": "risk_off"},
+    )
+    assert result.state["regime"] == "risk_on"
+    assert result.target_weights == {"QQQ": Decimal("1")}
+    assert result.event_truths == {"state-risk-on-event": "true"}
