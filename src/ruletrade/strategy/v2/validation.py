@@ -15,6 +15,8 @@ from ruletrade.strategy.v2.models import (
     LiteralValue,
     NotConditionV2,
     StateConditionV2,
+    NOfMConditionV2,
+    EventWindowConditionV2,
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind, infer_daily_type, plan_daily_value
@@ -214,7 +216,7 @@ def validate_comparison(
 def condition_limits(condition: ConditionV2) -> tuple[int, int, int]:
     """Return depth, boolean child maximum, and total nodes."""
 
-    if isinstance(condition, (ComparisonV2, StateConditionV2)):
+    if isinstance(condition, (ComparisonV2, StateConditionV2, EventWindowConditionV2)):
         return 1, 0, 1
     if isinstance(condition, NotConditionV2):
         depth, width, total = condition_limits(condition.child)
@@ -239,13 +241,13 @@ def validate_condition(
         diagnostics.append(SemanticDiagnostic("condition_node_limit", "condition", "A Condition supports at most forty nodes."))
     if isinstance(condition, ComparisonV2):
         diagnostics.extend(validate_comparison(condition, role, bound_candidate_id=bound_candidate_id))
-    elif isinstance(condition, StateConditionV2):
+    elif isinstance(condition, (StateConditionV2, EventWindowConditionV2)):
         if role != SemanticRole.PREDICATE:
             diagnostics.append(SemanticDiagnostic(
                 "state_condition_role_forbidden", "condition",
                 "Program state may gate Control, Event, transitions, guards, and overrides; it cannot filter Candidates.",
             ))
-    elif isinstance(condition, BooleanGroupV2):
+    elif isinstance(condition, (BooleanGroupV2, NOfMConditionV2)):
         for child in condition.children:
             diagnostics.extend(validate_condition(child, role, bound_candidate_id=bound_candidate_id))
     else:
@@ -266,7 +268,7 @@ def _daily_nodes(value: ValueExpressionV2) -> tuple[DailyValueNode, ...]:
 
 
 def _condition_values(condition: ConditionV2) -> tuple[ValueExpressionV2, ...]:
-    if isinstance(condition, StateConditionV2):
+    if isinstance(condition, (StateConditionV2, EventWindowConditionV2)):
         return ()
     if isinstance(condition, ComparisonV2):
         return (condition.left, condition.right)
@@ -422,15 +424,22 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "daily.arithmetic@1": reference_only,
         "daily.absolute@1": reference_only,
         "daily.comparison_truth@1": reference_only,
-        # Program Core semantics are reference-executable and persistable, but
-        # remain outside generalized UI and maintained LEAN lowering.
         "program.cross_sectional@1": reference_only,
+        "program.cross_sectional_aggregate@1": reference_only,
+        "program.cross_sectional_normalization@1": reference_only,
         "program.score@1": reference_only,
+        "program.condition_points@1": reference_only,
+        "program.n_of_m@1": reference_only,
         "program.event@1": reference_only,
+        "program.scheduled_event@1": reference_only,
         "program.state_transition@1": reference_only,
+        "program.remembered_value@1": reference_only,
+        "program.sequence_window@1": reference_only,
         "program.event_relative@1": reference_only,
         "program.multi_clock@1": reference_only,
         "program.allocation@1": reference_only,
+        "program.score_allocation@1": reference_only,
+        "program.allocation_bounds@1": reference_only,
         "program.policy_precedence@1": reference_only,
         # The maintained provider exposes neither these fields nor PIT identity.
         "daily.raw_ohlc@1": provider_blocked,
@@ -450,4 +459,3 @@ def v2_capabilities() -> dict[str, OperationCapability]:
             verified_profile=False,
         ),
     }
-

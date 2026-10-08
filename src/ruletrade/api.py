@@ -798,6 +798,9 @@ class EvaluateSemanticProgramRequest(FrozenModel):
     prior_state: dict[str, str] | None = None
     event_cutoffs: dict[str, int] | None = None
     prior_event_truths: dict[str, str] | None = None
+    event_counts: dict[str, int] | None = None
+    state_entered_cutoffs: dict[str, int] | None = None
+    remembered_values: dict[str, Decimal] | None = None
 
 
 @app.post("/v2/canonical/programs/evaluate")
@@ -815,6 +818,9 @@ def evaluate_semantic_program(request: EvaluateSemanticProgramRequest) -> dict[s
             prior_state=request.prior_state,
             event_cutoffs=request.event_cutoffs,
             prior_event_truths=request.prior_event_truths,
+            event_counts=request.event_counts,
+            state_entered_cutoffs=request.state_entered_cutoffs,
+            remembered_values=request.remembered_values,
         )
     except (
         DailyDatasetProviderError,
@@ -1102,3 +1108,4 @@ def read_persisted_revision(
     service: Annotated[StrategyService, Depends(get_strategy_service)],
 ) -> RevisionRecord:
     return service.get_revision(strategy_id, revision_id)
+

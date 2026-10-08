@@ -24,15 +24,15 @@ must preserve the addressed statement kind. A compatibility Selection is not sil
 | Family | Core node | Contract |
 |---|---|---|
 | Value | `DailyValueNode` | Work 2 typed daily semantics remain unchanged. |
-| Cross-section | `CrossSectionalValueV2` | Deterministic rank, percentile, quantile, or bucket over one named domain. Missing members do not receive a rank. Ties use stable member identity. |
-| Score | `ScoreValueV2` | Explicit non-zero weighted dimensionless terms; missing policy is either require-all or renormalize-available. |
-| Condition | `ComparisonV2`, `StateConditionV2`, ALL, ANY, NOT | Three-valued Truth; Candidate references require lexical Selection binding; declared state is Program-only and cannot filter Eligibility. |
+| Cross-section | `CrossSectionalValueV2`, `CrossSectionalAggregateValueV2` | Deterministic rank, percentile, quantile, bucket, min-max, z-score, or mean/median/min/max reduction over one named domain, with explicit coverage provenance. |
+| Score | `ScoreValueV2` | Weighted dimensionless Values and Condition-to-points terms, explicit missing/normalization policy, and optional clamp. Scores can be cross-sectionally ranked. |
+| Condition | `ComparisonV2`, `StateConditionV2`, `EventWindowConditionV2`, N-of-M, ALL, ANY, NOT | Three-valued Truth; Candidate references require lexical Selection binding; state/Event predicates are Program-only. |
 | Selection | `SelectionStatementV2` | Produces a named target set. Shortage and Selection fallback remain distinct. |
 | Control | `ConditionalStatementV2` | Evaluates only the selected branch. Unknown explicitly retains or routes to OTHERWISE. |
-| Event | `EventStatementV2` | Rising edge, falling edge, or while-true at a named clock. |
-| State | `StateTransitionStatementV2` | Explicit initialized key and guarded transition; false/Unknown do not mutate state. |
-| Event-relative Value | `EventRelativeValueV2` | Reads a typed Value at an explicit observation offset from a named Event occurrence. |
-| Allocation | `AllocationStatementV2` | Equal or exact fixed weights over asset/group/Selection/cash/retain targets. |
+| Event | `EventStatementV2` | Crosses/became-true/became-false/while-true or scheduled session events, with every/first/ordinal occurrence identity. |
+| State | `StateTransitionStatementV2`, `RememberValueStatementV2` | Explicit initialized state, ordered transitions, and checkpointed remembered structural Values. |
+| Temporal Value | `EventRelativeValueV2`, `ClockedValueV2`, bars-since Event/State | Event-relative references and last-completed higher-timeframe context without implicit lookahead. |
+| Allocation | `AllocationStatementV2` | Equal, exact fixed, positive-score proportional, or inverse-value weights, optional bounds/cash remainder, overlap aggregation, and explicit retain. |
 | Policy | `GuardedAllocationStatementV2` | Total guard/override/primary/fallback precedence. |
 | Unresolved | `UnresolvedStatementV2` | Fuzzy or unsupported prose is draft-only and cannot execute or persist as valid Canonical truth. |
 
@@ -48,6 +48,11 @@ For an ordered available domain of size (n):
 - member identity is the deterministic tie-break;
 - unavailable members remain unavailable rather than receiving zero.
 
+Every cross-sectional observation records requested, available, and missing member
+identity. `require_all` reductions become unavailable on missing coverage;
+`available_only` remains explicit. Score normalization never turns an unavailable
+term into zero.
+
 A cross-sectional ranking domain must be identical to its Selection universe; the runtime never substitutes a visually similar domain. These are semantic profiles, not display labels.
 
 ## Event and state semantics
@@ -58,6 +63,13 @@ Truth. Unknown is not treated as true.
 - rising edge: current true and previous not true;
 - falling edge: current false and previous true;
 - while true: current true.
+- crosses above / became true: the rising-edge profile;
+- crosses below / became false: the falling-edge profile;
+- scheduled: a completed named session/clock boundary with no invented Condition.
+
+Event occurrence policy is explicit (`every`, `first`, or one-based `ordinal`).
+Same-timestamp Events retain separate semantic identities and deterministic Program
+order. Event checkpoints include truth, last cutoff, and occurrence count.
 
 State keys must be declared in `initial_state`. A transition checks its optional
 from-state and Condition before mutation. Callers may supply prior persisted state;
@@ -65,17 +77,22 @@ the Program result returns the next state. Event edge reconstruction uses the in
 
 The execution checkpoint returns both the latest Event cutoffs and current Event Truths; callers feed them into the next decision so edge identity is durable across runs. Event-relative references require a declared Event identity and an integer
 observation offset. Missing event history or an out-of-range offset produces an
-unavailable Value, never zero.
+unavailable Value, never zero. `before`, `after`, and bounded `within` Conditions
+refer only to recorded occurrence history. Remembered Values and State-entry cutoffs
+are explicit caller checkpoints; missing history stays unavailable.
 
 ## Multi-clock contract
 
 Every clock has a timeframe, completed-close boundary, timezone, and
 `completed_only=true`.
 
-The reference runtime supports deterministic daily, weekly, and monthly boundary
-gating over the pinned daily calendar. It does not fabricate intraday bars or
-implicitly align incomplete observations. A terminal fixture row is not assumed to close a week or month unless the clock explicitly declares `fixture_end_is_boundary`; production defaults to `not_due`. Cross-clock Value alignment beyond
-as-of completed observations remains an explicit future profile.
+The reference runtime supports deterministic session, daily, weekly, and monthly
+completed boundaries over the pinned daily calendar. Weekly/monthly boundaries are
+derived from the calendar, not by reading a future market row. `ClockedValueV2`
+uses the last completed boundary at or before the decision cutoff, so a higher-
+timeframe context can gate a lower-timeframe trigger without future-bar leakage.
+A terminal fixture row is not assumed complete unless its clock explicitly uses
+`fixture_end_is_boundary`; production defaults to `not_due`.
 
 ## Allocation precedence
 
@@ -98,6 +115,12 @@ weights and derives them only after targets resolve. When multiple legs or group
 resolve to the same asset, their exposure contributions add; later legs never
 overwrite earlier capital.
 
+Score-proportional allocation ignores non-positive scores and rejects an all-zero
+set; inverse-value allocation requires every selected input to be positive. Bounds
+are normalized deterministically. Impossible floors fail, and a cap-induced
+remainder requires an explicit cash destination. Retain is never mixed with a
+mutation.
+
 ## Evidence and identity
 
 Reference execution records:
@@ -110,6 +133,8 @@ Reference execution records:
 - decision kind and outcome;
 - Value semantic ID, candidate, observed value/reason, timestamp, and full composed-expression content hash (semantic addresses excluded);
 - selected outputs, resulting target weights, retained-holdings outcome, next state, Event cutoffs, and Event Truth checkpoints.
+- cross-sectional domain/coverage members, Event counts, State-entry cutoffs,
+  remembered Values, selected scores, and the exact policy rule/priority that won.
 
 Unselected Control branches emit no branch-local events or Value observations.
 
@@ -125,6 +150,20 @@ Natural-language corpus cases are classified as:
 Classification is not a natural-language parser and never turns fuzzy terms into
 invented Canonical meaning.
 
+`FormalizationProvenanceV2` preserves the original phrase. An unresolved phrase
+cannot point at executable semantic IDs and blocks execution. A formalized phrase
+must name the exact semantic IDs and state its interpretation.
+
+## Representative stress contract
+
+The closure suite pins: price versus SMA; Candidate return versus Group median;
+ranked composite factors; quantile-to-points; N-of-M; crosses; Event→State
+breakout/retest/confirmation structure; remembered entry levels; higher-timeframe
+context with lower-timeframe triggers; positive-score allocation; no-trade
+override precedence; and rejected fuzzy phrases. These cases stress general Core
+composition. They are not a claim about strategy popularity or a domain-specific
+engine.
+
 ## Deferred from this closure
 
 - generalized authoring UI expansion;
@@ -133,3 +172,4 @@ invented Canonical meaning.
 - new provider fields;
 - options, fundamentals, PCA, or arbitrary formulas;
 - automatic v1 migration.
+

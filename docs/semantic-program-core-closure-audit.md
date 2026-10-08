@@ -24,10 +24,10 @@ revisions use `SemanticProgramV2` and are not reconstructed from legacy fields.
 |---|---|
 | Program root and typed statements | Closed with stable semantic IDs and explicit compatibility snapshots. |
 | Recursive validation | Closed for lexical Candidate scope, Program state, clocks, provider truth, statement identity, and definite Selection-output dataflow. |
-| Reference execution | Closed for cross-section/score, T/F/U Control, Events, state transitions, multi-clock gating, allocation, and policy precedence. |
+| Reference execution | Closed for cross-sectional algebra/reductions, score and N-of-M, T/F/U Control, Event/State/remembered checkpoints, completed multi-clock alignment, bounded score allocation, and policy precedence. |
 | Persistence and authoring | Closed for versioned JSON round-trip, semantic hashing, source-hash CAS, whole Program replacement, and nested statement addresses. |
 | Evidence readiness | Closed with revision/program/snapshot/cutoff identity, executed-path statement events, exact Value observations, Event checkpoints, and composed-expression hashes. |
-| Corpus boundary | Closed as an explicit representable/provider-blocked/unresolved/deferred classifier. Representative counterexamples are pinned; this is not a natural-language parser. |
+| Corpus boundary | Closed as an explicit representable/provider-blocked/unresolved/deferred classifier plus a 12-pattern representative stress contract. Counterexamples cover identity/ties/coverage, temporal ordering/checkpoints/no-lookahead, allocation conflicts, policy ambiguity, and fuzzy execution rejection. This is not a natural-language parser or a frequency claim. |
 | Projection/UI breadth | Intentionally deferred. Program-native frontend transport is safe and read-only rather than inventing generalized controls. |
 
 ## KEEP
@@ -121,3 +121,4 @@ Acceptance for this preparation batch requires both exact-head jobs:
 - Generated C# / LEAN compile (including the maintained Work 2 differential)
 
 No local or browser validation is claimed by this audit.
+
