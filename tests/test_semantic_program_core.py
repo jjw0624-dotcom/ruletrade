@@ -756,3 +756,12 @@ def test_retain_is_an_unambiguous_whole_allocation_outcome() -> None:
     result = execute_program_v2(program(retain), snapshot())
     assert result.retained_holdings is True
     assert result.target_weights == {}
+
+
+def test_program_cutoff_cannot_alias_python_negative_indexing() -> None:
+    with pytest.raises(ProgramExecutionError, match="program_cutoff_out_of_range"):
+        execute_program_v2(
+            program(asset_allocation("QQQ", "cutoff-allocation")),
+            snapshot(),
+            cutoff_index=-1,
+        )
