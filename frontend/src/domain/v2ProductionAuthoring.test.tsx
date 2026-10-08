@@ -1,9 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { V2StrategyEditor } from "../components/V2StrategyEditor";
+import { CreationPicker } from "../components/CreationPicker";
+import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
+import { projectProgramProductFlow, projectProgramProductStructure } from "../components/SemanticProgramBuilderAdapter";
+import { V2ConditionComposer } from "../components/V2SemanticComposer";
+import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -66,6 +71,25 @@ const detail: StrategyDetailV2 = {
 };
 
 describe("mounted v2 production editor", () => {
+  it("offers a normal blank Strategy path without exposing Program internals", () => {
+    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
+    expect(markup).toContain("Blank strategy");
+    expect(markup).toContain("Start in the Builder");
+    expect(markup).not.toContain("Blank Program");
+    expect(markup).not.toContain("typed Values, Conditions, Events, State, Selection, and Allocation");
+  });
+
+  it("requests a backend-authoritative Program template instead of synthesizing Selection", async () => {
+    let body = "";
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = String(init?.body ?? "");
+      return new Response(JSON.stringify({ ...strategy, selection: null, program: { semantic_id: "program", clocks: [], initial_state: {}, statements: [] } }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const created = await v2AuthoringApi.programTemplate("New Program", ["SPY", "TLT"], fetcher);
+    expect(JSON.parse(body)).toEqual({ name: "New Program", assets: ["SPY", "TLT"] });
+    expect(created.selection).toBeNull();
+    expect(created.program?.semantic_id).toBe("program");
+  });
   it("renders one coherent semantic Selection inspector without schema-form actions", () => {
     const markup = renderToStaticMarkup(<V2StrategyEditor persisted={detail} onHome={() => undefined} />);
     for (const label of ["FROM", "WHERE", "ORDER BY", "DIRECTION", "TAKE", "WHEN FEWER QUALIFY", "SELECTION FALLBACK"]) {
@@ -84,6 +108,9 @@ describe("mounted v2 production editor", () => {
   it("uses the shared semantic formatter for Value and nested Condition summaries", () => {
     expect(describeDailyValue(candidateReturn)).toContain("126-observation return");
     expect(describeConditionV2(strategy.selection!.eligibility!)).toBe("ALL · 1 conditions");
+    const conditionEditor = renderToStaticMarkup(<V2ConditionComposer condition={strategy.selection!.eligibility!} strategy={strategy} role="eligibility" onChange={() => undefined} />);
+    expect(conditionEditor).toContain("ANY");
+    expect(conditionEditor).toContain("N-of-M");
   });
 
   it("opens Program-native revisions without assuming a compatibility Selection", () => {
@@ -100,7 +127,15 @@ describe("mounted v2 production editor", () => {
           completed_only: true,
         }],
         initial_state: {},
-        statements: [{ kind: "allocate", semantic_id: "allocate" }],
+        formalizations: [{ source_phrase: "positive momentum", status: "formalized", semantic_ids: ["program-selection"], interpretation: "Rank the configured candidates by 126-observation return." }],
+        statements: [{
+          kind: "select", semantic_id: "program-selection", output_id: "selected-growth", clock_id: "daily-close",
+          selection: { ...strategy.selection!, semantic_id: "program-selection-definition" },
+        }, {
+          kind: "allocate", semantic_id: "allocate", method: "equal", clock_id: "daily-close",
+          legs: [{ semantic_id: "retain-leg", target: { semantic_id: "retain-target", kind: "retain", ref: null }, weight: null }],
+          minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+        }],
       },
     };
     const markup = renderToStaticMarkup(<V2StrategyEditor
@@ -113,8 +148,99 @@ describe("mounted v2 production editor", () => {
       }}
       onHome={() => undefined}
     />);
-    expect(markup).toContain("Semantic Program Core");
-    expect(markup).toContain("1 typed Program statements");
-    expect(markup).not.toContain("All candidates qualify");
+    expect(markup).toContain('data-builder-adapter="semantic-engine"');
+    expect(markup).toContain('data-production-builder-shell="true"');
+    expect(markup).toContain("Choose 2 assets");
+    expect(markup).toContain("FROM");
+    expect(markup).toContain("WHERE");
+    expect(markup).toContain("ORDER BY");
+    expect(markup).not.toContain("Event semantics");
+    expect(markup).not.toContain("State semantics");
+    expect(markup).not.toContain("program-selection-definition");
+    expect(markup).not.toContain("initial-retain-allocation");
+    expect(markup).not.toContain("ANY and nested conditions remain unavailable");
+    expect(markup).not.toContain("Generalized Program authoring is intentionally deferred");
+  });
+
+  it("projects Program semantics through the existing product structure vocabulary", () => {
+    const programStrategy: CanonicalStrategyV2 = {
+      ...strategy,
+      selection: null,
+      program: {
+        semantic_id: "program",
+        clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+        initial_state: {}, formalizations: [],
+        statements: [{ kind: "select", semantic_id: "program-selection", output_id: "selected", clock_id: "daily-close", selection: strategy.selection! }],
+      },
+    };
+    const structure = projectProgramProductStructure(programStrategy);
+    expect(structure.label).toBe("Portfolio");
+    expect(structure.children[0]?.children.map((item) => item.label)).toEqual([
+      "Assets", "Qualification", "Choose 2 assets", "Fallback",
+    ]);
+    expect(JSON.stringify(structure)).not.toContain("semantic_id");
+  });
+
+  it("treats the valid retain bootstrap as a user-facing empty Builder", () => {
+    const blank = {
+      ...strategy,
+      definitions: { ...strategy.definitions, groups: [], asset_axis: { ...strategy.definitions.asset_axis, domain_id: "growth_assets" } },
+      selection: null,
+      program: {
+        semantic_id: "program",
+        clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+        initial_state: {},
+        formalizations: [],
+        statements: [{
+          kind: "allocate" as const,
+          semantic_id: "initial-retain-allocation",
+          method: "equal" as const,
+          clock_id: "daily-close",
+          legs: [{ semantic_id: "initial-retain-leg", target: { semantic_id: "initial-retain-target", kind: "retain" as const, ref: null }, weight: null }],
+          minimum_weight: null,
+          maximum_weight: null,
+          cash_remainder_asset: null,
+        }],
+      },
+    } satisfies CanonicalStrategyV2;
+    const markup = renderToStaticMarkup(<V2StrategyEditor persisted={{ ...detail, current_revision: { ...detail.current_revision, canonical_strategy: blank } }} onHome={() => undefined} />);
+    expect(markup).toContain("Portfolio");
+    expect(markup).toContain("Structure");
+    expect(markup).toContain("Add");
+    expect(markup).not.toContain("Start building your strategy");
+    expect(markup).not.toContain("initial-retain-allocation");
+    expect(markup).not.toContain("Allocate equally");
+    expect(markup).not.toContain("Move up");
+    expect(markup).not.toContain("Move down");
+    expect(markup).toContain("Investment");
+    expect(markup).toContain("Split");
+  });
+
+  it("dispatches one stable product operation through both canonical adapters", () => {
+    const assets: BuilderProductOperation = { kind: "setAssets", assets: ["QQQ", "VGT", "SOXX", "SCHG"] };
+    expect(adaptV1ProductOperation(assets, { assetSetId: "growth-assets" })).toEqual([{
+      kind: "update_asset_set", asset_set_id: "growth-assets", assets: assets.assets,
+    }]);
+    const programStrategy = { ...strategy, selection: null, program: {
+      semantic_id: "program", clocks: [{ id: "daily-close", timeframe: "daily" as const, boundary: "close" as const, timezone: "UTC", completed_only: true as const }], initial_state: {}, formalizations: [],
+      statements: [{ kind: "allocate" as const, semantic_id: "initial-retain-allocation", method: "equal" as const, clock_id: "daily-close", legs: [{ semantic_id: "leg", target: { semantic_id: "target", kind: "retain" as const, ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
+    } } satisfies CanonicalStrategyV2;
+    expect(adaptV2ProductOperation(programStrategy, assets, { assetSetId: "growth_assets" })[0]).toEqual({
+      kind: "set_program_asset_set", asset_set_id: "growth_assets", assets: assets.assets,
+    });
+    const rebalance: BuilderProductOperation = { kind: "setRebalance", cadence: "monthly" };
+    expect(adaptV1ProductOperation(rebalance, { scheduleComponentId: "schedule" })[0]?.kind).toBe("update_schedule");
+    expect(adaptV2ProductOperation(programStrategy, rebalance, { clockId: "daily-close" })[0]).toEqual({ kind: "set_program_schedule", clock_id: "daily-close", timeframe: "monthly" });
+  });
+
+  it("projects the same product grammar in Structure and Flow before Selection exists", () => {
+    const blankInvestment = { ...strategy, selection: null, program: {
+      semantic_id: "program", clocks: [{ id: "daily-close", timeframe: "monthly" as const, boundary: "close" as const, timezone: "UTC", completed_only: true as const }], initial_state: {}, formalizations: [],
+      statements: [{ kind: "allocate" as const, semantic_id: "initial-retain-allocation", method: "equal" as const, clock_id: "daily-close", legs: [{ semantic_id: "leg", target: { semantic_id: "target", kind: "retain" as const, ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
+    } } satisfies CanonicalStrategyV2;
+    const structure = projectProgramProductStructure(blankInvestment);
+    expect(structure.children[0]).toMatchObject({ label: "Growth", detail: "100%", children: [{ label: "Assets" }] });
+    expect(structure.children.at(-1)).toMatchObject({ label: "Rebalance", detail: "Monthly close" });
+    expect(projectProgramProductFlow(blankInvestment).map((item) => item.label)).toEqual(["Portfolio", "Growth", "Assets", "Rebalance"]);
   });
 });
