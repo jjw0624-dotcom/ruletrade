@@ -520,6 +520,8 @@ def execute_program_v2(
     if issues:
         raise ProgramExecutionError("; ".join(f"{item.path}: {item.code}" for item in issues))
     cutoff = len(snapshot.dates) - 1 if cutoff_index is None else cutoff_index
+    if cutoff < 0 or cutoff >= len(snapshot.dates):
+        raise ProgramExecutionError("program_cutoff_out_of_range")
     runtime = _Runtime(
         program, snapshot, cutoff,
         prior_state=prior_state,
