@@ -177,8 +177,9 @@ class _Runtime:
                 item = self._daily(value.source, member, binding_id)
                 if item.value is not None:
                     available.append((item.value, member))
+            available.sort(key=lambda item: item[1])
             available.sort(
-                key=lambda item: (item[0], item[1]),
+                key=lambda item: item[0],
                 reverse=value.direction == "descending",
             )
             ordered = [member for _number, member in available]
@@ -338,8 +339,9 @@ class _Runtime:
             if score.value is not None:
                 eligible.append(member)
                 ranked.append((score.value, member))
+        ranked.sort(key=lambda item: item[1])
         ranked.sort(
-            key=lambda item: (item[0], item[1]),
+            key=lambda item: item[0],
             reverse=selection.direction == "descending",
         )
         ordered = tuple(member for _score, member in ranked)
