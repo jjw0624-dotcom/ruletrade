@@ -7,6 +7,7 @@ import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { projectProgramProductStructure } from "../components/SemanticProgramBuilderAdapter";
+import { V2ConditionComposer } from "../components/V2SemanticComposer";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -106,6 +107,9 @@ describe("mounted v2 production editor", () => {
   it("uses the shared semantic formatter for Value and nested Condition summaries", () => {
     expect(describeDailyValue(candidateReturn)).toContain("126-observation return");
     expect(describeConditionV2(strategy.selection!.eligibility!)).toBe("ALL · 1 conditions");
+    const conditionEditor = renderToStaticMarkup(<V2ConditionComposer condition={strategy.selection!.eligibility!} strategy={strategy} role="eligibility" onChange={() => undefined} />);
+    expect(conditionEditor).toContain("ANY");
+    expect(conditionEditor).toContain("N-of-M");
   });
 
   it("opens Program-native revisions without assuming a compatibility Selection", () => {
@@ -149,8 +153,6 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("FROM");
     expect(markup).toContain("WHERE");
     expect(markup).toContain("ORDER BY");
-    expect(markup).toContain("ANY");
-    expect(markup).toContain("N-of-M");
     expect(markup).toContain("Action");
     expect(markup).not.toContain("Event semantics");
     expect(markup).not.toContain("State semantics");
