@@ -1,4 +1,4 @@
-import type { ConditionV2, DailyValueNode, ProgramStatementV2, ValueExpressionV2 } from "./canonicalV2";
+import { isDailyValue, type ConditionV2, type DailyValueNode, type ProgramStatementV2, type ValueExpressionV2 } from "./canonicalV2";
 
 const subject = (node: DailyValueNode) => node.subject_kind === "candidate"
   ? "Candidate"
@@ -32,7 +32,7 @@ export function describeDailyValue(node: DailyValueNode): string {
 }
 
 export function describeValueV2(node: ValueExpressionV2): string {
-  if ("operands" in node) return describeDailyValue(node);
+  if (isDailyValue(node)) return describeDailyValue(node);
   if (node.kind === "cross_sectional") return `${describeValueV2(node.source)} · ${node.transform.replace("_", "-")} across ${node.domain_id}`;
   if (node.kind === "cross_sectional_aggregate") return `${node.domain_id} members' ${node.reduction} ${describeValueV2(node.source)}`;
   if (node.kind === "score") return `Composite score · ${node.terms.length + node.condition_terms.length} terms`;

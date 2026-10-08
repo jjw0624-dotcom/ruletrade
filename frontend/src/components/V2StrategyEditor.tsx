@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { V2AuthoringOperation } from "../domain/canonicalV2";
-import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
+import { describeConditionV2, describeValueV2 } from "../domain/v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi } from "../v2AuthoringApi";
 import { executeV2Selection, type V2SelectionExecution } from "../v2ExecutionApi";
-import { V2ConditionComposer, V2ValueComposer } from "./V2SemanticComposer";
+import { V2ConditionComposer, V2ProgramValueComposer } from "./V2SemanticComposer";
 import { V2ProgramWorkspace } from "./V2ProgramWorkspace";
 
 type View = "summary" | "flow" | "blocky" | "rules";
@@ -120,9 +120,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     <div className="builder-core inspector-open">
       <main className="representation-workspace">
         {view === "summary" && <section className="representation-layer v2-summary"><span className="eyebrow">Profile A · Semantic Language v2</span><h1>{canonical.metadata.name}</h1><p>Selection is authored from complete typed Values and persisted as an explicit v2 revision.</p></section>}
-        {view === "blocky" && <section className="representation-layer v2-blocky" aria-label="Blocky decision program"><div className="blocky-program-card"><strong>Choose {canonical.selection.count} assets</strong><small>{canonical.selection.eligibility ? describeConditionV2(canonical.selection.eligibility) : "All candidates qualify"}</small><small>{canonical.selection.direction === "descending" ? "Highest" : "Lowest"} {describeDailyValue(canonical.selection.ranking)}</small></div></section>}
+        {view === "blocky" && <section className="representation-layer v2-blocky" aria-label="Blocky decision program"><div className="blocky-program-card"><strong>Choose {canonical.selection.count} assets</strong><small>{canonical.selection.eligibility ? describeConditionV2(canonical.selection.eligibility) : "All candidates qualify"}</small><small>{canonical.selection.direction === "descending" ? "Highest" : "Lowest"} {describeValueV2(canonical.selection.ranking)}</small></div></section>}
         {view === "flow" && <section className="representation-layer v2-flow" aria-label="Flow capital projection"><div className="flow-capital-node">Investment</div><div className="flow-routing-node">Choose {canonical.selection.count} assets</div><div className="flow-capital-node">Selected assets · equal weight</div>{canonical.selection.fallback_asset && <div className="flow-capital-node">Incomplete → {canonical.selection.fallback_asset}</div>}<div className="flow-action-node">Rebalance</div></section>}
-        {view === "rules" && <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Selection</h2><p>Consider {assetSet?.assets.join(", ") ?? universe?.name ?? canonical.selection.universe_id}.</p><p>{canonical.selection.eligibility ? `Keep candidates where ${describeConditionV2(canonical.selection.eligibility)}.` : "All candidates qualify."}</p><p>Rank by {describeDailyValue(canonical.selection.ranking)}, {canonical.selection.direction === "descending" ? "highest" : "lowest"} first.</p><p>Choose {canonical.selection.count}; {canonical.selection.shortage_policy === "require_full" ? "require the full count" : "choose all eligible"}.</p>{canonical.selection.fallback_asset && <p>If Selection is incomplete, use {canonical.selection.fallback_asset}.</p>}</section>}
+        {view === "rules" && <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Selection</h2><p>Consider {assetSet?.assets.join(", ") ?? universe?.name ?? canonical.selection.universe_id}.</p><p>{canonical.selection.eligibility ? `Keep candidates where ${describeConditionV2(canonical.selection.eligibility)}.` : "All candidates qualify."}</p><p>Rank by {describeValueV2(canonical.selection.ranking)}, {canonical.selection.direction === "descending" ? "highest" : "lowest"} first.</p><p>Choose {canonical.selection.count}; {canonical.selection.shortage_policy === "require_full" ? "require the full count" : "choose all eligible"}.</p>{canonical.selection.fallback_asset && <p>If Selection is incomplete, use {canonical.selection.fallback_asset}.</p>}</section>}
       </main>
       <aside className="semantic-inspector v2-selection-inspector" aria-label="Semantic Inspector">
         <header><span className="eyebrow">Selection</span></header>
@@ -132,7 +132,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
           <section><h3>WHERE</h3>{canonical.selection.eligibility
             ? <V2ConditionComposer condition={canonical.selection.eligibility} strategy={canonical} role="eligibility" onWorking={(unfinished) => { setStatus(unfinished ? "unfinished" : "saved"); setMessage(unfinished ? "Unfinished Value" : "Updated"); }} onChange={(condition) => void apply({ kind: "set_eligibility_condition", condition })} />
             : <p>All candidates qualify</p>}</section>
-          <section><h3>ORDER BY</h3><V2ValueComposer value={canonical.selection.ranking} strategy={canonical} role="ranking" onWorking={(unfinished) => { setStatus(unfinished ? "unfinished" : "saved"); setMessage(unfinished ? "Unfinished Value" : "Updated"); }} onChange={(value) => void apply({ kind: "set_ranking_value", value })} /></section>
+          <section><h3>ORDER BY</h3><V2ProgramValueComposer value={canonical.selection.ranking} strategy={canonical} role="ranking" onWorking={(unfinished) => { setStatus(unfinished ? "unfinished" : "saved"); setMessage(unfinished ? "Unfinished Value" : "Updated"); }} onChange={(value) => void apply({ kind: "set_ranking_value", value })} /></section>
           <section><h3>DIRECTION</h3><select value={canonical.selection.direction} onChange={(event) => void apply({ kind: "set_ranking_direction", direction: event.target.value as "ascending" | "descending" })}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></section>
           <section><h3>TAKE</h3><input type="number" min={1} max={100} defaultValue={canonical.selection.count} onBlur={(event) => void apply({ kind: "set_selection_count", count: Number(event.target.value) })} /></section>
           <section><h3>WHEN FEWER QUALIFY</h3><select value={canonical.selection.shortage_policy} onChange={(event) => void apply({ kind: "set_shortage_policy", shortage_policy: event.target.value as "choose_all" | "require_full" })}><option value="require_full">Require full count</option><option value="choose_all">Choose all eligible</option></select></section>

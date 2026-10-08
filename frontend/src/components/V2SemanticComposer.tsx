@@ -183,7 +183,8 @@ export function V2ConditionComposer({ condition, strategy, role, onChange, onWor
     if (item.kind === "comparison") return comparison(item);
     if (item.kind === "not") return <section className="condition-group" key={item.semantic_id}><strong>NOT</strong>{tree(item.child)}</section>;
     if (item.kind === "state_equals" || item.kind === "event_window") return <section className="condition-group" key={item.semantic_id}><strong>{describeConditionV2(item)}</strong></section>;
-    return <section className="condition-group" key={item.semantic_id}><header><strong>{item.kind === "all" ? "ALL of these" : item.kind === "any" ? "ANY of these" : `At least ${item.minimum_true} of these`}</strong>{item.kind === "n_of_m" && <input aria-label="Minimum true conditions" type="number" min={1} max={item.children.length} value={item.minimum_true} onChange={(event) => onChange({ ...item, minimum_true: Number(event.target.value) })} />}</header>
+    const minimumTrue = item.kind === "n_of_m" ? item.minimum_true : 1;
+    return <section className="condition-group" key={item.semantic_id}><header><strong>{item.kind === "all" ? "ALL of these" : item.kind === "any" ? "ANY of these" : `At least ${minimumTrue} of these`}</strong>{item.kind === "n_of_m" && <input aria-label="Minimum true conditions" type="number" min={1} max={item.children.length} value={minimumTrue} onChange={(event) => onChange({ ...item, minimum_true: Number(event.target.value) })} />}</header>
       {item.children.map((child, index) => <div key={child.semantic_id}>{child.kind === "comparison"
         ? comparison({ ...child, semantic_id: child.semantic_id })
         : tree(child)}
