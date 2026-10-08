@@ -226,6 +226,34 @@ def test_program_template_is_program_native_and_never_synthesizes_compatibility_
         assert strategy["definitions"]["groups"] == []
 
 
+def test_every_new_starting_point_is_an_explicit_v2_program_template() -> None:
+    with TestClient(app) as client:
+        for starting_point in ("fallback", "sleeves", "cooldown", "one_investment", "filter", "golden"):
+            response = client.post("/v2/canonical/authoring/program-template", json={
+                "name": f"New {starting_point}", "starting_point": starting_point,
+            })
+            assert response.status_code == 200, (starting_point, response.text)
+            strategy = response.json()
+            assert strategy["api_version"] == "ruletrade.dev/strategy/v2"
+            assert strategy["selection"] is None
+            assert strategy["program"] is not None
+            assert strategy["definitions"]["groups"]
+
+        strongest = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Strongest ETFs", "starting_point": "fallback",
+        }).json()
+        selection = next(item for item in strongest["program"]["statements"] if item["kind"] == "select")
+        assert selection["selection"]["count"] == 2
+        assert selection["selection"]["fallback_asset"] == "TLT"
+        assert strongest["program"]["clocks"][0]["timeframe"] == "monthly"
+
+        sleeves = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Growth + Defensive", "starting_point": "sleeves",
+        }).json()
+        split = next(item for item in sleeves["program"]["statements"] if item["semantic_id"] == "portfolio-split")
+        assert [leg["weight"] for leg in split["legs"]] == ["0.70", "0.30"]
+
+
 def test_program_native_template_saves_revises_and_reopens_through_real_repository(tmp_path: Path) -> None:
     service = StrategyService(SQLiteStrategyRepository(tmp_path / "program-native.sqlite3"))
     app.dependency_overrides[get_strategy_service] = lambda: service
