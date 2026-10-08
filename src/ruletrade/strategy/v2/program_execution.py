@@ -28,6 +28,8 @@ from ruletrade.strategy.v2.models import (
     RememberValueStatementV2,
     BarsSinceEventValueV2,
     BarsSinceStateValueV2,
+    TimeSinceEventValueV2,
+    TimeSinceStateValueV2,
     SelectionStatementV2,
     SemanticProgramV2,
     StateTransitionStatementV2,
@@ -278,6 +280,23 @@ class _Runtime:
             observation = ProgramValueObservation(
                 value.semantic_id, candidate, result,
                 None if result is not None else "state_entry_not_observed",
+                self.observed_at, _value_content_hash(value),
+            )
+            self.observations.append(observation)
+            return observation
+        if isinstance(value, (TimeSinceEventValueV2, TimeSinceStateValueV2)):
+            anchor = (
+                self.event_cutoffs.get(value.event_id)
+                if isinstance(value, TimeSinceEventValueV2)
+                else self.state_entered_cutoffs.get(value.state_key)
+            )
+            result = None if anchor is None else Decimal(
+                (date.fromisoformat(self.snapshot.dates[self.cutoff])
+                 - date.fromisoformat(self.snapshot.dates[anchor])).days
+            )
+            observation = ProgramValueObservation(
+                value.semantic_id, candidate, result,
+                None if result is not None else "temporal_anchor_unavailable",
                 self.observed_at, _value_content_hash(value),
             )
             self.observations.append(observation)

@@ -192,6 +192,18 @@ class BarsSinceStateValueV2(FrozenModel):
     state_key: Identifier
 
 
+class TimeSinceEventValueV2(FrozenModel):
+    kind: Literal["time_since_event"] = "time_since_event"
+    semantic_id: Identifier
+    event_id: Identifier
+
+
+class TimeSinceStateValueV2(FrozenModel):
+    kind: Literal["time_since_state"] = "time_since_state"
+    semantic_id: Identifier
+    state_key: Identifier
+
+
 ValueExpressionV2: TypeAlias = (
     DailyValueNode
     | LiteralValue
@@ -205,6 +217,8 @@ ValueExpressionV2: TypeAlias = (
     | RememberedValueV2
     | BarsSinceEventValueV2
     | BarsSinceStateValueV2
+    | TimeSinceEventValueV2
+    | TimeSinceStateValueV2
 )
 
 

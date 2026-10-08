@@ -19,6 +19,8 @@ from ruletrade.strategy.v2.models import (
     RememberedValueV2,
     BarsSinceEventValueV2,
     BarsSinceStateValueV2,
+    TimeSinceEventValueV2,
+    TimeSinceStateValueV2,
     EventWindowConditionV2,
     NOfMConditionV2,
     EventStatementV2,
@@ -398,12 +400,12 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                 "unknown_event_reference", value.semantic_id,
                 "Event-relative Values must reference an Event declared in the Program.",
             ))
-        if isinstance(value, BarsSinceEventValueV2) and value.event_id not in event_ids:
+        if isinstance(value, (BarsSinceEventValueV2, TimeSinceEventValueV2)) and value.event_id not in event_ids:
             diagnostics.append(SemanticDiagnostic(
                 "unknown_event_reference", value.semantic_id,
                 "Bars-since-Event Values must reference a declared Event.",
             ))
-        if isinstance(value, BarsSinceStateValueV2) and value.state_key not in program.initial_state:
+        if isinstance(value, (BarsSinceStateValueV2, TimeSinceStateValueV2)) and value.state_key not in program.initial_state:
             diagnostics.append(SemanticDiagnostic(
                 "undeclared_state", value.semantic_id,
                 "Bars-since-State Values require an initialized state key.",
@@ -491,11 +493,15 @@ def infer_program_value_type(value: ValueExpressionV2, *, binding_id: str | None
             dtype=SemanticDType.DECIMAL, quantity=value.quantity, unit=value.unit,
             refinement=value.refinement,
         )
-    if isinstance(value, (BarsSinceEventValueV2, BarsSinceStateValueV2)):
+    if isinstance(value, (BarsSinceEventValueV2, BarsSinceStateValueV2, TimeSinceEventValueV2, TimeSinceStateValueV2)):
         from ruletrade.strategy.v2.semantic_types import SemanticType
         return SemanticType(
             dtype=SemanticDType.INTEGER, quantity=Quantity.COUNT, unit=Unit.COUNT,
-            refinement="elapsed_observations@1",
+            refinement=(
+                "elapsed_calendar_days@1"
+                if isinstance(value, (TimeSinceEventValueV2, TimeSinceStateValueV2))
+                else "elapsed_observations@1"
+            ),
         )
     semantic_type = getattr(value, "semantic_type", None)
     if semantic_type is None:

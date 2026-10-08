@@ -31,7 +31,7 @@ must preserve the addressed statement kind. A compatibility Selection is not sil
 | Control | `ConditionalStatementV2` | Evaluates only the selected branch. Unknown explicitly retains or routes to OTHERWISE. |
 | Event | `EventStatementV2` | Crosses/became-true/became-false/while-true or scheduled session events, with every/first/ordinal occurrence identity. |
 | State | `StateTransitionStatementV2`, `RememberValueStatementV2` | Explicit initialized state, ordered transitions, and checkpointed remembered structural Values. |
-| Temporal Value | `EventRelativeValueV2`, `ClockedValueV2`, bars-since Event/State | Event-relative references and last-completed higher-timeframe context without implicit lookahead. |
+| Temporal Value | `EventRelativeValueV2`, `ClockedValueV2`, bars/time-since Event/State | Event-relative references, elapsed observation/calendar-day Values, and last-completed higher-timeframe context without implicit lookahead. |
 | Allocation | `AllocationStatementV2` | Equal, exact fixed, positive-score proportional, or inverse-value weights, optional bounds/cash remainder, overlap aggregation, and explicit retain. |
 | Policy | `GuardedAllocationStatementV2` | Total guard/override/primary/fallback precedence. |
 | Unresolved | `UnresolvedStatementV2` | Fuzzy or unsupported prose is draft-only and cannot execute or persist as valid Canonical truth. |

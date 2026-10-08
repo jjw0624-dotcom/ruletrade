@@ -17,6 +17,7 @@ from ruletrade.strategy.v2.models import (
     RememberValueStatementV2, ScoreTermV2, ScoreValueV2, SelectionStatementV2,
     SelectionV2, SemanticProgramV2, StateConditionV2, StateTransitionStatementV2,
     StateTransitionV2, UnresolvedStatementV2,
+    TimeSinceEventValueV2, TimeSinceStateValueV2,
 )
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
 from ruletrade.strategy.v2.program_validation import validate_program_v2
@@ -498,14 +499,28 @@ def test_same_timestamp_events_ordered_transitions_and_elapsed_references() -> N
     assert result.state_entered_cutoffs == {"phase": 2}
 
     elapsed = BarsSinceEventValueV2(semantic_id="elapsed", event_id="first-event")
-    later_program = program(first, RememberValueStatementV2(
-        semantic_id="remember-elapsed", memory_id="elapsed-memory", value=elapsed,
-    ))
+    elapsed_days = TimeSinceEventValueV2(semantic_id="elapsed-days", event_id="first-event")
+    state_days = TimeSinceStateValueV2(semantic_id="state-days", state_key="phase")
+    later_program = program(
+        first,
+        RememberValueStatementV2(
+            semantic_id="remember-elapsed", memory_id="elapsed-memory", value=elapsed,
+        ),
+        RememberValueStatementV2(
+            semantic_id="remember-elapsed-days", memory_id="elapsed-days-memory", value=elapsed_days,
+        ),
+        RememberValueStatementV2(
+            semantic_id="remember-state-days", memory_id="state-days-memory", value=state_days,
+        ),
+    )
     later = execute_program_v2(
         later_program, snapshot(), cutoff_index=4, event_cutoffs=result.event_cutoffs,
         prior_event_truths={"first-event": "true"}, event_counts=result.event_counts,
+        state_entered_cutoffs=result.state_entered_cutoffs, prior_state=result.state,
     )
     assert later.remembered_values["elapsed-memory"] == Decimal(2)
+    assert later.remembered_values["elapsed-days-memory"] == Decimal(2)
+    assert later.remembered_values["state-days-memory"] == Decimal(2)
 
 
 def test_scheduled_first_ordinal_and_before_within_sequence_contract() -> None:
