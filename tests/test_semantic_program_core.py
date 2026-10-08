@@ -678,3 +678,45 @@ def test_state_driven_event_edge_uses_incoming_not_already_mutated_state() -> No
     assert result.state["regime"] == "risk_on"
     assert result.target_weights == {"QQQ": Decimal("1")}
     assert result.event_truths == {"state-risk-on-event": "true"}
+
+
+def test_overlapping_allocation_targets_add_exposure_instead_of_overwriting() -> None:
+    base = snapshot()
+    overlapping = DailyMarketSnapshot(
+        snapshot_id=base.snapshot_id,
+        clock=base.clock,
+        dates=base.dates,
+        domains={
+            **base.domains,
+            "growth-sleeve": ("QQQ", "VGT"),
+            "defensive-sleeve": ("QQQ", "TLT"),
+        },
+        series=base.series,
+    )
+    allocation = AllocationStatementV2(
+        semantic_id="overlapping-sleeves",
+        method="fixed",
+        legs=(
+            AllocationLegV2(
+                semantic_id="growth-sleeve-leg",
+                target=AllocationTargetV2(
+                    semantic_id="growth-sleeve-target", kind="group", ref="growth-sleeve",
+                ),
+                weight=Decimal("0.7"),
+            ),
+            AllocationLegV2(
+                semantic_id="defensive-sleeve-leg",
+                target=AllocationTargetV2(
+                    semantic_id="defensive-sleeve-target", kind="group", ref="defensive-sleeve",
+                ),
+                weight=Decimal("0.3"),
+            ),
+        ),
+    )
+    result = execute_program_v2(program(allocation), overlapping)
+    assert result.target_weights == {
+        "QQQ": Decimal("0.50"),
+        "VGT": Decimal("0.35"),
+        "TLT": Decimal("0.15"),
+    }
+    assert sum(result.target_weights.values()) == Decimal("1")
