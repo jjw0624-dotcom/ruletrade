@@ -203,7 +203,7 @@ function CanonicalV1WorkspaceLeftPanel({ projection, structural }: {
 
 export interface ProductAddAction {
   id: string;
-  category: "Control" | "Selection" | "Action" | "Timing" | "Behavior";
+  category: ToolboxCategory;
   label: string;
   description: string;
   disabled: boolean;
@@ -227,10 +227,10 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
   selectedId: string | null;
   onSelect: (semanticId: string) => void;
 }) {
-  const categories: ProductAddAction["category"][] = ["Control", "Selection", "Action", "Timing", "Behavior"];
+  const categories: ProductAddAction["category"][] = ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
   const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<"structure" | "blocks">("structure");
-  const [category, setCategory] = useState<ProductAddAction["category"]>("Selection");
+  const [category, setCategory] = useState<ProductAddAction["category"]>("Capital");
   const displayed = tools.filter((tool) => tool.category === category);
   return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
     <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
@@ -239,7 +239,7 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
         <Tabs.Content value="blocks" className="blocks-panel"><div className="blocky-program-toolbox">
-          <nav aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
+          <nav className="blocky-toolbox-categories" aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
           <section className="blocky-toolbox-library" aria-label={`${category} blocks`} data-scroll-container="bounded">{displayed.map((tool) => <article className={`blocky-toolbox-entry ${tool.disabled ? "unsupported" : "available"}`} key={tool.id}><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}><strong>{tool.label}</strong><small>{tool.disabled ? tool.description : "Available"}</small></button></article>)}</section>
         </div></Tabs.Content>
       </Tabs.Root>

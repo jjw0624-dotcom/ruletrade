@@ -14,6 +14,7 @@ import {
 import { GroupRenameControl } from "./StructuralAuthoringControls";
 import { ConditionComposer } from "./ConditionComposer";
 import { SelectionComposer } from "./SelectionComposer";
+import { adaptV1ProductOperation } from "../domain/builderProductOperations";
 
 function groupFor(
   projection: ConceptualFlowProjection,
@@ -188,25 +189,17 @@ function CanonicalV1SemanticInspector({
             universeChoices={universeCapability?.choices}
             eligibilitySummary={choose.condition ?? "All candidates qualify"}
             eligibilityEditor={choose.filterComponentId
-              ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Edit eligibility</button>
-              : qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => void structural.apply({ kind: "add_qualification_condition", rank_component_id: qualificationTarget }, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "condition", groupId: group.id }))}>+ Add eligibility</button>}
+              ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("qualification", choose.filterComponentId!, { fieldPath: "condition", groupId: group.id }) })}>Edit qualification</button>
+              : qualificationTarget && <button className="secondary-button" disabled={busy} onClick={() => { const native = adaptV1ProductOperation({ kind: "setQualification", lookback: choose.lookbackBars ?? 126, operator: "gt", threshold: 0 }, { rankComponentId: qualificationTarget })[0]; if (native) void structural.apply(native, semanticSelection("qualification", `${qualificationTarget}_qualification`, { fieldPath: "condition", groupId: group.id })); }}>+ Add qualification</button>}
             universeMembersEditor={group.assetSetId ? <AssetMembershipEditor authoring={structural} question="Universe members" assetSetId={group.assetSetId} assets={group.assets} /> : undefined}
             fallbackSummary={choose.fallbackComponentId ? choose.fallbackOptions.find((option) => option.id === choose.fallbackAssetSetRef)?.asset ?? "Configured asset" : "None"}
             fallbackEditor={choose.fallbackComponentId
               ? <button className="secondary-button" onClick={() => dispatch({ type: "select_semantic", selection: semanticSelection("fallback", choose.fallbackComponentId!, { groupId: group.id }) })}>Edit fallback</button>
-              : fallbackTarget ? <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => structural.apply({ kind: "add_fallback_selection", weight_component_id: fallbackTarget, fallback_asset: asset }, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id }))} /> : undefined}
+              : fallbackTarget ? <FallbackTransformationControl busy={busy} error={structural.error} onApply={(asset) => { const native = adaptV1ProductOperation({ kind: "setFallback", asset }, { weightComponentId: fallbackTarget })[0]; return native ? structural.apply(native, semanticSelection("fallback", `${fallbackTarget}_fallback`, { groupId: group.id })) : Promise.resolve(false); }} /> : undefined}
             disabled={structural.status === "checking"}
             onWorkingState={(working) => { if (working === "incomplete") structural.setSemanticEditStatus?.("unfinished"); }}
             onUniverseChange={universeCapability ? (universeId) => void structural.apply({ kind: "update_universe_reference", component_id: universeCapability.component_id, universe_id: universeId }, semanticSelection("selection", selectionComponent.id, { groupId: group.id })) : undefined}
-            onChange={(value) => void structural.apply({
-              kind: "update_selection_semantics",
-              rank_component_id: rankComponent.id,
-              selection_component_id: selectionComponent.id,
-              direction: value.direction,
-              count: value.count,
-              shortage_policy: value.shortagePolicy,
-              value_expression: value.valueExpression ?? rankingValue ?? null,
-            }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
+            onChange={(value) => { const native = adaptV1ProductOperation({ kind: "setSelection", lookback: choose.lookbackBars ?? 126, direction: value.direction === "descending" ? "highest" : "lowest", take: value.count, shortage: value.shortagePolicy }, { rankComponentId: rankComponent.id, selectionComponentId: selectionComponent.id })[0]; if (native) void structural.apply(native, semanticSelection("selection", selectionComponent.id, { groupId: group.id })); }}
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}

@@ -343,6 +343,8 @@ function CanonicalV1BlockyView({ structural, initialProjection = null }: { struc
 
 export type SemanticProgramBlockyProps = {
   statements: ProgramStatementV2[];
+  contextLabel?: string;
+  scheduleLabel?: string;
   selectedId: string | null;
   onSelect: (semanticId: string | null) => void;
 };

@@ -46,6 +46,13 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   };
   const restore = async (target: typeof canonical, direction: "undo" | "redo") => {
     const historyOperation = (): V2AuthoringOperation | null => {
+      const removedInvestment = canonical.definitions.groups.find((group) => !target.definitions.groups.some((item) => item.id === group.id));
+      if (removedInvestment) return { kind: "remove_program_investment", investment_id: removedInvestment.id };
+      const addedInvestment = target.definitions.groups.find((group) => !canonical.definitions.groups.some((item) => item.id === group.id));
+      if (addedInvestment) {
+        const assets = target.definitions.asset_sets.find((item) => item.id === addedInvestment.asset_set_ref)?.assets ?? ["SPY"];
+        return { kind: "add_program_investment", investment_id: addedInvestment.id, name: addedInvestment.name, asset_set_id: addedInvestment.asset_set_ref, assets };
+      }
       const changedAssetSet = target.definitions.asset_sets.find((item) => JSON.stringify(item.assets) !== JSON.stringify(canonical.definitions.asset_sets.find((current) => current.id === item.id)?.assets));
       if (changedAssetSet && canonical.program) return { kind: "set_program_asset_set", asset_set_id: changedAssetSet.id, assets: changedAssetSet.assets };
       if (target.program) return { kind: "set_semantic_program", program: target.program };

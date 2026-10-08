@@ -6,8 +6,9 @@ import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { projectProgramProductStructure } from "../components/SemanticProgramBuilderAdapter";
+import { projectProgramProductFlow, projectProgramProductStructure } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
+import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -183,6 +184,7 @@ describe("mounted v2 production editor", () => {
   it("treats the valid retain bootstrap as a user-facing empty Builder", () => {
     const blank = {
       ...strategy,
+      definitions: { ...strategy.definitions, groups: [], asset_axis: { ...strategy.definitions.asset_axis, domain_id: "growth_assets" } },
       selection: null,
       program: {
         semantic_id: "program",
@@ -210,5 +212,35 @@ describe("mounted v2 production editor", () => {
     expect(markup).not.toContain("Allocate equally");
     expect(markup).not.toContain("Move up");
     expect(markup).not.toContain("Move down");
+    expect(markup).toContain("Investment");
+    expect(markup).toContain("Split");
+  });
+
+  it("dispatches one stable product operation through both canonical adapters", () => {
+    const assets: BuilderProductOperation = { kind: "setAssets", assets: ["QQQ", "VGT", "SOXX", "SCHG"] };
+    expect(adaptV1ProductOperation(assets, { assetSetId: "growth-assets" })).toEqual([{
+      kind: "update_asset_set", asset_set_id: "growth-assets", assets: assets.assets,
+    }]);
+    const programStrategy = { ...strategy, selection: null, program: {
+      semantic_id: "program", clocks: [{ id: "daily-close", timeframe: "daily" as const, boundary: "close" as const, timezone: "UTC", completed_only: true as const }], initial_state: {}, formalizations: [],
+      statements: [{ kind: "allocate" as const, semantic_id: "initial-retain-allocation", method: "equal" as const, clock_id: "daily-close", legs: [{ semantic_id: "leg", target: { semantic_id: "target", kind: "retain" as const, ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
+    } } satisfies CanonicalStrategyV2;
+    expect(adaptV2ProductOperation(programStrategy, assets, { assetSetId: "growth_assets" })[0]).toEqual({
+      kind: "set_program_asset_set", asset_set_id: "growth_assets", assets: assets.assets,
+    });
+    const rebalance: BuilderProductOperation = { kind: "setRebalance", cadence: "monthly" };
+    expect(adaptV1ProductOperation(rebalance, { scheduleComponentId: "schedule" })[0]?.kind).toBe("update_schedule");
+    expect(adaptV2ProductOperation(programStrategy, rebalance, { clockId: "daily-close" })[0]).toEqual({ kind: "set_program_schedule", clock_id: "daily-close", timeframe: "monthly" });
+  });
+
+  it("projects the same product grammar in Structure and Flow before Selection exists", () => {
+    const blankInvestment = { ...strategy, selection: null, program: {
+      semantic_id: "program", clocks: [{ id: "daily-close", timeframe: "monthly" as const, boundary: "close" as const, timezone: "UTC", completed_only: true as const }], initial_state: {}, formalizations: [],
+      statements: [{ kind: "allocate" as const, semantic_id: "initial-retain-allocation", method: "equal" as const, clock_id: "daily-close", legs: [{ semantic_id: "leg", target: { semantic_id: "target", kind: "retain" as const, ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
+    } } satisfies CanonicalStrategyV2;
+    const structure = projectProgramProductStructure(blankInvestment);
+    expect(structure.children[0]).toMatchObject({ label: "Growth", detail: "100%", children: [{ label: "Assets" }] });
+    expect(structure.children.at(-1)).toMatchObject({ label: "Rebalance", detail: "Monthly close" });
+    expect(projectProgramProductFlow(blankInvestment).map((item) => item.label)).toEqual(["Portfolio", "Growth", "Assets", "Rebalance"]);
   });
 });

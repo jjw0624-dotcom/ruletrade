@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as Blockly from "blockly";
 
 import type { ProgramStatementV2 } from "../domain/canonicalV2";
-import { describeProgramStatement } from "../domain/v2Semantics";
+import { describeConditionV2, describeProgramStatement } from "../domain/v2Semantics";
 import { registerBlockyProgramBlocks } from "./blockyProgramBlocks";
 
 interface ProgramBlockData {
@@ -34,6 +34,20 @@ function createBlock(canvas: Blockly.WorkspaceSvg, statement: ProgramStatementV2
   block.contextMenu = false;
   block.initSvg();
   block.render();
+  if (statement.kind === "select" && statement.selection.eligibility) {
+    const eligibility = canvas.newBlock("rt_eligibility") as Blockly.BlockSvg;
+    eligibility.setFieldValue(`Qualification · ${describeConditionV2(statement.selection.eligibility)}`, "LABEL");
+    setData(eligibility, `qualification:${statement.semantic_id}`); eligibility.setDeletable(false); eligibility.initSvg(); eligibility.render();
+    const connection = block.getInput("ELIGIBILITY")?.connection;
+    if (connection && eligibility.outputConnection) connection.connect(eligibility.outputConnection);
+  }
+  if (statement.kind === "select" && statement.selection.fallback_asset) {
+    const fallback = canvas.newBlock("rt_fallback") as Blockly.BlockSvg;
+    fallback.setFieldValue(`Fallback · ${statement.selection.fallback_asset}`, "LABEL");
+    setData(fallback, `fallback:${statement.semantic_id}`); fallback.setDeletable(false); fallback.initSvg(); fallback.render();
+    const connection = block.getInput("FALLBACK")?.connection;
+    if (connection && fallback.outputConnection) connection.connect(fallback.outputConnection);
+  }
   if (statement.kind === "control") {
     connectChain(canvas, block, "THEN", statement.then_statements);
     connectChain(canvas, block, "ELSE", statement.otherwise_statements);
@@ -50,8 +64,10 @@ function connectChain(canvas: Blockly.WorkspaceSvg, parent: Blockly.BlockSvg, in
   }
 }
 
-export function SemanticProgramBlockyProjection({ statements, selectedId, onSelect }: {
+export function SemanticProgramBlockyProjection({ statements, contextLabel = "Portfolio", scheduleLabel, selectedId, onSelect }: {
   statements: ProgramStatementV2[];
+  contextLabel?: string;
+  scheduleLabel?: string;
   selectedId: string | null;
   onSelect: (semanticId: string | null) => void;
 }) {
@@ -95,7 +111,7 @@ export function SemanticProgramBlockyProjection({ statements, selectedId, onSele
     try {
       canvas.clear();
       const portfolio = canvas.newBlock("rt_context") as Blockly.BlockSvg;
-      portfolio.setFieldValue("Portfolio", "LABEL");
+      portfolio.setFieldValue(contextLabel, "LABEL");
       portfolio.setDeletable(false);
       portfolio.setMovable(true);
       portfolio.contextMenu = false;
@@ -103,6 +119,12 @@ export function SemanticProgramBlockyProjection({ statements, selectedId, onSele
       portfolio.render();
       portfolio.moveBy(40, 36);
       let prior: Blockly.BlockSvg | null = null;
+      if (scheduleLabel) {
+        const trigger = canvas.newBlock("rt_trigger") as Blockly.BlockSvg;
+        trigger.setFieldValue(scheduleLabel, "LABEL");
+        setData(trigger, "rebalance"); trigger.setDeletable(false); trigger.setMovable(true); trigger.contextMenu = false; trigger.initSvg(); trigger.render(); trigger.moveBy(80, 120);
+        prior = trigger;
+      }
       statements.forEach((statement, index) => {
         const block = createBlock(canvas, statement);
         if (prior?.nextConnection && block.previousConnection) prior.nextConnection.connect(block.previousConnection);
@@ -118,7 +140,7 @@ export function SemanticProgramBlockyProjection({ statements, selectedId, onSele
       Blockly.Events.enable();
       initializing.current = false;
     }
-  }, [statements]);
+  }, [statements, contextLabel, scheduleLabel]);
 
   useEffect(() => {
     const canvas = workspace.current;

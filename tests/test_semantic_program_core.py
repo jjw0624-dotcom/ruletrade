@@ -7,6 +7,7 @@ import pytest
 from ruletrade.strategy.v1.models import AssetSetDefinition, StrategyMetadata
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v2.authoring import (
+    AddProgramInvestment,
     ApplyV2AuthoringRequest,
     FormalizeProgramStatement,
     FormalizeDraftPhrase,
@@ -15,6 +16,7 @@ from ruletrade.strategy.v2.authoring import (
     RemoveProgramStatement,
     SetProgramCondition,
     SetProgramAssetSet,
+    SetProgramSchedule,
     SetProgramSelection,
     SetProgramValue,
     V2AuthoringError,
@@ -779,6 +781,30 @@ def test_program_authoring_edits_assets_without_exposing_program_structure() -> 
             asset_set_id="growth",
             assets=("QQQ", "QQQ"),
         ))
+
+
+def test_product_investment_and_rebalance_operations_are_atomic() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    canonical = _author(canonical, AddProgramInvestment(
+        kind="add_program_investment",
+        investment_id="strongest-etfs",
+        name="Investment",
+        asset_set_id="strongest-etf-assets",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    assert canonical.definitions.groups[-1].id == "strongest-etfs"
+    assert canonical.definitions.asset_sets[-1].assets == ["QQQ", "VGT", "SOXX", "SCHG"]
+    canonical = _author(canonical, SetProgramSchedule(
+        kind="set_program_schedule", clock_id="daily-close", timeframe="monthly",
+    ))
+    assert canonical.program.clocks[0].timeframe == "monthly"
+    assert canonical.program.statements[0].clock_id == "daily-close"
+    with pytest.raises(V2AuthoringError, match="already exists"):
+        _author(canonical, AddProgramInvestment(
+            kind="add_program_investment", investment_id="strongest-etfs",
+            name="Duplicate", asset_set_id="duplicate-assets", assets=("SPY",),
+        ))
+    assert len(canonical.definitions.groups) == 1
 
 
 def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -> None:

@@ -88,6 +88,9 @@ export interface CanonicalStrategyV2 {
 }
 export type ProgramBranch = "root" | "then" | "otherwise" | "event";
 export type V2AuthoringOperation =
+  | { kind: "add_program_investment"; investment_id: string; name: string; asset_set_id: string; assets: string[] }
+  | { kind: "remove_program_investment"; investment_id: string }
+  | { kind: "set_program_schedule"; clock_id: string; timeframe: "daily" | "weekly" | "monthly" }
   | { kind: "set_selection_universe"; universe_id: string }
   | { kind: "set_eligibility_condition"; condition: ConditionV2 | null }
   | { kind: "set_ranking_value"; value: ValueExpressionV2 }

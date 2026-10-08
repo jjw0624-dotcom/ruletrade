@@ -132,6 +132,25 @@ class SetProgramAssetSet(FrozenModel):
     assets: tuple[Symbol, ...] = Field(min_length=1, max_length=500)
 
 
+class AddProgramInvestment(FrozenModel):
+    kind: Literal["add_program_investment"]
+    investment_id: Identifier
+    name: str = Field(min_length=1, max_length=100)
+    asset_set_id: Identifier
+    assets: tuple[Symbol, ...] = Field(min_length=1, max_length=500)
+
+
+class RemoveProgramInvestment(FrozenModel):
+    kind: Literal["remove_program_investment"]
+    investment_id: Identifier
+
+
+class SetProgramSchedule(FrozenModel):
+    kind: Literal["set_program_schedule"]
+    clock_id: Identifier
+    timeframe: Literal["daily", "weekly", "monthly"]
+
+
 class SetProgramCondition(FrozenModel):
     kind: Literal["set_program_condition"]
     semantic_id: Identifier
@@ -205,6 +224,9 @@ V2AuthoringOperation = Annotated[
     | MoveProgramStatement
     | SetProgramSelection
     | SetProgramAssetSet
+    | AddProgramInvestment
+    | RemoveProgramInvestment
+    | SetProgramSchedule
     | SetProgramCondition
     | SetProgramValue
     | SetProgramEvent
@@ -242,8 +264,8 @@ def create_program_strategy_template(request: ProgramStrategyTemplateRequest) ->
         metadata=StrategyMetadata(name=request.name),
         definitions=StrategyDefinitionsV2(
             asset_sets=(AssetSetDefinition(id="initial-assets", assets=list(request.assets)),),
-            groups=(GroupDefinition(id="initial-group", name="Initial universe", asset_set_ref="initial-assets"),),
-            asset_axis=Axis(name="asset", domain_id="initial-group", coordinate_policy="member_identity"),
+            groups=(),
+            asset_axis=Axis(name="asset", domain_id="initial-assets", coordinate_policy="member_identity"),
         ),
         operator_lock={"compare": "1"},
         selection=None,
@@ -531,7 +553,7 @@ def _apply_program_operation(
     if not isinstance(operation, (
         ReplaceProgramStatement, InsertProgramStatement, RemoveProgramStatement,
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
-        SetProgramAssetSet,
+        SetProgramAssetSet, AddProgramInvestment, RemoveProgramInvestment, SetProgramSchedule,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
         FormalizeProgramStatement, FormalizeDraftPhrase,
@@ -551,6 +573,51 @@ def _apply_program_operation(
             raise V2AuthoringError("asset_set_not_found", "This investment's asset list no longer exists.")
         definitions = strategy.definitions.model_copy(update={"asset_sets": tuple(asset_sets)})
         return strategy.model_copy(update={"definitions": definitions})
+    if isinstance(operation, AddProgramInvestment):
+        if any(group.id == operation.investment_id for group in strategy.definitions.groups):
+            raise V2AuthoringError("investment_exists", "This investment already exists.")
+        if any(asset_set.id == operation.asset_set_id for asset_set in strategy.definitions.asset_sets):
+            raise V2AuthoringError("asset_set_exists", "This investment asset list already exists.")
+        if len(set(operation.assets)) != len(operation.assets):
+            raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in this investment.")
+        asset_set = AssetSetDefinition(id=operation.asset_set_id, assets=list(operation.assets))
+        group = GroupDefinition(id=operation.investment_id, name=operation.name, asset_set_ref=operation.asset_set_id)
+        definitions = strategy.definitions.model_copy(update={
+            "asset_sets": strategy.definitions.asset_sets + (asset_set,),
+            "groups": strategy.definitions.groups + (group,),
+            "asset_axis": Axis(name="asset", domain_id=operation.investment_id, coordinate_policy="member_identity"),
+        })
+        return strategy.model_copy(update={"definitions": definitions})
+    if isinstance(operation, RemoveProgramInvestment):
+        program = _program_for_operation(strategy, operation)
+        group = next((item for item in strategy.definitions.groups if item.id == operation.investment_id), None)
+        if group is None:
+            raise V2AuthoringError("investment_not_found", "This investment no longer exists.")
+        if any(isinstance(item, SelectionStatementV2) and item.selection.universe_id == group.id for item in program.statements):
+            raise V2AuthoringError("investment_in_use", "Remove this investment's selection before removing the investment.")
+        groups = tuple(item for item in strategy.definitions.groups if item.id != group.id)
+        asset_sets = tuple(item for item in strategy.definitions.asset_sets if item.id != group.asset_set_ref)
+        if not asset_sets:
+            raise V2AuthoringError("last_asset_set", "The Builder must retain one asset list.")
+        domain_id = groups[0].id if groups else asset_sets[0].id
+        definitions = strategy.definitions.model_copy(update={
+            "asset_sets": asset_sets, "groups": groups,
+            "asset_axis": Axis(name="asset", domain_id=domain_id, coordinate_policy="member_identity"),
+        })
+        return strategy.model_copy(update={"definitions": definitions})
+    if isinstance(operation, SetProgramSchedule):
+        current_program = _program_for_operation(strategy, operation)
+        found = False
+        clocks = []
+        for clock in current_program.clocks:
+            if clock.id == operation.clock_id:
+                found = True
+                clock = clock.model_copy(update={"timeframe": operation.timeframe})
+            clocks.append(clock)
+        if not found:
+            raise V2AuthoringError("program_clock_not_found", "This rebalance schedule no longer exists.")
+        program = current_program.model_copy(update={"clocks": tuple(clocks)})
+        return strategy.model_copy(update={"program": program})
     program = _program_for_operation(strategy, operation)
     if isinstance(operation, ReplaceProgramStatement):
         if operation.statement.semantic_id != operation.semantic_id:
