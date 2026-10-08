@@ -485,6 +485,37 @@ def test_parallel_state_keys_are_explicit_and_never_inferred_as_nested() -> None
     assert result.state_entered_cutoffs == {"phase": 2, "risk": 2}
 
 
+def test_checkpoint_addresses_and_cutoffs_cannot_inject_future_or_unknown_state() -> None:
+    event = EventStatementV2(
+        semantic_id="checkpoint-event-statement", event=EventDefinitionV2(
+            semantic_id="checkpoint-event", clock_id="daily-close",
+            condition=compare(
+                observe("A", "checkpoint-price"), "gt",
+                literal("0", "checkpoint-zero"), "checkpoint-condition",
+            ),
+        ), statements=(RememberValueStatementV2(
+            semantic_id="checkpoint-memory-statement", memory_id="checkpoint-memory",
+            value=observe("A", "checkpoint-value"),
+        ),),
+    )
+    core = program(event)
+    with pytest.raises(ProgramExecutionError, match="after_decision_cutoff"):
+        execute_program_v2(
+            core, snapshot(), cutoff_index=2,
+            event_cutoffs={"checkpoint-event": 3},
+        )
+    with pytest.raises(ProgramExecutionError, match="unknown_remembered_values_address"):
+        execute_program_v2(
+            core, snapshot(), cutoff_index=2,
+            remembered_values={"invented": Decimal(1)},
+        )
+    with pytest.raises(ProgramExecutionError, match="state_checkpoint_shape_mismatch"):
+        execute_program_v2(
+            core, snapshot(), cutoff_index=2,
+            prior_state={"invented": "state"},
+        )
+
+
 def test_cross_section_normalization_and_missing_member_coverage_are_explicit() -> None:
     normalized = CrossSectionalValueV2(
         semantic_id="normalized-return", source=candidate_return(), domain_id="group", transform="min_max",
@@ -564,8 +595,8 @@ def test_same_timestamp_events_ordered_transitions_and_elapsed_references() -> N
         ),
     )
     later = execute_program_v2(
-        later_program, snapshot(), cutoff_index=4, event_cutoffs=result.event_cutoffs,
-        prior_event_truths={"first-event": "true"}, event_counts=result.event_counts,
+        later_program, snapshot(), cutoff_index=4, event_cutoffs={"first-event": 2},
+        prior_event_truths={"first-event": "true"}, event_counts={"first-event": 1},
         state_entered_cutoffs=result.state_entered_cutoffs, prior_state=result.state,
     )
     assert later.remembered_values["elapsed-memory"] == Decimal(2)

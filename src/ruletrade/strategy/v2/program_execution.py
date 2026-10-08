@@ -90,6 +90,23 @@ def _bounded_normalize(
     return weights
 
 
+def _checkpoint_addresses(program: SemanticProgramV2) -> tuple[set[str], set[str]]:
+    events: set[str] = set()
+    memories: set[str] = set()
+    stack = list(program.statements)
+    while stack:
+        statement = stack.pop()
+        if isinstance(statement, EventStatementV2):
+            events.add(statement.event.semantic_id)
+            stack.extend(statement.statements)
+        elif isinstance(statement, ConditionalStatementV2):
+            stack.extend(statement.then_statements)
+            stack.extend(statement.otherwise_statements)
+        elif isinstance(statement, RememberValueStatementV2):
+            memories.add(statement.memory_id)
+    return events, memories
+
+
 def _value_content_hash(value: ValueExpressionV2) -> str:
     def without_addresses(payload: object) -> object:
         if isinstance(payload, dict):
@@ -823,6 +840,29 @@ def execute_program_v2(
     cutoff = len(snapshot.dates) - 1 if cutoff_index is None else cutoff_index
     if cutoff < 0 or cutoff >= len(snapshot.dates):
         raise ProgramExecutionError("program_cutoff_out_of_range")
+    event_ids, memory_ids = _checkpoint_addresses(program)
+    if prior_state is not None and set(prior_state) != set(program.initial_state):
+        raise ProgramExecutionError("program_state_checkpoint_shape_mismatch")
+    for checkpoint_name, values, allowed in (
+        ("event_cutoffs", event_cutoffs or {}, event_ids),
+        ("event_counts", event_counts or {}, event_ids),
+        ("event_truths", prior_event_truths or {}, event_ids),
+        ("state_entered_cutoffs", state_entered_cutoffs or {}, set(program.initial_state)),
+        ("remembered_values", remembered_values or {}, memory_ids),
+    ):
+        unknown = set(values) - allowed
+        if unknown:
+            raise ProgramExecutionError(
+                f"unknown_{checkpoint_name}_address: {','.join(sorted(unknown))}"
+            )
+    if any(index < 0 or index > cutoff for index in (event_cutoffs or {}).values()):
+        raise ProgramExecutionError("event_checkpoint_after_decision_cutoff")
+    if any(index < 0 or index > cutoff for index in (state_entered_cutoffs or {}).values()):
+        raise ProgramExecutionError("state_checkpoint_after_decision_cutoff")
+    if any(count < 0 for count in (event_counts or {}).values()):
+        raise ProgramExecutionError("event_count_checkpoint_negative")
+    if any(value not in {"true", "false", "unknown"} for value in (prior_event_truths or {}).values()):
+        raise ProgramExecutionError("event_truth_checkpoint_invalid")
     runtime = _Runtime(
         program, snapshot, cutoff,
         prior_state=prior_state,
