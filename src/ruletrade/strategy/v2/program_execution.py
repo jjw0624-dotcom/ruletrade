@@ -81,6 +81,11 @@ def _bounded_normalize(
             break
     weights.update(fixed)
     assigned = sum(weights.values(), Decimal(0))
+    remainder = Decimal(1) - assigned
+    if abs(remainder) <= Decimal("1e-24"):
+        anchor = sorted(raw, key=lambda item: (-raw[item], item))[0]
+        weights[anchor] += remainder
+        assigned = Decimal(1)
     if assigned > 1:
         raise ProgramExecutionError("allocation_bounds_conflict")
     if assigned < 1:

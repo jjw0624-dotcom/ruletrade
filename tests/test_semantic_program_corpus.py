@@ -348,19 +348,36 @@ def test_higher_timeframe_context_uses_only_completed_boundary() -> None:
 
 
 def test_proportional_inverse_bounds_cash_and_overlapping_exposure() -> None:
+    score_ranking = CrossSectionalValueV2(
+        semantic_id="allocation-score", source=candidate_return("allocation-return"),
+        domain_id="group", transform="percentile",
+    )
     result = execute_program_v2(
-        program(selection_statement(candidate_return()), allocation(
+        program(selection_statement(score_ranking), allocation(
             "proportional_score", maximum_weight=Decimal("0.4"), cash_remainder_asset="CASH",
         )), snapshot(), cutoff_index=4,
     )
     assert sum(result.target_weights.values(), Decimal(0)) == Decimal(1)
     assert result.target_weights["CASH"] > 0
+    volatility = DailyValueNode(
+        semantic_id="candidate-volatility", kind="realized_volatility", observations=3,
+        operands=(DailyValueNode(
+            semantic_id="candidate-volatility-source", kind="observe",
+            subject_kind=SubjectKind.CANDIDATE, binding_id="candidate",
+            field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+        ),),
+    )
     inverse = execute_program_v2(
-        program(selection_statement(candidate_return()), allocation("inverse_volatility")), snapshot(), cutoff_index=4,
+        program(selection_statement(volatility), allocation("inverse_volatility")),
+        snapshot(), cutoff_index=4,
     )
     assert sum(inverse.target_weights.values(), Decimal(0)) == Decimal(1)
     with pytest.raises(ValueError, match="minimum_weight"):
         allocation("proportional_score", minimum_weight=Decimal("0.8"), maximum_weight=Decimal("0.2"))
+    wrong_score = program(selection_statement(candidate_return()), allocation("proportional_score"))
+    assert any(item.code == "proportional_allocation_requires_score" for item in validate_program_v2(wrong_score))
+    wrong_volatility = program(selection_statement(score_ranking), allocation("inverse_volatility"))
+    assert any(item.code == "inverse_volatility_requires_volatility" for item in validate_program_v2(wrong_volatility))
 
 
 def test_policy_precedence_is_explicit_and_conflicts_are_rejected() -> None:
@@ -649,7 +666,10 @@ def test_all_zero_negative_scores_and_bounds_conflicts_do_not_mutate_targets() -
         execute_program_v2(core, snapshot(), cutoff_index=4)
     with pytest.raises(ProgramExecutionError, match="allocation_floor_conflict"):
         execute_program_v2(
-            program(selection_statement(candidate_return()), allocation(
+            program(selection_statement(CrossSectionalValueV2(
+                semantic_id="floor-score", source=candidate_return("floor-return"),
+                domain_id="group", transform="percentile",
+            )), allocation(
                 "proportional_score", minimum_weight=Decimal("0.6"),
             )), snapshot(), cutoff_index=4,
         )

@@ -37,7 +37,7 @@ from ruletrade.strategy.v2.models import (
     CrossSectionalValueV2,
     CrossSectionalAggregateValueV2,
 )
-from ruletrade.strategy.v2.semantic_types import Quantity, SemanticDType, Unit
+from ruletrade.strategy.v2.semantic_types import Quantity, SemanticDType, SemanticType, Unit
 from ruletrade.strategy.v2.validation import (
     SemanticDiagnostic,
     SemanticRole,
@@ -222,6 +222,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
     statement_ids: set[str] = set()
     event_ids: set[str] = set()
     declared_selection_outputs: set[str] = set()
+    selection_output_types: dict[str, SemanticType] = {}
     declared_memories: set[str] = set()
     referenced_event_windows: list[tuple[str, str]] = []
     condition_ids: set[str] = set()
@@ -260,6 +261,21 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "unknown_selection_output",
                     f"{path}.legs[{index}].target.ref",
                     "Allocation must reference a Selection output defined earlier in program order.",
+                ))
+        if statement.method in {"proportional_score", "inverse_volatility"}:
+            output_id = statement.legs[0].target.ref or ""
+            input_type = selection_output_types.get(output_id)
+            if input_type is not None and statement.method == "proportional_score" and input_type.quantity != Quantity.SCORE:
+                diagnostics.append(SemanticDiagnostic(
+                    "proportional_allocation_requires_score", f"{path}.method",
+                    "Proportional allocation requires an explicit Score-valued Selection ranking.",
+                ))
+            if input_type is not None and statement.method == "inverse_volatility" and not (
+                input_type.refinement or ""
+            ).startswith("realized_volatility:"):
+                diagnostics.append(SemanticDiagnostic(
+                    "inverse_volatility_requires_volatility", f"{path}.method",
+                    "Inverse-volatility allocation requires a realized-volatility Selection ranking.",
                 ))
 
     def register_statement(statement: AllocationStatementV2 | ProgramStatementV2, path: str) -> None:
@@ -308,6 +324,7 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     str(exc).split(":", 1)[0], f"{path}.selection.ranking", str(exc),
                 ))
             else:
+                selection_output_types[statement.output_id] = rank_type
                 if rank_type.dtype not in {SemanticDType.DECIMAL, SemanticDType.INTEGER} or rank_type.axes:
                     diagnostics.append(SemanticDiagnostic(
                         "ranking_not_candidate_scalar", f"{path}.selection.ranking",
