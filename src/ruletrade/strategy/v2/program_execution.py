@@ -398,9 +398,15 @@ class _Runtime:
             raise ProgramExecutionError("allocation_has_no_resolved_targets")
         if statement.method == "equal":
             weight = Decimal(1) / Decimal(len(expanded))
-            self.target_weights = {asset: weight for asset, _stored in expanded}
+            weights: dict[str, Decimal] = {}
+            for asset, _stored in expanded:
+                weights[asset] = weights.get(asset, Decimal(0)) + weight
+            self.target_weights = weights
         else:
-            self.target_weights = {asset: weight or Decimal(0) for asset, weight in expanded}
+            weights = {}
+            for asset, weight in expanded:
+                weights[asset] = weights.get(asset, Decimal(0)) + (weight or Decimal(0))
+            self.target_weights = weights
         self.retained = False
         self.evidence.append(ProgramDecisionEvidence(
             statement.semantic_id,
