@@ -9,7 +9,7 @@ import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer }
 import { ProductBlockyProjection } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
 import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
-import { isProgramBootstrap, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowNode } from "../domain/productSemantics";
+import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowNode, type ProductNode } from "../domain/productSemantics";
 import "./SemanticProgramBuilderAdapter.css";
 
 type DraftConcept = { kind: "selection"; semanticId: string; withQualification?: boolean } | null;
@@ -97,6 +97,34 @@ function ProgramQualificationInspector({ strategy, statement, apply, working, on
 
 function ProgramFallbackInspector({ statement, onFallback }: { statement: SelectionStatementV2; onFallback: (asset: string | null) => void }) {
   return <div className="semantic-inspector-content"><h2>Fallback</h2><label>When selection is incomplete<input aria-label="Fallback asset" defaultValue={statement.selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => onFallback(event.target.value.trim().toUpperCase() || null)} /></label><p className="fixed-setting">Selection fallback is distinct from IF / OTHERWISE.</p></div>;
+}
+
+function ProgramSplitInspector({ strategy, statement, onApply }: {
+  strategy: CanonicalStrategyV2;
+  statement: Extract<ProgramStatementV2, { kind: "allocate" }>;
+  onApply: (investments: Array<{ id: string; weight: number }>) => void;
+}) {
+  const initial = () => Object.fromEntries(statement.legs.flatMap((leg) => leg.target.kind === "group" && leg.target.ref ? [[leg.target.ref, Number(leg.weight ?? 0) * 100]] : []));
+  const [weights, setWeights] = useState<Record<string, number>>(initial);
+  useEffect(() => setWeights(initial()), [statement]);
+  const legs = statement.legs.filter((leg) => leg.target.kind === "group" && leg.target.ref);
+  const total = legs.reduce((sum, leg) => sum + (weights[leg.target.ref!] ?? 0), 0);
+  const valid = legs.every((leg) => { const value = weights[leg.target.ref!] ?? -1; return Number.isFinite(value) && value >= 0 && value <= 100; }) && Math.abs(total - 100) < .000001;
+  return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map((leg) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[leg.target.ref!] ?? 0} onChange={(event) => setWeights({ ...weights, [leg.target.ref!]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map((leg) => ({ id: leg.target.ref!, weight: weights[leg.target.ref!] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
+}
+
+function flowButton(node: ProductFlowNode, onSelect: (id: string) => void) {
+  return <button type="button" key={node.id} className={node.role === "routing" || node.role === "behavior" ? "flow-routing-node" : node.role === "timing" ? "flow-action-node" : "flow-capital-node"} onClick={() => onSelect(node.id)}><strong>{node.label}</strong>{node.detail && <small>{node.detail}</small>}</button>;
+}
+
+function ProgramFlowProjection({ root, flow, blank, onSelect }: { root: ProductNode; flow: ProductFlowNode[]; blank: boolean; onSelect: (id: string) => void }) {
+  const split = root.children.find((node) => node.concept === "split");
+  if (!split) return <section className="representation-layer v2-flow" aria-label="Flow capital projection">{flow.map((node) => flowButton(node, onSelect))}{blank && <p>No capital route has been defined yet.</p>}</section>;
+  const byId = new Map(flow.map((node) => [node.id, node]));
+  const portfolio = byId.get(root.id);
+  const splitFlow = byId.get(split.id);
+  const rebalance = root.children.find((node) => node.concept === "rebalance");
+  return <section className="representation-layer v2-flow" aria-label="Flow capital projection">{portfolio && flowButton(portfolio, onSelect)}{splitFlow && flowButton(splitFlow, onSelect)}<div className="v2-flow-branches" aria-label="Split investment branches">{split.children.map((investment) => <div className="v2-flow-branch" key={investment.id}>{byId.has(investment.id) && flowButton(byId.get(investment.id)!, onSelect)}{investment.children.filter((node) => node.concept === "selection" || node.concept === "fallback").map((node) => byId.has(node.id) && flowButton(byId.get(node.id)!, onSelect))}</div>)}</div>{rebalance && byId.has(rebalance.id) && flowButton(byId.get(rebalance.id)!, onSelect)}</section>;
 }
 
 function readdressCondition(condition: ConditionV2, prefix: string): ConditionV2 {
@@ -215,7 +243,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const startDraft = (kind: NonNullable<DraftConcept>["kind"], prefix: string, withQualification = false) => { setDraft({ kind, semanticId: nextId(canonical, prefix), withQualification }); setSelectedId(null); working(true); setView("blocky"); };
   const selection = all.find((item): item is SelectionStatementV2 => item.kind === "select");
-  const allocation = roots.find((item) => item.kind === "allocate" && !isProgramBootstrap(item));
+  const selectionAllocation = selection ? all.find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === selection.output_id)) : undefined;
   const portfolioSplit = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
   const investment = canonical.definitions.groups[0];
   const investmentAssets = canonical.definitions.asset_sets.find((item) => item.id === investment?.asset_set_ref);
@@ -233,8 +261,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Conditional routing is not yet available for production testing.", availability: "unavailable", disabled: true, onAdd: () => undefined },
     { id: "qualification", category: "Routing", label: "Qualification", description: selection ? "Configure which candidate assets qualify." : investment ? "Define Qualification with the first Selection." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(`qualification:${selection.semantic_id}`) : startDraft("selection", "selection", true) },
     { id: "choose-assets", category: "Routing", label: "Choose assets", description: selection ? "This Investment already chooses assets." : "Rank candidates and choose the strongest assets.", availability: selection ? "unavailable" : investment ? "ready" : "needs_context", disabled: !investment || Boolean(selection), onAdd: () => startDraft("selection", "selection") },
-    { id: "allocation", category: "Allocation", label: "Allocation", description: allocation ? "Equal allocation is configured." : "Selection creates equal allocation.", availability: "unavailable", disabled: true, onAdd: () => undefined },
-    { id: "schedule", category: "Timing", label: "Schedule", description: investment ? "Configure the Portfolio rebalance cadence." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => select("rebalance") },
+    { id: "allocation", category: "Allocation", label: "Allocation", description: selectionAllocation ? "Selected assets are weighted equally within their Investment." : "Choose assets to configure selected-asset weighting.", availability: "unavailable", disabled: true, onAdd: () => undefined },
+    { id: "schedule", category: "Timing", label: "Rebalance", description: investment ? "Configure the Portfolio rebalance cadence." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => select("rebalance") },
     { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Cooldown is not yet available for this Program profile.", availability: "unavailable", disabled: true, onAdd: () => undefined },
     { id: "fallback", category: "Behavior", label: "Fallback", description: selection ? "Choose the asset used when too few qualify." : "Choose assets first.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(`fallback:${selection.semantic_id}`) },
   ];
@@ -242,20 +270,28 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const structure = projectProgramProductStructure(canonical);
   const flow = projectProgramProductFlow(canonical);
   const selectedInvestment = selectedId?.startsWith("investment:") ? canonical.definitions.groups.find((group) => group.id === selectedId.slice("investment:".length)) : null;
+  const selectedInvestmentShare = selectedInvestment && portfolioSplit?.legs.find((leg) => leg.target.kind === "group" && leg.target.ref === selectedInvestment.id)?.weight;
+  const splitRule = portfolioSplit ? `Route Portfolio capital ${portfolioSplit.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} to ${canonical.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"}`).join(" and ")}.` : null;
+  const ruleLines = [
+    splitRule,
+    ...all.filter((item) => item.kind === "select" || item.kind === "control" || item.kind === "guarded_allocation").map((item) => `${describeProgramStatement(item)}.`),
+    ...(selectionAllocation ? ["Weight selected assets equally within their Investment."] : []),
+    ...(selection && clock ? [`Rebalance at ${clock.timeframe} close.`] : []),
+  ].filter((item): item is string => Boolean(item));
   const inspector = draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={investment?.id} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
     : selectedId?.startsWith("assets:") ? <ProgramAssetsInspector strategy={canonical} assetSetId={selectedId.slice("assets:".length)} onAssets={(assets) => applyProduct({ kind: "setAssets", assets }, { assetSetId: selectedId.slice("assets:".length) })} />
         : selectedId?.startsWith("qualification:") && selectedSelection ? <ProgramQualificationInspector strategy={canonical} statement={selectedSelection} apply={apply} working={working} onDefault={() => applyProduct({ kind: "setQualification", lookback: 126, operator: "gt", threshold: 0 }, { selectionId: selectedSelection.semantic_id })} />
           : selectedId?.startsWith("fallback:") && selectedSelection ? <ProgramFallbackInspector statement={selectedSelection} onFallback={(asset) => applyProduct({ kind: "setFallback", asset }, { selectionId: selectedSelection.semantic_id })} />
             : selected ? <Inspector strategy={canonical} statement={selected} apply={apply} working={working} />
               : selectedId === "rebalance" && clock ? <ProgramScheduleInspector timeframe={clock.timeframe} onChange={(timeframe) => applyProduct({ kind: "setRebalance", cadence: timeframe })} />
-                : selectedInvestment ? <div className="semantic-inspector-content"><h2>{selectedInvestment.name || "Investment"}</h2><p className="fixed-setting">Capital path · {portfolioSplit ? "part of Portfolio Split" : "100% of Portfolio"}</p><button type="button" className="secondary-button" onClick={() => select(`assets:${selectedInvestment.asset_set_ref}`)}>Edit Assets</button></div>
-                  : selectedId === "split" ? <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Allocate Portfolio capital across Investments.</p><p>{portfolioSplit?.legs.map((leg) => `${canonical.definitions.groups.find((group) => group.id === leg.target.ref)?.name ?? "Investment"}: ${Number(leg.weight ?? 0) * 100}%`).join(" · ")}</p></div>
+                : selectedInvestment ? <div className="semantic-inspector-content"><h2>{selectedInvestment.name || "Investment"}</h2><p className="fixed-setting">{selectedInvestmentShare === undefined ? "Receives the Portfolio's capital." : `Portfolio share · ${formatPortfolioShare(Number(selectedInvestmentShare))}`}</p>{selectionAllocation && selection?.selection.universe_id === selectedInvestment.id && <p>Selected assets divide this Investment's share equally.</p>}<button type="button" className="secondary-button" onClick={() => select(`assets:${selectedInvestment.asset_set_ref}`)}>Edit Assets</button></div>
+                  : selectedId === "split" && portfolioSplit ? <ProgramSplitInspector strategy={canonical} statement={portfolioSplit} onApply={(investments) => applyProduct({ kind: "setAllocation", method: "fixed", investments })} />
                     : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select an investment object in Structure or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
-    overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "A portfolio ready for its first investment." : selection ? `Choose ${selection.selection.count} assets from ${investmentAssets?.assets.join(", ") || "this investment"} by ${selection.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.selection.ranking)}${selection.selection.fallback_asset ? `, with ${selection.selection.fallback_asset} as fallback` : ""}.` : "An investment ready for assets and selection rules."}</p></section>,
+    overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "A portfolio ready for its first investment." : selection ? `${portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")}. ` : ""}Choose ${selection.selection.count} assets from ${investmentAssets?.assets.join(", ") || "this investment"} by ${selection.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.selection.ranking)}${selection.selection.fallback_asset ? `, with ${selection.selection.fallback_asset} as fallback` : ""}.` : portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")} across ${canonical.definitions.groups.length} Investments.` : "An investment ready for assets and selection rules."}</p></section>,
     blocky: <section className="representation-layer blocky-layer"><ProductBlockyProjection root={structure} selectedId={selectedId} onSelect={select} /></section>,
-    flow: <section className="representation-layer v2-flow" aria-label="Flow capital projection">{flow.map((node) => <button type="button" key={node.id} className={node.role === "routing" || node.role === "behavior" ? "flow-routing-node" : node.role === "timing" ? "flow-action-node" : "flow-capital-node"} onClick={() => select(node.id)}><strong>{node.label}</strong>{node.detail && <small>{node.detail}</small>}</button>)}{blank && <p>No capital route has been defined yet.</p>}</section>,
-    rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : productStatements.map((item) => <p key={item.semantic_id}>{describeProgramStatement(item)}.</p>)}</section>,
+    flow: <ProgramFlowProjection root={structure} flow={flow} blank={blank} onSelect={select} />,
+    rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : ruleLines.map((line) => <p key={line}>{line}</p>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" disabled>Choose assets · add an investment first</button><button className="secondary-button" type="button" disabled>Split a portfolio · add two investments first</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
     code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,
     ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,

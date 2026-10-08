@@ -9,6 +9,7 @@ import type { StrategyDetailV2 } from "../strategyApi";
 import { projectProgramProductFlow, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
+import { productBlockLabel } from "../components/ProductBlockyProjection";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -273,6 +274,7 @@ describe("mounted v2 production editor", () => {
     const rebalance: BuilderProductOperation = { kind: "setRebalance", cadence: "monthly" };
     expect(adaptV1ProductOperation(rebalance, { scheduleComponentId: "schedule" })[0]?.kind).toBe("update_schedule");
     expect(adaptV2ProductOperation(programStrategy, rebalance, { clockId: "daily-close" })[0]).toEqual({ kind: "set_program_schedule", clock_id: "daily-close", timeframe: "monthly" });
+    expect(adaptV2ProductOperation(programStrategy, { kind: "setAllocation", method: "fixed", investments: [{ id: "growth", weight: .7 }, { id: "defensive", weight: .3 }] })[0]).toEqual({ kind: "set_program_split", investments: [["growth", .7], ["defensive", .3]] });
     const selection: BuilderProductOperation = { kind: "setSelection", lookback: 126, direction: "highest", take: 2, shortage: "require_full", qualification: { lookback: 126, operator: "gt", threshold: 0 } };
     expect(adaptV2ProductOperation(programStrategy, selection, { investmentId: "growth", clockId: "daily-close" })[0]).toMatchObject({
       kind: "create_program_selection", investment_id: "growth", lookback: 126,
@@ -286,8 +288,59 @@ describe("mounted v2 production editor", () => {
       statements: [{ kind: "allocate" as const, semantic_id: "initial-retain-allocation", method: "equal" as const, clock_id: "daily-close", legs: [{ semantic_id: "leg", target: { semantic_id: "target", kind: "retain" as const, ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
     } } satisfies CanonicalStrategyV2;
     const structure = projectProgramProductStructure(blankInvestment);
-    expect(structure.children[0]).toMatchObject({ label: "Growth", detail: "100%", children: [{ label: "Assets" }] });
+    expect(structure.children[0]).toMatchObject({ label: "Growth", children: [{ label: "Assets" }], capital: { portfolioShare: { value: 1, source: "implicit_single_investment" } } });
+    expect(structure.children[0]?.detail).toBeUndefined();
     expect(structure.children.map((item) => item.label)).toEqual(["Growth"]);
     expect(projectProgramProductFlow(blankInvestment).map((item) => item.label)).toEqual(["Portfolio", "Growth"]);
+  });
+
+  it("keeps Portfolio routing shares distinct from internal Selection allocation", () => {
+    const splitStrategy = {
+      ...strategy,
+      selection: null,
+      definitions: {
+        ...strategy.definitions,
+        asset_sets: [
+          ...strategy.definitions.asset_sets,
+          { id: "defensive-assets", assets: ["TLT", "IEF"] },
+        ],
+        groups: [
+          strategy.definitions.groups[0]!,
+          { id: "defensive", name: "Defensive", asset_set_ref: "defensive-assets", description: "" },
+        ],
+      },
+      program: {
+        semantic_id: "program", clocks: [{ id: "monthly-close", timeframe: "monthly" as const, boundary: "close" as const, timezone: "UTC", completed_only: true as const }], initial_state: {}, formalizations: [],
+        statements: [
+          { kind: "select" as const, semantic_id: "growth-selection", output_id: "selected-growth", clock_id: "monthly-close", selection: strategy.selection! },
+          { kind: "allocate" as const, semantic_id: "growth-equal", method: "equal" as const, clock_id: "monthly-close", legs: [{ semantic_id: "growth-equal-leg", target: { semantic_id: "growth-equal-target", kind: "selection" as const, ref: "selected-growth" }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null },
+          { kind: "allocate" as const, semantic_id: "portfolio-split", method: "fixed" as const, clock_id: "monthly-close", legs: [
+            { semantic_id: "growth-leg", target: { semantic_id: "growth-target", kind: "group" as const, ref: "growth" }, weight: .5 },
+            { semantic_id: "defensive-leg", target: { semantic_id: "defensive-target", kind: "group" as const, ref: "defensive" }, weight: .5 },
+          ], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null },
+        ],
+      },
+    } satisfies CanonicalStrategyV2;
+    const structure = projectProgramProductStructure(splitStrategy);
+    const split = structure.children[0]!;
+    expect(split).toMatchObject({ label: "Split", detail: "50% / 50%" });
+    expect(split.children.map((item) => [item.label, item.detail, item.capital?.portfolioShare])).toEqual([
+      ["Growth", "50% of Portfolio", { value: .5, source: "v2_fixed_group_leg" }],
+      ["Defensive", "50% of Portfolio", { value: .5, source: "v2_fixed_group_leg" }],
+    ]);
+    expect(split.children[0]?.capital?.selectedAssetAllocation).toEqual({ method: "equal", normalizedTotal: 1, sourceSemanticId: "growth-equal" });
+    expect(split.children[1]?.capital?.selectedAssetAllocation).toBeUndefined();
+    expect(projectProgramProductFlow(splitStrategy).filter((item) => item.role === "capital").map((item) => item.detail)).toContain("50% of Portfolio");
+    expect(productBlockLabel(split.children[0]!)).toBe("Growth · 50% of Portfolio");
+
+    for (const initialView of ["overview", "flow", "rules"] as const) {
+      const markup = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={splitStrategy} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} initialView={initialView} />);
+      expect(markup).toContain("50%");
+      expect(markup).not.toContain("Growth<!-- --> · <!-- -->100%");
+      expect(markup).not.toContain("Defensive<!-- --> · <!-- -->100%");
+    }
+    const allocationToolbox = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={splitStrategy} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} initialView="blocky" />);
+    expect(allocationToolbox).toContain("Selected assets are weighted equally within their Investment.");
+    expect(allocationToolbox).not.toContain("Equal allocation is configured.");
   });
 });

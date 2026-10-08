@@ -859,6 +859,10 @@ def test_product_selection_fallback_and_split_operations_are_atomic() -> None:
         _author(canonical, SetProgramSplit(
             kind="set_program_split", investments=(("growth", Decimal("0.80")), ("defensive", Decimal("0.30"))),
         ))
+    with pytest.raises(V2AuthoringError, match="only once"):
+        _author(canonical, SetProgramSplit(
+            kind="set_program_split", investments=(("growth", Decimal("0.50")), ("growth", Decimal("0.50"))),
+        ))
 
 
 def test_builder_authored_strongest_program_lowers_to_monthly_lean_plan() -> None:

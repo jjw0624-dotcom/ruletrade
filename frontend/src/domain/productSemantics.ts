@@ -13,7 +13,21 @@ export interface ProductNode {
   label: string;
   detail?: string;
   address: ProductAddress;
+  capital?: ProductCapitalSemantics;
   children: ProductNode[];
+}
+
+/** Derived product meaning for capital quantities; Canonical remains authoritative. */
+export interface ProductCapitalSemantics {
+  portfolioShare?: {
+    value: number;
+    source: "v1_sleeve_allocation" | "v2_fixed_group_leg" | "implicit_single_investment";
+  };
+  selectedAssetAllocation?: {
+    method: "equal";
+    normalizedTotal: 1;
+    sourceSemanticId: string;
+  };
 }
 
 export interface ProductFlowNode {
@@ -22,6 +36,7 @@ export interface ProductFlowNode {
   detail?: string;
   role: "portfolio" | "capital" | "routing" | "behavior" | "timing";
   address: ProductAddress;
+  capital?: ProductCapitalSemantics;
 }
 
 export interface ProductStrategyProjection {
@@ -29,6 +44,10 @@ export interface ProductStrategyProjection {
   root: ProductNode;
   flow: ProductFlowNode[];
   sourceVersion: "v1" | "v2";
+}
+
+export function formatPortfolioShare(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 4 }).format(value);
 }
 
 function role(node: ProductNode): ProductFlowNode["role"] {
@@ -47,7 +66,7 @@ function flowFromRoot(root: ProductNode, includeSelection = false): ProductFlowN
   const visit = (node: ProductNode) => {
     // Flow stays capital-first while Selection remains a visible routing decision.
     if (!hiddenConcepts.includes(node.concept)) {
-      result.push({ id: node.id, label: node.label, detail: node.detail, role: role(node), address: node.address });
+      result.push({ id: node.id, label: node.label, detail: node.detail, role: role(node), address: node.address, capital: node.capital });
     }
     node.children.forEach(visit);
   };
@@ -81,6 +100,7 @@ export function projectV1ProductSemantics(value: ConceptualFlowProjection): Prod
       id: `investment:${group.id}`, concept: group.sleeveComponentId ? "sleeve" : "investment",
       label: group.label, detail: group.allocation,
       address: { canonical: "v1", concept: group.sleeveComponentId ? "sleeve" : "investment", componentId: group.sleeveComponentId ?? group.universeComponentId ?? null, groupId: group.id },
+      capital: { portfolioShare: { value: group.allocation ? Number.parseFloat(group.allocation) / (group.allocation.includes("%") ? 100 : 1) : 1, source: group.sleeveComponentId ? "v1_sleeve_allocation" : "implicit_single_investment" } },
       children,
     };
   });
@@ -114,19 +134,31 @@ export function visibleProgramStatements(strategy: CanonicalStrategyV2): Program
 export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): ProductStrategyProjection {
   const roots = visibleProgramStatements(strategy);
   const selections = flatten(roots).filter((item): item is SelectionStatementV2 => item.kind === "select");
+  const split = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
+  const splitShares = new Map(split?.legs.filter((leg) => leg.target.kind === "group" && leg.target.ref).map((leg) => [leg.target.ref!, Number(leg.weight ?? 0)]) ?? []);
   const investments: ProductNode[] = strategy.definitions.groups.map((group) => {
     const statement = selections.find((item) => item.selection.universe_id === group.id);
     const selection = statement?.selection;
+    const selectedAssetAllocation = statement && flatten(roots).find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === statement.output_id));
+    const portfolioShare = splitShares.get(group.id);
     const assets = strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
     const children: ProductNode[] = [{ id: `assets:${assets?.id ?? group.asset_set_ref}`, concept: "assets", label: "Assets", detail: assets?.assets.length ? assets.assets.join(", ") : "Choose assets", address: { canonical: "v2", concept: "assets", semanticId: group.id, definitionId: assets?.id ?? group.asset_set_ref }, children: [] }];
     if (selection?.eligibility && statement) children.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Qualification", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
     if (selection && statement) children.push({ id: statement.semantic_id, concept: "selection", label: `Choose ${selection.count} assets`, detail: `${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "selection", semanticId: statement.semantic_id }, children: [] });
     if (selection?.fallback_asset && statement) children.push({ id: `fallback:${statement.semantic_id}`, concept: "fallback", label: "Fallback", detail: `Otherwise → ${selection.fallback_asset}`, address: { canonical: "v2", concept: "fallback", semanticId: statement.semantic_id }, children: [] });
-    return { id: `investment:${group.id}`, concept: "investment", label: group.name || "Investment", detail: "100%", address: { canonical: "v2", concept: "investment", semanticId: group.id }, children };
+    return {
+      id: `investment:${group.id}`, concept: "investment", label: group.name || "Investment",
+      detail: portfolioShare === undefined ? undefined : `${formatPortfolioShare(portfolioShare)} of Portfolio`,
+      address: { canonical: "v2", concept: "investment", semanticId: group.id },
+      capital: {
+        portfolioShare: { value: portfolioShare ?? 1, source: portfolioShare === undefined ? "implicit_single_investment" : "v2_fixed_group_leg" },
+        ...(selectedAssetAllocation ? { selectedAssetAllocation: { method: "equal" as const, normalizedTotal: 1 as const, sourceSemanticId: selectedAssetAllocation.semantic_id } } : {}),
+      },
+      children,
+    };
   });
-  const split = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
   const controls: ProductNode[] = roots.filter((item) => item.kind === "control").map((item) => ({ id: item.semantic_id, concept: "control", label: "IF / OTHERWISE", detail: describeConditionV2(item.condition), address: { canonical: "v2", concept: "control", semanticId: item.semantic_id }, children: [] }));
-  const capital: ProductNode[] = split ? [{ id: "split", concept: "split", label: "Split", detail: split.legs.map((leg) => `${Number(leg.weight ?? 0) * 100}%`).join(" / "), address: { canonical: "v2", concept: "split", semanticId: split.semantic_id }, children: investments }] : investments;
+  const capital: ProductNode[] = split ? [{ id: "split", concept: "split", label: "Split", detail: split.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / "), address: { canonical: "v2", concept: "split", semanticId: split.semantic_id }, children: investments }] : investments;
   if (selections.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
   const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v2", concept: "portfolio", semanticId: strategy.program?.semantic_id ?? "program" }, children: [...capital, ...controls] };
   return { name: strategy.metadata.name, root, flow: flowFromRoot(root, true), sourceVersion: "v2" };

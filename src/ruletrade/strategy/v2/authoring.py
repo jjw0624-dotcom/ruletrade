@@ -779,6 +779,9 @@ def _apply_program_operation(
     if isinstance(operation, SetProgramSplit):
         program = _program_for_operation(strategy, operation)
         known = {group.id for group in strategy.definitions.groups}
+        investment_ids = tuple(investment_id for investment_id, _weight in operation.investments)
+        if len(set(investment_ids)) != len(investment_ids):
+            raise V2AuthoringError("duplicate_split_target", "Each Investment may appear only once in a Split.")
         if any(investment_id not in known for investment_id, _weight in operation.investments):
             raise V2AuthoringError("investment_not_found", "Every Split target must be an existing Investment.")
         if sum((weight for _investment_id, weight in operation.investments), Decimal(0)) != Decimal(1):

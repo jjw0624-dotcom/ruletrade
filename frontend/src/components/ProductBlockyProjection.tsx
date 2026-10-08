@@ -11,7 +11,7 @@ function blockType(node: ProductNode) {
   return "rt_action";
 }
 
-function label(node: ProductNode) {
+export function productBlockLabel(node: ProductNode) {
   return node.detail ? `${node.label} · ${node.detail}` : node.label;
 }
 
@@ -81,13 +81,13 @@ export function ProductBlockyProjection({ root, selectedId, onSelect }: {
       let previous: Blockly.BlockSvg | null = null;
       if (rebalance) {
         const trigger = canvas.newBlock("rt_trigger") as Blockly.BlockSvg;
-        trigger.setFieldValue(label(rebalance), "LABEL"); setAddress(trigger, rebalance.id);
+        trigger.setFieldValue(productBlockLabel(rebalance), "LABEL"); setAddress(trigger, rebalance.id);
         trigger.setDeletable(false); trigger.setMovable(true); trigger.contextMenu = false;
         trigger.initSvg(); trigger.render(); trigger.moveBy(80, 120); previous = trigger;
       }
       nodes.forEach((node, index) => {
         const block = canvas.newBlock(blockType(node)) as Blockly.BlockSvg;
-        block.setFieldValue(label(node), "LABEL"); setAddress(block, node.id);
+        block.setFieldValue(productBlockLabel(node), "LABEL"); setAddress(block, node.id);
         block.setDeletable(false); block.setMovable(true); block.contextMenu = false;
         block.initSvg(); block.render();
         if (previous?.nextConnection && block.previousConnection) previous.nextConnection.connect(block.previousConnection);

@@ -41,6 +41,12 @@ describe("Strategy Editor Canonical architecture", () => {
     expect(JSON.stringify(product.root)).toContain("Assets");
     expect(product.flow.some((item) => item.label === "Qualification")).toBe(false);
     expect(product.flow.some((item) => item.label === "Rebalance")).toBe(true);
+    const split = product.root.children.find((item) => item.concept === "split");
+    expect(split?.detail).toBe("70% / 30%");
+    expect(split?.children.map((item) => [item.label, item.detail, item.capital?.portfolioShare])).toEqual([
+      ["Growth", "70%", { value: .7, source: "v1_sleeve_allocation" }],
+      ["Defensive", "30%", { value: .3, source: "v1_sleeve_allocation" }],
+    ]);
   });
 
   it("shows a Guided semantic edit immediately in Flow", () => {
