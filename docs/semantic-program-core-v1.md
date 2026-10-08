@@ -61,7 +61,7 @@ Truth. Unknown is not treated as true.
 
 State keys must be declared in `initial_state`. A transition checks its optional
 from-state and Condition before mutation. Callers may supply prior persisted state;
-the Program result returns the next state. `StateConditionV2` makes state-driven Control explicit and rejects undeclared keys. State is not inferred from holdings.
+the Program result returns the next state. Event edge reconstruction uses the incoming State checkpoint, never State already mutated earlier in the current decision. `StateConditionV2` makes state-driven Control explicit and rejects undeclared keys. State is not inferred from holdings.
 
 The execution checkpoint returns both the latest Event cutoffs and current Event Truths; callers feed them into the next decision so edge identity is durable across runs. Event-relative references require a declared Event identity and an integer
 observation offset. Missing event history or an out-of-range offset produces an
@@ -94,7 +94,9 @@ Selection fallback is still part of Selection target determination. It is not
 Control OTHERWISE and it is not allocation fallback.
 
 Fixed weights must sum exactly to one. Equal allocation persists no synthetic
-weights and derives them only after targets resolve.
+weights and derives them only after targets resolve. When multiple legs or groups
+resolve to the same asset, their exposure contributions add; later legs never
+overwrite earlier capital.
 
 ## Evidence and identity
 
