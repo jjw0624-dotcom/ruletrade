@@ -295,6 +295,9 @@ class AllocationStatementV2(FrozenModel):
 
     @model_validator(mode="after")
     def validate_weights(self) -> "AllocationStatementV2":
+        retain_legs = [leg for leg in self.legs if leg.target.kind == "retain"]
+        if retain_legs and (len(self.legs) != 1 or self.method != "equal"):
+            raise ValueError("retain must be the sole target of an equal allocation")
         if self.method == "fixed":
             if any(leg.weight is None for leg in self.legs):
                 raise ValueError("fixed allocation requires every weight")
