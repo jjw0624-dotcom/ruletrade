@@ -720,3 +720,39 @@ def test_overlapping_allocation_targets_add_exposure_instead_of_overwriting() ->
         "TLT": Decimal("0.15"),
     }
     assert sum(result.target_weights.values()) == Decimal("1")
+
+
+def test_retain_is_an_unambiguous_whole_allocation_outcome() -> None:
+    with pytest.raises(ValueError, match="sole target"):
+        AllocationStatementV2(
+            semantic_id="ambiguous-retain",
+            method="equal",
+            legs=(
+                AllocationLegV2(
+                    semantic_id="retain-leg",
+                    target=AllocationTargetV2(
+                        semantic_id="retain-target", kind="retain",
+                    ),
+                ),
+                AllocationLegV2(
+                    semantic_id="asset-leg",
+                    target=AllocationTargetV2(
+                        semantic_id="asset-target", kind="asset", ref="QQQ",
+                    ),
+                ),
+            ),
+        )
+
+    retain = AllocationStatementV2(
+        semantic_id="retain-all",
+        method="equal",
+        legs=(AllocationLegV2(
+            semantic_id="retain-only-leg",
+            target=AllocationTargetV2(
+                semantic_id="retain-only-target", kind="retain",
+            ),
+        ),),
+    )
+    result = execute_program_v2(program(retain), snapshot())
+    assert result.retained_holdings is True
+    assert result.target_weights == {}
