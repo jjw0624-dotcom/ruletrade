@@ -28,7 +28,7 @@ from ruletrade.strategies.models import (
 from ruletrade.strategies.serialization import serialize_source_snapshot
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.validation import collect_semantic_issues
-from ruletrade.strategy.v2.models import CanonicalStrategy, CanonicalStrategyV2, parse_canonical_strategy
+from ruletrade.strategy.v2.models import CanonicalStrategy, parse_canonical_strategy
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 
@@ -214,7 +214,7 @@ class StrategyService:
         source: CanonicalStrategy | Mapping[str, Any],
     ) -> CanonicalStrategy:
         try:
-            canonical = parse_canonical_strategy(source if isinstance(source, Mapping) else source)
+            canonical = parse_canonical_strategy(source)
         except ValidationError as exc:
             issues = tuple(
                 SourceIssue(
