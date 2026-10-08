@@ -333,6 +333,16 @@ def test_higher_timeframe_context_uses_only_completed_boundary() -> None:
     monday = execute_program_v2(core, snapshot(), cutoff_index=5)
     assert monday.remembered_values["context"] == Decimal("14")
     assert next(item for item in monday.value_observations if item.semantic_id == "weekly-context").observed_at == "2026-01-09"
+    base = snapshot()
+    extended = DailyMarketSnapshot(
+        snapshot_id="future-extended", clock=base.clock,
+        dates=base.dates + ("2026-01-13",), domains=base.domains,
+        series={symbol: {
+            field: values + (Decimal("999"),) for field, values in fields.items()
+        } for symbol, fields in base.series.items()},
+    )
+    extended_result = execute_program_v2(core, extended, cutoff_index=5)
+    assert extended_result.remembered_values["context"] == monday.remembered_values["context"]
 
 
 def test_proportional_inverse_bounds_cash_and_overlapping_exposure() -> None:
@@ -433,6 +443,44 @@ def test_counterexamples_missing_history_retain_mix_and_shared_identity() -> Non
     ))
     observed = execute_program_v2(program(selection_statement(score)), snapshot(), cutoff_index=4).value_observations
     assert {item.semantic_id for item in observed} >= {"shared-a", "shared-b"}
+    invalid_memory = RememberedValueV2(
+        semantic_id="invalid-memory", memory_id="not-declared",
+        quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE, refinement="adjusted_close",
+    )
+    invalid_program = program(EventStatementV2(
+        semantic_id="invalid-memory-event", event=EventDefinitionV2(
+            semantic_id="invalid-memory-event-id", clock_id="daily-close",
+            condition=compare(observe("A", "invalid-memory-price"), "gt", invalid_memory, "invalid-memory-condition"),
+            trigger="while_true",
+        ), statements=(RememberValueStatementV2(
+            semantic_id="irrelevant-memory", memory_id="other-memory", value=observe("A", "other-value"),
+        ),),
+    ))
+    assert any(item.code == "unknown_memory_reference" for item in validate_program_v2(invalid_program))
+
+
+def test_parallel_state_keys_are_explicit_and_never_inferred_as_nested() -> None:
+    true_condition = compare(observe("A", "state-price"), "gt", literal("0", "state-zero"), "state-true")
+    core = SemanticProgramV2(
+        semantic_id="parallel-state-program",
+        clocks=(ProgramClockV2(id="daily-close", timeframe="daily"),),
+        initial_state={"phase": "idle", "risk": "normal"},
+        statements=(
+            StateTransitionStatementV2(
+                semantic_id="phase-transition-statement", transition=StateTransitionV2(
+                    semantic_id="phase-transition", state_key="phase", from_value="idle", to_value="entered", when=true_condition,
+                ),
+            ),
+            StateTransitionStatementV2(
+                semantic_id="risk-transition-statement", transition=StateTransitionV2(
+                    semantic_id="risk-transition", state_key="risk", from_value="normal", to_value="blocked", when=true_condition,
+                ),
+            ),
+        ),
+    )
+    result = execute_program_v2(core, snapshot(), cutoff_index=2)
+    assert result.state == {"phase": "entered", "risk": "blocked"}
+    assert result.state_entered_cutoffs == {"phase": 2, "risk": 2}
 
 
 def test_cross_section_normalization_and_missing_member_coverage_are_explicit() -> None:
