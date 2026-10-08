@@ -785,6 +785,7 @@ def test_program_authoring_edits_assets_without_exposing_program_structure() -> 
 
 def test_product_investment_and_rebalance_operations_are_atomic() -> None:
     canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    original_statement_clock = canonical.program.statements[0].clock_id
     canonical = _author(canonical, AddProgramInvestment(
         kind="add_program_investment",
         investment_id="strongest-etfs",
@@ -798,7 +799,7 @@ def test_product_investment_and_rebalance_operations_are_atomic() -> None:
         kind="set_program_schedule", clock_id="daily-close", timeframe="monthly",
     ))
     assert canonical.program.clocks[0].timeframe == "monthly"
-    assert canonical.program.statements[0].clock_id == "daily-close"
+    assert canonical.program.statements[0].clock_id == original_statement_clock
     with pytest.raises(V2AuthoringError, match="already exists"):
         _author(canonical, AddProgramInvestment(
             kind="add_program_investment", investment_id="strongest-etfs",
