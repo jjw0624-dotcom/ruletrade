@@ -14,6 +14,7 @@ from ruletrade.strategy.v2.authoring import (
     MoveProgramStatement,
     RemoveProgramStatement,
     SetProgramCondition,
+    SetProgramAssetSet,
     SetProgramSelection,
     SetProgramValue,
     V2AuthoringError,
@@ -762,6 +763,22 @@ def test_program_authoring_edits_selection_fields_without_array_addresses() -> N
     assert statement.selection.ranking.semantic_id == "candidate-return"
     assert statement.selection.ranking.observations == 2
     assert validate_strategy_v2(canonical) == ()
+
+
+def test_program_authoring_edits_assets_without_exposing_program_structure() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    canonical = _author(canonical, SetProgramAssetSet(
+        kind="set_program_asset_set",
+        asset_set_id="growth",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    assert canonical.definitions.asset_sets[0].assets == ["QQQ", "VGT", "SOXX", "SCHG"]
+    with pytest.raises(V2AuthoringError, match="only once"):
+        _author(canonical, SetProgramAssetSet(
+            kind="set_program_asset_set",
+            asset_set_id="growth",
+            assets=("QQQ", "QQQ"),
+        ))
 
 
 def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -> None:

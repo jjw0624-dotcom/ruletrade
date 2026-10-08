@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { V2AuthoringOperation } from "../domain/canonicalV2";
-import { describeConditionV2, describeValueV2 } from "../domain/v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
-import { v2AuthoringApi } from "../v2AuthoringApi";
+import { v2AuthoringApi, v2AuthoringErrorMessage } from "../v2AuthoringApi";
 import { executeV2Selection, type V2SelectionExecution } from "../v2ExecutionApi";
-import { V2ConditionComposer, V2ProgramValueComposer } from "./V2SemanticComposer";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
-
-type View = "summary" | "flow" | "blocky" | "rules";
+import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
 
 export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   persisted: StrategyDetailV2;
@@ -20,7 +17,6 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [revisionId, setRevisionId] = useState(persisted.current_revision.id);
   const [sourceHash, setSourceHash] = useState(persisted.current_revision.source_hash);
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState<View>("summary");
   const [status, setStatus] = useState<"saved" | "updating" | "invalid" | "unfinished">("saved");
   const [message, setMessage] = useState("Saved");
   const [result, setResult] = useState<V2SelectionExecution | null>(null);
@@ -45,16 +41,31 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     } catch (reason) {
       if (request !== sequence.current) return;
       setStatus("invalid");
-      setMessage(reason instanceof Error ? reason.message : "This semantic edit is invalid.");
+      setMessage(v2AuthoringErrorMessage(reason));
     }
   };
   const restore = async (target: typeof canonical, direction: "undo" | "redo") => {
-    if (!target.program) return;
+    const historyOperation = (): V2AuthoringOperation | null => {
+      const changedAssetSet = target.definitions.asset_sets.find((item) => JSON.stringify(item.assets) !== JSON.stringify(canonical.definitions.asset_sets.find((current) => current.id === item.id)?.assets));
+      if (changedAssetSet && canonical.program) return { kind: "set_program_asset_set", asset_set_id: changedAssetSet.id, assets: changedAssetSet.assets };
+      if (target.program) return { kind: "set_semantic_program", program: target.program };
+      if (!target.selection || !canonical.selection) return null;
+      if (target.selection.universe_id !== canonical.selection.universe_id) return { kind: "set_selection_universe", universe_id: target.selection.universe_id };
+      if (JSON.stringify(target.selection.eligibility) !== JSON.stringify(canonical.selection.eligibility)) return { kind: "set_eligibility_condition", condition: target.selection.eligibility };
+      if (JSON.stringify(target.selection.ranking) !== JSON.stringify(canonical.selection.ranking)) return { kind: "set_ranking_value", value: target.selection.ranking };
+      if (target.selection.direction !== canonical.selection.direction) return { kind: "set_ranking_direction", direction: target.selection.direction };
+      if (target.selection.count !== canonical.selection.count) return { kind: "set_selection_count", count: target.selection.count };
+      if (target.selection.shortage_policy !== canonical.selection.shortage_policy) return { kind: "set_shortage_policy", shortage_policy: target.selection.shortage_policy };
+      if (target.selection.fallback_asset !== canonical.selection.fallback_asset) return { kind: "set_selection_fallback", fallback_asset: target.selection.fallback_asset };
+      return null;
+    };
+    const operation = historyOperation();
+    if (!operation) return;
     const current = canonical;
     const request = ++sequence.current;
     setStatus("updating"); setMessage(direction === "undo" ? "Undoing…" : "Redoing…");
     try {
-      const response = await v2AuthoringApi.apply(canonical, sourceHash, { kind: "set_semantic_program", program: target.program });
+      const response = await v2AuthoringApi.apply(canonical, sourceHash, operation);
       if (request !== sequence.current) return;
       setCanonical(response.strategy); setSourceHash(response.source_hash); setDirty(true);
       if (direction === "undo") {
@@ -65,7 +76,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       setStatus("saved"); setMessage(direction === "undo" ? "Undone" : "Redone");
     } catch (reason) {
       if (request !== sequence.current) return;
-      setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "History operation failed.");
+      setStatus("invalid"); setMessage(v2AuthoringErrorMessage(reason));
     }
   };
   const save = async () => {
@@ -103,42 +114,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working} />;
   }
   if (canonical.selection === null) return null;
-  const selection = canonical.selection;
-  const universe = canonical.definitions.groups.find((group) => group.id === selection.universe_id);
-  const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? selection.universe_id));
-
-  return <section className="strategy-builder-workspace v2-strategy-workspace" data-canonical-version="v2">
-    <header className="builder-chrome">
-      <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
-      <div className="representation-switcher" aria-label="Strategy representation">
-        {(["summary", "flow", "blocky", "rules"] as View[]).map((item) => <button key={item} aria-pressed={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
-      </div>
-      <div className="builder-identity"><strong>{persisted.strategy.name}</strong><small>{dirty ? "Unsaved changes" : "Saved v2 Strategy"}</small></div>
-      <div className="builder-actions"><button className="secondary-button" disabled={!dirty || unavailable} onClick={() => void save()}>Save</button><button className="primary-button" disabled={unavailable} title={unavailable ? message : undefined} onClick={() => void run()}>Test ▶</button></div>
-    </header>
-    <div className="builder-messages"><div className={`semantic-edit-feedback ${status}`} role="status">{message}</div>{result && <section className="v2-test-result" aria-label="v2 Selection result"><strong>{result.complete ? "Selection complete" : "Selection incomplete"}</strong><p>Selected: {result.selected_assets.join(", ") || "none"}</p><p>Eligible: {result.evidence.eligible_members.length} / {result.evidence.requested_members.length} · Unknown: {result.evidence.unknown_members.length}</p>{result.evidence.fallback_used && <p>Selection fallback used: {result.evidence.fallback_asset}</p>}</section>}</div>
-    <div className="builder-core inspector-open">
-      <main className="representation-workspace">
-        {view === "summary" && <section className="representation-layer v2-summary"><span className="eyebrow">Profile A · Semantic Language v2</span><h1>{canonical.metadata.name}</h1><p>Selection is authored from complete typed Values and persisted as an explicit v2 revision.</p></section>}
-        {view === "blocky" && <section className="representation-layer v2-blocky" aria-label="Blocky decision program"><div className="blocky-program-card"><strong>Choose {canonical.selection.count} assets</strong><small>{canonical.selection.eligibility ? describeConditionV2(canonical.selection.eligibility) : "All candidates qualify"}</small><small>{canonical.selection.direction === "descending" ? "Highest" : "Lowest"} {describeValueV2(canonical.selection.ranking)}</small></div></section>}
-        {view === "flow" && <section className="representation-layer v2-flow" aria-label="Flow capital projection"><div className="flow-capital-node">Investment</div><div className="flow-routing-node">Choose {canonical.selection.count} assets</div><div className="flow-capital-node">Selected assets · equal weight</div>{canonical.selection.fallback_asset && <div className="flow-capital-node">Incomplete → {canonical.selection.fallback_asset}</div>}<div className="flow-action-node">Rebalance</div></section>}
-        {view === "rules" && <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Selection</h2><p>Consider {assetSet?.assets.join(", ") ?? universe?.name ?? canonical.selection.universe_id}.</p><p>{canonical.selection.eligibility ? `Keep candidates where ${describeConditionV2(canonical.selection.eligibility)}.` : "All candidates qualify."}</p><p>Rank by {describeValueV2(canonical.selection.ranking)}, {canonical.selection.direction === "descending" ? "highest" : "lowest"} first.</p><p>Choose {canonical.selection.count}; {canonical.selection.shortage_policy === "require_full" ? "require the full count" : "choose all eligible"}.</p>{canonical.selection.fallback_asset && <p>If Selection is incomplete, use {canonical.selection.fallback_asset}.</p>}</section>}
-      </main>
-      <aside className="semantic-inspector v2-selection-inspector" aria-label="Semantic Inspector">
-        <header><span className="eyebrow">Selection</span></header>
-        <div className="semantic-inspector-content">
-          <h2>Choose {canonical.selection.count}</h2>
-          <section><h3>FROM</h3><label>Static universe<select value={canonical.selection.universe_id} onChange={(event) => void apply({ kind: "set_selection_universe", universe_id: event.target.value })}>{canonical.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}{canonical.definitions.asset_sets.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label><p>{assetSet?.assets.join(" · ")}</p></section>
-          <section><h3>WHERE</h3>{canonical.selection.eligibility
-            ? <V2ConditionComposer condition={canonical.selection.eligibility} strategy={canonical} role="eligibility" onWorking={(unfinished) => { setStatus(unfinished ? "unfinished" : "saved"); setMessage(unfinished ? "Unfinished Value" : "Updated"); }} onChange={(condition) => void apply({ kind: "set_eligibility_condition", condition })} />
-            : <p>All candidates qualify</p>}</section>
-          <section><h3>ORDER BY</h3><V2ProgramValueComposer value={canonical.selection.ranking} strategy={canonical} role="ranking" onWorking={(unfinished) => { setStatus(unfinished ? "unfinished" : "saved"); setMessage(unfinished ? "Unfinished Value" : "Updated"); }} onChange={(value) => void apply({ kind: "set_ranking_value", value })} /></section>
-          <section><h3>DIRECTION</h3><select value={canonical.selection.direction} onChange={(event) => void apply({ kind: "set_ranking_direction", direction: event.target.value as "ascending" | "descending" })}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></section>
-          <section><h3>TAKE</h3><input type="number" min={1} max={100} defaultValue={canonical.selection.count} onBlur={(event) => void apply({ kind: "set_selection_count", count: Number(event.target.value) })} /></section>
-          <section><h3>WHEN FEWER QUALIFY</h3><select value={canonical.selection.shortage_policy} onChange={(event) => void apply({ kind: "set_shortage_policy", shortage_policy: event.target.value as "choose_all" | "require_full" })}><option value="require_full">Require full count</option><option value="choose_all">Choose all eligible</option></select></section>
-          <section><h3>SELECTION FALLBACK</h3><input aria-label="Fallback asset" defaultValue={canonical.selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => void apply({ kind: "set_selection_fallback", fallback_asset: event.target.value.trim().toUpperCase() || null })} /><p className="value-capability-note">Fallback is distinct from shortage policy and Control OTHERWISE.</p></section>
-        </div>
-      </aside>
-    </div>
-  </section>;
+  return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
+    result={result && <section className="v2-test-result" aria-label="Selection result"><strong>{result.complete ? "Selection complete" : "Selection incomplete"}</strong><p>Selected: {result.selected_assets.join(", ") || "none"}</p></section>}
+    onHome={onHome} apply={(operation) => void apply(operation)} save={() => void save()} run={() => void run()}
+    undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }} redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
+    canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working} />;
 }

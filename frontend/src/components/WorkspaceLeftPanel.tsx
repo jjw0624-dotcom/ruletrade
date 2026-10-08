@@ -24,8 +24,6 @@ import {
 import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
 import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
-import type { ProgramStatementV2 } from "../domain/canonicalV2";
-import { describeProgramStatement } from "../domain/v2Semantics";
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -203,44 +201,46 @@ function CanonicalV1WorkspaceLeftPanel({ projection, structural }: {
 }
 
 
-export interface ProgramToolEntry {
+export interface ProductAddAction {
   id: string;
-  category: "Assets" | "Decision" | "Capital" | "Timing" | "Behavior";
+  category: "Control" | "Selection" | "Action" | "Timing" | "Behavior";
   label: string;
   description: string;
   disabled: boolean;
   onAdd: () => void;
 }
 
-function programStructure(items: ProgramStatementV2[], depth = 0): Array<{ statement: ProgramStatementV2; depth: number }> {
-  return items.flatMap((statement) => [
-    { statement, depth },
-    ...(statement.kind === "control" ? programStructure([...statement.then_statements, ...statement.otherwise_statements], depth + 1) : []),
-    ...(statement.kind === "on_event" ? programStructure(statement.statements, depth + 1) : []),
-  ]);
+export interface ProductStructureNode {
+  id: string;
+  label: string;
+  detail?: string;
+  children: ProductStructureNode[];
 }
 
-function SemanticProgramWorkspaceLeftPanel({ tools, statements, selectedId, onSelect }: {
-  tools: ProgramToolEntry[];
-  statements: ProgramStatementV2[];
+function ProductStructureBranch({ item, depth, selectedId, onSelect }: { item: ProductStructureNode; depth: number; selectedId: string | null; onSelect: (id: string) => void }) {
+  return <li><button className={selectedId === item.id ? "structure-item selected" : "structure-item"} style={{ paddingLeft: `${12 + depth * 15}px` }} aria-pressed={selectedId === item.id} onClick={() => onSelect(item.id)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button>{item.children.length > 0 && <ul>{item.children.map((child) => <ProductStructureBranch key={child.id} item={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} />)}</ul>}</li>;
+}
+
+function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect }: {
+  tools: ProductAddAction[];
+  structure: ProductStructureNode;
   selectedId: string | null;
   onSelect: (semanticId: string) => void;
 }) {
-  const categories = Array.from(new Set(tools.map((tool) => tool.category)));
+  const categories: ProductAddAction["category"][] = ["Control", "Selection", "Action", "Timing", "Behavior"];
   const [open, setOpen] = useState(true);
-  const [tab, setTab] = useState<"structure" | "blocks">("blocks");
-  const [category, setCategory] = useState(categories[0] ?? "Assets");
+  const [tab, setTab] = useState<"structure" | "blocks">("structure");
+  const [category, setCategory] = useState<ProductAddAction["category"]>("Selection");
   const displayed = tools.filter((tool) => tool.category === category);
-  const structure = programStructure(statements);
   return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
     <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
-    <Collapsible.Content className="workspace-left-panel" data-perspective="blocky" data-program-builder-tools="contextual">
+    <Collapsible.Content className="workspace-left-panel" data-perspective="blocky" data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger></Tabs.List>
-        <Tabs.Content value="structure" className="structure-panel">{structure.length ? <ul className="program-structure-tree">{structure.map(({ statement, depth }) => <li key={statement.semantic_id}><button type="button" style={{ paddingLeft: `${12 + depth * 15}px` }} aria-pressed={selectedId === statement.semantic_id} onClick={() => onSelect(statement.semantic_id)}>{describeProgramStatement(statement)}</button></li>)}</ul> : <p className="panel-hint">No strategy logic yet.</p>}</Tabs.Content>
-        <Tabs.Content value="blocks" className="blocks-panel"><div className="program-context-toolbox">
+        <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
+        <Tabs.Content value="blocks" className="blocks-panel"><div className="blocky-program-toolbox">
           <nav aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
-          <section className="program-tool-library" aria-label={`${category} strategy tools`} data-scroll-container="bounded">{displayed.map((tool) => <button type="button" key={tool.id} disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}><strong>{tool.label}</strong><small>{tool.disabled ? tool.description : "Add to strategy"}</small></button>)}</section>
+          <section className="blocky-toolbox-library" aria-label={`${category} blocks`} data-scroll-container="bounded">{displayed.map((tool) => <article className={`blocky-toolbox-entry ${tool.disabled ? "unsupported" : "available"}`} key={tool.id}><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}><strong>{tool.label}</strong><small>{tool.disabled ? tool.description : "Available"}</small></button></article>)}</section>
         </div></Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>
@@ -252,8 +252,8 @@ export function WorkspaceLeftPanel(props: ({
   structural: StructuralAuthoringController;
 } | {
   semanticProgram: {
-    tools: ProgramToolEntry[];
-    statements: ProgramStatementV2[];
+    tools: ProductAddAction[];
+    structure: ProductStructureNode;
     selectedId: string | null;
     onSelect: (semanticId: string) => void;
   };

@@ -199,13 +199,14 @@ def test_v2_api_capabilities_are_provider_honest() -> None:
             "operation_id": "program.event@1",
             "label": "Event semantics",
             "available": True,
-            "reason": "Authorable and reference-evaluable; production execution lowering is not available.",
+            "reason": "Semantically defined and reference-evaluable, but not exposed in the product Builder.",
             "semantic_status": "reference_only",
             "reference_evaluable": True,
             "backend_lowerable": False,
-            "authoring_reachable": True,
+            "authoring_reachable": False,
             "production_ready": False,
         }
+        assert capabilities["program.state@1"]["authoring_reachable"] is False
         assert capabilities["daily.volume_raw_shares@1"]["semantic_status"] == "unavailable"
 
 

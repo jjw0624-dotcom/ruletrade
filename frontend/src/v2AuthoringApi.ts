@@ -19,6 +19,23 @@ export class V2AuthoringApiError extends Error {
   }
 }
 
+const PRODUCT_ERROR_MESSAGES: Record<string, string> = {
+  duplicate_asset: "Each symbol can appear only once in this investment.",
+  asset_set_not_found: "This investment's asset list no longer exists. Reopen the strategy and try again.",
+  program_role_mismatch: "That rule cannot be used in this part of the strategy.",
+  program_identity_change: "This edit would replace the selected rule instead of updating it.",
+  program_statement_not_found: "The selected rule no longer exists. Reopen the strategy and try again.",
+  unbound_candidate: "Candidate values can only be used inside Qualification or Selection ranking.",
+  candidate_domain_mismatch: "This value belongs to a different investment universe.",
+  invalid_reduction: "Choose how the multi-asset value should be reduced before using it here.",
+  incomplete_program: "Finish the current rule before saving this strategy.",
+};
+
+export function v2AuthoringErrorMessage(reason: unknown): string {
+  if (!(reason instanceof V2AuthoringApiError)) return reason instanceof Error ? reason.message : "This semantic edit is invalid.";
+  return PRODUCT_ERROR_MESSAGES[reason.detail.code] ?? reason.detail.message;
+}
+
 export const v2AuthoringApi = {
   async programTemplate(name: string, assets: string[] = ["SPY"], fetcher: typeof fetch = fetch): Promise<CanonicalStrategyV2> {
     const response = await fetcher("/api/v2/canonical/authoring/program-template", jsonBody("POST", { name, assets }));

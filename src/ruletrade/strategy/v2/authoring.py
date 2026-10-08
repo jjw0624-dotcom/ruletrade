@@ -126,6 +126,12 @@ class SetProgramSelection(FrozenModel):
     selection: SelectionV2
 
 
+class SetProgramAssetSet(FrozenModel):
+    kind: Literal["set_program_asset_set"]
+    asset_set_id: Identifier
+    assets: tuple[Symbol, ...] = Field(min_length=1, max_length=500)
+
+
 class SetProgramCondition(FrozenModel):
     kind: Literal["set_program_condition"]
     semantic_id: Identifier
@@ -198,6 +204,7 @@ V2AuthoringOperation = Annotated[
     | RemoveProgramStatement
     | MoveProgramStatement
     | SetProgramSelection
+    | SetProgramAssetSet
     | SetProgramCondition
     | SetProgramValue
     | SetProgramEvent
@@ -303,11 +310,15 @@ def authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
         operation_id=operation_id,
         label=label,
         available=True,
-        reason="Authorable and reference-evaluable; production execution lowering is not available.",
+        reason=(
+            "Semantically defined and reference-evaluable, but not exposed in the product Builder."
+            if operation_id in {"program.event@1", "program.state@1"}
+            else "Authorable and reference-evaluable; production execution lowering is not available."
+        ),
         semantic_status="reference_only",
         reference_evaluable=True,
         backend_lowerable=False,
-        authoring_reachable=True,
+        authoring_reachable=operation_id not in {"program.event@1", "program.state@1"},
         production_ready=False,
     ) for operation_id, label in (
         ("program.cross_sectional@1", "Cross-sectional rank, percentile, quantile and bucket"),
@@ -520,11 +531,26 @@ def _apply_program_operation(
     if not isinstance(operation, (
         ReplaceProgramStatement, InsertProgramStatement, RemoveProgramStatement,
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
+        SetProgramAssetSet,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
         FormalizeProgramStatement, FormalizeDraftPhrase,
     )):
         return None
+    if isinstance(operation, SetProgramAssetSet):
+        if len(set(operation.assets)) != len(operation.assets):
+            raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in this investment.")
+        found = False
+        asset_sets = []
+        for asset_set in strategy.definitions.asset_sets:
+            if asset_set.id == operation.asset_set_id:
+                found = True
+                asset_set = asset_set.model_copy(update={"assets": list(operation.assets)})
+            asset_sets.append(asset_set)
+        if not found:
+            raise V2AuthoringError("asset_set_not_found", "This investment's asset list no longer exists.")
+        definitions = strategy.definitions.model_copy(update={"asset_sets": tuple(asset_sets)})
+        return strategy.model_copy(update={"definitions": definitions})
     program = _program_for_operation(strategy, operation)
     if isinstance(operation, ReplaceProgramStatement):
         if operation.statement.semantic_id != operation.semantic_id:

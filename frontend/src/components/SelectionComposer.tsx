@@ -18,6 +18,9 @@ export interface SelectionComposerProps {
   eligibilitySummary?: string;
   eligibilityEditor?: ReactNode;
   universeMembersEditor?: ReactNode;
+  universeEditor?: ReactNode;
+  orderSummary?: string;
+  orderEditor?: ReactNode;
   fallbackSummary?: string;
   fallbackEditor?: ReactNode;
   disabled?: boolean;
@@ -31,14 +34,16 @@ export function SelectionComposer(props: SelectionComposerProps) {
     props.onChange({ direction: patch.direction ?? props.direction, count: patch.count ?? props.count, shortagePolicy: patch.shortagePolicy ?? props.shortagePolicy, valueExpression: patch.valueExpression ?? props.valueExpression });
   return <section className="selection-composer" aria-label="Selection editor">
     <header className="semantic-section-header"><div><span className="eyebrow">Selection</span><strong>Choose {props.count}</strong></div></header>
-    {props.strategy && props.universeComponentId && <section className="selection-section"><span className="eyebrow">FROM</span>
+    {(props.universeEditor || (props.strategy && props.universeComponentId)) && <section className="selection-section"><span className="eyebrow">FROM</span>
+      {props.universeEditor}
       {props.universeChoices && props.universeId && props.onUniverseChange
         ? <select aria-label="Selection universe" value={props.universeId} disabled={props.disabled} onChange={(event) => props.onUniverseChange?.(event.target.value)}>{props.universeChoices.map((id) => <option key={id} value={id}>{props.strategy?.definitions.universes?.find((item) => item.id === id)?.name ?? id}</option>)}</select>
         : <strong>{describeUniverse(props.strategy, props.universeComponentId) ?? "Explicit universe"}</strong>}
       {props.universeMembersEditor && <details className="semantic-subeditor"><summary>Edit universe members</summary>{props.universeMembersEditor}</details>}
     </section>}
     <section className="selection-section"><span className="eyebrow">WHERE</span><strong>{props.eligibilitySummary ?? "All candidates qualify"}</strong>{props.eligibilityEditor}</section>
-    {props.valueExpression && props.strategy && <section className="selection-section"><span className="eyebrow">ORDER BY</span>
+    {(props.orderEditor || props.orderSummary) && <section className="selection-section"><span className="eyebrow">ORDER BY</span>{props.orderSummary && <strong>{props.orderSummary}</strong>}{props.orderEditor}</section>}
+    {props.valueExpression && props.strategy && !props.orderEditor && !props.orderSummary && <section className="selection-section"><span className="eyebrow">ORDER BY</span>
       <ValueComposer expression={props.valueExpression} strategy={props.strategy} capabilities={props.capabilities} allowCandidate disabled={props.disabled}
         onWorkingState={props.onWorkingState} onChange={(valueExpression) => emit({ valueExpression })} />
     </section>}

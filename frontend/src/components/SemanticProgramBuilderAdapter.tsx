@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { isDailyValue, type CanonicalStrategyV2, type ConditionV2, type ProgramStatementV2, type SelectionStatementV2, type ValueExpressionV2, type V2AuthoringOperation } from "../domain/canonicalV2";
-import { describeProgramStatement } from "../domain/v2Semantics";
+import { describeConditionV2, describeProgramStatement, describeValueV2 } from "../domain/v2Semantics";
 import { v2AuthoringApi, type V2AuthoringCapability } from "../v2AuthoringApi";
 import { StrategyBuilderWorkspace, type ProgramBuilderView } from "./StrategyBuilderWorkspace";
-import { WorkspaceLeftPanel, type ProgramToolEntry } from "./WorkspaceLeftPanel";
+import { WorkspaceLeftPanel, type ProductAddAction, type ProductStructureNode } from "./WorkspaceLeftPanel";
 import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer, V2ValueDraftComposer } from "./V2SemanticComposer";
 import { BlockyView } from "../views/BlockyView";
+import { SelectionComposer } from "./SelectionComposer";
 import "./SemanticProgramBuilderAdapter.css";
 
-type DraftConcept = { kind: "selection" | "control" | "unresolved"; semanticId: string } | null;
+type DraftConcept = { kind: "selection" | "control"; semanticId: string } | null;
 
 function flatten(items: ProgramStatementV2[]): ProgramStatementV2[] {
   return items.flatMap((item) => [item,
@@ -25,6 +26,31 @@ function isBootstrapRetain(statement: ProgramStatementV2): boolean {
 
 function visibleRoots(strategy: CanonicalStrategyV2): ProgramStatementV2[] {
   return (strategy.program?.statements ?? []).filter((statement) => !isBootstrapRetain(statement));
+}
+
+function assetSetForSelection(strategy: CanonicalStrategyV2, selection: SelectionStatementV2) {
+  const group = strategy.definitions.groups.find((item) => item.id === selection.selection.universe_id);
+  return strategy.definitions.asset_sets.find((item) => item.id === (group?.asset_set_ref ?? selection.selection.universe_id));
+}
+
+export function projectProgramProductStructure(strategy: CanonicalStrategyV2): ProductStructureNode {
+  const roots = visibleRoots(strategy);
+  const selections = flatten(roots).filter((item): item is SelectionStatementV2 => item.kind === "select");
+  const investments = selections.map((statement) => {
+    const selection = statement.selection;
+    const group = strategy.definitions.groups.find((item) => item.id === selection.universe_id);
+    const assets = assetSetForSelection(strategy, statement);
+    const children: ProductStructureNode[] = [
+      { id: `assets:${assets?.id ?? selection.universe_id}`, label: "Assets", detail: assets?.assets.join(", ") ?? "Choose assets", children: [] },
+      ...(selection.eligibility ? [{ id: `qualification:${statement.semantic_id}`, label: "Qualification", detail: describeConditionV2(selection.eligibility), children: [] }] : []),
+      { id: statement.semantic_id, label: `Choose ${selection.count} assets`, detail: `${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, children: [] },
+      ...(selection.fallback_asset ? [{ id: `fallback:${statement.semantic_id}`, label: "Fallback", detail: `Otherwise → ${selection.fallback_asset}`, children: [] }] : []),
+    ];
+    return { id: `investment:${statement.semantic_id}`, label: group?.name === "Initial universe" ? "Investment" : group?.name ?? "Investment", children };
+  });
+  const controls = roots.filter((item) => item.kind === "control").map((item) => ({ id: item.semantic_id, label: "IF / OTHERWISE", detail: describeConditionV2(item.condition), children: [] }));
+  const hasCapitalRule = roots.some((item) => ["select", "allocate", "control", "guarded_allocation"].includes(item.kind));
+  return { id: "portfolio", label: "Portfolio", children: [...investments, ...controls, ...(hasCapitalRule ? [{ id: "rebalance", label: "Rebalance", detail: "Daily close", children: [] }] : [])] };
 }
 
 function replaceStatement(items: ProgramStatementV2[], semanticId: string, replacement: ProgramStatementV2): ProgramStatementV2[] {
@@ -79,6 +105,23 @@ function SelectionDraftInspector({ strategy, semanticId, working, onComplete }: 
     <section><h3>DIRECTION</h3><select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></section>
     <section><h3>TAKE</h3><input aria-label="Take count" type="number" min={1} max={100} value={count} onChange={(event) => setCount(Number(event.target.value))} /></section>
   </div>;
+}
+
+function ProgramAssetsInspector({ strategy, assetSetId, apply }: { strategy: CanonicalStrategyV2; assetSetId: string; apply: (operation: V2AuthoringOperation) => void }) {
+  const assetSet = strategy.definitions.asset_sets.find((item) => item.id === assetSetId);
+  if (!assetSet) return <div className="semantic-inspector-content"><h2>Assets</h2><p>This investment's asset list is unavailable.</p></div>;
+  return <div className="semantic-inspector-content"><h2>Assets</h2><p className="fixed-setting">What can this investment own?</p><label>Symbols<input aria-label="Investment assets" defaultValue={assetSet.assets.join(", ")} onBlur={(event) => { const assets = event.target.value.split(/[\s,]+/).map((item) => item.trim().toUpperCase()).filter(Boolean); if (assets.length) apply({ kind: "set_program_asset_set", asset_set_id: assetSet.id, assets }); }} /></label><p>Separate symbols with commas.</p></div>;
+}
+
+function ProgramQualificationInspector({ strategy, statement, apply, working }: { strategy: CanonicalStrategyV2; statement: SelectionStatementV2; apply: (operation: V2AuthoringOperation) => void; working: (unfinished: boolean) => void }) {
+  const condition = statement.selection.eligibility;
+  return <div className="semantic-inspector-content"><h2>Qualification</h2><p className="fixed-setting">Which candidate assets qualify?</p>{condition
+    ? <V2ConditionComposer condition={condition} strategy={strategy} role="eligibility" onWorking={working} onChange={(next) => apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "selection_eligibility", condition: next })} />
+    : <V2ConditionDraftComposer semanticId={`${statement.semantic_id}-eligibility`} strategy={strategy} role="eligibility" onWorking={working} onComplete={(next) => apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "selection_eligibility", condition: next })} />}</div>;
+}
+
+function ProgramFallbackInspector({ statement, apply }: { statement: SelectionStatementV2; apply: (operation: V2AuthoringOperation) => void }) {
+  return <div className="semantic-inspector-content"><h2>Fallback</h2><label>When selection is incomplete<input aria-label="Fallback asset" defaultValue={statement.selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => apply({ kind: "set_program_selection", semantic_id: statement.semantic_id, selection: { ...statement.selection, fallback_asset: event.target.value.trim().toUpperCase() || null } })} /></label><p className="fixed-setting">Selection fallback is distinct from IF / OTHERWISE.</p></div>;
 }
 
 function readdressCondition(condition: ConditionV2, prefix: string): ConditionV2 {
@@ -144,15 +187,18 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
   if (statement.kind === "select") {
     const selection = statement.selection;
     const set = (next: typeof selection) => apply({ kind: "set_program_selection", semantic_id: statement.semantic_id, selection: next });
-    return <div className="semantic-inspector-content"><h2>Choose {selection.count} assets</h2>
-      <section><h3>FROM</h3><select value={selection.universe_id} onChange={(event) => { const universe_id = event.target.value; set({ ...selection, universe_id, binding: { ...selection.binding, domain_id: universe_id } }); }}>{strategy.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}{strategy.definitions.asset_sets.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></section>
-      <section><h3>WHERE</h3>{selection.eligibility ? <V2ConditionComposer condition={selection.eligibility} strategy={strategy} role="eligibility" onWorking={working} onChange={(condition) => apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "selection_eligibility", condition })} /> : addingEligibility ? <V2ConditionDraftComposer semanticId={`${statement.semantic_id}-eligibility`} strategy={strategy} role="eligibility" onWorking={working} onComplete={(condition) => { setAddingEligibility(false); apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "selection_eligibility", condition }); }} /> : <><p>All candidates qualify.</p><button type="button" className="text-button" onClick={() => { setAddingEligibility(true); working(true); }}>Add eligibility filter</button></>}</section>
-      <section><h3>ORDER BY / SCORE</h3><V2ProgramValueComposer value={selection.ranking} strategy={strategy} role="ranking" onWorking={working} onChange={(value) => apply({ kind: "set_program_value", semantic_id: statement.semantic_id, role: "selection_ranking", value })} /></section>
-      <section><h3>DIRECTION</h3><select value={selection.direction} onChange={(event) => set({ ...selection, direction: event.target.value as typeof selection.direction })}><option value="descending">Highest first</option><option value="ascending">Lowest first</option></select></section>
-      <section><h3>TAKE</h3><input type="number" min={1} max={100} defaultValue={selection.count} onBlur={(event) => set({ ...selection, count: Number(event.target.value) })} /></section>
-      <section><h3>WHEN FEWER QUALIFY</h3><select value={selection.shortage_policy} onChange={(event) => set({ ...selection, shortage_policy: event.target.value as typeof selection.shortage_policy })}><option value="require_full">Require full count</option><option value="choose_all">Choose all eligible</option></select></section>
-      <section><h3>SELECTION FALLBACK</h3><input aria-label="Fallback asset" defaultValue={selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => set({ ...selection, fallback_asset: event.target.value.trim().toUpperCase() || null })} /><p className="value-capability-note">Fallback is distinct from shortage policy and Control OTHERWISE.</p></section>
-    </div>;
+    const universe = strategy.definitions.groups.find((item) => item.id === selection.universe_id);
+    return <div className="semantic-inspector-content"><SelectionComposer
+      direction={selection.direction} count={selection.count} shortagePolicy={selection.shortage_policy}
+      universeEditor={<select aria-label="Selection universe" value={selection.universe_id} onChange={(event) => { const universe_id = event.target.value; set({ ...selection, universe_id, binding: { ...selection.binding, domain_id: universe_id } }); }}>{strategy.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}{strategy.definitions.asset_sets.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select>}
+      eligibilitySummary={selection.eligibility ? describeConditionV2(selection.eligibility) : "All candidates qualify"}
+      eligibilityEditor={selection.eligibility ? <p className="fixed-setting">Select Qualification in Structure for detailed editing.</p> : addingEligibility ? <V2ConditionDraftComposer semanticId={`${statement.semantic_id}-eligibility`} strategy={strategy} role="eligibility" onWorking={working} onComplete={(condition) => { setAddingEligibility(false); apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "selection_eligibility", condition }); }} /> : <button type="button" className="secondary-button" onClick={() => { setAddingEligibility(true); working(true); }}>+ Add eligibility</button>}
+      orderSummary={describeValueV2(selection.ranking)}
+      orderEditor={<V2ProgramValueComposer value={selection.ranking} strategy={strategy} role="ranking" onWorking={working} onChange={(value) => apply({ kind: "set_program_value", semantic_id: statement.semantic_id, role: "selection_ranking", value })} />}
+      fallbackSummary={selection.fallback_asset ?? "None"}
+      fallbackEditor={<input aria-label="Fallback asset" defaultValue={selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => set({ ...selection, fallback_asset: event.target.value.trim().toUpperCase() || null })} />}
+      onChange={(value) => set({ ...selection, direction: value.direction, count: value.count, shortage_policy: value.shortagePolicy })}
+    /><p className="value-capability-note">FROM uses {universe?.name ?? selection.universe_id}. Fallback is distinct from shortage policy and IF / OTHERWISE.</p></div>;
   }
   if (statement.kind === "control") return <div className="semantic-inspector-content"><h2>Condition routing</h2><V2ConditionComposer condition={statement.condition} strategy={strategy} role="predicate" onWorking={working} onChange={(condition) => apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "control", condition })} /></div>;
   if (statement.kind === "on_event") return <EventInspector strategy={strategy} statement={statement} apply={apply} working={working} />;
@@ -183,12 +229,14 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const [view, setView] = useState<ProgramBuilderView>("blocky");
   const roots = useMemo(() => visibleRoots(canonical), [canonical]);
   const all = useMemo(() => flatten(roots), [roots]);
-  const [selectedId, setSelectedId] = useState<string | null>(all[0]?.semantic_id ?? null);
+  const productStatements = useMemo(() => all.filter((item) => ["select", "allocate", "control", "guarded_allocation"].includes(item.kind)), [all]);
+  const productRoots = useMemo(() => roots.filter((item) => ["select", "allocate", "control", "guarded_allocation"].includes(item.kind)), [roots]);
+  const [selectedId, setSelectedId] = useState<string | null>(productStatements[0]?.semantic_id ?? null);
   const [draft, setDraft] = useState<DraftConcept>(null);
-  const [draftPhrase, setDraftPhrase] = useState("strong breakout");
   const [capabilities, setCapabilities] = useState<V2AuthoringCapability[]>([]);
-  const selected = all.find((item) => item.semantic_id === selectedId) ?? null;
-  const unresolved = all.filter((item) => item.kind === "unresolved");
+  const selected = productStatements.find((item) => item.semantic_id === selectedId) ?? null;
+  const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
+  const selectedSelection = all.find((item): item is SelectionStatementV2 => item.kind === "select" && item.semantic_id === selectedSelectionId) ?? null;
   const select = useCallback((id: string | null) => { setSelectedId(id); if (id) setDraft(null); }, []);
   useEffect(() => { let current = true; void v2AuthoringApi.capabilities().then((items) => { if (current) setCapabilities(items); }).catch(() => undefined); return () => { current = false; }; }, []);
   useEffect(() => { if (draft && all.some((item) => item.semantic_id === draft.semanticId)) { setDraft(null); working(false); } }, [all, draft, working]);
@@ -198,38 +246,33 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const startDraft = (kind: NonNullable<DraftConcept>["kind"], prefix: string) => { setDraft({ kind, semanticId: nextId(canonical, prefix) }); setSelectedId(null); working(true); setView("blocky"); };
   const selection = all.find((item): item is SelectionStatementV2 => item.kind === "select");
   const allocation = roots.find((item) => item.kind === "allocate" && !isBootstrapRetain(item));
-  const addScheduledEvent = () => { const id = nextId(canonical, "event"); addRoot({ kind: "on_event", semantic_id: id, event: { semantic_id: `${id}-definition`, clock_id: "daily-close", condition: null, trigger: "scheduled", occurrence: "every", ordinal: null }, statements: [] }); setSelectedId(id); };
-  const addPolicy = () => {
-    if (!allocation || allocation.kind !== "allocate") return;
-    const id = nextId(canonical, "allocation-behavior");
-    const policy: ProgramStatementV2 = { kind: "guarded_allocation", semantic_id: id, guard: null, primary: allocation, overrides: [], fallback: retainAllocation(canonical, `${id}-fallback`), unknown_guard_policy: "block" };
-    replaceRoots(roots.map((item) => item.semantic_id === allocation.semantic_id ? policy : item));
-  };
-  const tools: ProgramToolEntry[] = [
-    { id: "choose-assets", category: "Assets", label: "Choose assets", description: "Create a Selection destination.", disabled: Boolean(selection), onAdd: () => startDraft("selection", "selection") },
-    { id: "condition", category: "Decision", label: "Add condition", description: "Route capital with a complete Condition.", disabled: false, onAdd: () => startDraft("control", "condition-route") },
-    { id: "timing", category: "Timing", label: "Add timing", description: "Run actions on an explicit schedule or Event.", disabled: false, onAdd: addScheduledEvent },
-    { id: "allocate", category: "Capital", label: "Allocate capital", description: selection ? "Allocate to the selected destination." : "Choose what receives capital first.", disabled: !selection || Boolean(allocation), onAdd: () => selection && addRoot(selectionAllocation(canonical, selection)) },
-    { id: "split", category: "Capital", label: "Split portfolio", description: canonical.definitions.groups.length >= 2 ? "Distribute capital across two sleeves." : "Create two compatible sleeves before splitting capital.", disabled: canonical.definitions.groups.length < 2 || Boolean(allocation), onAdd: () => { const split = splitAllocation(canonical); if (split) addRoot(split); } },
-    { id: "policy", category: "Behavior", label: "Add guard / override / fallback", description: allocation ? "Add deterministic behavior to the current allocation." : "Add a capital allocation first.", disabled: !allocation, onAdd: addPolicy },
-    { id: "unresolved", category: "Behavior", label: "Formalize an idea", description: "Keep an imprecise phrase local until it has explicit meaning.", disabled: false, onAdd: () => startDraft("unresolved", "formalization") },
+  const tools: ProductAddAction[] = [
+    { id: "if", category: "Control", label: "If / Otherwise", description: "Add a condition that routes the strategy.", disabled: false, onAdd: () => startDraft("control", "condition-route") },
+    { id: "choose-assets", category: "Selection", label: "Choose assets", description: selection ? "This investment already chooses assets." : "Add assets, qualification, ranking, and count.", disabled: Boolean(selection), onAdd: () => startDraft("selection", "selection") },
+    { id: "eligibility", category: "Selection", label: "Eligibility", description: selection ? "Configure which candidate assets qualify." : "Choose assets first.", disabled: !selection, onAdd: () => selection && select(`qualification:${selection.semantic_id}`) },
+    { id: "allocate", category: "Action", label: "Allocate", description: selection ? "Allocate capital to the selected assets." : "Choose assets first.", disabled: !selection || Boolean(allocation), onAdd: () => selection && addRoot(selectionAllocation(canonical, selection)) },
+    { id: "schedule", category: "Timing", label: "Schedule", description: "Daily close schedule is already configured.", disabled: true, onAdd: () => undefined },
+    { id: "selection-fallback", category: "Behavior", label: "Selection fallback", description: selection ? "Configure what happens when selection is incomplete." : "Choose assets first.", disabled: !selection, onAdd: () => selection && select(`fallback:${selection.semantic_id}`) },
   ];
-  const blank = roots.length === 0 && draft === null;
+  const blank = productRoots.length === 0 && draft === null;
+  const structure = projectProgramProductStructure(canonical);
   const inspector = draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} semanticId={draft.semanticId} working={working} onComplete={addRoot} />
     : draft?.kind === "control" ? <div className="semantic-inspector-content"><h2>Add a condition route</h2><V2ConditionDraftComposer semanticId={`${draft.semanticId}-condition`} strategy={canonical} role="predicate" onWorking={working} onComplete={(condition: ConditionV2) => addRoot({ kind: "control", semantic_id: draft.semanticId, condition, then_statements: [retainAllocation(canonical, `${draft.semanticId}-retain`)], otherwise_statements: [], unknown_policy: "retain", clock_id: "daily-close" })} /></div>
-      : draft?.kind === "unresolved" ? <div className="semantic-inspector-content"><h2>Formalize an idea</h2><label>Original phrase<input value={draftPhrase} onChange={(event) => setDraftPhrase(event.target.value)} /></label><p>This phrase remains a local draft and blocks Save/Test until you choose an explicit supported meaning.</p><button type="button" onClick={() => apply({ kind: "formalize_draft_phrase", source_phrase: draftPhrase, replacement: retainAllocation(canonical, `${draft.semanticId}-formalized`), interpretation: "Explicitly retain current holdings until a supported rule is configured.", parent_semantic_id: null, branch: "root", index: null })}>Use explicit retain-holdings policy</button></div>
-        : selected ? <Inspector strategy={canonical} statement={selected} apply={apply} working={working} />
-          : <div className="semantic-inspector-content"><h2>Strategy details</h2><p>Select a meaningful block to inspect its semantic details.</p></div>;
-  const emptyState = <div><span className="eyebrow">Start building your strategy</span><h2>No strategy logic has been added yet</h2><p>Choose a meaningful next step. The internal retain skeleton stays out of your strategy canvas.</p><div className="program-empty-actions">{tools.filter((tool) => ["choose-assets", "condition", "split", "timing"].includes(tool.id)).map((tool) => <button type="button" key={tool.id} disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}>+ {tool.label}</button>)}</div></div>;
+      : selectedId?.startsWith("assets:") ? <ProgramAssetsInspector strategy={canonical} assetSetId={selectedId.slice("assets:".length)} apply={apply} />
+        : selectedId?.startsWith("qualification:") && selectedSelection ? <ProgramQualificationInspector strategy={canonical} statement={selectedSelection} apply={apply} working={working} />
+          : selectedId?.startsWith("fallback:") && selectedSelection ? <ProgramFallbackInspector statement={selectedSelection} apply={apply} />
+            : selected ? <Inspector strategy={canonical} statement={selected} apply={apply} working={working} />
+              : selectedId === "rebalance" ? <div className="semantic-inspector-content"><h2>Rebalance</h2><p className="fixed-setting">Daily at market close</p><p>The schedule is shared by selection and allocation rules.</p></div>
+                : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select an investment object in Structure or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
-    overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "No strategy logic has been added yet." : `${roots.length} strategy concepts · ${unresolved.length ? `${unresolved.length} need a precise definition` : "all meanings are explicit"}.`}</p></section>,
-    blocky: <section className="representation-layer blocky-layer"><BlockyView semanticProgram={{ statements: roots, selectedId, onSelect: select, empty: emptyState }} /></section>,
+    overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "A portfolio ready for its first investment." : `${structure.children.length} portfolio steps using explicit financial rules.`}</p></section>,
+    blocky: <section className="representation-layer blocky-layer"><BlockyView semanticProgram={{ statements: productRoots, selectedId, onSelect: select }} /></section>,
     flow: <section className="representation-layer v2-flow" aria-label="Flow capital projection"><div className="flow-capital-node">Portfolio capital</div>{all.filter((item) => ["select", "allocate", "control", "guarded_allocation"].includes(item.kind) && !isBootstrapRetain(item)).map((item) => <button type="button" key={item.semantic_id} className={item.kind === "select" || item.kind === "control" ? "flow-routing-node" : "flow-capital-node"} onClick={() => select(item.semantic_id)}>{describeProgramStatement(item)}</button>)}{!blank && <div className="flow-action-node">Target / Rebalance</div>}{blank && <p>No capital route has been defined.</p>}</section>,
-    rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : all.map((item) => <p key={item.semantic_id}>{describeProgramStatement(item)}.</p>)}</section>,
-    guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Select a step to inspect its meaning in the same Builder.</p></header><div className="guide-sequence">{all.map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div></section>,
-    code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical Strategy v2</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,
-    ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic Strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.semantic-program/v2", strategy: canonical }, null, 2)} /></section>,
+    rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : productStatements.map((item) => <p key={item.semantic_id}>{describeProgramStatement(item)}.</p>)}</section>,
+    guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={() => startDraft("selection", "selection")}>Choose assets</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
+    code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,
+    ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,
   };
-  const capabilityHint = status === "invalid" ? message : unresolved.length ? "Define the unresolved idea before saving or testing." : programCapability?.backend_lowerable === false ? "This Strategy can be authored and checked, but its advanced rules are not executable yet." : message;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: setView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, statements: roots, selectedId, onSelect: (id) => select(id) }} />, representations, inspector, draftMessage: draft ? "Finish or discard the current semantic draft." : status === "unfinished" ? message : null, feedback: capabilityHint, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: draft ? () => { setDraft(null); working(false); } : undefined }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={() => undefined} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select"); if (selected) select(selected.semantic_id); setView("guided"); }} testDisabled testTitle={programCapability?.reason ?? "Advanced Strategy execution is not available yet."} />;
+  const capabilityHint = status === "invalid" ? message : programCapability?.backend_lowerable === false ? "You can finish building this strategy, but some advanced rules cannot be backtested yet." : message;
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: setView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id) }} />, representations, inspector, draftMessage: draft ? "Finish or discard the current semantic draft." : status === "unfinished" ? message : null, feedback: capabilityHint, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: draft ? () => { setDraft(null); working(false); } : undefined }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={() => undefined} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled testTitle={programCapability?.reason ?? "Some advanced rules cannot be backtested yet."} />;
 }

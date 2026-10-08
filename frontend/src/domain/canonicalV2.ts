@@ -102,6 +102,7 @@ export type V2AuthoringOperation =
   | { kind: "remove_program_statement"; semantic_id: string }
   | { kind: "move_program_statement"; semantic_id: string; parent_semantic_id: string | null; branch: ProgramBranch; index: number | null }
   | { kind: "set_program_selection"; semantic_id: string; selection: SelectionV2 }
+  | { kind: "set_program_asset_set"; asset_set_id: string; assets: string[] }
   | { kind: "set_program_condition"; semantic_id: string; role: "control" | "event" | "transition" | "selection_eligibility" | "guard" | "override"; condition: ConditionV2 | null; override_semantic_id?: string | null }
   | { kind: "set_program_value"; semantic_id: string; role: "selection_ranking" | "remembered_value"; value: ValueExpressionV2 }
   | { kind: "set_program_event"; semantic_id: string; event: EventDefinitionV2 }
