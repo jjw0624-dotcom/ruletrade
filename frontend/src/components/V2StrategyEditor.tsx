@@ -84,8 +84,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Test failed.");
     }
   };
-  const universe = canonical.definitions.groups.find((group) => group.id === canonical.selection.universe_id);
-  const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? canonical.selection.universe_id));
+  const selection = canonical.selection;
+  const universe = canonical.definitions.groups.find((group) => group.id === selection.universe_id);
+  const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? selection.universe_id));
 
   return <section className="strategy-builder-workspace v2-strategy-workspace" data-canonical-version="v2">
     <header className="builder-chrome">
