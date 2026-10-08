@@ -628,6 +628,8 @@ class _Runtime:
             scores = self.selection_scores.get(output_id, {})
             if not scores:
                 return False
+            if statement.method == "inverse_volatility":
+                return all(value > 0 for value in scores.values())
             return any(value > 0 for value in scores.values())
         return True
 
