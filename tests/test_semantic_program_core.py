@@ -747,7 +747,7 @@ def test_program_authoring_edits_selection_fields_without_array_addresses() -> N
         role="selection_eligibility",
         condition=condition_over("110"),
     ))
-    new_rank = candidate_return("new-rank")
+    new_rank = candidate_return().model_copy(update={"observations": 2})
     canonical = _author(canonical, SetProgramValue(
         kind="set_program_value",
         semantic_id="selection-statement",
@@ -759,7 +759,8 @@ def test_program_authoring_edits_selection_fields_without_array_addresses() -> N
     assert statement.selection.count == 1
     assert statement.selection.shortage_policy == "choose_all"
     assert statement.selection.eligibility.semantic_id == "qqq-over-110"
-    assert statement.selection.ranking.semantic_id == "new-rank"
+    assert statement.selection.ranking.semantic_id == "candidate-return"
+    assert statement.selection.ranking.observations == 2
     assert validate_strategy_v2(canonical) == ()
 
 
@@ -780,6 +781,18 @@ def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -
     with pytest.raises(V2AuthoringError, match="changed"):
         apply_v2_authoring(request.model_copy(update={"expected_source_hash": "stale"}))
     assert canonical.program.statements[0].semantic_id == "only-allocation"
+
+
+def test_program_authoring_rejects_silent_semantic_identity_retargeting() -> None:
+    selected = SelectionStatementV2(
+        semantic_id="selection-address", selection=selection(), output_id="selected",
+    )
+    canonical = _program_canonical(program(selected))
+    with pytest.raises(V2AuthoringError, match="preserve semantic identity"):
+        _author(canonical, SetProgramValue(
+            kind="set_program_value", semantic_id="selection-address",
+            role="selection_ranking", value=candidate_return("different-address"),
+        ))
 
 
 def test_unresolved_formalization_is_one_atomic_provenance_preserving_intent() -> None:

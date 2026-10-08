@@ -527,6 +527,8 @@ def _apply_program_operation(
         return None
     program = _program_for_operation(strategy, operation)
     if isinstance(operation, ReplaceProgramStatement):
+        if operation.statement.semantic_id != operation.semantic_id:
+            raise V2AuthoringError("program_identity_change", "Replacing a statement must preserve its semantic id.")
         program = _replace_program_statement(program, operation.semantic_id, operation.statement)
     elif isinstance(operation, InsertProgramStatement):
         program = _insert_program_statement(
@@ -588,15 +590,21 @@ def _apply_program_operation(
         def selection(statement: ProgramStatementV2) -> ProgramStatementV2:
             if not isinstance(statement, SelectionStatementV2):
                 raise V2AuthoringError("program_role_mismatch", "This address is not a Selection statement.")
+            if operation.selection.semantic_id != statement.selection.semantic_id:
+                raise V2AuthoringError("program_identity_change", "Selection editing must preserve semantic identity.")
             return statement.model_copy(update={"selection": operation.selection})
         program = _edit_program_statement(program, operation.semantic_id, selection)
     elif isinstance(operation, SetProgramValue):
         def value(statement: ProgramStatementV2) -> ProgramStatementV2:
             if operation.role == "selection_ranking" and isinstance(statement, SelectionStatementV2):
+                if operation.value.semantic_id != statement.selection.ranking.semantic_id:
+                    raise V2AuthoringError("program_identity_change", "Ranking editing must preserve semantic identity.")
                 return statement.model_copy(update={
                     "selection": statement.selection.model_copy(update={"ranking": operation.value}),
                 })
             if operation.role == "remembered_value" and isinstance(statement, RememberValueStatementV2):
+                if operation.value.semantic_id != statement.value.semantic_id:
+                    raise V2AuthoringError("program_identity_change", "Remembered Value editing must preserve semantic identity.")
                 return statement.model_copy(update={"value": operation.value})
             raise V2AuthoringError("program_role_mismatch", f"{operation.role} is invalid for this statement.")
         program = _edit_program_statement(program, operation.semantic_id, value)
@@ -604,12 +612,16 @@ def _apply_program_operation(
         def event(statement: ProgramStatementV2) -> ProgramStatementV2:
             if not isinstance(statement, EventStatementV2):
                 raise V2AuthoringError("program_role_mismatch", "This address is not an Event statement.")
+            if operation.event.semantic_id != statement.event.semantic_id:
+                raise V2AuthoringError("program_identity_change", "Event editing must preserve semantic identity.")
             return statement.model_copy(update={"event": operation.event})
         program = _edit_program_statement(program, operation.semantic_id, event)
     elif isinstance(operation, SetProgramTransition):
         def transition(statement: ProgramStatementV2) -> ProgramStatementV2:
             if not isinstance(statement, StateTransitionStatementV2):
                 raise V2AuthoringError("program_role_mismatch", "This address is not a State transition.")
+            if operation.transition.semantic_id != statement.transition.semantic_id:
+                raise V2AuthoringError("program_identity_change", "State transition editing must preserve semantic identity.")
             return statement.model_copy(update={"transition": operation.transition})
         program = _edit_program_statement(program, operation.semantic_id, transition)
     elif isinstance(operation, SetProgramCondition):
@@ -642,12 +654,18 @@ def _apply_program_operation(
     elif isinstance(operation, SetProgramAllocation):
         def allocation(statement: ProgramStatementV2) -> ProgramStatementV2:
             if operation.role == "statement" and isinstance(statement, AllocationStatementV2):
+                if operation.allocation.semantic_id != statement.semantic_id:
+                    raise V2AuthoringError("program_identity_change", "Allocation editing must preserve semantic identity.")
                 return operation.allocation
             if not isinstance(statement, GuardedAllocationStatementV2):
                 raise V2AuthoringError("program_role_mismatch", "This address does not own an Allocation policy.")
             if operation.role == "primary":
+                if operation.allocation.semantic_id != statement.primary.semantic_id:
+                    raise V2AuthoringError("program_identity_change", "Primary policy editing must preserve semantic identity.")
                 return statement.model_copy(update={"primary": operation.allocation})
             if operation.role == "fallback":
+                if statement.fallback is not None and operation.allocation.semantic_id != statement.fallback.semantic_id:
+                    raise V2AuthoringError("program_identity_change", "Fallback policy editing must preserve semantic identity.")
                 return statement.model_copy(update={"fallback": operation.allocation})
             if operation.role == "override":
                 if operation.override_semantic_id is None:
@@ -657,6 +675,8 @@ def _apply_program_operation(
                 for rule in statement.overrides:
                     if rule.semantic_id == operation.override_semantic_id:
                         found = True
+                        if operation.allocation.semantic_id != rule.action.semantic_id:
+                            raise V2AuthoringError("program_identity_change", "Override action editing must preserve semantic identity.")
                         rule = rule.model_copy(update={"action": operation.allocation})
                     overrides.append(rule)
                 if not found:
