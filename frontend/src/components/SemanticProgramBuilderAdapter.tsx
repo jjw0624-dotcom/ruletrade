@@ -30,6 +30,13 @@ function assetSetForSelection(strategy: CanonicalStrategyV2, selection: Selectio
   return strategy.definitions.asset_sets.find((item) => item.id === (group?.asset_set_ref ?? selection.selection.universe_id));
 }
 
+export function programAllocationToolDescription(strategy: CanonicalStrategyV2): string {
+  const all = flatten(visibleRoots(strategy));
+  const selection = all.find((item): item is SelectionStatementV2 => item.kind === "select");
+  const allocation = selection && all.find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === selection.output_id));
+  return allocation ? "Selected assets are weighted equally within their Investment." : "Choose assets to configure selected-asset weighting.";
+}
+
 export function projectProgramProductStructure(strategy: CanonicalStrategyV2): ProductStructureNode {
   return projectV2ProductSemantics(strategy).root;
 }
@@ -261,7 +268,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Conditional routing is not yet available for production testing.", availability: "unavailable", disabled: true, onAdd: () => undefined },
     { id: "qualification", category: "Routing", label: "Qualification", description: selection ? "Configure which candidate assets qualify." : investment ? "Define Qualification with the first Selection." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(`qualification:${selection.semantic_id}`) : startDraft("selection", "selection", true) },
     { id: "choose-assets", category: "Routing", label: "Choose assets", description: selection ? "This Investment already chooses assets." : "Rank candidates and choose the strongest assets.", availability: selection ? "unavailable" : investment ? "ready" : "needs_context", disabled: !investment || Boolean(selection), onAdd: () => startDraft("selection", "selection") },
-    { id: "allocation", category: "Allocation", label: "Allocation", description: selectionAllocation ? "Selected assets are weighted equally within their Investment." : "Choose assets to configure selected-asset weighting.", availability: "unavailable", disabled: true, onAdd: () => undefined },
+    { id: "allocation", category: "Allocation", label: "Allocation", description: programAllocationToolDescription(canonical), availability: "unavailable", disabled: true, onAdd: () => undefined },
     { id: "schedule", category: "Timing", label: "Rebalance", description: investment ? "Configure the Portfolio rebalance cadence." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => select("rebalance") },
     { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Cooldown is not yet available for this Program profile.", availability: "unavailable", disabled: true, onAdd: () => undefined },
     { id: "fallback", category: "Behavior", label: "Fallback", description: selection ? "Choose the asset used when too few qualify." : "Choose assets first.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(`fallback:${selection.semantic_id}`) },

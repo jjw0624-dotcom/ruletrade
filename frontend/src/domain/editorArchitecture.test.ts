@@ -4,7 +4,7 @@ import { projectConceptualFlow } from "./conceptualFlow";
 import { projectGuided } from "./guided";
 import { projectFlowCanvas } from "../views/FlowView";
 import { createEditorState, editorReducer } from "../store/editorStore";
-import { goldenBootstrap } from "../test/fixture";
+import { goldenBootstrap, sleevesBootstrap } from "../test/fixture";
 import { authoringResponse } from "../test/authoringResponse";
 import { projectV1ProductSemantics } from "./productSemantics";
 
@@ -41,7 +41,9 @@ describe("Strategy Editor Canonical architecture", () => {
     expect(JSON.stringify(product.root)).toContain("Assets");
     expect(product.flow.some((item) => item.label === "Qualification")).toBe(false);
     expect(product.flow.some((item) => item.label === "Rebalance")).toBe(true);
-    const split = product.root.children.find((item) => item.concept === "split");
+    const sleevesState = createEditorState(sleevesBootstrap);
+    const sleevesProduct = projectV1ProductSemantics(projectConceptualFlow(sleevesState.canonical, sleevesState.registry));
+    const split = sleevesProduct.root.children.find((item) => item.concept === "split");
     expect(split?.detail).toBe("70% / 30%");
     expect(split?.children.map((item) => [item.label, item.detail, item.capital?.portfolioShare])).toEqual([
       ["Growth", "70%", { value: .7, source: "v1_sleeve_allocation" }],

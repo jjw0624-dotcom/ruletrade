@@ -6,7 +6,7 @@ import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { projectProgramProductFlow, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
+import { programAllocationToolDescription, projectProgramProductFlow, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 import { productBlockLabel } from "../components/ProductBlockyProjection";
@@ -339,8 +339,7 @@ describe("mounted v2 production editor", () => {
       expect(markup).not.toContain("Growth<!-- --> · <!-- -->100%");
       expect(markup).not.toContain("Defensive<!-- --> · <!-- -->100%");
     }
-    const allocationToolbox = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={splitStrategy} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} initialView="blocky" />);
-    expect(allocationToolbox).toContain("Selected assets are weighted equally within their Investment.");
-    expect(allocationToolbox).not.toContain("Equal allocation is configured.");
+    expect(programAllocationToolDescription(splitStrategy)).toBe("Selected assets are weighted equally within their Investment.");
+    expect(programAllocationToolDescription(splitStrategy)).not.toBe("Equal allocation is configured.");
   });
 });
