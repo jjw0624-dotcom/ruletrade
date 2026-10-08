@@ -274,7 +274,7 @@ describe("mounted v2 production editor", () => {
     const rebalance: BuilderProductOperation = { kind: "setRebalance", cadence: "monthly" };
     expect(adaptV1ProductOperation(rebalance, { scheduleComponentId: "schedule" })[0]?.kind).toBe("update_schedule");
     expect(adaptV2ProductOperation(programStrategy, rebalance, { clockId: "daily-close" })[0]).toEqual({ kind: "set_program_schedule", clock_id: "daily-close", timeframe: "monthly" });
-    expect(adaptV2ProductOperation(programStrategy, { kind: "setAllocation", method: "fixed", investments: [{ id: "growth", weight: .7 }, { id: "defensive", weight: .3 }] })[0]).toEqual({ kind: "set_program_split", investments: [["growth", .7], ["defensive", .3]] });
+    expect(adaptV2ProductOperation(programStrategy, { kind: "setAllocation", method: "fixed", investments: [{ id: "growth", weight: .7 }, { id: "defensive", weight: .3 }] }, {})[0]).toEqual({ kind: "set_program_split", investments: [["growth", .7], ["defensive", .3]] });
     const selection: BuilderProductOperation = { kind: "setSelection", lookback: 126, direction: "highest", take: 2, shortage: "require_full", qualification: { lookback: 126, operator: "gt", threshold: 0 } };
     expect(adaptV2ProductOperation(programStrategy, selection, { investmentId: "growth", clockId: "daily-close" })[0]).toMatchObject({
       kind: "create_program_selection", investment_id: "growth", lookback: 126,
