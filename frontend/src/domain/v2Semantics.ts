@@ -1,4 +1,4 @@
-import type { ConditionV2, DailyValueNode } from "./canonicalV2";
+import type { ConditionV2, DailyValueNode, ProgramStatementV2, ValueExpressionV2 } from "./canonicalV2";
 
 const subject = (node: DailyValueNode) => node.subject_kind === "candidate"
   ? "Candidate"
@@ -31,11 +31,40 @@ export function describeDailyValue(node: DailyValueNode): string {
   return source;
 }
 
+export function describeValueV2(node: ValueExpressionV2): string {
+  if ("operands" in node) return describeDailyValue(node);
+  if (node.kind === "cross_sectional") return `${describeValueV2(node.source)} · ${node.transform.replace("_", "-")} across ${node.domain_id}`;
+  if (node.kind === "cross_sectional_aggregate") return `${node.domain_id} members' ${node.reduction} ${describeValueV2(node.source)}`;
+  if (node.kind === "score") return `Composite score · ${node.terms.length + node.condition_terms.length} terms`;
+  if (node.kind === "remembered_value") return `Remembered ${node.memory_id}`;
+  if (node.kind === "clocked_value") return `Completed ${String(node.clock_id ?? "clock")} value`;
+  if (node.kind === "event_relative") return `Value at ${String(node.event_id ?? "event")}`;
+  if (node.kind === "bars_since_event") return `Bars since ${String(node.event_id ?? "event")}`;
+  if (node.kind === "bars_since_state") return `Bars since ${String(node.state_key ?? "state")}`;
+  if (node.kind === "time_since_event") return `Time since ${String(node.event_id ?? "event")}`;
+  return `Time since ${String(node.state_key ?? "state")}`;
+}
+
 export function describeConditionV2(condition: ConditionV2): string {
   if (condition.kind === "comparison") {
     const operator = { lt: "<", lte: "≤", eq: "=", neq: "≠", gte: "≥", gt: ">" }[condition.operator];
-    return `${describeDailyValue(condition.left)} ${operator} ${describeDailyValue(condition.right)}`;
+    return `${describeValueV2(condition.left)} ${operator} ${describeValueV2(condition.right)}`;
   }
   if (condition.kind === "not") return `NOT (${describeConditionV2(condition.child)})`;
+  if (condition.kind === "n_of_m") return `At least ${condition.minimum_true} of ${condition.children.length}`;
+  if (condition.kind === "state_equals") return `${condition.state_key} is ${condition.expected}`;
+  if (condition.kind === "event_window") return `${condition.relation} ${condition.event_id}`;
   return `${condition.kind.toUpperCase()} · ${condition.children.length} conditions`;
 }
+
+export function describeProgramStatement(statement: ProgramStatementV2): string {
+  if (statement.kind === "select") return `Choose ${statement.selection.count} assets`;
+  if (statement.kind === "allocate") return statement.method === "equal" ? "Allocate equally" : `Allocate · ${statement.method.replace("_", " ")}`;
+  if (statement.kind === "control") return `IF ${describeConditionV2(statement.condition)}`;
+  if (statement.kind === "on_event") return `${statement.event.trigger.replaceAll("_", " ")} · ${statement.event.occurrence}`;
+  if (statement.kind === "transition") return `${statement.transition.state_key}: ${statement.transition.from_value ?? "any"} → ${statement.transition.to_value}`;
+  if (statement.kind === "remember_value") return `Remember ${statement.memory_id}`;
+  if (statement.kind === "guarded_allocation") return `Allocation policy · ${statement.overrides.length} overrides`;
+  return `Needs definition: ${statement.source_text}`;
+}
+

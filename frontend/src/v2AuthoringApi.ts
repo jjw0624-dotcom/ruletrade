@@ -6,6 +6,11 @@ export interface V2AuthoringCapability {
   label: string;
   available: boolean;
   reason: string | null;
+  semantic_status?: "executable" | "reference_only" | "unavailable";
+  reference_evaluable?: boolean;
+  backend_lowerable?: boolean;
+  authoring_reachable?: boolean;
+  production_ready?: boolean;
 }
 
 export class V2AuthoringApiError extends Error {
@@ -15,6 +20,11 @@ export class V2AuthoringApiError extends Error {
 }
 
 export const v2AuthoringApi = {
+  async programTemplate(name: string, assets: string[] = ["SPY"], fetcher: typeof fetch = fetch): Promise<CanonicalStrategyV2> {
+    const response = await fetcher("/api/v2/canonical/authoring/program-template", jsonBody("POST", { name, assets }));
+    if (!response.ok) throw new Error(`Program template creation failed (${response.status})`);
+    return await response.json() as CanonicalStrategyV2;
+  },
   async capabilities(fetcher: typeof fetch = fetch): Promise<V2AuthoringCapability[]> {
     const response = await fetcher("/api/v2/canonical/authoring/capabilities");
     if (!response.ok) throw new Error(`Capability discovery failed (${response.status})`);
@@ -39,3 +49,4 @@ export const v2AuthoringApi = {
     return await response.json() as { strategy: CanonicalStrategyV2; source_hash: string };
   },
 };
+

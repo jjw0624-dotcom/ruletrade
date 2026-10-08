@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
-import type { CanonicalStrategyV2, ComparisonV2, ConditionV2, DailyValueNode } from "../domain/canonicalV2";
-import { describeConditionV2, describeDailyValue } from "../domain/v2Semantics";
+import { isDailyValue, type CanonicalStrategyV2, type ComparisonV2, type ConditionV2, type DailyValueNode, type ValueExpressionV2 } from "../domain/canonicalV2";
+import { describeConditionV2, describeDailyValue, describeValueV2 } from "../domain/v2Semantics";
 
 type Role = "predicate" | "eligibility" | "ranking";
 type Operation = "observe" | "trailing_return" | "sma" | "ema" | "rsi_wilder_lean_compat" | "realized_volatility";
@@ -56,8 +56,10 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
         onChange({ ...value, value: numeric }); onWorking?.(false);
       }} /></label>;
   }
+  const programSelection = strategy.program?.statements.find((item) => item.kind === "select");
+  const bindingId = strategy.selection?.binding.id ?? (programSelection?.kind === "select" ? programSelection.selection.binding.id : "candidate");
   const subjectKind = observe?.subject_kind ?? (role === "eligibility" || role === "ranking" ? "candidate" : "asset");
-  const subjectId = subjectKind === "candidate" ? strategy.selection!.binding.id : observe?.subject_id ?? assets[0] ?? "";
+  const subjectId = subjectKind === "candidate" ? bindingId : observe?.subject_id ?? assets[0] ?? "";
   const subject: DailyValueNode = observe ?? {
     semantic_id: `${value.semantic_id}-source`,
     kind: "observe",
@@ -82,7 +84,7 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
     </button>
     {open && <div className="value-editor">
       <fieldset><legend>What is this value about?</legend><div className="semantic-choice-row">
-        {(role === "eligibility" || role === "ranking") && <button type="button" aria-pressed={subjectKind === "candidate"} onClick={() => emit(operation, withSubject(subject, "candidate", strategy.selection!.binding.id))}>Current candidate</button>}
+        {(role === "eligibility" || role === "ranking") && <button type="button" aria-pressed={subjectKind === "candidate"} onClick={() => emit(operation, withSubject(subject, "candidate", bindingId))}>Current candidate</button>}
         <button type="button" aria-pressed={subjectKind === "asset"} onClick={() => emit(operation, withSubject(subject, "asset", assets[0] ?? ""))}>Specific asset</button>
         <button type="button" aria-pressed={subjectKind === "group_members"} onClick={() => emit(operation, withSubject(subject, "group_members", strategy.definitions.groups[0]?.id ?? ""))}>Static Group members</button>
       </div></fieldset>
@@ -106,6 +108,45 @@ export function V2ValueComposer({ value, strategy, role, literal, onChange, onWo
   </div>;
 }
 
+function literalFor(value: DailyValueNode, semanticId: string): DailyValueNode {
+  const kind = value.kind;
+  const price = ["observe", "current", "sma", "ema"].includes(kind);
+  const oscillator = kind === "rsi_wilder_lean_compat";
+  return { semantic_id: semanticId, kind: "literal", operands: [], value: 0,
+    quantity: price ? "price" : oscillator ? "oscillator" : "return",
+    unit: price ? "USD/share" : oscillator ? "points" : "ratio",
+    refinement: price ? "adjusted_close" : oscillator ? "rsi_wilder" : "return",
+    skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 };
+}
+
+export function V2ProgramValueComposer({ value, strategy, role, onChange, onWorking }: {
+  value: ValueExpressionV2; strategy: CanonicalStrategyV2; role: Role;
+  onChange: (value: ValueExpressionV2) => void; onWorking?: (unfinished: boolean) => void;
+}) {
+  const domains = strategy.definitions.groups;
+  if (isDailyValue(value)) return <div className="program-value-composer">
+    <V2ValueComposer value={value} strategy={strategy} role={role} onChange={onChange} onWorking={onWorking} />
+    <details className="semantic-subeditor"><summary>Add semantic operation</summary><div className="semantic-choice-row">
+      <button type="button" onClick={() => onChange({ kind: "cross_sectional", semantic_id: value.semantic_id, source: { ...value, semantic_id: value.semantic_id + "-source" }, domain_id: domains[0]?.id ?? strategy.definitions.asset_axis.domain_id, transform: "rank", direction: "descending", bins: null })}>Rank across members</button>
+      <button type="button" onClick={() => onChange({ kind: "cross_sectional_aggregate", semantic_id: value.semantic_id, source: { ...value, semantic_id: value.semantic_id + "-source" }, domain_id: domains[0]?.id ?? strategy.definitions.asset_axis.domain_id, reduction: "median", coverage: "require_all" })}>Median across members</button>
+      <button type="button" onClick={() => onChange({ kind: "score", semantic_id: value.semantic_id, terms: [{ semantic_id: value.semantic_id + "-term", value: { ...value, semantic_id: value.semantic_id + "-source" }, weight: 1 }], condition_terms: [], missing_policy: "require_all", normalization: "none", clamp_min: null, clamp_max: null })}>Use as score</button>
+      <button type="button" onClick={() => onChange({ semantic_id: value.semantic_id, kind: "arithmetic", arithmetic: "add", operands: [{ ...value, semantic_id: value.semantic_id + "-source" }, literalFor(value, value.semantic_id + "-literal")], skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 })}>Add arithmetic</button>
+      <button type="button" onClick={() => onChange({ semantic_id: value.semantic_id, kind: "absolute", operands: [{ ...value, semantic_id: value.semantic_id + "-source" }], skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 })}>Absolute value</button>
+    </div></details>
+  </div>;
+  if (value.kind === "cross_sectional") return <div className="program-value-composer"><p className="fixed-setting">{describeValueV2(value)}</p>
+    <label>Across<select value={value.domain_id} onChange={(event) => onChange({ ...value, domain_id: event.target.value })}>{domains.map((domain) => <option key={domain.id} value={domain.id}>{domain.name}</option>)}</select></label>
+    <label>Transform<select value={value.transform} onChange={(event) => { const transform = event.target.value as typeof value.transform; onChange({ ...value, transform, bins: transform === "quantile" || transform === "bucket" ? value.bins ?? 5 : null }); }}><option value="rank">Rank</option><option value="percentile">Percentile</option><option value="quantile">Quantile</option><option value="bucket">Bucket</option><option value="min_max">Min-max normalization</option><option value="zscore">Z-score</option></select></label>
+    {(value.transform === "quantile" || value.transform === "bucket") && <label>Buckets<input type="number" min={2} max={100} defaultValue={value.bins ?? 5} onBlur={(event) => onChange({ ...value, bins: Number(event.target.value) })} /></label>}
+    <button type="button" className="text-button" onClick={() => onChange(value.source)}>Remove cross-sectional transform</button>
+  </div>;
+  if (value.kind === "score") return <div className="program-value-composer"><p className="fixed-setting">{describeValueV2(value)}</p>{value.terms.map((term, index) => <section key={term.semantic_id} className="score-term"><span>{describeValueV2(term.value)}</span><label>Weight<input type="number" step="0.05" defaultValue={String(term.weight)} onBlur={(event) => onChange({ ...value, terms: value.terms.map((item, position) => position === index ? { ...item, weight: Number(event.target.value) } : item) })} /></label></section>)}
+    <label>Missing terms<select value={value.missing_policy} onChange={(event) => onChange({ ...value, missing_policy: event.target.value as typeof value.missing_policy })}><option value="require_all">Require all</option><option value="renormalize_available">Renormalize available</option></select></label>
+    <label>Normalization<select value={value.normalization} onChange={(event) => onChange({ ...value, normalization: event.target.value as typeof value.normalization })}><option value="none">None</option><option value="sum_abs">Normalize absolute weights</option></select></label>
+  </div>;
+  return <div className="program-value-composer"><p className="fixed-setting">{describeValueV2(value)}</p><p className="value-capability-note">This typed Value is reference-capable and preserved by semantic identity.</p></div>;
+}
+
 
 export function V2ConditionComposer({ condition, strategy, role, onChange, onWorking }: {
   condition: ConditionV2;
@@ -115,27 +156,52 @@ export function V2ConditionComposer({ condition, strategy, role, onChange, onWor
   onWorking?: (unfinished: boolean) => void;
 }) {
   const [active, setActive] = useState<string | null>(null);
+  const nested = (item: ConditionV2): ConditionV2 => ({ ...item, semantic_id: item.semantic_id + "-child" });
+  const grouped = (kind: "all" | "any" | "n_of_m"): ConditionV2 => {
+    const children = "children" in condition ? condition.children : [nested(condition)];
+    return kind === "n_of_m" ? { kind, semantic_id: condition.semantic_id, minimum_true: Math.min(1, children.length), children } : { kind, semantic_id: condition.semantic_id, children };
+  };
+  const comparisonSeed = (item: ConditionV2): ComparisonV2 | null => item.kind === "comparison" ? item : item.kind === "not" ? comparisonSeed(item.child) : "children" in item ? comparisonSeed(item.children[0]) : null;
+  const clonedComparison = (group: Extract<ConditionV2, { children: ConditionV2[] }>): ComparisonV2 | null => {
+    const seed = comparisonSeed(group);
+    if (!seed) return null;
+    const id = `${group.semantic_id}-condition-${group.children.length + 1}`;
+    return { ...seed, semantic_id: id, left: { ...seed.left, semantic_id: id + "-left" }, right: { ...seed.right, semantic_id: id + "-right" } };
+  };
   const comparison = (item: ComparisonV2) => <div className="condition-comparison-row" key={item.semantic_id}>
-    <button type="button" className="semantic-value-row" aria-expanded={active === `${item.semantic_id}:left`} onClick={() => setActive(active === `${item.semantic_id}:left` ? null : `${item.semantic_id}:left`)}>{describeDailyValue(item.left)}</button>
+    <button type="button" className="semantic-value-row" aria-expanded={active === `${item.semantic_id}:left`} onClick={() => setActive(active === `${item.semantic_id}:left` ? null : `${item.semantic_id}:left`)}>{describeValueV2(item.left)}</button>
     <select aria-label="Comparison operator" value={item.operator} onChange={(event) => onChange({ ...item, operator: event.target.value as ComparisonV2["operator"] })}><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option><option value="eq">=</option><option value="neq">≠</option></select>
-    <button type="button" className="semantic-value-row" aria-expanded={active === `${item.semantic_id}:right`} onClick={() => setActive(active === `${item.semantic_id}:right` ? null : `${item.semantic_id}:right`)}>{describeDailyValue(item.right)}</button>
-    {active === `${item.semantic_id}:left` && <V2ValueComposer value={item.left} strategy={strategy} role={role} onWorking={onWorking} onChange={(left) => onChange({ ...item, left })} />}
-    {active === `${item.semantic_id}:right` && <V2ValueComposer value={item.right} strategy={strategy} role={role} literal={item.right.kind === "literal"} onWorking={onWorking} onChange={(right) => onChange({ ...item, right })} />}
+    <button type="button" className="semantic-value-row" aria-expanded={active === `${item.semantic_id}:right`} onClick={() => setActive(active === `${item.semantic_id}:right` ? null : `${item.semantic_id}:right`)}>{describeValueV2(item.right)}</button>
+    {active === `${item.semantic_id}:left` && (isDailyValue(item.left)
+      ? <V2ValueComposer value={item.left} strategy={strategy} role={role} onWorking={onWorking} onChange={(left) => onChange({ ...item, left })} />
+      : <V2ProgramValueComposer value={item.left} strategy={strategy} role={role} onWorking={onWorking} onChange={(left) => onChange({ ...item, left })} />)}
+    {active === `${item.semantic_id}:right` && (isDailyValue(item.right)
+      ? <V2ValueComposer value={item.right} strategy={strategy} role={role} literal={item.right.kind === "literal"} onWorking={onWorking} onChange={(right) => onChange({ ...item, right })} />
+      : <V2ProgramValueComposer value={item.right} strategy={strategy} role={role} onWorking={onWorking} onChange={(right) => onChange({ ...item, right })} />)}
   </div>;
   const tree = (item: ConditionV2): ReactNode => {
     if (item.kind === "comparison") return comparison(item);
     if (item.kind === "not") return <section className="condition-group" key={item.semantic_id}><strong>NOT</strong>{tree(item.child)}</section>;
-    return <section className="condition-group" key={item.semantic_id}><header><strong>{item.kind === "all" ? "ALL of these" : "ANY of these"}</strong></header>
+    if (item.kind === "state_equals" || item.kind === "event_window") return <section className="condition-group" key={item.semantic_id}><strong>{describeConditionV2(item)}</strong></section>;
+    return <section className="condition-group" key={item.semantic_id}><header><strong>{item.kind === "all" ? "ALL of these" : item.kind === "any" ? "ANY of these" : `At least ${item.minimum_true} of these`}</strong>{item.kind === "n_of_m" && <input aria-label="Minimum true conditions" type="number" min={1} max={item.children.length} value={item.minimum_true} onChange={(event) => onChange({ ...item, minimum_true: Number(event.target.value) })} />}</header>
       {item.children.map((child, index) => <div key={child.semantic_id}>{child.kind === "comparison"
         ? comparison({ ...child, semantic_id: child.semantic_id })
         : tree(child)}
         <button type="button" className="text-button danger" disabled={item.children.length === 1} onClick={() => onChange({ ...item, children: item.children.filter((_, position) => position !== index) })}>Remove</button>
       </div>)}
+      <button type="button" className="text-button" onClick={() => { const next = clonedComparison(item); if (next) onChange({ ...item, children: [...item.children, next] }); }}>+ Add condition</button>
     </section>;
   };
   return <div className="v2-condition-composer" aria-label={`${role} Condition editor`}>
     <p className="fixed-setting">{describeConditionV2(condition)}</p>
+    <div className="semantic-choice-row" aria-label="Condition structure">
+      <button type="button" aria-pressed={condition.kind === "all"} onClick={() => onChange(condition.kind === "all" ? condition : grouped("all"))}>ALL</button>
+      <button type="button" aria-pressed={condition.kind === "any"} onClick={() => onChange(condition.kind === "any" ? condition : grouped("any"))}>ANY</button>
+      <button type="button" aria-pressed={condition.kind === "n_of_m"} onClick={() => onChange(condition.kind === "n_of_m" ? condition : grouped("n_of_m"))}>N-of-M</button>
+      <button type="button" aria-pressed={condition.kind === "not"} onClick={() => onChange(condition.kind === "not" ? condition : { kind: "not", semantic_id: condition.semantic_id, child: nested(condition) })}>NOT</button>
+    </div>
     {tree(condition)}
     <p className="value-capability-note">Nested ALL / ANY supports four levels, twelve clauses per group, and forty total nodes.</p>
   </div>;
 }
+

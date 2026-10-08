@@ -195,6 +195,59 @@ def test_v2_api_capabilities_are_provider_honest() -> None:
         assert capabilities["daily.rsi_wilder_lean_compat@1"]["available"] is True
         assert capabilities["daily.volume_raw_shares@1"]["available"] is False
         assert capabilities["daily.raw_ohlc@1"]["available"] is False
+        assert capabilities["program.event@1"] == {
+            "operation_id": "program.event@1",
+            "label": "Event semantics",
+            "available": True,
+            "reason": "Authorable and reference-evaluable; production execution lowering is not available.",
+            "semantic_status": "reference_only",
+            "reference_evaluable": True,
+            "backend_lowerable": False,
+            "authoring_reachable": True,
+            "production_ready": False,
+        }
+        assert capabilities["daily.volume_raw_shares@1"]["semantic_status"] == "unavailable"
+
+
+def test_program_template_is_program_native_and_never_synthesizes_compatibility_selection() -> None:
+    with TestClient(app) as client:
+        response = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Program native",
+            "assets": ["SPY", "TLT"],
+        })
+        assert response.status_code == 200, response.text
+        strategy = response.json()
+        assert strategy["selection"] is None
+        assert strategy["program"]["semantic_id"] == "program"
+        assert strategy["program"]["statements"][0]["kind"] == "allocate"
+        assert strategy["program"]["statements"][0]["legs"][0]["target"]["kind"] == "retain"
+        assert strategy["definitions"]["asset_sets"][0]["assets"] == ["SPY", "TLT"]
+
+
+def test_program_native_template_saves_revises_and_reopens_through_real_repository(tmp_path: Path) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "program-native.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            template = client.post("/v2/canonical/authoring/program-template", json={"name": "Program", "assets": ["SPY"]}).json()
+            created = client.post("/v1/strategies", json={"name": "Program", "canonical_strategy": template})
+            assert created.status_code == 201, created.text
+            detail = created.json()
+            first = detail["current_revision"]
+            edited = first["canonical_strategy"]
+            edited["program"]["formalizations"] = [{
+                "source_phrase": "strong breakout", "status": "unresolved",
+                "semantic_ids": [], "interpretation": None,
+            }]
+            saved = client.post(f"/v1/strategies/{detail['strategy']['id']}/revisions", json={
+                "expected_parent_revision_id": first["id"], "canonical_strategy": edited,
+            })
+            assert saved.status_code == 201, saved.text
+            reopened = StrategyService(SQLiteStrategyRepository(tmp_path / "program-native.sqlite3")).get_strategy(detail["strategy"]["id"])
+            assert reopened.current_revision.canonical_strategy.program.formalizations[0].source_phrase == "strong breakout"
+            assert reopened.current_revision.canonical_strategy.selection is None
+    finally:
+        app.dependency_overrides.clear()
 
 
 def selection_snapshot() -> DailyMarketSnapshot:
@@ -292,3 +345,4 @@ def test_v2_selection_execution_api_uses_repository_dataset_and_returns_evidence
     assert result["evidence"]["requested_members"] == ["QQQ", "VOO"]
     assert result["evidence"]["ranking_observations"][0]["expression_hash"]
     assert result["evidence"]["ranking_observations"][0]["operator_versions"] == ["trailing_return@1"]
+

@@ -6,6 +6,7 @@ import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi } from "../v2AuthoringApi";
 import { executeV2Selection, type V2SelectionExecution } from "../v2ExecutionApi";
 import { V2ConditionComposer, V2ValueComposer } from "./V2SemanticComposer";
+import { V2ProgramWorkspace } from "./V2ProgramWorkspace";
 
 type View = "summary" | "flow" | "blocky" | "rules";
 
@@ -23,27 +24,11 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [status, setStatus] = useState<"saved" | "updating" | "invalid" | "unfinished">("saved");
   const [message, setMessage] = useState("Saved");
   const [result, setResult] = useState<V2SelectionExecution | null>(null);
+  const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
+  const [redoStack, setRedoStack] = useState<typeof initial[]>([]);
   const sequence = useRef(0);
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
-
-  if (canonical.selection === null) {
-    return <section className="strategy-builder-workspace v2-program-workspace" data-canonical-version="v2">
-      <header className="builder-chrome">
-        <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
-        <div className="builder-identity"><strong>{persisted.strategy.name}</strong><small>Semantic Program Core</small></div>
-        <div className="builder-actions"><button className="secondary-button" disabled>Save</button><button className="primary-button" disabled>Test ▶</button></div>
-      </header>
-      <main className="representation-workspace">
-        <section className="representation-layer v2-summary">
-          <span className="eyebrow">Profile A · Semantic Program Core</span>
-          <h1>{canonical.metadata.name}</h1>
-          <p>{canonical.program?.statements.length ?? 0} typed Program statements are preserved in this revision.</p>
-          <p>Generalized Program authoring is intentionally deferred until the core contract is accepted.</p>
-        </section>
-      </main>
-    </section>;
-  }
 
   const apply = async (operation: V2AuthoringOperation) => {
     const request = ++sequence.current;
@@ -51,6 +36,8 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     try {
       const response = await v2AuthoringApi.apply(canonical, sourceHash, operation);
       if (request !== sequence.current) return;
+      setUndoStack((items) => [...items, canonical]);
+      setRedoStack([]);
       setCanonical(response.strategy);
       setSourceHash(response.source_hash);
       setDirty(true);
@@ -59,6 +46,26 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       if (request !== sequence.current) return;
       setStatus("invalid");
       setMessage(reason instanceof Error ? reason.message : "This semantic edit is invalid.");
+    }
+  };
+  const restore = async (target: typeof canonical, direction: "undo" | "redo") => {
+    if (!target.program) return;
+    const current = canonical;
+    const request = ++sequence.current;
+    setStatus("updating"); setMessage(direction === "undo" ? "Undoing…" : "Redoing…");
+    try {
+      const response = await v2AuthoringApi.apply(canonical, sourceHash, { kind: "set_semantic_program", program: target.program });
+      if (request !== sequence.current) return;
+      setCanonical(response.strategy); setSourceHash(response.source_hash); setDirty(true);
+      if (direction === "undo") {
+        setUndoStack((items) => items.slice(0, -1)); setRedoStack((items) => [...items, current]);
+      } else {
+        setRedoStack((items) => items.slice(0, -1)); setUndoStack((items) => [...items, current]);
+      }
+      setStatus("saved"); setMessage(direction === "undo" ? "Undone" : "Redone");
+    } catch (reason) {
+      if (request !== sequence.current) return;
+      setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "History operation failed.");
     }
   };
   const save = async () => {
@@ -84,6 +91,18 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Test failed.");
     }
   };
+  const working = (unfinished: boolean) => {
+    setStatus(unfinished ? "unfinished" : "saved");
+    setMessage(unfinished ? "Unfinished semantic edit" : "Ready");
+  };
+  if (canonical.selection === null && canonical.program) {
+    return <V2ProgramWorkspace canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
+      apply={(operation) => void apply(operation)} save={() => void save()}
+      undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
+      redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
+      canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working} />;
+  }
+  if (canonical.selection === null) return null;
   const selection = canonical.selection;
   const universe = canonical.definitions.groups.find((group) => group.id === selection.universe_id);
   const assetSet = canonical.definitions.asset_sets.find((item) => item.id === (universe?.asset_set_ref ?? selection.universe_id));
@@ -123,3 +142,4 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     </div>
   </section>;
 }
+

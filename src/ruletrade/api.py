@@ -139,6 +139,22 @@ from ruletrade.strategy.v1.semantics import (
     project_semantic_composition,
 )
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategy.v2.authoring import (
+    ApplyV2AuthoringRequest,
+    ApplyV2AuthoringResponse,
+    ProgramStrategyTemplateRequest,
+    V2AuthoringCapability,
+    V2AuthoringError,
+    apply_v2_authoring,
+    authoring_capabilities as v2_authoring_capabilities,
+    create_program_strategy_template,
+)
+from ruletrade.strategy.v2.daily_provider import DatasetDailySnapshotProvider, DailyDatasetProviderError
+from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
+from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
+from ruletrade.strategy.v2.semantic_types import FrozenModel
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v1.value_semantics import (
     DatasetValueEvaluator,
     SemanticValueEvidence,
@@ -147,22 +163,6 @@ from ruletrade.strategy.v1.value_semantics import (
     ValueEvaluationRequest,
     value_capabilities,
 )
-from ruletrade.strategy.v2.authoring import (
-    ApplyV2AuthoringRequest,
-    ApplyV2AuthoringResponse,
-    V2AuthoringCapability,
-    V2AuthoringError,
-    apply_v2_authoring,
-)
-from ruletrade.strategy.v2.authoring import (
-    authoring_capabilities as v2_authoring_capabilities,
-)
-from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
-from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
-from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
-from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
-from ruletrade.strategy.v2.semantic_types import FrozenModel
-from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 logger = logging.getLogger(__name__)
 
@@ -744,6 +744,14 @@ def validate_canonical_strategy_v1(
 )
 def canonical_v2_authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
     return v2_authoring_capabilities()
+
+
+@app.post("/v2/canonical/authoring/program-template", response_model=CanonicalStrategyV2)
+def canonical_v2_program_template(request: ProgramStrategyTemplateRequest) -> CanonicalStrategyV2:
+    try:
+        return create_program_strategy_template(request)
+    except V2AuthoringError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "path": exc.path, "message": str(exc)}) from exc
 
 
 @app.post(

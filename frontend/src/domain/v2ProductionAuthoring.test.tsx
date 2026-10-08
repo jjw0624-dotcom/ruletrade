@@ -100,7 +100,18 @@ describe("mounted v2 production editor", () => {
           completed_only: true,
         }],
         initial_state: {},
-        statements: [{ kind: "allocate", semantic_id: "allocate" }],
+        formalizations: [{ source_phrase: "clean breakout", status: "unresolved", semantic_ids: [], interpretation: null }],
+        statements: [{
+          kind: "select", semantic_id: "program-selection", output_id: "selected-growth", clock_id: "daily-close",
+          selection: { ...strategy.selection!, semantic_id: "program-selection-definition" },
+        }, {
+          kind: "allocate", semantic_id: "allocate", method: "equal", clock_id: "daily-close",
+          legs: [{ semantic_id: "retain-leg", target: { semantic_id: "retain-target", kind: "retain", ref: null }, weight: null }],
+          minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+        }, {
+          kind: "unresolved", semantic_id: "unresolved-clean-breakout", source_text: "clean breakout",
+          category: "fuzzy_term", reason: "Requires an explicit Condition formalization.",
+        }],
       },
     };
     const markup = renderToStaticMarkup(<V2StrategyEditor
@@ -113,8 +124,13 @@ describe("mounted v2 production editor", () => {
       }}
       onHome={() => undefined}
     />);
-    expect(markup).toContain("Semantic Program Core");
-    expect(markup).toContain("1 typed Program statements");
-    expect(markup).not.toContain("All candidates qualify");
+    expect(markup).toContain('data-program-native="true"');
+    expect(markup).toContain("Program toolbox");
+    expect(markup).toContain("Choose 2 assets");
+    expect(markup).toContain("Reference-valid Program");
+    expect(markup).toContain("production execution unavailable");
+    expect(markup).toContain("Unresolved idea");
+    expect(markup).not.toContain("Generalized Program authoring is intentionally deferred");
   });
 });
+
