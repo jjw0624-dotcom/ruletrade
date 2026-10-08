@@ -51,7 +51,7 @@ export function projectProgramProductStructure(strategy: CanonicalStrategyV2): P
   });
   const controls = roots.filter((item) => item.kind === "control").map((item) => ({ id: item.semantic_id, label: "IF / OTHERWISE", detail: describeConditionV2(item.condition), children: [] }));
   const timeframe = strategy.program?.clocks[0]?.timeframe ?? "daily";
-  const split = roots.find((item) => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
+  const split = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
   const capital = split ? [{ id: "split", label: "Split", detail: split.legs.map((leg) => `${Number(leg.weight ?? 0) * 100}%`).join(" / "), children: investments }] : investments;
   return { id: "portfolio", label: "Portfolio", children: [...capital, ...controls, ...(investments.length ? [{ id: "rebalance", label: "Rebalance", detail: `${timeframe[0]!.toUpperCase()}${timeframe.slice(1)} close`, children: [] }] : [])] };
 }
@@ -258,7 +258,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const startDraft = (kind: NonNullable<DraftConcept>["kind"], prefix: string) => { setDraft({ kind, semanticId: nextId(canonical, prefix) }); setSelectedId(null); working(true); setView("blocky"); };
   const selection = all.find((item): item is SelectionStatementV2 => item.kind === "select");
   const allocation = roots.find((item) => item.kind === "allocate" && !isBootstrapRetain(item));
-  const portfolioSplit = roots.find((item) => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
+  const portfolioSplit = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
   const investment = canonical.definitions.groups[0];
   const investmentAssets = canonical.definitions.asset_sets.find((item) => item.id === investment?.asset_set_ref);
   const nextInvestmentNumber = canonical.definitions.groups.length + 1;

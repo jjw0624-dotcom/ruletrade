@@ -42,12 +42,12 @@ export function CompatibilitySelectionBuilderAdapter({ canonical, dirty, status,
     ],
   }] };
   const tools: ProductAddAction[] = [
-    { id: "if", category: "Control", label: "If / Otherwise", description: "Available for Program-native strategies.", disabled: true, onAdd: () => undefined },
-    { id: "choose", category: "Selection", label: "Choose assets", description: "This investment already chooses assets.", disabled: true, onAdd: () => undefined },
-    { id: "qualification", category: "Selection", label: "Eligibility", description: "Edit Qualification in Structure.", disabled: false, onAdd: () => setSelectedId("qualification") },
-    { id: "allocate", category: "Action", label: "Allocate", description: "Equal allocation is defined by this compatibility strategy.", disabled: true, onAdd: () => undefined },
+    { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Available for Program-native strategies.", disabled: true, onAdd: () => undefined },
+    { id: "choose", category: "Routing", label: "Choose assets", description: "This investment already chooses assets.", disabled: true, onAdd: () => undefined },
+    { id: "qualification", category: "Routing", label: "Qualification", description: "Edit Qualification in Structure.", disabled: false, onAdd: () => setSelectedId("qualification") },
+    { id: "allocate", category: "Allocation", label: "Allocation", description: "Equal allocation is defined by this compatibility strategy.", disabled: true, onAdd: () => undefined },
     { id: "schedule", category: "Timing", label: "Schedule", description: "Daily close schedule is configured.", disabled: true, onAdd: () => undefined },
-    { id: "fallback", category: "Behavior", label: "Selection fallback", description: "Edit Fallback in Structure.", disabled: false, onAdd: () => setSelectedId("fallback") },
+    { id: "fallback", category: "Behavior", label: "Fallback", description: "Edit Fallback in Structure.", disabled: false, onAdd: () => setSelectedId("fallback") },
   ];
   const selectionInspector = <div className="semantic-inspector-content"><SelectionComposer
     direction={selection.direction} count={selection.count} shortagePolicy={selection.shortage_policy}
