@@ -13,6 +13,7 @@ from pydantic import Field
 
 from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v1.models import AssetSetDefinition, GroupDefinition, StrategyMetadata
+from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
 from ruletrade.strategy.v2.models import (
     AllocationLegV2,
     AllocationStatementV2,
@@ -26,9 +27,9 @@ from ruletrade.strategy.v2.models import (
     FormalizationProvenanceV2,
     GuardedAllocationStatementV2,
     Identifier,
+    ProgramClockV2,
     ProgramStatementV2,
     RememberValueStatementV2,
-    ProgramClockV2,
     SelectionV2,
     SelectionStatementV2,
     SemanticProgramV2,
@@ -39,10 +40,8 @@ from ruletrade.strategy.v2.models import (
     Symbol,
     ValueExpressionV2,
 )
-from ruletrade.strategy.v2.semantic_types import Axis, FrozenModel
+from ruletrade.strategy.v2.semantic_types import Axis, FrozenModel, Quantity, Unit
 from ruletrade.strategy.v2.validation import v2_capabilities, validate_strategy_v2
-from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
-from ruletrade.strategy.v2.semantic_types import Quantity, Unit
 
 
 class V2AuthoringError(ValueError):
