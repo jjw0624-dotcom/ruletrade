@@ -9,7 +9,7 @@ export type BuilderProductOperation =
   | { kind: "setSelection"; lookback: number; direction: "highest" | "lowest"; take: number; shortage: "choose_all" | "require_full" }
   | { kind: "setFallback"; asset: string | null }
   | { kind: "setAllocation"; method: "equal" | "fixed"; investments?: Array<{ id: string; weight: number }> }
-  | { kind: "setRebalance"; cadence: "daily" | "weekly" | "monthly" };
+  | { kind: "setRebalance"; cadence: "daily" | "weekly" | "monthly"; day?: number | null };
 
 export interface V1ProductAddress {
   assetSetId?: string; rankComponentId?: string; selectionComponentId?: string;
@@ -32,7 +32,7 @@ export function adaptV1ProductOperation(operation: BuilderProductOperation, addr
       if (address.fallbackComponentId && address.fallbackAssetSetId) return [{ kind: "update_fallback_asset_set", component_id: address.fallbackComponentId, asset_set_id: address.fallbackAssetSetId }];
       return operation.asset && address.weightComponentId ? [{ kind: "add_fallback_selection", weight_component_id: address.weightComponentId, fallback_asset: operation.asset }] : [];
     case "setAllocation": return address.allocationComponents ? [{ kind: "update_sleeve_allocations", allocations: address.allocationComponents }] : [];
-    case "setRebalance": return address.scheduleComponentId && operation.cadence !== "weekly" ? [{ kind: "update_schedule", component_id: address.scheduleComponentId, cadence: operation.cadence }] : [];
+    case "setRebalance": return address.scheduleComponentId && operation.cadence !== "weekly" ? [{ kind: "update_schedule", component_id: address.scheduleComponentId, cadence: operation.cadence, ...(operation.day === undefined ? {} : { day: operation.day }) }] : [];
     case "addInvestment": return [];
   }
 }

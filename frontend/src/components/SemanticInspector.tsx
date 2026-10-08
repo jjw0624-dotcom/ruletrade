@@ -199,7 +199,15 @@ function CanonicalV1SemanticInspector({
             disabled={structural.status === "checking"}
             onWorkingState={(working) => { if (working === "incomplete") structural.setSemanticEditStatus?.("unfinished"); }}
             onUniverseChange={universeCapability ? (universeId) => void structural.apply({ kind: "update_universe_reference", component_id: universeCapability.component_id, universe_id: universeId }, semanticSelection("selection", selectionComponent.id, { groupId: group.id })) : undefined}
-            onChange={(value) => { const native = adaptV1ProductOperation({ kind: "setSelection", lookback: choose.lookbackBars ?? 126, direction: value.direction === "descending" ? "highest" : "lowest", take: value.count, shortage: value.shortagePolicy }, { rankComponentId: rankComponent.id, selectionComponentId: selectionComponent.id })[0]; if (native) void structural.apply(native, semanticSelection("selection", selectionComponent.id, { groupId: group.id })); }}
+            onChange={(value) => void structural.apply({
+              kind: "update_selection_semantics",
+              rank_component_id: rankComponent.id,
+              selection_component_id: selectionComponent.id,
+              direction: value.direction,
+              count: value.count,
+              shortage_policy: value.shortagePolicy,
+              value_expression: value.valueExpression ?? rankingValue ?? null,
+            }, semanticSelection("selection", selectionComponent.id, { groupId: group.id }))}
           />
         : resampleCapability && <label>Choose again<select value={resampleCapability.value} disabled={busy} onChange={(event) => void structural.apply({ kind: "update_selection_resample", component_id: choose.selectionComponentId, resample: event.target.value as "once" | "per_event" })}>{resampleCapability.choices.map((choice) => <option key={choice} value={choice}>{choice === "per_event" ? "Each check" : "Keep first choice"}</option>)}</select></label>}
       {choose.selectionMode !== "ranked" && countCapability && <label>How many?<AuthoringNumberInput value={choose.topN!} minimum={countCapability.minimum} maximum={countCapability.maximum ?? undefined} disabled={busy} onCommit={(count) => void structural.apply({ kind: "update_selection_count", component_id: choose.selectionComponentId, count })} /></label>}
