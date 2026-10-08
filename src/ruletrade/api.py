@@ -139,22 +139,6 @@ from ruletrade.strategy.v1.semantics import (
     project_semantic_composition,
 )
 from ruletrade.strategy.v1.validation import collect_semantic_issues
-from ruletrade.strategy.v2.authoring import (
-    ApplyV2AuthoringRequest,
-    ApplyV2AuthoringResponse,
-    ProgramStrategyTemplateRequest,
-    V2AuthoringCapability,
-    V2AuthoringError,
-    apply_v2_authoring,
-    authoring_capabilities as v2_authoring_capabilities,
-    create_program_strategy_template,
-)
-from ruletrade.strategy.v2.daily_provider import DatasetDailySnapshotProvider, DailyDatasetProviderError
-from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
-from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
-from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
-from ruletrade.strategy.v2.semantic_types import FrozenModel
-from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v1.value_semantics import (
     DatasetValueEvaluator,
     SemanticValueEvidence,
@@ -163,6 +147,22 @@ from ruletrade.strategy.v1.value_semantics import (
     ValueEvaluationRequest,
     value_capabilities,
 )
+from ruletrade.strategy.v2.authoring import (
+    ApplyV2AuthoringRequest,
+    ApplyV2AuthoringResponse,
+    ProgramStrategyTemplateRequest,
+    V2AuthoringCapability,
+    V2AuthoringError,
+    apply_v2_authoring,
+    create_program_strategy_template,
+)
+from ruletrade.strategy.v2.authoring import authoring_capabilities as v2_authoring_capabilities
+from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
+from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
+from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.semantic_types import FrozenModel
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 logger = logging.getLogger(__name__)
 

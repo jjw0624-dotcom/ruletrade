@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { V2StrategyEditor } from "../components/V2StrategyEditor";
+import { CreationPicker } from "../components/CreationPicker";
+import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
@@ -66,6 +68,23 @@ const detail: StrategyDetailV2 = {
 };
 
 describe("mounted v2 production editor", () => {
+  it("offers a Program-native creation path in the actual Creation Picker", () => {
+    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
+    expect(markup).toContain("Blank Program");
+    expect(markup).toContain("typed Values, Conditions, Events, State, Selection, and Allocation");
+  });
+
+  it("requests a backend-authoritative Program template instead of synthesizing Selection", async () => {
+    let body = "";
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = String(init?.body ?? "");
+      return new Response(JSON.stringify({ ...strategy, selection: null, program: { semantic_id: "program", clocks: [], initial_state: {}, statements: [] } }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const created = await v2AuthoringApi.programTemplate("New Program", ["SPY", "TLT"], fetcher);
+    expect(JSON.parse(body)).toEqual({ name: "New Program", assets: ["SPY", "TLT"] });
+    expect(created.selection).toBeNull();
+    expect(created.program?.semantic_id).toBe("program");
+  });
   it("renders one coherent semantic Selection inspector without schema-form actions", () => {
     const markup = renderToStaticMarkup(<V2StrategyEditor persisted={detail} onHome={() => undefined} />);
     for (const label of ["FROM", "WHERE", "ORDER BY", "DIRECTION", "TAKE", "WHEN FEWER QUALIFY", "SELECTION FALLBACK"]) {
@@ -100,7 +119,7 @@ describe("mounted v2 production editor", () => {
           completed_only: true,
         }],
         initial_state: {},
-        formalizations: [{ source_phrase: "clean breakout", status: "unresolved", semantic_ids: [], interpretation: null }],
+        formalizations: [{ source_phrase: "positive momentum", status: "formalized", semantic_ids: ["program-selection"], interpretation: "Rank the configured candidates by 126-observation return." }],
         statements: [{
           kind: "select", semantic_id: "program-selection", output_id: "selected-growth", clock_id: "daily-close",
           selection: { ...strategy.selection!, semantic_id: "program-selection-definition" },
@@ -108,9 +127,6 @@ describe("mounted v2 production editor", () => {
           kind: "allocate", semantic_id: "allocate", method: "equal", clock_id: "daily-close",
           legs: [{ semantic_id: "retain-leg", target: { semantic_id: "retain-target", kind: "retain", ref: null }, weight: null }],
           minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
-        }, {
-          kind: "unresolved", semantic_id: "unresolved-clean-breakout", source_text: "clean breakout",
-          category: "fuzzy_term", reason: "Requires an explicit Condition formalization.",
         }],
       },
     };
