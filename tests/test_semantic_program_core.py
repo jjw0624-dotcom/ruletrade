@@ -950,10 +950,10 @@ def test_program_execution_capability_rejects_incomplete_or_unsupported_shapes_h
             kind="all", semantic_id="qualification-all",
             children=(selected.selection.eligibility, ComparisonV2(
                 semantic_id="above-sma", operator="gt",
-                left=candidate_close("qualification-close"),
+                left=candidate_close("qualification-close").model_copy(update={"binding_id": selected.selection.binding.id}),
                 right=DailyValueNode(
                     semantic_id="qualification-sma", kind="sma", observations=200,
-                    operands=(candidate_close("qualification-sma-close"),),
+                    operands=(candidate_close("qualification-sma-close").model_copy(update={"binding_id": selected.selection.binding.id}),),
                 ),
             )),
         ),
