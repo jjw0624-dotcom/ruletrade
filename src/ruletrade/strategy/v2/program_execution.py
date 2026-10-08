@@ -96,7 +96,8 @@ class _Runtime:
         self.program = program
         self.snapshot = snapshot
         self.cutoff = cutoff
-        self.state = dict(program.initial_state if prior_state is None else prior_state)
+        self.prior_state = dict(program.initial_state if prior_state is None else prior_state)
+        self.state = dict(self.prior_state)
         self.selections: dict[str, tuple[str, ...]] = {}
         self.target_weights: dict[str, Decimal] = {}
         self.retained = False
@@ -436,7 +437,7 @@ class _Runtime:
                 if statement.event.semantic_id not in self.prior_event_truths and self.cutoff > 0:
                     prior = _Runtime(
                         self.program, self.snapshot, self.cutoff - 1,
-                        prior_state=self.state,
+                        prior_state=self.prior_state,
                         event_cutoffs=self.event_cutoffs,
                     )
                     previous = prior.condition(statement.event.condition)
