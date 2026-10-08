@@ -6,7 +6,7 @@ import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { projectProgramProductFlow, projectProgramProductStructure } from "../components/SemanticProgramBuilderAdapter";
+import { projectProgramProductFlow, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 
@@ -179,6 +179,9 @@ describe("mounted v2 production editor", () => {
       "Assets", "Qualification", "Choose 2 assets", "Fallback",
     ]);
     expect(JSON.stringify(structure)).not.toContain("semantic_id");
+    expect(projectProgramProductFlow(programStrategy).map((item) => item.label)).toEqual([
+      "Portfolio", "Growth", "Choose 2 assets", "Fallback", "Rebalance",
+    ]);
   });
 
   it("treats the valid retain bootstrap as a user-facing empty Builder", () => {
@@ -214,6 +217,45 @@ describe("mounted v2 production editor", () => {
     expect(markup).not.toContain("Move down");
     expect(markup).toContain("Investment");
     expect(markup).toContain("Split");
+    expect(markup).toContain('aria-label="Availability status"');
+    expect(markup).toContain("Ready");
+    expect(markup).toContain("Needs context");
+    expect(markup).toContain('id="investment-description"');
+    expect(markup).toContain("A capital path backed by assets.");
+    expect(markup).not.toContain("production Program lowering");
+    expect(markup).not.toContain("exactly one Selection");
+    expect(markup).not.toContain('class="builder-messages"');
+
+    const capability = {
+      authoring_state: "empty" as const, semantic_state: "valid" as const,
+      execution_state: "incomplete" as const, provider_state: "not_checked" as const,
+      runtime_state: "not_checked" as const,
+      product_message: "Add an investment and choose assets before testing.",
+      technical_detail: "production Program lowering currently requires exactly one Selection",
+      authorable: true, reference_valid: true, backend_lowerable: false,
+      production_executable: false, required_symbols: [],
+      reason: "Add an investment and choose assets before testing.",
+    };
+    const expected = {
+      overview: "A portfolio ready for its first investment.",
+      guided: "One investment",
+      flow: "No capital route has been defined yet.",
+      blocky: "Portfolio",
+      rules: "No strategy logic has been added yet.",
+    } as const;
+    for (const [view, copy] of Object.entries(expected)) {
+      const representation = renderToStaticMarkup(<SemanticProgramBuilderAdapter
+        canonical={blank} dirty={false} status="saved" message="Saved"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={capability}
+        initialView={view as keyof typeof expected}
+      />);
+      expect(representation).toContain(copy);
+      expect(representation).not.toContain("production Program lowering");
+      expect(representation).not.toContain("exactly one Selection");
+      expect(representation).not.toContain('class="builder-messages"');
+    }
   });
 
   it("dispatches one stable product operation through both canonical adapters", () => {
@@ -245,7 +287,7 @@ describe("mounted v2 production editor", () => {
     } } satisfies CanonicalStrategyV2;
     const structure = projectProgramProductStructure(blankInvestment);
     expect(structure.children[0]).toMatchObject({ label: "Growth", detail: "100%", children: [{ label: "Assets" }] });
-    expect(structure.children.at(-1)).toMatchObject({ label: "Rebalance", detail: "Monthly close" });
-    expect(projectProgramProductFlow(blankInvestment).map((item) => item.label)).toEqual(["Portfolio", "Growth", "Rebalance"]);
+    expect(structure.children.map((item) => item.label)).toEqual(["Growth"]);
+    expect(projectProgramProductFlow(blankInvestment).map((item) => item.label)).toEqual(["Portfolio", "Growth"]);
   });
 });

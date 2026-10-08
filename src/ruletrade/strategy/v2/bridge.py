@@ -240,7 +240,11 @@ def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
         Connection(source=_port("rank", "ranked"), target=_port("take", "ranked")),
         Connection(source=_port("take", "selected"), target=_port("weights", "assets")),
     ]
-    asset_sets = list(strategy.definitions.asset_sets)
+    asset_sets = [
+        AssetSetDefinition(id=item.id, assets=list(item.assets))
+        for item in strategy.definitions.asset_sets
+        if item.assets
+    ]
     target_component = "weights"
     if selection.fallback_asset:
         fallback_set_id = "v2-fallback-assets"

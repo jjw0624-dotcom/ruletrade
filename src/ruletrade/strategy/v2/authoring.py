@@ -12,12 +12,13 @@ from typing import Annotated, Callable, Literal
 from pydantic import Field
 
 from ruletrade.hashing import strategy_hash
-from ruletrade.strategy.v1.models import AssetSetDefinition, GroupDefinition, StrategyMetadata
+from ruletrade.strategy.v1.models import GroupDefinition, StrategyMetadata
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
 from ruletrade.strategy.v2.models import (
     AllocationLegV2,
     AllocationStatementV2,
     AllocationTargetV2,
+    AssetSetDefinitionV2,
     CanonicalStrategyV2,
     ComparisonV2,
     ConditionV2,
@@ -132,7 +133,7 @@ class SetProgramSelection(FrozenModel):
 class SetProgramAssetSet(FrozenModel):
     kind: Literal["set_program_asset_set"]
     asset_set_id: Identifier
-    assets: tuple[Symbol, ...] = Field(min_length=1, max_length=500)
+    assets: tuple[Symbol, ...] = Field(default=(), max_length=500)
 
 
 class AddProgramInvestment(FrozenModel):
@@ -140,7 +141,7 @@ class AddProgramInvestment(FrozenModel):
     investment_id: Identifier
     name: str = Field(min_length=1, max_length=100)
     asset_set_id: Identifier
-    assets: tuple[Symbol, ...] = Field(min_length=1, max_length=500)
+    assets: tuple[Symbol, ...] = Field(default=(), max_length=500)
 
 
 class RemoveProgramInvestment(FrozenModel):
@@ -296,7 +297,7 @@ def create_program_strategy_template(request: ProgramStrategyTemplateRequest) ->
         semantic_profile="profile-a/daily-compositional-core@1",
         metadata=StrategyMetadata(name=request.name),
         definitions=StrategyDefinitionsV2(
-            asset_sets=(AssetSetDefinition(id="initial-assets", assets=list(request.assets)),),
+            asset_sets=(AssetSetDefinitionV2(id="initial-assets", assets=list(request.assets)),),
             groups=(),
             asset_axis=Axis(name="asset", domain_id="initial-assets", coordinate_policy="member_identity"),
         ),
@@ -672,7 +673,7 @@ def _apply_program_operation(
             raise V2AuthoringError("asset_set_exists", "This investment asset list already exists.")
         if len(set(operation.assets)) != len(operation.assets):
             raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in this investment.")
-        asset_set = AssetSetDefinition(id=operation.asset_set_id, assets=list(operation.assets))
+        asset_set = AssetSetDefinitionV2(id=operation.asset_set_id, assets=list(operation.assets))
         group = GroupDefinition(id=operation.investment_id, name=operation.name, asset_set_ref=operation.asset_set_id)
         definitions = strategy.definitions.model_copy(update={
             "asset_sets": strategy.definitions.asset_sets + (asset_set,),

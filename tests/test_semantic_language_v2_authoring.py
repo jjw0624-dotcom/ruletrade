@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from ruletrade.api import app, get_strategy_service
+from ruletrade.api import app, get_strategy_service, lean_executor
+from ruletrade.backtests.errors import LeanRuntimeUnavailableError
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
@@ -262,16 +263,26 @@ def test_program_native_template_saves_revises_and_reopens_through_real_reposito
             template = client.post("/v2/canonical/authoring/program-template", json={"name": "Program", "assets": ["SPY"]}).json()
             authored = client.post("/v2/canonical/authoring/apply", json={
                 "strategy": template, "expected_source_hash": strategy_hash(CanonicalStrategyV2.model_validate(template)),
-                "operation": {"kind": "add_program_investment", "investment_id": "investment-1", "name": "Investment", "asset_set_id": "investment-assets", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+                "operation": {"kind": "add_program_investment", "investment_id": "investment-1", "name": "Investment", "asset_set_id": "investment-assets", "assets": []},
             })
             assert authored.status_code == 200, authored.text
             authored_payload = authored.json()
-            scheduled = client.post("/v2/canonical/authoring/apply", json={
-                "strategy": authored_payload["strategy"], "expected_source_hash": authored_payload["source_hash"],
-                "operation": {"kind": "set_program_schedule", "clock_id": "daily-close", "timeframe": "monthly"},
-            })
-            assert scheduled.status_code == 200, scheduled.text
-            template = scheduled.json()["strategy"]
+            operations = [
+                {"kind": "set_program_asset_set", "asset_set_id": "investment-assets", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+                {"kind": "create_program_selection", "semantic_id": "selection-1", "investment_id": "investment-1", "clock_id": "daily-close", "lookback": 126, "direction": "descending", "count": 2, "shortage_policy": "require_full", "qualification_lookback": 126, "qualification_operator": "gt", "qualification_threshold": 0},
+                {"kind": "set_program_fallback", "semantic_id": "selection-1", "fallback_asset": "TLT"},
+                {"kind": "set_program_schedule", "clock_id": "daily-close", "timeframe": "monthly"},
+            ]
+            for operation in operations:
+                authored = client.post("/v2/canonical/authoring/apply", json={
+                    "strategy": authored_payload["strategy"], "expected_source_hash": authored_payload["source_hash"],
+                    "operation": operation,
+                })
+                assert authored.status_code == 200, authored.text
+                authored_payload = authored.json()
+            template = authored_payload["strategy"]
+            capability = client.post("/v2/canonical/strategies/execution-capability", json=template).json()
+            assert capability["execution_state"] == "executable"
             created = client.post("/v1/strategies", json={"name": "Program", "canonical_strategy": template})
             assert created.status_code == 201, created.text
             detail = created.json()
@@ -291,8 +302,47 @@ def test_program_native_template_saves_revises_and_reopens_through_real_reposito
             assert reopened.current_revision.canonical_strategy.selection is None
             assert reopened.current_revision.canonical_strategy.definitions.groups[0].id == "investment-1"
             assert reopened.current_revision.canonical_strategy.program.clocks[0].timeframe == "monthly"
+            statement = next(item for item in reopened.current_revision.canonical_strategy.program.statements if item.kind == "select")
+            assert statement.selection.fallback_asset == "TLT"
+            assert statement.selection.count == 2
+            assert statement.selection.eligibility is not None
     finally:
         app.dependency_overrides.clear()
+
+
+def test_v2_capability_endpoint_separates_blank_unsupported_and_runtime_unavailable(monkeypatch) -> None:
+    with TestClient(app) as client:
+        blank = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"}).json()
+        capability = client.post("/v2/canonical/strategies/execution-capability", json=blank).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "incomplete"
+        assert capability["runtime_state"] == "not_checked"
+        assert "Program lowering" not in capability["product_message"]
+
+        complete = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Strongest ETFs", "starting_point": "fallback",
+        }).json()
+        unsupported = {**complete, "program": {**complete["program"], "clocks": [
+            {**complete["program"]["clocks"][0], "timeframe": "weekly"},
+        ]}}
+        capability = client.post("/v2/canonical/strategies/execution-capability", json=unsupported).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "unsupported"
+        assert capability["runtime_state"] == "not_checked"
+
+        class UnavailableRunner:
+            def ensure_available(self) -> None:
+                raise LeanRuntimeUnavailableError("Docker daemon is unavailable.")
+
+        monkeypatch.setattr(lean_executor, "runner", UnavailableRunner())
+        capability = client.post(
+            "/v2/canonical/strategies/execution-capability?check_runtime=true", json=complete,
+        ).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "executable"
+        assert capability["runtime_state"] == "unavailable"
+        assert capability["product_message"] == "The testing runtime is unavailable. Try again when Docker is running."
+        assert capability["technical_detail"] == "Docker daemon is unavailable."
 
 
 def selection_snapshot() -> DailyMarketSnapshot:

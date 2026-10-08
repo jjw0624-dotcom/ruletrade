@@ -39,11 +39,14 @@ function role(node: ProductNode): ProductFlowNode["role"] {
   return "capital";
 }
 
-function flowFromRoot(root: ProductNode): ProductFlowNode[] {
+function flowFromRoot(root: ProductNode, includeSelection = false): ProductFlowNode[] {
   const result: ProductFlowNode[] = [];
+  const hiddenConcepts: ProductConcept[] = includeSelection
+    ? ["assets", "qualification"]
+    : ["assets", "qualification", "selection"];
   const visit = (node: ProductNode) => {
-    // Flow is capital-first. Details nested inside an Investment remain in its Inspector.
-    if (!["assets", "qualification", "selection"].includes(node.concept)) {
+    // Flow stays capital-first while Selection remains a visible routing decision.
+    if (!hiddenConcepts.includes(node.concept)) {
       result.push({ id: node.id, label: node.label, detail: node.detail, role: role(node), address: node.address });
     }
     node.children.forEach(visit);
@@ -115,7 +118,7 @@ export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): Produc
     const statement = selections.find((item) => item.selection.universe_id === group.id);
     const selection = statement?.selection;
     const assets = strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
-    const children: ProductNode[] = [{ id: `assets:${assets?.id ?? group.asset_set_ref}`, concept: "assets", label: "Assets", detail: assets?.assets.join(", ") ?? "Choose assets", address: { canonical: "v2", concept: "assets", semanticId: group.id, definitionId: assets?.id ?? group.asset_set_ref }, children: [] }];
+    const children: ProductNode[] = [{ id: `assets:${assets?.id ?? group.asset_set_ref}`, concept: "assets", label: "Assets", detail: assets?.assets.length ? assets.assets.join(", ") : "Choose assets", address: { canonical: "v2", concept: "assets", semanticId: group.id, definitionId: assets?.id ?? group.asset_set_ref }, children: [] }];
     if (selection?.eligibility && statement) children.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Qualification", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
     if (selection && statement) children.push({ id: statement.semantic_id, concept: "selection", label: `Choose ${selection.count} assets`, detail: `${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "selection", semanticId: statement.semantic_id }, children: [] });
     if (selection?.fallback_asset && statement) children.push({ id: `fallback:${statement.semantic_id}`, concept: "fallback", label: "Fallback", detail: `Otherwise → ${selection.fallback_asset}`, address: { canonical: "v2", concept: "fallback", semanticId: statement.semantic_id }, children: [] });
@@ -124,8 +127,8 @@ export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): Produc
   const split = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
   const controls: ProductNode[] = roots.filter((item) => item.kind === "control").map((item) => ({ id: item.semantic_id, concept: "control", label: "IF / OTHERWISE", detail: describeConditionV2(item.condition), address: { canonical: "v2", concept: "control", semanticId: item.semantic_id }, children: [] }));
   const capital: ProductNode[] = split ? [{ id: "split", concept: "split", label: "Split", detail: split.legs.map((leg) => `${Number(leg.weight ?? 0) * 100}%`).join(" / "), address: { canonical: "v2", concept: "split", semanticId: split.semantic_id }, children: investments }] : investments;
-  if (investments.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
+  if (selections.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
   const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v2", concept: "portfolio", semanticId: strategy.program?.semantic_id ?? "program" }, children: [...capital, ...controls] };
-  return { name: strategy.metadata.name, root, flow: flowFromRoot(root), sourceVersion: "v2" };
+  return { name: strategy.metadata.name, root, flow: flowFromRoot(root, true), sourceVersion: "v2" };
 }
 

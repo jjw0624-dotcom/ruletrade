@@ -3,7 +3,7 @@ import type { V2AuthoringOperation } from "../domain/canonicalV2";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi, v2AuthoringErrorMessage } from "../v2AuthoringApi";
-import { executeV2Lean, executeV2Selection, v2ExecutionCapability, type V2ExecutionCapability, type V2SelectionExecution } from "../v2ExecutionApi";
+import { executeV2Lean, executeV2Selection, v2ExecutionCapability, V2ExecutionError, type V2ExecutionCapability, type V2SelectionExecution } from "../v2ExecutionApi";
 import { DEFAULT_BACKTEST_CONFIG, type LeanBacktestResponse } from "../domain/backtest";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
@@ -30,7 +30,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   useEffect(() => {
     let active = true;
     void v2ExecutionCapability(canonical).then((value) => { if (active) setExecutionCapability(value); }).catch(() => {
-      if (active) setExecutionCapability({ authorable: true, reference_valid: true, backend_lowerable: false, production_executable: false, reason: "Execution capability could not be checked." });
+      if (active) setExecutionCapability({ authoring_state: canonical.definitions.groups.length ? "committed" : "empty", semantic_state: "valid", execution_state: "incomplete", provider_state: "not_checked", runtime_state: "not_checked", product_message: "Execution capability could not be checked.", technical_detail: null, authorable: true, reference_valid: true, backend_lowerable: false, production_executable: false, reason: "Execution capability could not be checked." });
     });
     return () => { active = false; };
   }, [canonical]);
@@ -110,6 +110,13 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   };
   const run = async () => {
     if (unavailable) return;
+    const preflight = await v2ExecutionCapability(canonical, fetch, true).catch(() => null);
+    if (!preflight || preflight.execution_state !== "executable" || preflight.runtime_state === "unavailable") {
+      if (preflight) setExecutionCapability(preflight);
+      setStatus("saved"); setMessage(preflight?.product_message ?? "Testing is unavailable right now.");
+      return;
+    }
+    setExecutionCapability(preflight);
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
       const next = canonical.program
@@ -117,7 +124,15 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
         : await executeV2Selection(canonical);
       setResult(next); setStatus("saved"); setMessage("Test complete");
     } catch (reason) {
-      setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Test failed.");
+      const productMessage = reason instanceof V2ExecutionError && reason.code === "runtime_unavailable"
+        ? "The testing runtime is unavailable. Try again when Docker is running."
+        : reason instanceof V2ExecutionError && reason.code === "market_data_unavailable"
+          ? "Required market data is unavailable for this test."
+          : reason instanceof Error ? reason.message : "The test could not complete.";
+      if (reason instanceof V2ExecutionError && reason.code === "market_data_unavailable") {
+        setExecutionCapability({ ...preflight, provider_state: "unavailable", product_message: productMessage, technical_detail: reason.message });
+      }
+      setStatus("saved"); setMessage(productMessage);
     }
   };
   const working = (unfinished: boolean) => {

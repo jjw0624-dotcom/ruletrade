@@ -25,6 +25,8 @@ from ruletrade.strategy.v2.authoring import (
     V2AuthoringError,
     _replace_program_statement,
     apply_v2_authoring,
+    create_program_strategy_template,
+    ProgramStrategyTemplateRequest,
 )
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
@@ -69,6 +71,7 @@ from ruletrade.strategy.v2.program_validation import (
 from ruletrade.strategy.v2.semantic_types import Axis, Clock, Quantity, Unit
 from ruletrade.strategy.v2.validation import validate_strategy_v2, v2_capabilities
 from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
 
 
 def snapshot() -> DailyMarketSnapshot:
@@ -906,9 +909,68 @@ def test_builder_authored_strongest_program_lowers_to_monthly_lean_plan() -> Non
 
 
 def test_program_execution_capability_rejects_incomplete_or_unsupported_shapes_honestly() -> None:
-    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    blank = create_program_strategy_template(ProgramStrategyTemplateRequest(name="Untitled Strategy"))
+    capability = assess_v2_execution_capability(blank)
+    assert (capability.authoring_state, capability.semantic_state, capability.execution_state) == (
+        "empty", "valid", "incomplete",
+    )
+    assert capability.product_message == "Add an investment and choose assets before testing."
+    assert "exactly one Selection" in capability.technical_detail
+
+    investment = _author(blank, AddProgramInvestment(
+        kind="add_program_investment", investment_id="investment", name="Investment",
+        asset_set_id="investment-assets", assets=(),
+    ))
+    capability = assess_v2_execution_capability(investment)
+    assert capability.execution_state == "incomplete"
+    assert capability.semantic_state == "valid"
+
+    assets = _author(investment, SetProgramAssetSet(
+        kind="set_program_asset_set", asset_set_id="investment-assets",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    assert assess_v2_execution_capability(assets).execution_state == "incomplete"
+
+    complete = _author(assets, CreateProgramSelection(
+        kind="create_program_selection", semantic_id="selection",
+        investment_id="investment", clock_id="daily-close", lookback=126,
+        direction="descending", count=2, shortage_policy="require_full",
+        qualification_lookback=126, qualification_operator="gt",
+        qualification_threshold=Decimal(0),
+    ))
+    capability = assess_v2_execution_capability(complete)
+    assert capability.execution_state == "executable"
+    assert set(capability.required_symbols) == {"QQQ", "VGT", "SOXX", "SCHG"}
+
+    selected = next(item for item in complete.program.statements if isinstance(item, SelectionStatementV2))
+    richer = _author(complete, SetProgramCondition(
+        kind="set_program_condition", semantic_id=selected.semantic_id,
+        role="selection_eligibility",
+        condition=BooleanGroupV2(
+            kind="all", semantic_id="qualification-all",
+            children=(selected.selection.eligibility, ComparisonV2(
+                semantic_id="above-sma", operator="gt",
+                left=candidate_close("qualification-close"),
+                right=DailyValueNode(
+                    semantic_id="qualification-sma", kind="sma", observations=200,
+                    operands=(candidate_close("qualification-sma-close"),),
+                ),
+            )),
+        ),
+    ))
+    assert assess_v2_execution_capability(richer).execution_state == "executable"
+    compile_v2_strategy_to_lean_plan(richer)
+
+    weekly = _author(complete, SetProgramSchedule(
+        kind="set_program_schedule", clock_id="daily-close", timeframe="weekly",
+    ))
+    capability = assess_v2_execution_capability(weekly)
+    assert capability.semantic_state == "valid"
+    assert capability.execution_state == "unsupported"
+    assert "weekly Program timing" in capability.technical_detail
+
     with pytest.raises(V2LoweringError, match="exactly one Selection"):
-        compile_v2_strategy_to_lean_plan(canonical)
+        compile_v2_strategy_to_lean_plan(blank)
 
 
 def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -> None:

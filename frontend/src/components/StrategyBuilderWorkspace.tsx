@@ -189,7 +189,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
         <button className="primary-button" onClick={onTest} disabled={testDisabled || Boolean(program.draftMessage)} title={program.draftMessage ?? testTitle}>Test <span aria-hidden="true">▶</span></button>
       </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
     </header>
-    <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>
+    {program.feedback && <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>}
     <div className="builder-workbench builder-only" data-research-layout="builder-only">
       <div className="builder-core left-open inspector-open">
         {program.leftPanel}

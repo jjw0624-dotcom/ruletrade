@@ -868,21 +868,24 @@ class V2LeanBacktestRequest(FrozenModel):
 
 
 @app.post("/v2/canonical/strategies/execution-capability")
-def v2_execution_capability(spec: CanonicalStrategyV2) -> dict[str, object]:
-    """Report lowering independently from provider and runtime availability."""
-    try:
-        plan = compile_v2_strategy_to_lean_plan(spec)
-    except V2LoweringError as exc:
-        return {
-            "authorable": True, "reference_valid": not validate_strategy_v2(spec),
-            "backend_lowerable": False, "production_executable": False,
-            "reason": str(exc),
-        }
-    return {
-        "authorable": True, "reference_valid": True,
-        "backend_lowerable": True, "production_executable": True,
-        "required_symbols": [item.symbol for item in plan.subscriptions], "reason": None,
-    }
+def v2_execution_capability(spec: CanonicalStrategyV2, check_runtime: bool = False) -> dict[str, object]:
+    """Classify committed meaning before strict lowering or runtime execution."""
+    from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
+
+    capability = assess_v2_execution_capability(spec)
+    if check_runtime and capability.execution_state == "executable":
+        try:
+            runner = lean_executor.runner
+            if hasattr(runner, "ensure_available"):
+                runner.ensure_available()
+            capability = capability.model_copy(update={"runtime_state": "available"})
+        except LeanRuntimeUnavailableError as exc:
+            capability = capability.model_copy(update={
+                "runtime_state": "unavailable",
+                "product_message": "The testing runtime is unavailable. Try again when Docker is running.",
+                "technical_detail": str(exc),
+            })
+    return capability.model_dump(mode="json")
 
 
 @app.post("/v2/backtests/lean", response_model=LeanBacktestResponse)
