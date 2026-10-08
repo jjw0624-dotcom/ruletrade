@@ -68,10 +68,12 @@ const detail: StrategyDetailV2 = {
 };
 
 describe("mounted v2 production editor", () => {
-  it("offers a Program-native creation path in the actual Creation Picker", () => {
+  it("offers a normal blank Strategy path without exposing Program internals", () => {
     const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
-    expect(markup).toContain("Blank Program");
-    expect(markup).toContain("typed Values, Conditions, Events, State, Selection, and Allocation");
+    expect(markup).toContain("Blank strategy");
+    expect(markup).toContain("Start in the Builder");
+    expect(markup).not.toContain("Blank Program");
+    expect(markup).not.toContain("typed Values, Conditions, Events, State, Selection, and Allocation");
   });
 
   it("requests a backend-authoritative Program template instead of synthesizing Selection", async () => {
@@ -141,12 +143,51 @@ describe("mounted v2 production editor", () => {
       onHome={() => undefined}
     />);
     expect(markup).toContain('data-program-native="true"');
-    expect(markup).toContain("Program toolbox");
+    expect(markup).toContain('data-production-builder-shell="true"');
     expect(markup).toContain("Choose 2 assets");
-    expect(markup).toContain("Reference-valid Program");
-    expect(markup).toContain("production execution unavailable");
-    expect(markup).toContain("Unresolved idea");
+    expect(markup).toContain("FROM");
+    expect(markup).toContain("WHERE");
+    expect(markup).toContain("ORDER BY / SCORE");
+    expect(markup).toContain("ANY");
+    expect(markup).toContain("N-of-M");
+    expect(markup).toContain("Allocate capital");
+    expect(markup).not.toContain("program-selection-definition");
+    expect(markup).not.toContain("initial-retain-allocation");
+    expect(markup).not.toContain("ANY and nested conditions remain unavailable");
     expect(markup).not.toContain("Generalized Program authoring is intentionally deferred");
+  });
+
+  it("treats the valid retain bootstrap as a user-facing empty Builder", () => {
+    const blank = {
+      ...strategy,
+      selection: null,
+      program: {
+        semantic_id: "program",
+        clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+        initial_state: {},
+        formalizations: [],
+        statements: [{
+          kind: "allocate" as const,
+          semantic_id: "initial-retain-allocation",
+          method: "equal" as const,
+          clock_id: "daily-close",
+          legs: [{ semantic_id: "initial-retain-leg", target: { semantic_id: "initial-retain-target", kind: "retain" as const, ref: null }, weight: null }],
+          minimum_weight: null,
+          maximum_weight: null,
+          cash_remainder_asset: null,
+        }],
+      },
+    } satisfies CanonicalStrategyV2;
+    const markup = renderToStaticMarkup(<V2StrategyEditor persisted={{ ...detail, current_revision: { ...detail.current_revision, canonical_strategy: blank } }} onHome={() => undefined} />);
+    expect(markup).toContain("Start building your strategy");
+    expect(markup).toContain("Choose assets");
+    expect(markup).toContain("Add condition");
+    expect(markup).toContain("Split portfolio");
+    expect(markup).toContain("Add timing");
+    expect(markup).not.toContain("initial-retain-allocation");
+    expect(markup).not.toContain("Allocate equally");
+    expect(markup).not.toContain("Move up");
+    expect(markup).not.toContain("Move down");
   });
 });
 

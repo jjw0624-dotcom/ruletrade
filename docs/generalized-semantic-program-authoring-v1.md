@@ -2,6 +2,12 @@
 
 `SemanticProgramV2` is the authoritative authoring model. The browser never persists a UI AST: complete edits are sent as typed semantic intents with the source Canonical hash, validated by the backend, and returned as a complete Canonical replacement.
 
+## Product boundary
+
+`SemanticProgramV2` is not a second programming product. Program-native Strategies open in the same production Builder shell used by established Strategies: Summary, Flow, Blocky, Rules, the construction panel, and the shared Inspector. Blocky owns meaningful decision structure; Inspector owns Value, Condition, Selection, Event, State, and Allocation detail. Internal semantic IDs and the minimal retain bootstrap are never presented as user-authored rules.
+
+A new blank Strategy therefore starts with an empty Builder experience and context-aware actions such as Choose assets, Add condition, Split portfolio, and Add timing. Predictably invalid actions are disabled with a useful prerequisite. An incomplete Selection or Condition stays local until its required semantic fields are complete; backend rejection is not the normal discovery mechanism.
+
 ## Addressing and lifecycle
 
 Statements are addressed by stable `semantic_id`, including statements nested in Control and Event branches. Insert, move, remove, Selection, Condition, Value, Event, State transition, Allocation, policy, and formalization operations never use array position as semantic authority. A stale source hash is rejected before validation.

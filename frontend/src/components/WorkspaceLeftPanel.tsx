@@ -24,6 +24,8 @@ import {
 import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../domain/compositionIntents";
 import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
+import type { ProgramStatementV2 } from "../domain/canonicalV2";
+import { describeProgramStatement } from "../domain/v2Semantics";
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -195,6 +197,51 @@ export function WorkspaceLeftPanel({ projection, structural }: {
             ? <BlockyProgramToolbox entries={programLibrary} structural={structural} />
             : <FlowCapitalToolbox entries={library} structural={structural} />}
         </Tabs.Content>
+      </Tabs.Root>
+    </Collapsible.Content>
+  </Collapsible.Root>;
+}
+
+
+export interface ProgramToolEntry {
+  id: string;
+  category: "Assets" | "Decision" | "Capital" | "Timing" | "Behavior";
+  label: string;
+  description: string;
+  disabled: boolean;
+  onAdd: () => void;
+}
+
+function programStructure(items: ProgramStatementV2[], depth = 0): Array<{ statement: ProgramStatementV2; depth: number }> {
+  return items.flatMap((statement) => [
+    { statement, depth },
+    ...(statement.kind === "control" ? programStructure([...statement.then_statements, ...statement.otherwise_statements], depth + 1) : []),
+    ...(statement.kind === "on_event" ? programStructure(statement.statements, depth + 1) : []),
+  ]);
+}
+
+export function ProgramWorkspaceLeftPanel({ tools, statements, selectedId, onSelect }: {
+  tools: ProgramToolEntry[];
+  statements: ProgramStatementV2[];
+  selectedId: string | null;
+  onSelect: (semanticId: string) => void;
+}) {
+  const categories = Array.from(new Set(tools.map((tool) => tool.category)));
+  const [open, setOpen] = useState(true);
+  const [tab, setTab] = useState<"structure" | "blocks">("blocks");
+  const [category, setCategory] = useState(categories[0] ?? "Assets");
+  const displayed = tools.filter((tool) => tool.category === category);
+  const structure = programStructure(statements);
+  return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
+    <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
+    <Collapsible.Content className="workspace-left-panel" data-perspective="blocky" data-program-builder-tools="contextual">
+      <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+        <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger></Tabs.List>
+        <Tabs.Content value="structure" className="structure-panel">{structure.length ? <ul className="program-structure-tree">{structure.map(({ statement, depth }) => <li key={statement.semantic_id}><button type="button" style={{ paddingLeft: `${12 + depth * 15}px` }} aria-pressed={selectedId === statement.semantic_id} onClick={() => onSelect(statement.semantic_id)}>{describeProgramStatement(statement)}</button></li>)}</ul> : <p className="panel-hint">No strategy logic yet.</p>}</Tabs.Content>
+        <Tabs.Content value="blocks" className="blocks-panel"><div className="program-context-toolbox">
+          <nav aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
+          <section className="program-tool-library" aria-label={`${category} strategy tools`} data-scroll-container="bounded">{displayed.map((tool) => <button type="button" key={tool.id} disabled={tool.disabled} title={tool.description} onClick={tool.onAdd}><strong>{tool.label}</strong><small>{tool.disabled ? tool.description : "Add to strategy"}</small></button>)}</section>
+        </div></Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>
   </Collapsible.Root>;

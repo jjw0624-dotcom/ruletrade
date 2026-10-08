@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isDailyValue, type CanonicalStrategyV2, type ComparisonV2, type ConditionV2, type DailyValueNode, type ValueExpressionV2 } from "../domain/canonicalV2";
 import { describeConditionV2, describeDailyValue, describeValueV2 } from "../domain/v2Semantics";
 
@@ -208,6 +208,116 @@ export function V2ConditionComposer({ condition, strategy, role, onChange, onWor
     </div>
     {tree(condition)}
     <p className="value-capability-note">Nested ALL / ANY supports four levels, twelve clauses per group, and forty total nodes.</p>
+  </div>;
+}
+
+type DraftSubject = "candidate" | "asset" | "group_members";
+
+export function V2ValueDraftComposer({ semanticId, strategy, role, onComplete, onWorking }: {
+  semanticId: string;
+  strategy: CanonicalStrategyV2;
+  role: Role;
+  onComplete: (value: DailyValueNode) => void;
+  onWorking?: (unfinished: boolean) => void;
+}) {
+  const [subject, setSubject] = useState<DraftSubject | null>(null);
+  const [subjectId, setSubjectId] = useState("");
+  const [operation, setOperation] = useState<Operation | null>(null);
+  const [observations, setObservations] = useState("");
+  const assets = useMemo(() => Array.from(new Set(strategy.definitions.asset_sets.flatMap((item) => item.assets))), [strategy]);
+  const selection = strategy.program?.statements.find((item) => item.kind === "select");
+  const bindingId = selection?.kind === "select" ? selection.selection.binding.id : semanticId + "-candidate";
+  const needsWindow = operation !== null && operation !== "observe";
+  const complete = subject !== null && operation !== null && subjectId !== ""
+    && (!needsWindow || (Number.isInteger(Number(observations)) && Number(observations) > 0 && Number(observations) <= 2000));
+  useEffect(() => { onWorking?.(!complete); }, [complete, onWorking]);
+  const chooseSubject = (next: DraftSubject) => {
+    setSubject(next);
+    setSubjectId(next === "candidate" ? bindingId : next === "asset" ? assets[0] ?? "" : strategy.definitions.groups[0]?.id ?? "");
+  };
+  const finish = (nextOperation = operation) => {
+    if (!subject || !nextOperation || subjectId === "") return;
+    const needs = nextOperation !== "observe";
+    const window = Number(observations);
+    if (needs && (!Number.isInteger(window) || window < 1 || window > 2000)) return;
+    const source: DailyValueNode = {
+      semantic_id: semanticId + "-source", kind: "observe", operands: [], subject_kind: subject,
+      subject_id: subject === "candidate" ? null : subjectId, binding_id: subject === "candidate" ? subjectId : null,
+      field: "close", basis: "adjusted", skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+    };
+    onComplete(buildValue({ ...source, semantic_id: semanticId }, nextOperation, source, needs ? window : 1));
+  };
+  return <div className="program-value-composer value-draft"><p className="fixed-setting">Choose the complete financial Value. No placeholder Value will be committed.</p>
+    <fieldset><legend>What is this value about?</legend><div className="semantic-choice-row">
+      {(role === "eligibility" || role === "ranking") && <button type="button" aria-pressed={subject === "candidate"} onClick={() => chooseSubject("candidate")}>Current candidate</button>}
+      <button type="button" aria-pressed={subject === "asset"} onClick={() => chooseSubject("asset")}>Specific asset</button>
+    </div></fieldset>
+    {subject === "asset" && <label>Asset<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}>{assets.map((asset) => <option key={asset}>{asset}</option>)}</select></label>}
+    {subject && <label>Value<select value={operation ?? ""} onChange={(event) => { const next = event.target.value as Operation; setOperation(next); if (next === "observe") queueMicrotask(() => finish(next)); }}><option value="" disabled>Choose a Value</option><option value="observe">Current adjusted close</option><option value="trailing_return">Trailing return</option><option value="sma">SMA</option><option value="ema">EMA</option><option value="rsi_wilder_lean_compat">RSI</option><option value="realized_volatility">Realized volatility</option><option disabled>Volume — unavailable with current data source</option></select></label>}
+    {needsWindow && <label>Observations<input type="number" min={1} max={2000} value={observations} onChange={(event) => setObservations(event.target.value)} onBlur={() => finish()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finish(); } }} /></label>}
+  </div>;
+}
+
+export function V2ConditionDraftComposer({ semanticId, strategy, role, onComplete, onWorking }: {
+  semanticId: string;
+  strategy: CanonicalStrategyV2;
+  role: "predicate" | "eligibility";
+  onComplete: (condition: ConditionV2) => void;
+  onWorking?: (unfinished: boolean) => void;
+}) {
+  const [subject, setSubject] = useState<DraftSubject | null>(null);
+  const [subjectId, setSubjectId] = useState("");
+  const [operation, setOperation] = useState<Operation | null>(null);
+  const [observations, setObservations] = useState("");
+  const [operator, setOperator] = useState<ComparisonV2["operator"]>("gt");
+  const [right, setRight] = useState("");
+  const assets = useMemo(() => Array.from(new Set(strategy.definitions.asset_sets.flatMap((item) => item.assets))), [strategy]);
+  const candidate = strategy.program?.statements.find((item) => item.kind === "select");
+  const bindingId = candidate?.kind === "select" ? candidate.selection.binding.id : "candidate";
+  const needsWindow = operation !== null && operation !== "observe";
+  const complete = subject !== null && operation !== null && subjectId !== ""
+    && (!needsWindow || (Number.isInteger(Number(observations)) && Number(observations) > 0 && Number(observations) <= 2000))
+    && right.trim() !== "" && Number.isFinite(Number(right));
+
+  useEffect(() => { onWorking?.(!complete); }, [complete, onWorking]);
+
+  const chooseSubject = (next: DraftSubject) => {
+    setSubject(next);
+    setSubjectId(next === "candidate" ? bindingId : next === "asset" ? assets[0] ?? "" : strategy.definitions.groups[0]?.id ?? "");
+  };
+  const finish = () => {
+    if (!complete || !subject || !operation) return;
+    const source: DailyValueNode = {
+      semantic_id: semanticId + "-source", kind: "observe", operands: [],
+      subject_kind: subject, subject_id: subject === "candidate" ? null : subjectId,
+      binding_id: subject === "candidate" ? subjectId : null,
+      field: "close", basis: "adjusted", skip: 0,
+      missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+    };
+    const left = buildValue(source, operation, source, needsWindow ? Number(observations) : 1);
+    const price = operation === "observe" || operation === "sma" || operation === "ema";
+    const oscillator = operation === "rsi_wilder_lean_compat";
+    const rightValue: DailyValueNode = {
+      semantic_id: semanticId + "-right", kind: "literal", operands: [], value: Number(right),
+      quantity: price ? "price" : oscillator ? "oscillator" : "return",
+      unit: price ? "USD/share" : oscillator ? "points" : "ratio",
+      refinement: price ? "adjusted_close" : oscillator ? "rsi_wilder" : "return",
+      skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+    };
+    onComplete({ kind: "comparison", semantic_id: semanticId, operator, left, right: rightValue });
+  };
+
+  return <div className="v2-condition-composer condition-draft" aria-label={`${role} Condition editor`}>
+    <p className="fixed-setting">Set a complete condition. Nothing is committed until every required value is defined.</p>
+    <fieldset><legend>What is the left Value about?</legend><div className="semantic-choice-row">
+      {role === "eligibility" && <button type="button" aria-pressed={subject === "candidate"} onClick={() => chooseSubject("candidate")}>Current candidate</button>}
+      <button type="button" aria-pressed={subject === "asset"} onClick={() => chooseSubject("asset")}>Specific asset</button>
+    </div></fieldset>
+    {subject === "asset" && <label>Asset<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}>{assets.map((asset) => <option key={asset}>{asset}</option>)}</select></label>}
+    {subject && <label>Value<select value={operation ?? ""} onChange={(event) => setOperation(event.target.value as Operation)}><option value="" disabled>Choose a Value</option><option value="observe">Current adjusted close</option><option value="trailing_return">Trailing return</option><option value="sma">SMA</option><option value="ema">EMA</option><option value="rsi_wilder_lean_compat">RSI</option><option value="realized_volatility">Realized volatility</option><option disabled>Volume — unavailable with current data source</option></select></label>}
+    {needsWindow && <label>Observations<input type="number" min={1} max={2000} value={observations} onChange={(event) => setObservations(event.target.value)} /></label>}
+    {operation && <div className="condition-comparison-row draft-comparison"><strong>Comparison</strong><select aria-label="Comparison operator" value={operator} onChange={(event) => setOperator(event.target.value as ComparisonV2["operator"])}><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option><option value="eq">=</option><option value="neq">≠</option></select><label>Right Value<input type="number" value={right} onChange={(event) => setRight(event.target.value)} onBlur={finish} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finish(); } }} /></label></div>}
+    <p className="value-capability-note">The complete comparison applies automatically after the right Value is finished.</p>
   </div>;
 }
 

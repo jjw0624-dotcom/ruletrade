@@ -61,10 +61,10 @@ export function describeProgramStatement(statement: ProgramStatementV2): string 
   if (statement.kind === "select") return `Choose ${statement.selection.count} assets`;
   if (statement.kind === "allocate") return statement.method === "equal" ? "Allocate equally" : `Allocate · ${statement.method.replace("_", " ")}`;
   if (statement.kind === "control") return `IF ${describeConditionV2(statement.condition)}`;
-  if (statement.kind === "on_event") return `${statement.event.trigger.replaceAll("_", " ")} · ${statement.event.occurrence}`;
-  if (statement.kind === "transition") return `${statement.transition.state_key}: ${statement.transition.from_value ?? "any"} → ${statement.transition.to_value}`;
-  if (statement.kind === "remember_value") return `Remember ${statement.memory_id}`;
-  if (statement.kind === "guarded_allocation") return `Allocation policy · ${statement.overrides.length} overrides`;
+  if (statement.kind === "on_event") return statement.event.trigger === "scheduled" ? "When the schedule occurs" : `When ${statement.event.trigger.replaceAll("_", " ")}`;
+  if (statement.kind === "transition") return `Change ${statement.transition.state_key} from ${statement.transition.from_value ?? "any state"} to ${statement.transition.to_value}`;
+  if (statement.kind === "remember_value") return `Remember ${describeValueV2(statement.value)} for later use`;
+  if (statement.kind === "guarded_allocation") return statement.overrides.length ? `Allocation behavior · ${statement.overrides.length} priority overrides` : "Allocation fallback behavior";
   return `Needs definition: ${statement.source_text}`;
 }
 

@@ -37,7 +37,7 @@ export function shouldStoreResearchSize(size: number | undefined, isUserInteract
   return isUserInteraction && size !== undefined && Number.isFinite(size);
 }
 
-export function StrategyBuilderWorkspace({
+function LegacyStrategyBuilderWorkspace({
   name,
   dirty,
   saving,
@@ -136,4 +136,69 @@ export function StrategyBuilderWorkspace({
     {persisted && research && <WorkspaceEdgeRail activityOpen={research.activityOpen} researchOpen={research.researchOpen} canOpenResearch={research.canOpenResearch} hasActivity={research.hasActivity} onToggleActivity={research.onToggleActivity} onToggleResearch={research.onToggleResearch} />}
     {persisted && research?.activityOpen && <WorkspaceActivityDrawer onClose={research.onToggleActivity}>{research.activity}</WorkspaceActivityDrawer>}
   </section>;
+}
+
+
+export type ProgramBuilderView = "overview" | "flow" | "blocky" | "rules";
+
+export interface ProgramBuilderContract {
+  activeView: ProgramBuilderView;
+  onViewChange: (view: ProgramBuilderView) => void;
+  leftPanel: ReactNode;
+  representations: Record<ProgramBuilderView, ReactNode>;
+  inspector: ReactNode;
+  feedback: ReactNode;
+  draftMessage: string | null;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onDiscardDraft?: () => void;
+}
+
+interface ProgramWorkspaceProps {
+  program: ProgramBuilderContract;
+  name: string;
+  dirty: boolean;
+  saving: boolean;
+  persisted: boolean;
+  onHome: () => void;
+  onSave: () => void;
+  onTest: () => void;
+  testDisabled?: boolean;
+  testTitle?: string;
+}
+
+function ProgramStrategyBuilderWorkspace({ program, name, dirty, saving, persisted, onHome, onSave, onTest, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
+  const labels: Record<ProgramBuilderView, string> = { overview: "Summary", flow: "Flow", blocky: "Blocky", rules: "Rules" };
+  return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal-v2" data-production-builder-shell="true" data-program-native="true">
+    <header className="builder-chrome">
+      <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
+      <div className="representation-switcher" aria-label="Strategy representation">
+        {(Object.keys(labels) as ProgramBuilderView[]).map((view) => <button key={view} aria-pressed={program.activeView === view} className={program.activeView === view ? "active" : ""} onClick={() => program.onViewChange(view)}>{labels[view]}</button>)}
+      </div>
+      <div className="builder-identity"><strong>{name}</strong><small>{dirty ? "Unsaved changes" : persisted ? "Saved" : "Preview"}</small></div>
+      <div className="builder-actions">
+        <button type="button" onClick={program.onUndo} disabled={!program.canUndo}>Undo</button>
+        <button type="button" onClick={program.onRedo} disabled={!program.canRedo}>Redo</button>
+        {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(program.draftMessage)} title={program.draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
+        <button className="primary-button" onClick={onTest} disabled={testDisabled || Boolean(program.draftMessage)} title={program.draftMessage ?? testTitle}>Test <span aria-hidden="true">▶</span></button>
+      </div>
+    </header>
+    <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>
+    <div className="builder-workbench builder-only" data-research-layout="builder-only">
+      <div className="builder-core left-open inspector-open">
+        {program.leftPanel}
+        <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>{program.representations[program.activeView]}</main>
+        <aside className="semantic-inspector" aria-label="Semantic Inspector"><header><span className="eyebrow">Inspector</span>{program.onDiscardDraft && <button type="button" className="text-button danger" onClick={program.onDiscardDraft}>Discard draft</button>}</header>{program.inspector}</aside>
+      </div>
+    </div>
+  </section>;
+}
+
+type LegacyWorkspaceProps = Parameters<typeof LegacyStrategyBuilderWorkspace>[0];
+
+export function StrategyBuilderWorkspace(props: LegacyWorkspaceProps | ProgramWorkspaceProps) {
+  if ("program" in props) return <ProgramStrategyBuilderWorkspace {...props} />;
+  return <LegacyStrategyBuilderWorkspace {...props} />;
 }
