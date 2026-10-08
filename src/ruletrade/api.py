@@ -158,7 +158,7 @@ from ruletrade.strategy.v2.authoring import (
     create_program_strategy_template,
 )
 from ruletrade.strategy.v2.authoring import authoring_capabilities as v2_authoring_capabilities
-from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan, lower_v2_to_v1
+from ruletrade.strategy.v2.bridge import V2LoweringError, lower_v2_to_v1
 from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
