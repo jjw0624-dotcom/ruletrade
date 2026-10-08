@@ -20,7 +20,9 @@ from ruletrade.strategy.v2.models import (
     TimeSinceEventValueV2, TimeSinceStateValueV2,
 )
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
-from ruletrade.strategy.v2.program_validation import validate_program_v2
+from ruletrade.strategy.v2.program_validation import (
+    CorpusDisposition, classify_corpus_case, validate_program_v2,
+)
 from ruletrade.strategy.v2.semantic_types import Clock, Quantity, Unit
 from ruletrade.strategy.v2.validation import v2_capabilities
 
@@ -680,3 +682,26 @@ def test_capability_ledger_keeps_program_core_reference_only_and_provider_honest
         assert ledger[key].authoring_reachable is False
         assert ledger[key].verified_profile is False
     assert ledger["daily.volume_raw_shares@1"].provider_available is False
+
+
+def test_representative_natural_language_corpus_maps_to_core_without_frequency_claim() -> None:
+    cases = {
+        "price-over-sma": {"daily_value", "condition"},
+        "candidate-over-group-median": {"cross_section", "condition", "selection"},
+        "composite-factor-rerank": {"cross_section", "score", "selection"},
+        "quantile-points": {"cross_section", "score", "condition"},
+        "n-of-m": {"n_of_m", "condition"},
+        "crosses-level": {"event", "condition"},
+        "breakout-retest-confirmation": {"event", "state", "sequence"},
+        "remember-entry-level": {"event", "state", "remembered_value"},
+        "htf-context-ltf-trigger": {"multi_clock", "event"},
+        "positive-score-allocation": {"score", "selection", "allocation"},
+        "no-trade-override": {"guard", "override", "allocation"},
+    }
+    for case_id, required in cases.items():
+        result = classify_corpus_case(case_id, required_semantics=required)
+        assert result.disposition == CorpusDisposition.REPRESENTABLE
+    fuzzy = classify_corpus_case(
+        "strong-breakout", required_semantics={"event"}, has_fuzzy_terms=True,
+    )
+    assert fuzzy.disposition == CorpusDisposition.UNRESOLVED
