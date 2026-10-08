@@ -765,3 +765,30 @@ def test_program_cutoff_cannot_alias_python_negative_indexing() -> None:
             snapshot(),
             cutoff_index=-1,
         )
+
+
+def test_ranking_ties_use_stable_identity_independent_of_direction() -> None:
+    base = snapshot()
+    tied = DailyMarketSnapshot(
+        snapshot_id="ranking-ties",
+        clock=base.clock,
+        dates=base.dates,
+        domains={"growth": ("VGT", "QQQ")},
+        series={
+            **base.series,
+            "QQQ": {"close:adjusted": (Decimal("100"),) * len(base.dates)},
+            "VGT": {"close:adjusted": (Decimal("100"),) * len(base.dates)},
+        },
+    )
+    for direction in ("ascending", "descending"):
+        tied_selection = selection().model_copy(update={
+            "direction": direction,
+            "count": 2,
+            "shortage_policy": "choose_all",
+        })
+        result = execute_program_v2(program(SelectionStatementV2(
+            semantic_id=f"tied-{direction}",
+            selection=tied_selection,
+            output_id=f"tied-output-{direction}",
+        )), tied, cutoff_index=1)
+        assert result.selection_outputs[f"tied-output-{direction}"] == ("QQQ", "VGT")
