@@ -236,8 +236,9 @@ def test_program_native_template_saves_revises_and_reopens_through_real_reposito
             first = detail["current_revision"]
             edited = first["canonical_strategy"]
             edited["program"]["formalizations"] = [{
-                "source_phrase": "strong breakout", "status": "unresolved",
-                "semantic_ids": [], "interpretation": None,
+                "source_phrase": "strong breakout", "status": "formalized",
+                "semantic_ids": ["initial-retain-allocation"],
+                "interpretation": "Explicit retain policy until a supported Condition is configured.",
             }]
             saved = client.post(f"/v1/strategies/{detail['strategy']['id']}/revisions", json={
                 "expected_parent_revision_id": first["id"], "canonical_strategy": edited,

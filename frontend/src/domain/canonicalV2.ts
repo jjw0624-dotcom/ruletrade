@@ -108,7 +108,8 @@ export type V2AuthoringOperation =
   | { kind: "set_program_transition"; semantic_id: string; transition: StateTransitionV2 }
   | { kind: "set_program_allocation"; semantic_id: string; role: "statement" | "primary" | "fallback" | "override"; allocation: AllocationStatementV2; override_semantic_id?: string | null }
   | { kind: "set_program_formalizations"; formalizations: NonNullable<SemanticProgramV2["formalizations"]> }
-  | { kind: "formalize_program_statement"; semantic_id: string; replacement: ProgramStatementV2; interpretation: string };
+  | { kind: "formalize_program_statement"; semantic_id: string; replacement: ProgramStatementV2; interpretation: string }
+  | { kind: "formalize_draft_phrase"; source_phrase: string; replacement: ProgramStatementV2; interpretation: string; parent_semantic_id: string | null; branch: ProgramBranch; index: number | null };
 
 export function isDailyValue(value: ValueExpressionV2): value is DailyValueNode {
   return ["literal", "observe", "current", "history", "trailing_return", "sma", "ema", "rsi_wilder_lean_compat", "realized_volatility", "reduce", "arithmetic", "absolute"].includes(value.kind);

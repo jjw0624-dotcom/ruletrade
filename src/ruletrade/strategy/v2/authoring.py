@@ -173,6 +173,16 @@ class FormalizeProgramStatement(FrozenModel):
     interpretation: str = Field(min_length=1, max_length=1000)
 
 
+class FormalizeDraftPhrase(FrozenModel):
+    kind: Literal["formalize_draft_phrase"]
+    source_phrase: str = Field(min_length=1, max_length=500)
+    replacement: ProgramStatementV2
+    interpretation: str = Field(min_length=1, max_length=1000)
+    parent_semantic_id: Identifier | None = None
+    branch: Literal["root", "then", "otherwise", "event"] = "root"
+    index: Annotated[int, Field(ge=0, le=200)] | None = None
+
+
 V2AuthoringOperation = Annotated[
     SetSelectionUniverse
     | SetEligibilityCondition
@@ -194,7 +204,8 @@ V2AuthoringOperation = Annotated[
     | SetProgramTransition
     | SetProgramAllocation
     | SetProgramFormalizations
-    | FormalizeProgramStatement,
+    | FormalizeProgramStatement
+    | FormalizeDraftPhrase,
     Field(discriminator="kind"),
 ]
 
@@ -511,7 +522,7 @@ def _apply_program_operation(
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
-        FormalizeProgramStatement,
+        FormalizeProgramStatement, FormalizeDraftPhrase,
     )):
         return None
     program = _program_for_operation(strategy, operation)
@@ -550,6 +561,22 @@ def _apply_program_operation(
         assert unresolved is not None
         provenance = FormalizationProvenanceV2(
             source_phrase=unresolved.source_text,
+            status="formalized",
+            semantic_ids=(operation.replacement.semantic_id,),
+            interpretation=operation.interpretation,
+        )
+        program = SemanticProgramV2.model_validate(program.model_copy(update={
+            "formalizations": program.formalizations + (provenance,),
+        }))
+    elif isinstance(operation, FormalizeDraftPhrase):
+        program = _insert_program_statement(
+            program, operation.replacement,
+            parent_semantic_id=operation.parent_semantic_id,
+            branch=operation.branch,
+            index=operation.index,
+        )
+        provenance = FormalizationProvenanceV2(
+            source_phrase=operation.source_phrase,
             status="formalized",
             semantic_ids=(operation.replacement.semantic_id,),
             interpretation=operation.interpretation,

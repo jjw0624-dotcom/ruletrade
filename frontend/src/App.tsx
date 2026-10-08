@@ -6,6 +6,7 @@ import { findExample, type ExampleId, type StrategyExample } from "./domain/exam
 import { pathForRoute, routeFromPath, type AppRoute } from "./domain/navigation";
 import { StrategyEditor } from "./StrategyEditor";
 import { V2StrategyEditor } from "./components/V2StrategyEditor";
+import { v2AuthoringApi } from "./v2AuthoringApi";
 import { isCanonicalV2 } from "./domain/canonicalV2";
 import { StrategyEditorProvider } from "./store/editorStore";
 import { strategyApi, type StrategyDetail, type StrategyDetailV1, type StrategyDetailV2, type StrategyRecord } from "./strategyApi";
@@ -71,6 +72,8 @@ export default function App() {
   const [listError, setListError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [createDraft, setCreateDraft] = useState<{ id: ExampleId; bootstrap: EditorBootstrap; name: string; initialView: "overview" | "guided" } | null>(null);
+  const [programDraftName, setProgramDraftName] = useState<string | null>(null);
+  const [programCreating, setProgramCreating] = useState(false);
   const [creating, setCreating] = useState<ExampleId | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -155,6 +158,20 @@ export default function App() {
     finally { creationInFlight.current = false; setCreating(null); }
   }
 
+  async function confirmProgramCreate() {
+    if (!programDraftName?.trim() || creationInFlight.current) return;
+    creationInFlight.current = true; setProgramCreating(true); setCreateError(null);
+    try {
+      const canonical = await v2AuthoringApi.programTemplate(programDraftName.trim());
+      const detail = await strategyApi.create(programDraftName.trim(), canonical);
+      setProgramDraftName(null); setPickerOpen(false); navigate(routeForCreatedStrategy(detail));
+    } catch (reason) {
+      setCreateError(reason instanceof Error ? reason.message : "We couldn't create this Program Strategy.");
+    } finally {
+      creationInFlight.current = false; setProgramCreating(false);
+    }
+  }
+
   async function openStrategyOwningRevision(revisionId: string) {
     const active = await strategyApi.list();
     const matches = await Promise.all(active.items.map(async (item) => ({ item, revisions: (await strategyApi.revisions(item.id)).items })));
@@ -191,7 +208,9 @@ export default function App() {
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
     {route.page === "comparison" && <ComparisonWorkspace comparisonId={route.comparisonId} initialContext={comparisonContext?.comparisonId === route.comparisonId ? comparisonContext.context : null} onContextChange={(context) => setComparisonContext({ comparisonId: route.comparisonId, context })} onOpenRun={(runId, context) => { if (context) { setResearchContext(context); setComparisonContext({ comparisonId: route.comparisonId, context }); } navigate({ page: "run", runId }); }} onViewRule={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context, { page: "comparison", comparisonId: route.comparisonId })} onAdopted={(response) => { setAdoptionNotice("This change is now part of your strategy."); setSourceFocus(null); navigate({ page: "strategy", strategyId: response.strategy.id }); }} onOpenLatest={(revisionId) => { setAdoptionNotice(null); void openStrategyOwningRevision(revisionId).catch((reason: unknown) => setRunError(reason instanceof Error ? reason.message : "We couldn't open the latest strategy.")); }} />}
-    {pickerOpen && <CreationPicker onChoose={chooseStartingPoint} onClose={() => setPickerOpen(false)} loading={creating} error={createError} />}
+    {pickerOpen && <CreationPicker onChoose={chooseStartingPoint} onProgram={() => { setPickerOpen(false); setProgramDraftName("Untitled Program Strategy"); }} onClose={() => setPickerOpen(false)} loading={creating} error={createError} />}
     {createDraft && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="create-title" onSubmit={(event) => { event.preventDefault(); void confirmCreate(); }}><span className="eyebrow">New strategy</span><h2 id="create-title">Name your strategy</h2><p>This starting point becomes one normal saved strategy. You can move between Summary, Guide, and Flow after creation.</p><label>Strategy name<input autoFocus value={createDraft.name} maxLength={100} onChange={(event) => setCreateDraft({ ...createDraft, name: event.target.value })} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreateDraft(null)}>Cancel</button><button className="primary-button" disabled={!createDraft.name.trim() || creating !== null}>{creating ? "Creating…" : "Create strategy"}</button></div></form></div>}
+    {programDraftName !== null && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="program-create-title" onSubmit={(event) => { event.preventDefault(); void confirmProgramCreate(); }}><span className="eyebrow">New semantic Program</span><h2 id="program-create-title">Name your Program Strategy</h2><p>Starts from a valid retain-holdings Program. Add typed statements from Blocky and configure their financial meaning in Inspector.</p><label>Strategy name<input autoFocus value={programDraftName} maxLength={100} onChange={(event) => setProgramDraftName(event.target.value)} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setProgramDraftName(null)}>Cancel</button><button className="primary-button" disabled={!programDraftName.trim() || programCreating}>{programCreating ? "Creating…" : "Create Program"}</button></div></form></div>}
   </AppShell>;
 }
+

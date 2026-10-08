@@ -9,6 +9,7 @@ from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v2.authoring import (
     ApplyV2AuthoringRequest,
     FormalizeProgramStatement,
+    FormalizeDraftPhrase,
     InsertProgramStatement,
     MoveProgramStatement,
     RemoveProgramStatement,
@@ -801,6 +802,25 @@ def test_unresolved_formalization_is_one_atomic_provenance_preserving_intent() -
     assert provenance.source_phrase == "strong breakout"
     assert provenance.status == "formalized"
     assert provenance.semantic_ids == ("formalized-breakout-policy",)
+
+
+def test_working_phrase_formalizes_atomically_without_persisting_unresolved_canonical() -> None:
+    canonical = _program_canonical(program(asset_allocation("TLT", "existing-policy")))
+    replacement = asset_allocation("QQQ", "explicit-breakout-policy")
+    canonical = _author(canonical, FormalizeDraftPhrase(
+        kind="formalize_draft_phrase",
+        source_phrase="strong breakout",
+        replacement=replacement,
+        interpretation="Allocate to QQQ under the user's explicit supported Condition.",
+        parent_semantic_id=None,
+        branch="root",
+        index=None,
+    ))
+    assert [item.semantic_id for item in canonical.program.statements] == [
+        "existing-policy", "explicit-breakout-policy",
+    ]
+    assert canonical.program.formalizations[0].source_phrase == "strong breakout"
+    assert canonical.program.formalizations[0].status == "formalized"
 
 
 def test_state_driven_event_edge_uses_incoming_not_already_mutated_state() -> None:
