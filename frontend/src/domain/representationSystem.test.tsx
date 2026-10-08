@@ -72,7 +72,7 @@ describe("one Canonical, distinct editable perspectives", () => {
     expect(rules.editor.selection).toEqual(selected);
     expect(renderToStaticMarkup(<StrategyEditorProvider bootstrap={filterBootstrap} initialView="rules"><RulesView structural={structural} /></StrategyEditorProvider>)).toContain("WHERE ");
     expect(flowNodeIdForSelection(projectFlowCanvas(flow).nodes, selected)).toBe(flowNode.id);
-    expect(projectBuilderStructure(flow).children[0].children[0].children.find((item) => item.label === "Qualification")?.selection.componentId).toBe(selected.componentId);
+    expect(projectBuilderStructure(flow).children[0].children.find((item) => item.label === "Qualification")?.selection.componentId).toBe(selected.componentId);
   });
 
   it("takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", async () => {

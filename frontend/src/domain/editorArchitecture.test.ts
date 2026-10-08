@@ -6,6 +6,7 @@ import { projectFlowCanvas } from "../views/FlowView";
 import { createEditorState, editorReducer } from "../store/editorStore";
 import { goldenBootstrap } from "../test/fixture";
 import { authoringResponse } from "../test/authoringResponse";
+import { projectV1ProductSemantics } from "./productSemantics";
 
 describe("Strategy Editor Canonical architecture", () => {
   it("loads and projects the Golden Canonical strategy", () => {
@@ -30,6 +31,16 @@ describe("Strategy Editor Canonical architecture", () => {
     expect(projection.groups[0].choose).toMatchObject({ topN: 2, resample: "per_event" });
     expect(flow.nodes.some((node) => node.id.startsWith("selected-target:") && node.data.detail.includes("Choose 2"))).toBe(true);
     expect(flow.nodes.some((node) => node.data.title === "Rebalance")).toBe(true);
+  });
+
+  it("converges historical canonical meaning on the version-neutral product projection", () => {
+    const state = createEditorState(goldenBootstrap);
+    const product = projectV1ProductSemantics(projectConceptualFlow(state.canonical, state.registry));
+    expect(product.sourceVersion).toBe("v1");
+    expect(product.root.label).toBe("Portfolio");
+    expect(JSON.stringify(product.root)).toContain("Assets");
+    expect(product.flow.some((item) => item.label === "Qualification")).toBe(false);
+    expect(product.flow.some((item) => item.label === "Rebalance")).toBe(true);
   });
 
   it("shows a Guided semantic edit immediately in Flow", () => {

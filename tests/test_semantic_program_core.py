@@ -4,8 +4,28 @@ from decimal import Decimal
 
 import pytest
 
-from ruletrade.strategy.v1.models import AssetSetDefinition, StrategyMetadata
-from ruletrade.strategy.v2.authoring import V2AuthoringError, _replace_program_statement
+from ruletrade.strategy.v1.models import AssetSetDefinition, GroupDefinition, StrategyMetadata
+from ruletrade.hashing import strategy_hash
+from ruletrade.strategy.v2.authoring import (
+    AddProgramInvestment,
+    ApplyV2AuthoringRequest,
+    CreateProgramSelection,
+    FormalizeProgramStatement,
+    FormalizeDraftPhrase,
+    InsertProgramStatement,
+    MoveProgramStatement,
+    RemoveProgramStatement,
+    SetProgramCondition,
+    SetProgramFallback,
+    SetProgramSplit,
+    SetProgramAssetSet,
+    SetProgramSchedule,
+    SetProgramSelection,
+    SetProgramValue,
+    V2AuthoringError,
+    _replace_program_statement,
+    apply_v2_authoring,
+)
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueNode,
@@ -48,6 +68,7 @@ from ruletrade.strategy.v2.program_validation import (
 )
 from ruletrade.strategy.v2.semantic_types import Axis, Clock, Quantity, Unit
 from ruletrade.strategy.v2.validation import validate_strategy_v2, v2_capabilities
+from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
 
 
 def snapshot() -> DailyMarketSnapshot:
@@ -644,6 +665,322 @@ def test_program_authoring_addresses_nested_allocations_without_ambiguity() -> N
                 reason="wrong replacement kind",
             ),
         )
+
+
+def _program_canonical(core: SemanticProgramV2) -> CanonicalStrategyV2:
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Authorable Program"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinition(id="growth", assets=["QQQ", "VGT", "SOXX"]),),
+            groups=(),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1", "daily.trailing_return": "1"},
+        program=core,
+    )
+
+
+def _author(strategy: CanonicalStrategyV2, operation):
+    return apply_v2_authoring(ApplyV2AuthoringRequest(
+        strategy=strategy,
+        expected_source_hash=strategy_hash(strategy),
+        operation=operation,
+    )).strategy
+
+
+def test_program_authoring_insert_move_remove_uses_semantic_parent_addresses() -> None:
+    control = ConditionalStatementV2(
+        semantic_id="control-address",
+        condition=condition_over("105"),
+        then_statements=(asset_allocation("QQQ", "then-allocation"),),
+        otherwise_statements=(asset_allocation("TLT", "else-allocation"),),
+    )
+    canonical = _program_canonical(program(control, asset_allocation("SOXX", "root-allocation")))
+    inserted = asset_allocation("VGT", "inserted-allocation")
+    canonical = _author(canonical, InsertProgramStatement(
+        kind="insert_program_statement",
+        statement=inserted,
+        parent_semantic_id="control-address",
+        branch="then",
+        index=1,
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.then_statements] == [
+        "then-allocation", "inserted-allocation",
+    ]
+
+    canonical = _author(canonical, MoveProgramStatement(
+        kind="move_program_statement",
+        semantic_id="root-allocation",
+        parent_semantic_id="control-address",
+        branch="otherwise",
+        index=0,
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.otherwise_statements] == [
+        "root-allocation", "else-allocation",
+    ]
+
+    canonical = _author(canonical, RemoveProgramStatement(
+        kind="remove_program_statement", semantic_id="inserted-allocation",
+    ))
+    addressed = canonical.program.statements[0]
+    assert isinstance(addressed, ConditionalStatementV2)
+    assert [item.semantic_id for item in addressed.then_statements] == ["then-allocation"]
+
+
+def test_program_authoring_edits_selection_fields_without_array_addresses() -> None:
+    selected = SelectionStatementV2(
+        semantic_id="selection-statement",
+        selection=selection(),
+        output_id="chosen",
+    )
+    canonical = _program_canonical(program(selected, equal_selection_allocation()))
+    changed_selection = selected.selection.model_copy(update={
+        "count": 1,
+        "shortage_policy": "choose_all",
+    })
+    canonical = _author(canonical, SetProgramSelection(
+        kind="set_program_selection",
+        semantic_id="selection-statement",
+        selection=changed_selection,
+    ))
+    canonical = _author(canonical, SetProgramCondition(
+        kind="set_program_condition",
+        semantic_id="selection-statement",
+        role="selection_eligibility",
+        condition=condition_over("110"),
+    ))
+    new_rank = candidate_return().model_copy(update={"observations": 2})
+    canonical = _author(canonical, SetProgramValue(
+        kind="set_program_value",
+        semantic_id="selection-statement",
+        role="selection_ranking",
+        value=new_rank,
+    ))
+    statement = canonical.program.statements[0]
+    assert isinstance(statement, SelectionStatementV2)
+    assert statement.selection.count == 1
+    assert statement.selection.shortage_policy == "choose_all"
+    assert statement.selection.eligibility.semantic_id == "qqq-over-110"
+    assert statement.selection.ranking.semantic_id == "candidate-return"
+    assert statement.selection.ranking.observations == 2
+    assert validate_strategy_v2(canonical) == ()
+
+
+def test_program_authoring_edits_assets_without_exposing_program_structure() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    canonical = _author(canonical, SetProgramAssetSet(
+        kind="set_program_asset_set",
+        asset_set_id="growth",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    assert canonical.definitions.asset_sets[0].assets == ["QQQ", "VGT", "SOXX", "SCHG"]
+    with pytest.raises(V2AuthoringError, match="only once"):
+        _author(canonical, SetProgramAssetSet(
+            kind="set_program_asset_set",
+            asset_set_id="growth",
+            assets=("QQQ", "QQQ"),
+        ))
+
+
+def test_product_investment_and_rebalance_operations_are_atomic() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    original_statement_clock = canonical.program.statements[0].clock_id
+    canonical = _author(canonical, AddProgramInvestment(
+        kind="add_program_investment",
+        investment_id="strongest-etfs",
+        name="Investment",
+        asset_set_id="strongest-etf-assets",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    assert canonical.definitions.groups[-1].id == "strongest-etfs"
+    assert canonical.definitions.asset_sets[-1].assets == ["QQQ", "VGT", "SOXX", "SCHG"]
+    canonical = _author(canonical, SetProgramSchedule(
+        kind="set_program_schedule", clock_id="daily-close", timeframe="monthly",
+    ))
+    assert canonical.program.clocks[0].timeframe == "monthly"
+    assert canonical.program.statements[0].clock_id == original_statement_clock
+    with pytest.raises(V2AuthoringError, match="already exists"):
+        _author(canonical, AddProgramInvestment(
+            kind="add_program_investment", investment_id="strongest-etfs",
+            name="Duplicate", asset_set_id="duplicate-assets", assets=("SPY",),
+        ))
+    assert len(canonical.definitions.groups) == 1
+
+
+def test_product_selection_fallback_and_split_operations_are_atomic() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "initial-retain-allocation")))
+    canonical = _author(canonical, AddProgramInvestment(
+        kind="add_program_investment", investment_id="growth", name="Growth",
+        asset_set_id="growth-assets", assets=("QQQ", "VGT", "SOXX", "SCHG"),
+    ))
+    canonical = _author(canonical, AddProgramInvestment(
+        kind="add_program_investment", investment_id="defensive", name="Defensive",
+        asset_set_id="defensive-assets", assets=("TLT", "IEF"),
+    ))
+    canonical = _author(canonical, CreateProgramSelection(
+        kind="create_program_selection", semantic_id="growth-selection",
+        investment_id="growth", clock_id="daily-close", lookback=126,
+        direction="descending", count=2, shortage_policy="require_full",
+        qualification_lookback=126, qualification_operator="gt",
+        qualification_threshold=Decimal(0),
+    ))
+    selected = next(item for item in canonical.program.statements if isinstance(item, SelectionStatementV2))
+    assert selected.selection.count == 2
+    assert isinstance(selected.selection.eligibility, ComparisonV2)
+    assert any(
+        isinstance(item, AllocationStatementV2)
+        and any(leg.target.ref == selected.output_id for leg in item.legs)
+        for item in canonical.program.statements
+    )
+
+    canonical = _author(canonical, SetProgramFallback(
+        kind="set_program_fallback", semantic_id="growth-selection", fallback_asset="TLT",
+    ))
+    assert next(item for item in canonical.program.statements if isinstance(item, SelectionStatementV2)).selection.fallback_asset == "TLT"
+
+    canonical = _author(canonical, SetProgramSplit(
+        kind="set_program_split", investments=(("growth", Decimal("0.70")), ("defensive", Decimal("0.30"))),
+    ))
+    split = next(
+        item for item in canonical.program.statements
+        if isinstance(item, AllocationStatementV2) and item.semantic_id == "portfolio-split"
+    )
+    assert tuple(leg.weight for leg in split.legs) == (Decimal("0.70"), Decimal("0.30"))
+
+    with pytest.raises(V2AuthoringError, match="sum exactly"):
+        _author(canonical, SetProgramSplit(
+            kind="set_program_split", investments=(("growth", Decimal("0.80")), ("defensive", Decimal("0.30"))),
+        ))
+
+
+def test_builder_authored_strongest_program_lowers_to_monthly_lean_plan() -> None:
+    ranked = candidate_return("builder-ranking").model_copy(update={"observations": 126})
+    selected = SelectionStatementV2(
+        semantic_id="builder-selection",
+        output_id="builder-selected",
+        clock_id="monthly-close",
+        selection=SelectionV2(
+            semantic_id="builder-selection-definition",
+            universe_id="growth",
+            binding=CandidateBinding(id="candidate", domain_id="growth"),
+            eligibility=ComparisonV2(
+                semantic_id="positive-return", operator="gt",
+                left=candidate_return("eligibility-return").model_copy(update={"observations": 126}),
+                right=DailyValueNode(
+                    semantic_id="zero-return", kind="literal", quantity=Quantity.RETURN,
+                    unit=Unit.RATIO, refinement="trailing_return:adjusted_close", value=Decimal(0),
+                ),
+            ),
+            ranking=ranked,
+            direction="descending",
+            count=2,
+            shortage_policy="require_full",
+            fallback_asset="TLT",
+        ),
+    )
+    canonical = CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Strongest ETFs"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinition(id="growth-assets", assets=["QQQ", "VGT", "SOXX", "SCHG"]),),
+            groups=(GroupDefinition(id="growth", name="Investment", asset_set_ref="growth-assets"),),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1", "daily.trailing_return": "1"},
+        program=SemanticProgramV2(
+            semantic_id="program",
+            clocks=(ProgramClockV2(id="monthly-close", timeframe="monthly"),),
+            statements=(selected, equal_selection_allocation("builder-selected")),
+        ),
+    )
+    plan = compile_v2_strategy_to_lean_plan(canonical)
+    assert plan.monthly_events
+    assert plan.momentum_selections[0].lookback_bars == 126
+    assert plan.momentum_selections[0].count == 2
+    assert plan.target_sleeves[0].fallback_symbols == ("TLT",)
+
+
+def test_program_execution_capability_rejects_incomplete_or_unsupported_shapes_honestly() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "allocation")))
+    with pytest.raises(V2LoweringError, match="exactly one Selection"):
+        compile_v2_strategy_to_lean_plan(canonical)
+
+
+def test_program_authoring_rejects_role_mismatch_and_stale_source_atomically() -> None:
+    canonical = _program_canonical(program(asset_allocation("QQQ", "only-allocation")))
+    request = ApplyV2AuthoringRequest(
+        strategy=canonical,
+        expected_source_hash=strategy_hash(canonical),
+        operation=SetProgramValue(
+            kind="set_program_value",
+            semantic_id="only-allocation",
+            role="selection_ranking",
+            value=candidate_return("invalid-rank"),
+        ),
+    )
+    with pytest.raises(V2AuthoringError, match="invalid for this statement"):
+        apply_v2_authoring(request)
+    with pytest.raises(V2AuthoringError, match="changed"):
+        apply_v2_authoring(request.model_copy(update={"expected_source_hash": "stale"}))
+    assert canonical.program.statements[0].semantic_id == "only-allocation"
+
+
+def test_program_authoring_rejects_silent_semantic_identity_retargeting() -> None:
+    selected = SelectionStatementV2(
+        semantic_id="selection-address", selection=selection(), output_id="selected",
+    )
+    canonical = _program_canonical(program(selected))
+    with pytest.raises(V2AuthoringError, match="preserve semantic identity"):
+        _author(canonical, SetProgramValue(
+            kind="set_program_value", semantic_id="selection-address",
+            role="selection_ranking", value=candidate_return("different-address"),
+        ))
+
+
+def test_unresolved_formalization_is_one_atomic_provenance_preserving_intent() -> None:
+    unresolved = UnresolvedStatementV2(
+        semantic_id="strong-breakout",
+        source_text="strong breakout",
+        category="fuzzy_term",
+        reason="Requires an explicit Condition.",
+    )
+    canonical = _program_canonical(program(unresolved))
+    replacement = asset_allocation("QQQ", "formalized-breakout-policy")
+    canonical = _author(canonical, FormalizeProgramStatement(
+        kind="formalize_program_statement",
+        semantic_id="strong-breakout",
+        replacement=replacement,
+        interpretation="Allocate to QQQ under the manually defined breakout policy.",
+    ))
+    assert canonical.program.statements == (replacement,)
+    provenance = canonical.program.formalizations[0]
+    assert provenance.source_phrase == "strong breakout"
+    assert provenance.status == "formalized"
+    assert provenance.semantic_ids == ("formalized-breakout-policy",)
+
+
+def test_working_phrase_formalizes_atomically_without_persisting_unresolved_canonical() -> None:
+    canonical = _program_canonical(program(asset_allocation("TLT", "existing-policy")))
+    replacement = asset_allocation("QQQ", "explicit-breakout-policy")
+    canonical = _author(canonical, FormalizeDraftPhrase(
+        kind="formalize_draft_phrase",
+        source_phrase="strong breakout",
+        replacement=replacement,
+        interpretation="Allocate to QQQ under the user's explicit supported Condition.",
+        parent_semantic_id=None,
+        branch="root",
+        index=None,
+    ))
+    assert [item.semantic_id for item in canonical.program.statements] == [
+        "existing-policy", "explicit-breakout-policy",
+    ]
+    assert canonical.program.formalizations[0].source_phrase == "strong breakout"
+    assert canonical.program.formalizations[0].status == "formalized"
 
 
 def test_state_driven_event_edge_uses_incoming_not_already_mutated_state() -> None:
