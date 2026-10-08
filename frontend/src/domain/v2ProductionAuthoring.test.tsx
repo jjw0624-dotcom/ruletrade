@@ -150,7 +150,7 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("ORDER BY / SCORE");
     expect(markup).toContain("ANY");
     expect(markup).toContain("N-of-M");
-    expect(markup).toContain("Allocate capital");
+    expect(markup).toContain("Capital");
     expect(markup).not.toContain("program-selection-definition");
     expect(markup).not.toContain("initial-retain-allocation");
     expect(markup).not.toContain("ANY and nested conditions remain unavailable");
