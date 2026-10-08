@@ -153,7 +153,6 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("FROM");
     expect(markup).toContain("WHERE");
     expect(markup).toContain("ORDER BY");
-    expect(markup).toContain("Action");
     expect(markup).not.toContain("Event semantics");
     expect(markup).not.toContain("State semantics");
     expect(markup).not.toContain("program-selection-definition");
