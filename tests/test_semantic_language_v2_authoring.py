@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from ruletrade.api import app, get_strategy_service
+from ruletrade.api import app, get_strategy_service, lean_executor
+from ruletrade.backtests.errors import LeanRuntimeUnavailableError
 from ruletrade.hashing import strategy_hash
 from ruletrade.persistence.sqlite_strategies import SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
@@ -195,6 +196,213 @@ def test_v2_api_capabilities_are_provider_honest() -> None:
         assert capabilities["daily.rsi_wilder_lean_compat@1"]["available"] is True
         assert capabilities["daily.volume_raw_shares@1"]["available"] is False
         assert capabilities["daily.raw_ohlc@1"]["available"] is False
+        assert capabilities["program.event@1"] == {
+            "operation_id": "program.event@1",
+            "label": "Event semantics",
+            "available": True,
+            "reason": "Semantically defined and reference-evaluable, but not exposed in the product Builder.",
+            "semantic_status": "reference_only",
+            "reference_evaluable": True,
+            "backend_lowerable": False,
+            "authoring_reachable": False,
+            "production_ready": False,
+        }
+        assert capabilities["program.state@1"]["authoring_reachable"] is False
+        assert capabilities["daily.volume_raw_shares@1"]["semantic_status"] == "unavailable"
+
+
+def test_program_template_is_program_native_and_never_synthesizes_compatibility_selection() -> None:
+    with TestClient(app) as client:
+        response = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Program native",
+            "assets": ["SPY", "TLT"],
+        })
+        assert response.status_code == 200, response.text
+        strategy = response.json()
+        assert strategy["selection"] is None
+        assert strategy["program"]["semantic_id"] == "program"
+        assert strategy["program"]["statements"][0]["kind"] == "allocate"
+        assert strategy["program"]["statements"][0]["legs"][0]["target"]["kind"] == "retain"
+        assert strategy["definitions"]["asset_sets"][0]["assets"] == ["SPY", "TLT"]
+        assert strategy["definitions"]["groups"] == []
+
+
+def test_blank_program_template_is_semantically_empty_and_stable() -> None:
+    with TestClient(app) as client:
+        first = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"})
+        second = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"})
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        strategy = CanonicalStrategyV2.model_validate(first.json())
+        assert strategy.definitions.asset_sets[0].id == "initial-assets"
+        assert strategy.definitions.asset_sets[0].assets == []
+        assert strategy.definitions.groups == ()
+        assert strategy.selection is None
+        assert "SPY" not in first.text
+        assert strategy_hash(strategy) == strategy_hash(CanonicalStrategyV2.model_validate(second.json()))
+
+
+def test_blank_program_template_persists_reopens_and_accepts_first_investment(tmp_path: Path) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "blank-program.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            blank = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"}).json()
+            created = client.post("/v1/strategies", json={"name": "Blank", "canonical_strategy": blank})
+            assert created.status_code == 201, created.text
+            strategy_id = created.json()["strategy"]["id"]
+            reopened = client.get(f"/v1/strategies/{strategy_id}")
+            assert reopened.status_code == 200, reopened.text
+            canonical = reopened.json()["current_revision"]["canonical_strategy"]
+            assert canonical["definitions"]["asset_sets"] == [{"id": "initial-assets", "assets": []}]
+            assert canonical["definitions"]["groups"] == []
+            assert "SPY" not in reopened.text
+
+            authored = client.post("/v2/canonical/authoring/apply", json={
+                "strategy": canonical,
+                "expected_source_hash": reopened.json()["current_revision"]["source_hash"],
+                "operation": {
+                    "kind": "add_program_investment", "investment_id": "investment-1",
+                    "name": "Investment", "asset_set_id": "investment-assets", "assets": [],
+                },
+            })
+            assert authored.status_code == 200, authored.text
+            authored_payload = authored.json()
+            assets = client.post("/v2/canonical/authoring/apply", json={
+                "strategy": authored_payload["strategy"],
+                "expected_source_hash": authored_payload["source_hash"],
+                "operation": {
+                    "kind": "set_program_asset_set", "asset_set_id": "investment-assets",
+                    "assets": ["QQQ", "VGT", "SOXX", "SCHG"],
+                },
+            })
+            assert assets.status_code == 200, assets.text
+            assert assets.json()["strategy"]["definitions"]["asset_sets"] == [
+                {"id": "initial-assets", "assets": []},
+                {"id": "investment-assets", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+            ]
+            assert "SPY" not in assets.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_every_new_starting_point_is_an_explicit_v2_program_template() -> None:
+    with TestClient(app) as client:
+        for starting_point in ("fallback", "sleeves", "cooldown", "one_investment", "filter", "golden"):
+            response = client.post("/v2/canonical/authoring/program-template", json={
+                "name": f"New {starting_point}", "starting_point": starting_point,
+            })
+            assert response.status_code == 200, (starting_point, response.text)
+            strategy = response.json()
+            assert strategy["api_version"] == "ruletrade.dev/strategy/v2"
+            assert strategy["selection"] is None
+            assert strategy["program"] is not None
+            assert strategy["definitions"]["groups"]
+
+        strongest = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Strongest ETFs", "starting_point": "fallback",
+        }).json()
+        selection = next(item for item in strongest["program"]["statements"] if item["kind"] == "select")
+        assert selection["selection"]["count"] == 2
+        assert selection["selection"]["fallback_asset"] == "TLT"
+        assert strongest["program"]["clocks"][0]["timeframe"] == "monthly"
+
+        sleeves = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Growth + Defensive", "starting_point": "sleeves",
+        }).json()
+        split = next(item for item in sleeves["program"]["statements"] if item["semantic_id"] == "portfolio-split")
+        assert [leg["weight"] for leg in split["legs"]] == ["0.70", "0.30"]
+
+
+def test_program_native_template_saves_revises_and_reopens_through_real_repository(tmp_path: Path) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "program-native.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            template = client.post("/v2/canonical/authoring/program-template", json={"name": "Program"}).json()
+            authored = client.post("/v2/canonical/authoring/apply", json={
+                "strategy": template, "expected_source_hash": strategy_hash(CanonicalStrategyV2.model_validate(template)),
+                "operation": {"kind": "add_program_investment", "investment_id": "investment-1", "name": "Investment", "asset_set_id": "investment-assets", "assets": []},
+            })
+            assert authored.status_code == 200, authored.text
+            authored_payload = authored.json()
+            operations = [
+                {"kind": "set_program_asset_set", "asset_set_id": "investment-assets", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+                {"kind": "create_program_selection", "semantic_id": "selection-1", "investment_id": "investment-1", "clock_id": "daily-close", "lookback": 126, "direction": "descending", "count": 2, "shortage_policy": "require_full", "qualification_lookback": 126, "qualification_operator": "gt", "qualification_threshold": 0},
+                {"kind": "set_program_fallback", "semantic_id": "selection-1", "fallback_asset": "TLT"},
+                {"kind": "set_program_schedule", "clock_id": "daily-close", "timeframe": "monthly"},
+            ]
+            for operation in operations:
+                authored = client.post("/v2/canonical/authoring/apply", json={
+                    "strategy": authored_payload["strategy"], "expected_source_hash": authored_payload["source_hash"],
+                    "operation": operation,
+                })
+                assert authored.status_code == 200, authored.text
+                authored_payload = authored.json()
+            template = authored_payload["strategy"]
+            capability = client.post("/v2/canonical/strategies/execution-capability", json=template).json()
+            assert capability["execution_state"] == "executable"
+            created = client.post("/v1/strategies", json={"name": "Program", "canonical_strategy": template})
+            assert created.status_code == 201, created.text
+            detail = created.json()
+            first = detail["current_revision"]
+            edited = first["canonical_strategy"]
+            edited["program"]["formalizations"] = [{
+                "source_phrase": "strong breakout", "status": "formalized",
+                "semantic_ids": ["initial-retain-allocation"],
+                "interpretation": "Explicit retain policy until a supported Condition is configured.",
+            }]
+            saved = client.post(f"/v1/strategies/{detail['strategy']['id']}/revisions", json={
+                "expected_parent_revision_id": first["id"], "canonical_strategy": edited,
+            })
+            assert saved.status_code == 201, saved.text
+            reopened = StrategyService(SQLiteStrategyRepository(tmp_path / "program-native.sqlite3")).get_strategy(detail["strategy"]["id"])
+            assert reopened.current_revision.canonical_strategy.program.formalizations[0].source_phrase == "strong breakout"
+            assert reopened.current_revision.canonical_strategy.selection is None
+            assert reopened.current_revision.canonical_strategy.definitions.groups[0].id == "investment-1"
+            assert reopened.current_revision.canonical_strategy.program.clocks[0].timeframe == "monthly"
+            statement = next(item for item in reopened.current_revision.canonical_strategy.program.statements if item.kind == "select")
+            assert statement.selection.fallback_asset == "TLT"
+            assert statement.selection.count == 2
+            assert statement.selection.eligibility is not None
+            assert all("SPY" not in asset_set.assets for asset_set in reopened.current_revision.canonical_strategy.definitions.asset_sets)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_v2_capability_endpoint_separates_blank_unsupported_and_runtime_unavailable(monkeypatch) -> None:
+    with TestClient(app) as client:
+        blank = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"}).json()
+        capability = client.post("/v2/canonical/strategies/execution-capability", json=blank).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "incomplete"
+        assert capability["runtime_state"] == "not_checked"
+        assert "Program lowering" not in capability["product_message"]
+
+        complete = client.post("/v2/canonical/authoring/program-template", json={
+            "name": "Strongest ETFs", "starting_point": "fallback",
+        }).json()
+        unsupported = {**complete, "program": {**complete["program"], "clocks": [
+            {**complete["program"]["clocks"][0], "timeframe": "weekly"},
+        ]}}
+        capability = client.post("/v2/canonical/strategies/execution-capability", json=unsupported).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "unsupported"
+        assert capability["runtime_state"] == "not_checked"
+
+        class UnavailableRunner:
+            def ensure_available(self) -> None:
+                raise LeanRuntimeUnavailableError("Docker daemon is unavailable.")
+
+        monkeypatch.setattr(lean_executor, "runner", UnavailableRunner())
+        capability = client.post(
+            "/v2/canonical/strategies/execution-capability?check_runtime=true", json=complete,
+        ).json()
+        assert capability["semantic_state"] == "valid"
+        assert capability["execution_state"] == "executable"
+        assert capability["runtime_state"] == "unavailable"
+        assert capability["product_message"] == "The testing runtime is unavailable. Try again when Docker is running."
+        assert capability["technical_detail"] == "Docker daemon is unavailable."
 
 
 def selection_snapshot() -> DailyMarketSnapshot:

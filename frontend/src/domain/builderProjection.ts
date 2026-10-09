@@ -1,7 +1,8 @@
-import type { ConceptualFlowProjection, ConceptualGroup } from "./conceptualFlow";
+import type { ConceptualFlowProjection } from "./conceptualFlow";
 import { semanticSelection, type SemanticSelection } from "./semanticSelection";
 import type { StructuralAuthoringCapabilities, StructuralAuthoringOperation } from "../structuralAuthoringApi";
 import type { RegistryPayload } from "./canonical";
+import { projectV1ProductSemantics, type ProductNode } from "./productSemantics";
 
 export type BuilderBlockKind = "metric" | "choose" | "qualification" | "fallback" | "cooldown" | "split";
 
@@ -58,57 +59,6 @@ const TOOLBOX_DEFINITIONS: ToolboxDefinition[] = [
   { id: "schedule", category: "Timing", label: "Schedule", description: "Choose when the Strategy evaluates and rebalances.", primitives: ["daily@1", "monthly@1"], perspectives: ["flow", "blocky"] },
 ];
 
-function groupItems(group: ConceptualGroup): StructureItem[] {
-  const universe: StructureItem = {
-    id: `${group.id}:universe`,
-    label: "Assets",
-    detail: group.assets.join(", "),
-    selection: semanticSelection("universe", group.universeComponentId ?? null, { groupId: group.id }),
-    children: [],
-  };
-  if (!group.choose) return [universe];
-  const choose = group.choose;
-  const pipeline: StructureItem[] = [];
-  if (choose.filterComponentId) {
-    pipeline.push({
-      id: `${group.id}:qualification`,
-      label: "Qualification",
-      detail: choose.condition,
-      selection: semanticSelection("qualification", choose.filterComponentId, {
-        fieldPath: "config.threshold",
-        groupId: group.id,
-      }),
-      children: [],
-    });
-  }
-  pipeline.push({
-    id: `${group.id}:selection`,
-    label: choose.label,
-    detail: choose.ranking,
-    selection: semanticSelection("selection", choose.selectionComponentId, { groupId: group.id }),
-    children: [],
-  });
-  if (choose.cooldownComponentId) {
-    pipeline.push({
-      id: `${group.id}:cooldown`, label: "Cooldown", detail: choose.cooldown,
-      selection: semanticSelection("cooldown", choose.cooldownComponentId, {
-        fieldPath: "config.duration", groupId: group.id,
-      }), children: [],
-    });
-  }
-  if (choose.fallbackComponentId) {
-    pipeline.push({
-      id: `${group.id}:fallback`,
-      label: "Fallback",
-      detail: choose.otherwise,
-      selection: semanticSelection("fallback", choose.fallbackComponentId, { groupId: group.id }),
-      children: [],
-    });
-  }
-  universe.children = pipeline;
-  return [universe];
-}
-
 export function projectBuilderStructure(projection: ConceptualFlowProjection): StructureItem {
   if (projection.unsupportedReason) return {
     id: "portfolio",
@@ -123,39 +73,21 @@ export function projectBuilderStructure(projection: ConceptualFlowProjection): S
       children: [],
     }],
   };
-  const groups = projection.groups.map((group) => ({
-    id: `group:${group.id}`,
-    label: group.label,
-    detail: group.allocation,
-    selection: semanticSelection("group", group.sleeveComponentId ?? group.universeComponentId ?? null, {
-      groupId: group.id,
-    }),
-    children: groupItems(group),
-  }));
-  const children = projection.split
-    ? [{
-        id: "split",
-        label: "Split",
-        detail: projection.groups.map((group) => group.allocation).join(" / "),
-        selection: semanticSelection("split", projection.portfolioComponentId ?? null),
-        children: groups,
-      }]
-    : groups;
-  if (projection.rebalanceScheduleComponentId) {
-    children.push({
-      id: "schedule",
-      label: "Rebalance",
-      detail: projection.rebalance,
-      selection: semanticSelection("schedule", projection.rebalanceScheduleComponentId),
-      children: [],
-    });
-  }
-  return {
-    id: "portfolio",
-    label: "Portfolio",
-    selection: semanticSelection("portfolio", projection.portfolioComponentId ?? null),
-    children,
+  const role = (node: ProductNode): SemanticSelection["role"] => ({
+    portfolio: "portfolio", investment: "group", sleeve: "group", assets: "universe",
+    qualification: "qualification", selection: "selection", fallback: "fallback",
+    cooldown: "cooldown", split: "split", allocation: "rule", timing: "schedule",
+    rebalance: "schedule", control: "rule",
+  })[node.concept] as SemanticSelection["role"];
+  const item = (node: ProductNode): StructureItem => {
+    const address = node.address.canonical === "v1" ? node.address : null;
+    return {
+      id: node.id, label: node.label, detail: node.detail,
+      selection: semanticSelection(role(node), address?.componentId ?? null, { groupId: address?.groupId, fieldPath: address?.fieldPath }),
+      children: node.children.map(item),
+    };
   };
+  return item(projectV1ProductSemantics(projection).root);
 }
 
 export function constructionOptions(

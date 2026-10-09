@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from pydantic import Field
 
 from ruletrade import __version__
 from ruletrade.asset_workspace import (
@@ -41,7 +42,7 @@ from ruletrade.backtests.errors import (
     UnsupportedStrategyError,
 )
 from ruletrade.backtests.lean_runner import DockerLeanRunner
-from ruletrade.backtests.models import LeanBacktestRequest, LeanBacktestResponse
+from ruletrade.backtests.models import BacktestConfig, LeanBacktestRequest, LeanBacktestResponse
 from ruletrade.backtests.service import BacktestService
 from ruletrade.candidates.errors import (
     CandidateAdoptionLineageError,
@@ -150,13 +151,14 @@ from ruletrade.strategy.v1.value_semantics import (
 from ruletrade.strategy.v2.authoring import (
     ApplyV2AuthoringRequest,
     ApplyV2AuthoringResponse,
+    ProgramStrategyTemplateRequest,
     V2AuthoringCapability,
     V2AuthoringError,
     apply_v2_authoring,
+    create_program_strategy_template,
 )
-from ruletrade.strategy.v2.authoring import (
-    authoring_capabilities as v2_authoring_capabilities,
-)
+from ruletrade.strategy.v2.authoring import authoring_capabilities as v2_authoring_capabilities
+from ruletrade.strategy.v2.bridge import V2LoweringError, lower_v2_to_v1
 from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
@@ -746,6 +748,14 @@ def canonical_v2_authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
     return v2_authoring_capabilities()
 
 
+@app.post("/v2/canonical/authoring/program-template", response_model=CanonicalStrategyV2)
+def canonical_v2_program_template(request: ProgramStrategyTemplateRequest) -> CanonicalStrategyV2:
+    try:
+        return create_program_strategy_template(request)
+    except V2AuthoringError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "path": exc.path, "message": str(exc)}) from exc
+
+
 @app.post(
     "/v2/canonical/authoring/apply",
     response_model=ApplyV2AuthoringResponse,
@@ -850,6 +860,59 @@ def validate_canonical_strategy_v2(spec: CanonicalStrategyV2) -> dict[str, objec
         "strategy_hash": strategy_hash(spec),
         "strategy": spec.model_dump(mode="json"),
     }
+
+
+class V2LeanBacktestRequest(FrozenModel):
+    strategy: CanonicalStrategyV2
+    config: BacktestConfig = Field(default_factory=BacktestConfig)
+
+
+@app.post("/v2/canonical/strategies/execution-capability")
+def v2_execution_capability(spec: CanonicalStrategyV2, check_runtime: bool = False) -> dict[str, object]:
+    """Classify committed meaning before strict lowering or runtime execution."""
+    from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
+
+    capability = assess_v2_execution_capability(spec)
+    if check_runtime and capability.execution_state == "executable":
+        try:
+            runner = lean_executor.runner
+            if hasattr(runner, "ensure_available"):
+                runner.ensure_available()
+            capability = capability.model_copy(update={"runtime_state": "available"})
+        except LeanRuntimeUnavailableError as exc:
+            capability = capability.model_copy(update={
+                "runtime_state": "unavailable",
+                "product_message": "The testing runtime is unavailable. Try again when Docker is running.",
+                "technical_detail": str(exc),
+            })
+    return capability.model_dump(mode="json")
+
+
+@app.post("/v2/backtests/lean", response_model=LeanBacktestResponse)
+def execute_v2_lean_backtest(
+    request: V2LeanBacktestRequest,
+    service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
+) -> LeanBacktestResponse:
+    """Execute the closed Program subset through the maintained typed LEAN pipeline."""
+    try:
+        lowered = lower_v2_to_v1(request.strategy)
+        response = service.execute_transient(LeanBacktestRequest(strategy=lowered, config=request.config))
+        return response.model_copy(update={"strategy_hash": strategy_hash(request.strategy)})
+    except V2LoweringError as exc:
+        raise HTTPException(status_code=422, detail={"code": "unsupported_v2_execution", "message": str(exc)}) from exc
+    except InvalidStrategyError as exc:
+        raise HTTPException(status_code=422, detail={
+            "code": exc.code, "message": str(exc),
+            "issues": [{"path": issue.path, "message": issue.message} for issue in exc.issues],
+        }) from exc
+    except LeanRuntimeUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": str(exc)}) from exc
+    except MalformedLeanResultError as exc:
+        raise HTTPException(status_code=502, detail={"code": exc.code, "message": str(exc)}) from exc
+    except MarketDataUnavailableError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+    except LeanExecutionError as exc:
+        raise HTTPException(status_code=502, detail={"code": exc.code, "message": str(exc)}) from exc
 
 @app.post("/v1/backtests/lean", response_model=LeanBacktestResponse)
 def execute_lean_backtest(
