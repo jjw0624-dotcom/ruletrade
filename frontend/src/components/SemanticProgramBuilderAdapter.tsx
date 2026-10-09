@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 
 import { isDailyValue, type CanonicalStrategyV2, type ConditionV2, type ProgramStatementV2, type SelectionStatementV2, type ValueExpressionV2, type V2AuthoringOperation } from "../domain/canonicalV2";
 import { describeConditionV2, describeProgramStatement, describeValueV2 } from "../domain/v2Semantics";
@@ -9,7 +11,7 @@ import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer }
 import { ProductBlockyProjection } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
 import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
-import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode, type ProductNode } from "../domain/productSemantics";
+import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
 import "./SemanticProgramBuilderAdapter.css";
 
 type DraftConcept = { kind: "selection"; semanticId: string; withQualification?: boolean } | null;
@@ -55,6 +57,76 @@ export function programFlowManifest(graph: { nodes: ProductFlowNode[]; edges: Pr
     ...graph.nodes.map((node) => `node:${node.id}|${node.role}|${node.label}`),
     ...graph.edges.map((edge) => `edge:${edge.source}->${edge.target}|${edge.role}|${edge.label ?? ""}`),
   ].join(";");
+}
+
+type ProgramFlowCanvasData = Record<string, unknown> & {
+  title: string;
+  detail?: string;
+  role: ProductFlowNode["role"];
+  hasIncoming: boolean;
+  hasOutgoing: boolean;
+};
+export type ProgramFlowCanvasNode = Node<ProgramFlowCanvasData, "program-product">;
+export type ProgramFlowCanvasEdge = Edge<{ role: ProductFlowEdge["role"] }>;
+
+function ProgramFlowCanvasNodeView({ data }: NodeProps<ProgramFlowCanvasNode>) {
+  return <div className={`program-flow-node flow-${data.role}`}>
+    {data.hasIncoming && <Handle type="target" position={Position.Top} />}
+    <strong>{data.title}</strong>{data.detail && <small>{data.detail}</small>}
+    {data.hasOutgoing && <Handle type="source" position={Position.Bottom} />}
+  </div>;
+}
+const programFlowNodeTypes = { "program-product": ProgramFlowCanvasNodeView };
+
+export function projectProgramFlowCanvas(graph: { nodes: ProductFlowNode[]; edges: ProductFlowEdge[] }): { nodes: ProgramFlowCanvasNode[]; edges: ProgramFlowCanvasEdge[] } {
+  const incoming = new Map<string, ProductFlowEdge[]>();
+  const outgoing = new Map<string, ProductFlowEdge[]>();
+  for (const edge of graph.edges) {
+    incoming.set(edge.target, [...(incoming.get(edge.target) ?? []), edge]);
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge]);
+  }
+  const depth = new Map<string, number>();
+  const visit = (id: string, active = new Set<string>()): number => {
+    const known = depth.get(id);
+    if (known !== undefined) return known;
+    if (active.has(id)) return 0;
+    const parents = incoming.get(id) ?? [];
+    const nextActive = new Set(active).add(id);
+    const value = parents.length ? Math.max(...parents.map((edge) => visit(edge.source, nextActive) + 1)) : 0;
+    depth.set(id, value);
+    return value;
+  };
+  graph.nodes.forEach((node) => visit(node.id));
+  const layers = new Map<number, ProductFlowNode[]>();
+  for (const node of graph.nodes) {
+    const layer = depth.get(node.id) ?? 0;
+    layers.set(layer, [...(layers.get(layer) ?? []), node]);
+  }
+  const nodes = graph.nodes.map((item): ProgramFlowCanvasNode => {
+    const layer = depth.get(item.id) ?? 0;
+    const peers = layers.get(layer) ?? [item];
+    const index = peers.findIndex((peer) => peer.id === item.id);
+    const gap = peers.length > 2 ? 250 : 300;
+    return {
+      id: item.id, type: "program-product",
+      position: { x: 480 - ((peers.length - 1) * gap) / 2 + index * gap, y: 40 + layer * 145 },
+      draggable: false, deletable: false, connectable: false,
+      data: { title: item.label, detail: item.detail, role: item.role, hasIncoming: incoming.has(item.id), hasOutgoing: outgoing.has(item.id) },
+    };
+  });
+  const edges = graph.edges.map((item): ProgramFlowCanvasEdge => ({
+    id: `${item.source}->${item.target}:${item.role}`, source: item.source, target: item.target,
+    label: item.label, type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed },
+    className: `program-flow-edge flow-${item.role}`, data: { role: item.role },
+  }));
+  return { nodes, edges };
+}
+
+export function programFlowGeometry(graph: { nodes: ProgramFlowCanvasNode[]; edges: ProgramFlowCanvasEdge[] }) {
+  return {
+    nodeCount: graph.nodes.length, edgeCount: graph.edges.length,
+    finitePositions: graph.nodes.every((node) => Number.isFinite(node.position.x) && Number.isFinite(node.position.y)),
+  };
 }
 
 function replaceStatement(items: ProgramStatementV2[], semanticId: string, replacement: ProgramStatementV2): ProgramStatementV2[] {
@@ -132,42 +204,26 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map((leg) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[leg.target.ref!] ?? 0} onChange={(event) => setWeights({ ...weights, [leg.target.ref!]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map((leg) => ({ id: leg.target.ref!, weight: weights[leg.target.ref!] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
-function flowButton(node: ProductFlowNode, onSelect: (id: string) => void) {
-  return <button type="button" key={node.id} className={node.role === "routing" || node.role === "behavior" ? "flow-routing-node" : node.role === "timing" ? "flow-action-node" : "flow-capital-node"} onClick={() => onSelect(node.focusId ?? node.id)}><strong>{node.label}</strong>{node.detail && <small>{node.detail}</small>}</button>;
-}
-
-function ProgramFlowProjection({ root, flow, edges, blank, onSelect }: { root: ProductNode; flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string) => void }) {
-  const split = root.children.find((node) => node.concept === "split");
-  const byId = new Map(flow.map((node) => [node.id, node]));
-  const portfolio = byId.get(root.id);
-  const rebalance = root.children.find((node) => node.concept === "rebalance");
-  const investments = split ? split.children : root.children.filter((node) => node.concept === "investment" || node.concept === "sleeve");
-  const branch = (investment: ProductNode) => {
-    const investmentFlow = byId.get(investment.id);
-    const selection = investment.children.find((node) => node.concept === "selection");
-    const selectionFlow = selection && byId.get(selection.id);
-    const outcomes = selectionFlow
-      ? edges.filter((edge) => edge.source === selectionFlow.id && edge.role === "routing").map((edge) => byId.get(edge.target)).filter((node): node is ProductFlowNode => Boolean(node))
-      : [];
-    return <div className="v2-flow-branch" key={investment.id} data-investment-flow={investment.id}>
-      {investmentFlow && flowButton(investmentFlow, onSelect)}
-      {selectionFlow && flowButton(selectionFlow, onSelect)}
-      {outcomes.length > 1
-        ? <div className="v2-flow-outcomes" aria-label={`${selectionFlow?.label ?? "Selection"} capital destinations`}>{outcomes.map((node) => flowButton(node, onSelect))}</div>
-        : outcomes.map((node) => flowButton(node, onSelect))}
-    </div>;
-  };
+function ProgramFlowProjection({ flow, edges, blank, onSelect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string) => void }) {
   const manifest = programFlowManifest({ nodes: flow, edges });
-  const hasOutcomeBranch = edges.some((edge) => edge.role === "routing" && edge.label === "if incomplete");
-  return <section className="representation-layer v2-flow" aria-label="Flow capital projection" data-flow-manifest={manifest}>
-    {portfolio && flowButton(portfolio, onSelect)}
-    {split && byId.has(split.id) && flowButton(byId.get(split.id)!, onSelect)}
-    {investments.length > 0 && (split || investments.length > 1
-      ? <div className="v2-flow-branches" aria-label={split ? "Split investment branches" : "Investment branches"}>{investments.map(branch)}</div>
-      : branch(investments[0]!))}
-    {hasOutcomeBranch && rebalance && <span className="v2-flow-convergence">Selected and fallback routes rejoin</span>}
-    {rebalance && byId.has(rebalance.id) && flowButton(byId.get(rebalance.id)!, onSelect)}
-    {blank && <p>No capital route has been defined yet.</p>}
+  const canvas = projectProgramFlowCanvas({ nodes: flow, edges });
+  const geometry = programFlowGeometry(canvas);
+  const focusById = new Map(flow.map((node) => [node.id, node.focusId ?? node.id]));
+  return <section className="representation-layer v2-flow v2-flow-reactflow" aria-label="Flow capital projection"
+    data-flow-manifest={manifest} data-flow-canvas-mounted="true"
+    data-flow-projected-node-count={canvas.nodes.length} data-flow-supplied-node-count={canvas.nodes.length}
+    data-flow-finite-positions={geometry.finitePositions} data-flow-fit-view="true"
+    data-flow-reactflow-node-manifest={manifest}>
+    <div className="v2-flow-reactflow-boundary" data-flow-reactflow-boundary>
+      <ReactFlow<ProgramFlowCanvasNode, ProgramFlowCanvasEdge>
+        nodes={canvas.nodes} edges={canvas.edges} nodeTypes={programFlowNodeTypes}
+        onNodeClick={(_, node) => onSelect(focusById.get(node.id) ?? node.id)}
+        nodesDraggable={false} nodesConnectable={false} elementsSelectable
+        fitView fitViewOptions={{ padding: .14, maxZoom: 1.25 }} minZoom={.45} maxZoom={1.6}>
+        <Background gap={24} size={1} /><Controls showInteractive={false} />
+      </ReactFlow>
+    </div>
+    {blank && <p className="v2-flow-empty">No capital route has been defined yet.</p>}
   </section>;
 }
 
@@ -335,7 +391,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "A portfolio ready for its first investment." : selection ? `${portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")}. ` : ""}Choose ${selection.selection.count} assets from ${investmentAssets?.assets.join(", ") || "this investment"} by ${selection.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.selection.ranking)}${selection.selection.fallback_asset ? `, with ${selection.selection.fallback_asset} as fallback` : ""}.` : portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")} across ${canonical.definitions.groups.length} Investments.` : "An investment ready for assets and selection rules."}</p></section>,
     blocky: <section className="representation-layer blocky-layer"><ProductBlockyProjection root={structure} selectedId={selectedId} onSelect={select} /></section>,
-    flow: <ProgramFlowProjection root={structure} flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select} />,
+    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select} />,
     rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : ruleLines.map((line) => <p key={line}>{line}</p>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" disabled>Choose assets · add an investment first</button><button className="secondary-button" type="button" disabled>Split a portfolio · add two investments first</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
     code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,

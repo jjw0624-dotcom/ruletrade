@@ -6,7 +6,7 @@ import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { programAllocationToolDescription, programFlowManifest, projectProgramProductFlow, projectProgramProductFlowGraph, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
+import { programAllocationToolDescription, programFlowGeometry, programFlowManifest, projectProgramFlowCanvas, projectProgramProductFlow, projectProgramProductFlowGraph, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 import { productBlockLabel } from "../components/ProductBlockyProjection";
@@ -204,11 +204,16 @@ describe("mounted v2 production editor", () => {
       "selected:program-selection->rebalance",
       "fallback:program-selection->rebalance",
     ]));
+    expect(programFlowGeometry(projectProgramFlowCanvas(graph))).toEqual({ nodeCount: 6, edgeCount: 6, finitePositions: true });
     const markup = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={programStrategy} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} initialView="flow" />);
     expect(markup).toContain("Selected assets");
     expect(markup).toContain("TLT");
-    expect(markup).toContain("capital destinations");
-    expect(markup).toContain("Selected and fallback routes rejoin");
+    expect(markup).toContain('data-flow-canvas-mounted="true"');
+    expect(markup).toContain('data-flow-projected-node-count="6"');
+    expect(markup).toContain('data-flow-supplied-node-count="6"');
+    expect(markup).toContain('data-flow-finite-positions="true"');
+    expect(markup).toContain('data-flow-fit-view="true"');
+    expect(markup).toContain("data-flow-reactflow-boundary");
     expect(markup).toContain("program-selection-&gt;selected:program-selection");
   });
 
@@ -422,7 +427,7 @@ describe("mounted v2 production editor", () => {
       expect(markup).not.toContain("Growth<!-- --> · <!-- -->100%");
       expect(markup).not.toContain("Defensive<!-- --> · <!-- -->100%");
       if (initialView === "flow") {
-        expect(markup).toContain('data-investment-flow="investment:growth"');
+        expect(markup).toContain("data-flow-reactflow-boundary");
         expect(markup).toContain("Selected assets");
         expect(markup).toContain("TLT");
       }
