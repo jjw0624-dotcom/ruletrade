@@ -227,6 +227,65 @@ def test_program_template_is_program_native_and_never_synthesizes_compatibility_
         assert strategy["definitions"]["groups"] == []
 
 
+def test_blank_program_template_is_semantically_empty_and_stable() -> None:
+    with TestClient(app) as client:
+        first = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"})
+        second = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"})
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        strategy = CanonicalStrategyV2.model_validate(first.json())
+        assert strategy.definitions.asset_sets[0].id == "initial-assets"
+        assert strategy.definitions.asset_sets[0].assets == []
+        assert strategy.definitions.groups == ()
+        assert strategy.selection is None
+        assert "SPY" not in first.text
+        assert strategy_hash(strategy) == strategy_hash(CanonicalStrategyV2.model_validate(second.json()))
+
+
+def test_blank_program_template_persists_reopens_and_accepts_first_investment(tmp_path: Path) -> None:
+    service = StrategyService(SQLiteStrategyRepository(tmp_path / "blank-program.sqlite3"))
+    app.dependency_overrides[get_strategy_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            blank = client.post("/v2/canonical/authoring/program-template", json={"name": "Blank"}).json()
+            created = client.post("/v1/strategies", json={"name": "Blank", "canonical_strategy": blank})
+            assert created.status_code == 201, created.text
+            strategy_id = created.json()["strategy"]["id"]
+            reopened = client.get(f"/v1/strategies/{strategy_id}")
+            assert reopened.status_code == 200, reopened.text
+            canonical = reopened.json()["current_revision"]["canonical_strategy"]
+            assert canonical["definitions"]["asset_sets"] == [{"id": "initial-assets", "assets": []}]
+            assert canonical["definitions"]["groups"] == []
+            assert "SPY" not in reopened.text
+
+            authored = client.post("/v2/canonical/authoring/apply", json={
+                "strategy": canonical,
+                "expected_source_hash": reopened.json()["current_revision"]["source_hash"],
+                "operation": {
+                    "kind": "add_program_investment", "investment_id": "investment-1",
+                    "name": "Investment", "asset_set_id": "investment-assets", "assets": [],
+                },
+            })
+            assert authored.status_code == 200, authored.text
+            authored_payload = authored.json()
+            assets = client.post("/v2/canonical/authoring/apply", json={
+                "strategy": authored_payload["strategy"],
+                "expected_source_hash": authored_payload["source_hash"],
+                "operation": {
+                    "kind": "set_program_asset_set", "asset_set_id": "investment-assets",
+                    "assets": ["QQQ", "VGT", "SOXX", "SCHG"],
+                },
+            })
+            assert assets.status_code == 200, assets.text
+            assert assets.json()["strategy"]["definitions"]["asset_sets"] == [
+                {"id": "initial-assets", "assets": []},
+                {"id": "investment-assets", "assets": ["QQQ", "VGT", "SOXX", "SCHG"]},
+            ]
+            assert "SPY" not in assets.text
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_every_new_starting_point_is_an_explicit_v2_program_template() -> None:
     with TestClient(app) as client:
         for starting_point in ("fallback", "sleeves", "cooldown", "one_investment", "filter", "golden"):
@@ -260,7 +319,7 @@ def test_program_native_template_saves_revises_and_reopens_through_real_reposito
     app.dependency_overrides[get_strategy_service] = lambda: service
     try:
         with TestClient(app) as client:
-            template = client.post("/v2/canonical/authoring/program-template", json={"name": "Program", "assets": ["SPY"]}).json()
+            template = client.post("/v2/canonical/authoring/program-template", json={"name": "Program"}).json()
             authored = client.post("/v2/canonical/authoring/apply", json={
                 "strategy": template, "expected_source_hash": strategy_hash(CanonicalStrategyV2.model_validate(template)),
                 "operation": {"kind": "add_program_investment", "investment_id": "investment-1", "name": "Investment", "asset_set_id": "investment-assets", "assets": []},
@@ -306,6 +365,7 @@ def test_program_native_template_saves_revises_and_reopens_through_real_reposito
             assert statement.selection.fallback_asset == "TLT"
             assert statement.selection.count == 2
             assert statement.selection.eligibility is not None
+            assert all("SPY" not in asset_set.assets for asset_set in reopened.current_revision.canonical_strategy.definitions.asset_sets)
     finally:
         app.dependency_overrides.clear()
 

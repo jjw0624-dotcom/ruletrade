@@ -9,7 +9,7 @@ import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer }
 import { ProductBlockyProjection } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
 import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
-import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowNode, type ProductNode } from "../domain/productSemantics";
+import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode, type ProductNode } from "../domain/productSemantics";
 import "./SemanticProgramBuilderAdapter.css";
 
 type DraftConcept = { kind: "selection"; semanticId: string; withQualification?: boolean } | null;
@@ -43,6 +43,18 @@ export function projectProgramProductStructure(strategy: CanonicalStrategyV2): P
 
 export function projectProgramProductFlow(strategy: CanonicalStrategyV2): ProductFlowNode[] {
   return projectV2ProductSemantics(strategy).flow;
+}
+
+export function projectProgramProductFlowGraph(strategy: CanonicalStrategyV2): { nodes: ProductFlowNode[]; edges: ProductFlowEdge[] } {
+  const projection = projectV2ProductSemantics(strategy);
+  return { nodes: projection.flow, edges: projection.flowEdges };
+}
+
+export function programFlowManifest(graph: { nodes: ProductFlowNode[]; edges: ProductFlowEdge[] }): string {
+  return [
+    ...graph.nodes.map((node) => `node:${node.id}|${node.role}|${node.label}`),
+    ...graph.edges.map((edge) => `edge:${edge.source}->${edge.target}|${edge.role}|${edge.label ?? ""}`),
+  ].join(";");
 }
 
 function replaceStatement(items: ProgramStatementV2[], semanticId: string, replacement: ProgramStatementV2): ProgramStatementV2[] {
@@ -121,17 +133,42 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
 }
 
 function flowButton(node: ProductFlowNode, onSelect: (id: string) => void) {
-  return <button type="button" key={node.id} className={node.role === "routing" || node.role === "behavior" ? "flow-routing-node" : node.role === "timing" ? "flow-action-node" : "flow-capital-node"} onClick={() => onSelect(node.id)}><strong>{node.label}</strong>{node.detail && <small>{node.detail}</small>}</button>;
+  return <button type="button" key={node.id} className={node.role === "routing" || node.role === "behavior" ? "flow-routing-node" : node.role === "timing" ? "flow-action-node" : "flow-capital-node"} onClick={() => onSelect(node.focusId ?? node.id)}><strong>{node.label}</strong>{node.detail && <small>{node.detail}</small>}</button>;
 }
 
-function ProgramFlowProjection({ root, flow, blank, onSelect }: { root: ProductNode; flow: ProductFlowNode[]; blank: boolean; onSelect: (id: string) => void }) {
+function ProgramFlowProjection({ root, flow, edges, blank, onSelect }: { root: ProductNode; flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string) => void }) {
   const split = root.children.find((node) => node.concept === "split");
-  if (!split) return <section className="representation-layer v2-flow" aria-label="Flow capital projection">{flow.map((node) => flowButton(node, onSelect))}{blank && <p>No capital route has been defined yet.</p>}</section>;
   const byId = new Map(flow.map((node) => [node.id, node]));
   const portfolio = byId.get(root.id);
-  const splitFlow = byId.get(split.id);
   const rebalance = root.children.find((node) => node.concept === "rebalance");
-  return <section className="representation-layer v2-flow" aria-label="Flow capital projection">{portfolio && flowButton(portfolio, onSelect)}{splitFlow && flowButton(splitFlow, onSelect)}<div className="v2-flow-branches" aria-label="Split investment branches">{split.children.map((investment) => <div className="v2-flow-branch" key={investment.id}>{byId.has(investment.id) && flowButton(byId.get(investment.id)!, onSelect)}{investment.children.filter((node) => node.concept === "selection" || node.concept === "fallback").map((node) => byId.has(node.id) && flowButton(byId.get(node.id)!, onSelect))}</div>)}</div>{rebalance && byId.has(rebalance.id) && flowButton(byId.get(rebalance.id)!, onSelect)}</section>;
+  const investments = split ? split.children : root.children.filter((node) => node.concept === "investment" || node.concept === "sleeve");
+  const branch = (investment: ProductNode) => {
+    const investmentFlow = byId.get(investment.id);
+    const selection = investment.children.find((node) => node.concept === "selection");
+    const selectionFlow = selection && byId.get(selection.id);
+    const outcomes = selectionFlow
+      ? edges.filter((edge) => edge.source === selectionFlow.id && edge.role === "routing").map((edge) => byId.get(edge.target)).filter((node): node is ProductFlowNode => Boolean(node))
+      : [];
+    return <div className="v2-flow-branch" key={investment.id} data-investment-flow={investment.id}>
+      {investmentFlow && flowButton(investmentFlow, onSelect)}
+      {selectionFlow && flowButton(selectionFlow, onSelect)}
+      {outcomes.length > 1
+        ? <div className="v2-flow-outcomes" aria-label={`${selectionFlow?.label ?? "Selection"} capital destinations`}>{outcomes.map((node) => flowButton(node, onSelect))}</div>
+        : outcomes.map((node) => flowButton(node, onSelect))}
+    </div>;
+  };
+  const manifest = programFlowManifest({ nodes: flow, edges });
+  const hasOutcomeBranch = edges.some((edge) => edge.role === "routing" && edge.label === "if incomplete");
+  return <section className="representation-layer v2-flow" aria-label="Flow capital projection" data-flow-manifest={manifest}>
+    {portfolio && flowButton(portfolio, onSelect)}
+    {split && byId.has(split.id) && flowButton(byId.get(split.id)!, onSelect)}
+    {investments.length > 0 && (split || investments.length > 1
+      ? <div className="v2-flow-branches" aria-label={split ? "Split investment branches" : "Investment branches"}>{investments.map(branch)}</div>
+      : branch(investments[0]!))}
+    {hasOutcomeBranch && rebalance && <span className="v2-flow-convergence">Selected and fallback routes rejoin</span>}
+    {rebalance && byId.has(rebalance.id) && flowButton(byId.get(rebalance.id)!, onSelect)}
+    {blank && <p>No capital route has been defined yet.</p>}
+  </section>;
 }
 
 function readdressCondition(condition: ConditionV2, prefix: string): ConditionV2 {
@@ -275,7 +312,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   ];
   const blank = canonical.definitions.groups.length === 0 && draft === null;
   const structure = projectProgramProductStructure(canonical);
-  const flow = projectProgramProductFlow(canonical);
+  const flowGraph = projectProgramProductFlowGraph(canonical);
+  const flow = flowGraph.nodes;
   const selectedInvestment = selectedId?.startsWith("investment:") ? canonical.definitions.groups.find((group) => group.id === selectedId.slice("investment:".length)) : null;
   const selectedInvestmentShare = selectedInvestment && portfolioSplit?.legs.find((leg) => leg.target.kind === "group" && leg.target.ref === selectedInvestment.id)?.weight;
   const splitRule = portfolioSplit ? `Route Portfolio capital ${portfolioSplit.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} to ${canonical.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"}`).join(" and ")}.` : null;
@@ -297,7 +335,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary"><span className="eyebrow">Strategy summary</span><h1>{canonical.metadata.name}</h1><p>{blank ? "A portfolio ready for its first investment." : selection ? `${portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")}. ` : ""}Choose ${selection.selection.count} assets from ${investmentAssets?.assets.join(", ") || "this investment"} by ${selection.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.selection.ranking)}${selection.selection.fallback_asset ? `, with ${selection.selection.fallback_asset} as fallback` : ""}.` : portfolioSplit ? `Split Portfolio capital ${portfolioSplit.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / ")} across ${canonical.definitions.groups.length} Investments.` : "An investment ready for assets and selection rules."}</p></section>,
     blocky: <section className="representation-layer blocky-layer"><ProductBlockyProjection root={structure} selectedId={selectedId} onSelect={select} /></section>,
-    flow: <ProgramFlowProjection root={structure} flow={flow} blank={blank} onSelect={select} />,
+    flow: <ProgramFlowProjection root={structure} flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select} />,
     rules: <section className="representation-layer v2-rules" aria-label="Rules projection"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : ruleLines.map((line) => <p key={line}>{line}</p>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" disabled>Choose assets · add an investment first</button><button className="secondary-button" type="button" disabled>Split a portfolio · add two investments first</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
     code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,

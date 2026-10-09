@@ -37,7 +37,7 @@ export function v2AuthoringErrorMessage(reason: unknown): string {
 }
 
 export const v2AuthoringApi = {
-  async programTemplate(name: string, assets: string[] = ["SPY"], fetcher: typeof fetch = fetch, startingPoint?: string): Promise<CanonicalStrategyV2> {
+  async programTemplate(name: string, assets: string[] = [], fetcher: typeof fetch = fetch, startingPoint?: string): Promise<CanonicalStrategyV2> {
     const response = await fetcher("/api/v2/canonical/authoring/program-template", jsonBody("POST", { name, assets, ...(startingPoint ? { starting_point: startingPoint } : {}) }));
     if (!response.ok) throw new Error(`Program template creation failed (${response.status})`);
     return await response.json() as CanonicalStrategyV2;

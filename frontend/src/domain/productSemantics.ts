@@ -32,6 +32,7 @@ export interface ProductCapitalSemantics {
 
 export interface ProductFlowNode {
   id: string;
+  focusId?: string;
   label: string;
   detail?: string;
   role: "portfolio" | "capital" | "routing" | "behavior" | "timing";
@@ -39,10 +40,18 @@ export interface ProductFlowNode {
   capital?: ProductCapitalSemantics;
 }
 
+export interface ProductFlowEdge {
+  source: string;
+  target: string;
+  role: "capital" | "routing" | "action";
+  label?: string;
+}
+
 export interface ProductStrategyProjection {
   name: string;
   root: ProductNode;
   flow: ProductFlowNode[];
+  flowEdges: ProductFlowEdge[];
   sourceVersion: "v1" | "v2";
 }
 
@@ -58,20 +67,74 @@ function role(node: ProductNode): ProductFlowNode["role"] {
   return "capital";
 }
 
-function flowFromRoot(root: ProductNode, includeSelection = false): ProductFlowNode[] {
-  const result: ProductFlowNode[] = [];
-  const hiddenConcepts: ProductConcept[] = includeSelection
-    ? ["assets", "qualification"]
-    : ["assets", "qualification", "selection"];
-  const visit = (node: ProductNode) => {
-    // Flow stays capital-first while Selection remains a visible routing decision.
-    if (!hiddenConcepts.includes(node.concept)) {
-      result.push({ id: node.id, label: node.label, detail: node.detail, role: role(node), address: node.address, capital: node.capital });
+function flowNode(node: ProductNode, overrides: Partial<ProductFlowNode> = {}): ProductFlowNode {
+  return { id: node.id, label: node.label, detail: node.detail, role: role(node), address: node.address, capital: node.capital, ...overrides };
+}
+
+function fallbackDestination(node: ProductNode): string {
+  return node.detail?.replace(/^Otherwise\s*→\s*/i, "") || "Fallback asset";
+}
+
+function flowFromRoot(root: ProductNode, includeSelection = false): { nodes: ProductFlowNode[]; edges: ProductFlowEdge[] } {
+  const nodes: ProductFlowNode[] = [flowNode(root)];
+  const edges: ProductFlowEdge[] = [];
+  const endpoints: string[] = [];
+  const rebalance = root.children.find((node) => node.concept === "rebalance");
+  const split = root.children.find((node) => node.concept === "split");
+  const investments = split
+    ? split.children
+    : root.children.filter((node) => node.concept === "investment" || node.concept === "sleeve");
+  let capitalSource = root.id;
+
+  if (split) {
+    nodes.push(flowNode(split));
+    edges.push({ source: root.id, target: split.id, role: "capital" });
+    capitalSource = split.id;
+  }
+
+  for (const investment of investments) {
+    nodes.push(flowNode(investment));
+    edges.push({ source: capitalSource, target: investment.id, role: split ? "routing" : "capital", label: investment.detail });
+    const selection = investment.children.find((node) => node.concept === "selection");
+    const fallback = investment.children.find((node) => node.concept === "fallback");
+
+    if (includeSelection && selection) {
+      nodes.push(flowNode(selection));
+      edges.push({ source: investment.id, target: selection.id, role: "capital" });
+      if (fallback) {
+        const selectedId = `selected:${selection.id}`;
+        nodes.push(flowNode(selection, {
+          id: selectedId, focusId: selection.id, label: "Selected assets", detail: "Target exposure", role: "capital",
+        }));
+        nodes.push(flowNode(fallback, {
+          label: fallbackDestination(fallback), detail: "Fallback exposure", role: "capital",
+        }));
+        edges.push(
+          { source: selection.id, target: selectedId, role: "routing", label: "selected" },
+          { source: selection.id, target: fallback.id, role: "routing", label: "if incomplete" },
+        );
+        endpoints.push(selectedId, fallback.id);
+      } else {
+        endpoints.push(selection.id);
+      }
+    } else {
+      endpoints.push(investment.id);
     }
-    node.children.forEach(visit);
-  };
-  visit(root);
-  return result;
+  }
+
+  for (const control of root.children.filter((node) => node.concept === "control")) {
+    nodes.push(flowNode(control));
+    edges.push({ source: root.id, target: control.id, role: "routing" });
+    endpoints.push(control.id);
+  }
+
+  if (rebalance) {
+    nodes.push(flowNode(rebalance));
+    for (const source of endpoints.length ? endpoints : [root.id]) {
+      edges.push({ source, target: rebalance.id, role: "action" });
+    }
+  }
+  return { nodes, edges };
 }
 
 export function projectV1ProductSemantics(value: ConceptualFlowProjection): ProductStrategyProjection {
@@ -113,7 +176,8 @@ export function projectV1ProductSemantics(value: ConceptualFlowProjection): Prod
     address: { canonical: "v1", concept: "rebalance", componentId: value.rebalanceScheduleComponentId }, children: [],
   });
   const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v1", concept: "portfolio", componentId: value.portfolioComponentId ?? null }, children: capital };
-  return { name: value.title, root, flow: flowFromRoot(root), sourceVersion: "v1" };
+  const flow = flowFromRoot(root, true);
+  return { name: value.title, root, flow: flow.nodes, flowEdges: flow.edges, sourceVersion: "v1" };
 }
 
 function flatten(items: ProgramStatementV2[]): ProgramStatementV2[] {
@@ -161,6 +225,7 @@ export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): Produc
   const capital: ProductNode[] = split ? [{ id: "split", concept: "split", label: "Split", detail: split.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / "), address: { canonical: "v2", concept: "split", semanticId: split.semantic_id }, children: investments }] : investments;
   if (selections.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
   const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v2", concept: "portfolio", semanticId: strategy.program?.semantic_id ?? "program" }, children: [...capital, ...controls] };
-  return { name: strategy.metadata.name, root, flow: flowFromRoot(root, true), sourceVersion: "v2" };
+  const flow = flowFromRoot(root, true);
+  return { name: strategy.metadata.name, root, flow: flow.nodes, flowEdges: flow.edges, sourceVersion: "v2" };
 }
 

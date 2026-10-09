@@ -285,7 +285,7 @@ class ApplyV2AuthoringResponse(FrozenModel):
 
 class ProgramStrategyTemplateRequest(FrozenModel):
     name: str = Field(min_length=1, max_length=100)
-    assets: tuple[Symbol, ...] = ("SPY",)
+    assets: tuple[Symbol, ...] = ()
     starting_point: Literal["fallback", "sleeves", "cooldown", "one_investment", "filter", "golden"] | None = None
 
 
