@@ -22,6 +22,11 @@ The target remains:
 | Raw Program/AST editor as a product surface | REMOVE / KEEP DEVELOPER-ONLY | It cannot become the normal authoring path. |
 | Separate V2 Builder or navigation shell | REMOVE | V1 compatibility and V2 authority stay behind the one Builder. |
 
+Weighted Scores and score-derived allocations reinforce this split: Structure
+owns no formula tree, Flow owns no evaluation order, and Blocky owns no capital
+hierarchy. Each view consumes its own projection manifest while the Inspector
+addresses the same underlying Score/term/Allocation semantic IDs.
+
 ## Migration sequence
 
 1. Expose versioned projection and Inspector-address manifests from the backend.

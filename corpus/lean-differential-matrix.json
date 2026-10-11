@@ -32,6 +32,41 @@
       "status": "docker_verified"
     },
     {
+      "id": "weighted-momentum-score-allocation-daily-v2",
+      "corpus_id": "weighted-momentum-score-allocation",
+      "expanded_case_overlap": ["NL038", "NL112", "NL123", "NL133", "NL134", "NL138", "NL143", "NL157"],
+      "expanded_case_claim": "operator-family overlap only; no expanded natural-language fragment is claimed as a verified complete strategy",
+      "path": [
+        "CanonicalStrategyV2",
+        "validate_strategy_v2",
+        "weighted Score typed-plan lowering",
+        "LeanValue(weighted_score)",
+        "LeanTargetSleeve(proportional_score)",
+        "generate_csharp",
+        "DockerLeanRunner",
+        "verify_weighted_score_e2e"
+      ],
+      "timeframe": "daily",
+      "data_fixture": "filter-synthetic",
+      "comparison_boundaries": [
+        "21-observation trailing return",
+        "63-observation trailing return",
+        "60/40 normalized weighted Score",
+        "stable ranking",
+        "Top 2 Selection",
+        "positive-score normalization",
+        "score-proportional target weights",
+        "structured allocation evidence",
+        "submitted orders"
+      ],
+      "tolerance": {
+        "division_derived_score": "1e-24 Decimal",
+        "target_weight": "1e-24 Decimal"
+      },
+      "ci_command": "make check-lean-weighted-score",
+      "status": "docker_verified"
+    },
+    {
       "id": "program-events-state-control",
       "corpus_id": "breakout-retest-confirmation",
       "path": ["SemanticProgramV2", "execute_program_v2"],

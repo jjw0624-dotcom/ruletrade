@@ -22,6 +22,7 @@ from ruletrade.strategy.v2.models import (
     NotConditionV2,
     ProgramStatementV2,
     RememberValueStatementV2,
+    ScoreValueV2,
     SelectionStatementV2,
     StateTransitionStatementV2,
     UnresolvedStatementV2,
@@ -154,6 +155,13 @@ def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
         for item in (program.statements if program else ())
         if isinstance(item, SelectionStatementV2)
     }
+    allocations = {
+        leg.target.ref: statement
+        for statement in (program.statements if program else ())
+        if isinstance(statement, AllocationStatementV2)
+        for leg in statement.legs
+        if leg.target.kind == "selection" and leg.target.ref is not None
+    }
     order = 1
     for index, group in enumerate(strategy.definitions.groups):
         investment_id = f"structure:investment:{group.id}"
@@ -195,6 +203,22 @@ def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
                     detail=selected.selection.fallback_asset,
                     address=_address("statement", selected.semantic_id, f"program.statements[{selected.semantic_id}].selection.fallback_asset"),
                     parent_id=investment_id, order=order, route="contains",
+                ))
+                order += 1
+            allocation = allocations.get(selected.output_id)
+            if allocation is not None:
+                items.append(ProjectionItem(
+                    id=f"structure:allocation:{allocation.semantic_id}",
+                    role="allocation",
+                    label="Allocation",
+                    detail=allocation.method.replace("_", " "),
+                    address=_address(
+                        "statement", allocation.semantic_id,
+                        f"program.statements[{allocation.semantic_id}]",
+                    ),
+                    parent_id=investment_id,
+                    order=order,
+                    route="contains",
                 ))
                 order += 1
     for index, clock in enumerate(program.clocks if program else ()):
@@ -262,6 +286,32 @@ def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
     strategy_id = program.semantic_id if program else strategy.metadata.name
     items: list[ProjectionItem] = []
 
+    def visit_value(value, path: str, parent_id: str, detail: str | None = None) -> None:
+        item_id = f"blocky:value:{value.semantic_id}"
+        if any(item.id == item_id for item in items):
+            return
+        label = f"Value · {value.kind.replace('_', ' ')}"
+        if isinstance(value, ScoreValueV2):
+            label = "Score · weighted terms"
+        items.append(ProjectionItem(
+            id=item_id,
+            role="value",
+            label=label,
+            detail=detail,
+            address=_address("value", value.semantic_id, path),
+            parent_id=parent_id,
+            order=len(items),
+            route="computes",
+        ))
+        if isinstance(value, ScoreValueV2):
+            for index, term in enumerate(value.terms):
+                visit_value(
+                    term.value,
+                    f"{path}.terms[{index}].value",
+                    item_id,
+                    f"weight={term.weight}",
+                )
+
     def visit(statement: ProgramStatementV2, path: str, parent_id: str | None, relation: str | None = None) -> None:
         role, label = _statement_label(statement)
         item_id = f"blocky:{statement.semantic_id}"
@@ -291,12 +341,12 @@ def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
             ))
         if isinstance(statement, SelectionStatementV2):
             ranking = statement.selection.ranking
-            items.append(ProjectionItem(
-                id=f"blocky:value:{ranking.semantic_id}", role="value",
-                label=f"Rank by {ranking.semantic_id}",
-                address=_address("value", ranking.semantic_id, f"{path}.selection.ranking"),
-                parent_id=item_id, order=len(items), route="computes",
-            ))
+            visit_value(
+                ranking,
+                f"{path}.selection.ranking",
+                item_id,
+                f"rank {statement.selection.direction}",
+            )
         for index, (child_relation, child) in enumerate(_statement_children(statement)):
             visit(child, f"{path}.{child_relation}[{index}]", item_id, child_relation)
 

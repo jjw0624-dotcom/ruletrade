@@ -68,6 +68,13 @@
       "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": false, "docker_verified": false, "provider_supported": true, "ui_authorable": false},
       "limitation": "Guarded allocation and policy precedence are reference-only."
     },
+    {
+      "id": "weighted-momentum-score-allocation", "family": "score-selection-allocation", "title": "Weighted momentum score allocation",
+      "provenance": {"source_kind": "architecture_stress", "source_reference": "expanded corpus abstraction: NL038/NL112/NL123/NL133-NL143/NL157", "source_phrase": "Combine two completed trailing-return horizons into a weighted score, choose the highest two, and allocate in proportion to their positive scores.", "interpretation": "The score uses explicit 60/40 weights, sum-absolute normalization, a positive floor, deterministic symbol tie-breaking, Top 2 selection, and score-proportional target weights."},
+      "formalization_status": "formalized", "fixture": "weighted-momentum-allocation", "dependencies": ["adjusted_close", "static_group:growth", "daily-close"],
+      "expected_behavior": {"cutoff_index": 4, "selected": ["A", "B"], "targets": {"A": "0.5357142857142857142857142859", "B": "0.4642857142857142857142857141"}},
+      "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": true, "docker_verified": true, "provider_supported": true, "ui_authorable": false}
+    },
 
     {"id": "weakest-positive-momentum", "family": "selection", "title": "Weakest positive momentum", "provenance": {"source_kind": "research_pattern", "source_reference": "strategy-corpus-v1#2", "source_phrase": "Choose the weakest assets that still have positive momentum."}, "formalization_status": "partial", "dependencies": ["adjusted_close"], "expected_behavior": {}, "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": true, "docker_verified": false, "provider_supported": true, "ui_authorable": true}, "limitation": "No dedicated golden fixture in this corpus revision."},
     {"id": "dual-momentum-switch", "family": "control-and-selection", "title": "Dual momentum switch", "provenance": {"source_kind": "research_pattern", "source_reference": "strategy-corpus-v1#3", "source_phrase": "Gate relative momentum with an absolute benchmark signal."}, "formalization_status": "partial", "dependencies": ["adjusted_close"], "expected_behavior": {}, "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": false, "docker_verified": false, "provider_supported": true, "ui_authorable": false}, "limitation": "General Control lowering is not maintained."},

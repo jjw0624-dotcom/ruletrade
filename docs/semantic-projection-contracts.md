@@ -31,6 +31,11 @@ Flow and Blocky are intentionally different. Flow answers where capital can go;
 Blocky answers how decisions and actions are computed. Structure cannot be
 serialized into Blocky as a substitute for Program semantics.
 
+Recursive decision Values remain visible where they explain behavior. A
+weighted Score is one Blocky Value with separately addressed weighted terms;
+Structure may compress that mathematics and Flow may omit it entirely. This is
+perspective-specific omission, not contradictory meaning.
+
 ## Semantic addresses and editing intent
 
 An address records `kind`, `semantic_id`, and diagnostic `canonical_path`.

@@ -65,6 +65,19 @@
       "condition_truth": {"risk-trigger": "true"}, "winning_policy": "cash-override",
       "fallback_reason": null, "targets": {"CASH": "1"},
       "provenance": ["risk-policy", "cash-override", "cash-allocation"]
+    },
+    {
+      "corpus_id": "weighted-momentum-score-allocation", "cutoff": "2026-01-09",
+      "requested_members": ["A", "B", "C"], "available_members": ["A", "B", "C"], "missing_members": [],
+      "component_scores": {
+        "A": {"short_return": "0.076923076923076923076923077", "long_return": "0.272727272727272727272727273"},
+        "B": {"short_return": "0.090909090909090909090909091", "long_return": "0.2"},
+        "C": {"short_return": "-0.1111111111111111111111111111", "long_return": "-0.1111111111111111111111111111"}
+      },
+      "weighted_scores": {"A": "0.1552447552447552447552447554", "B": "0.1345454545454545454545454546", "C": "0.000001"},
+      "ranking": ["A", "B", "C"], "selected": ["A", "B"],
+      "targets": {"A": "0.5357142857142857142857142859", "B": "0.4642857142857142857142857141"},
+      "provenance": ["weighted-momentum-score", "select-growth", "allocate-by-score"]
     }
   ]
 }

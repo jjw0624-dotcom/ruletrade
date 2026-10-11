@@ -285,6 +285,76 @@ def strongest_etfs_strategy(*, timeframe: Literal["daily", "monthly"] = "monthly
     )
 
 
+def weighted_momentum_allocation_program(
+    *,
+    short_observations: int = 1,
+    long_observations: int = 3,
+    timeframe: Literal["daily", "monthly"] = "daily",
+) -> SemanticProgramV2:
+    """Weighted multi-horizon momentum with score-proportional targets."""
+
+    clock_id = f"{timeframe}-close"
+    score = ScoreValueV2(
+        semantic_id="weighted-momentum-score",
+        terms=(
+            ScoreTermV2(
+                semantic_id="short-return-term",
+                value=_candidate_return("short-return", short_observations),
+                weight=Decimal("0.6"),
+            ),
+            ScoreTermV2(
+                semantic_id="long-return-term",
+                value=_candidate_return("long-return", long_observations),
+                weight=Decimal("0.4"),
+            ),
+        ),
+        normalization="sum_abs",
+        clamp_min=Decimal("0.000001"),
+    )
+    allocation = AllocationStatementV2(
+        semantic_id="allocate-by-score",
+        method="proportional_score",
+        clock_id=clock_id,
+        legs=(AllocationLegV2(
+            semantic_id="score-selection-leg",
+            target=AllocationTargetV2(
+                semantic_id="score-selection-target",
+                kind="selection",
+                ref="selected-growth",
+            ),
+        ),),
+    )
+    return _program(
+        _selection(score, count=2, clock_id=clock_id),
+        allocation,
+        clocks=(ProgramClockV2(id=clock_id, timeframe=timeframe),),
+    )
+
+
+def weighted_momentum_allocation_strategy(
+    *, timeframe: Literal["daily", "monthly"] = "daily",
+) -> CanonicalStrategyV2:
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Weighted momentum score allocation corpus profile"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinitionV2(
+                id="growth-assets", assets=["QQQ", "VGT", "SOXX", "SCHG"],
+            ),),
+            groups=(GroupDefinition(
+                id="growth", name="Investment", asset_set_ref="growth-assets",
+            ),),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1", "daily.trailing_return": "1", "program.score": "1"},
+        program=weighted_momentum_allocation_program(
+            short_observations=21,
+            long_observations=63,
+            timeframe=timeframe,
+        ),
+    )
+
+
 def price_over_sma_program() -> SemanticProgramV2:
     price = _asset("A", "asset-a-price")
     sma = DailyValueNode(semantic_id="asset-a-sma", kind="sma", observations=3, operands=(price,))
@@ -433,6 +503,7 @@ PROGRAM_FIXTURES = {
     "breakout-retest": breakout_retest_program,
     "higher-timeframe": higher_timeframe_program,
     "policy-override": policy_override_program,
+    "weighted-momentum-allocation": weighted_momentum_allocation_program,
 }
 
 

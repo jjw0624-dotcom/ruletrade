@@ -1,4 +1,4 @@
-.PHONY: bootstrap install test check-fast check check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus validate backtest api frontend smoke
+.PHONY: bootstrap install test check-fast check check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score validate backtest api frontend smoke
 
 bootstrap:
 	uv sync --extra bt --extra dev --locked
@@ -26,6 +26,9 @@ check-lean-daily-values:
 
 check-lean-semantic-corpus:
 	./scripts/run_semantic_corpus_lean_e2e.sh
+
+check-lean-weighted-score:
+	./scripts/run_weighted_score_lean_e2e.sh
 
 validate:
 	python -m ruletrade.cli validate examples/monthly_dca.yaml
