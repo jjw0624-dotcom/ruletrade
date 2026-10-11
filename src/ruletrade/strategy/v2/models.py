@@ -9,10 +9,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ruletrade.strategy.v1.models import (
-    AssetSetDefinition,
     CanonicalStrategyV1,
     GroupDefinition,
     StrategyMetadata,
@@ -31,6 +30,23 @@ from ruletrade.strategy.v2.semantic_types import (
 
 Identifier = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
 Symbol = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9._:-]+$")]
+
+
+class AssetSetDefinitionV2(FrozenModel):
+    """An authoring AssetSet may be empty until the user chooses symbols."""
+
+    id: Identifier
+    assets: list[Symbol] = Field(default_factory=list, max_length=500)
+
+    @field_validator("assets", mode="before")
+    @classmethod
+    def normalize_assets(cls, value: object) -> object:
+        if not isinstance(value, (list, tuple)) or not all(isinstance(item, str) for item in value):
+            return value
+        normalized = [item.strip().upper() for item in value]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("asset set symbols must be unique")
+        return normalized
 
 
 class CandidateBinding(FrozenModel):
@@ -339,9 +355,19 @@ class SelectionV2(FrozenModel):
 
 
 class StrategyDefinitionsV2(FrozenModel):
-    asset_sets: tuple[AssetSetDefinition, ...]
+    asset_sets: tuple[AssetSetDefinitionV2, ...]
     groups: tuple[GroupDefinition, ...]
     asset_axis: Axis
+
+    @field_validator("asset_sets", mode="before")
+    @classmethod
+    def accept_existing_asset_sets(cls, value: object) -> object:
+        if not isinstance(value, (list, tuple)):
+            return value
+        return tuple(
+            item.model_dump(mode="python") if hasattr(item, "model_dump") else item
+            for item in value
+        )
 
     @model_validator(mode="after")
     def validate_definitions(self) -> "StrategyDefinitionsV2":

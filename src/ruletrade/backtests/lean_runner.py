@@ -136,6 +136,10 @@ class DockerLeanRunner:
         if completed.returncode != 0:
             raise LeanRuntimeUnavailableError("Docker daemon is unavailable.")
 
+    def ensure_available(self) -> None:
+        """Public, side-effect-free runtime probe used after semantic preflight."""
+        self._ensure_runtime()
+
     def run(self, generated_csharp: str, *, dataset_id: str) -> LeanRunArtifact:
         fixture_names = {
             "golden-synthetic": "lean-data",

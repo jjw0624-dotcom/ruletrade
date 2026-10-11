@@ -209,7 +209,7 @@ describe("mounted production Flow workspace", () => {
     const markup = mountedWorkspace(sleevesBootstrap, baseCapabilities, {
       selection: semanticSelection("selection", "top_n", { groupId: "growth_sleeve" }),
     });
-    expect(markup).toContain('data-workspace-runtime-contract="capital-flow-minimal-v2"');
+    expect(markup).toContain('data-workspace-runtime-contract="capital-flow-minimal"');
     expect(markup).toContain('data-flow-runtime-contract="minimal-capital-v2"');
     expect(markup).toContain(`data-flow-projection-manifest="${manifest}"`);
     expect(markup).toContain(`data-flow-node-manifest="${manifest}"`);

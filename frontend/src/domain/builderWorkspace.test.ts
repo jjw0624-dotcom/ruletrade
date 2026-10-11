@@ -52,7 +52,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
     const projection = projectConceptualFlow(filterBootstrap.strategy, filterBootstrap.registry);
     const structure = projectBuilderStructure(projection);
     const flow = projectFlowCanvas(projection);
-    const qualification = structure.children[0].children[0].children.find((item) => item.label === "Qualification")!;
+    const qualification = structure.children[0].children.find((item) => item.label === "Qualification")!;
     const flowSelection = flow.nodes.find((item) => item.id.startsWith("selected-target:"))!;
     expect(flowSelection.data.provenance?.some((item) => sameSemanticSelection(qualification.selection, item))).toBe(true);
   });
@@ -60,7 +60,7 @@ describe("shared Strategy Builder workspace boundaries", () => {
   it("projects an existing Cooldown with exact provenance across Structure and Flow", () => {
     const projection = projectConceptualFlow(cooldownBootstrap.strategy, cooldownBootstrap.registry);
     const structure = projectBuilderStructure(projection);
-    const cooldown = structure.children[0].children[0].children.find((item) => item.label === "Cooldown")!;
+    const cooldown = structure.children[0].children.find((item) => item.label === "Cooldown")!;
     const flow = projectFlowCanvas(projection);
     const node = flow.nodes.find((item) => item.data.provenance?.some((address) => address.role === "cooldown"))!;
     expect(cooldown.selection).toEqual(semanticSelection("cooldown", "cooldown", { fieldPath: "config.duration", groupId: projection.groups[0].id }));
