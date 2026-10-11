@@ -84,6 +84,8 @@ jobs:
         run: ./scripts/check_lean.sh --compile-only
       - name: Run Profile A Work 2 DailyValue LEAN differentials
         run: make check-lean-daily-values
+      - name: Run SemanticProgramV2 corpus LEAN differential
+        run: make check-lean-semantic-corpus
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.1

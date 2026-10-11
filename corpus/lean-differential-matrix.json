@@ -1,0 +1,59 @@
+{
+  "schema_version": "ruletrade.dev/lean-differential-matrix/v1",
+  "profiles": [
+    {
+      "id": "strongest-etfs-monthly-v2",
+      "corpus_id": "strongest-etfs",
+      "path": [
+        "CanonicalStrategyV2",
+        "validate_strategy_v2",
+        "lower_v2_to_v1",
+        "compile_strategy_to_lean_plan",
+        "generate_csharp",
+        "DockerLeanRunner",
+        "verify_fallback_e2e"
+      ],
+      "timeframe": "monthly",
+      "data_fixture": "filter-synthetic",
+      "comparison_boundaries": [
+        "trailing-return scores",
+        "eligibility truth and rejected assets",
+        "stable ranking",
+        "primary selection",
+        "require-full shortage",
+        "fallback decision",
+        "final selection",
+        "equal target weights",
+        "structured decision evidence",
+        "submitted orders"
+      ],
+      "tolerance": {"division_derived_score": "operator-specific decimal tolerance", "target_weight": "exact Decimal"},
+      "ci_command": "make check-lean-semantic-corpus",
+      "status": "docker_verified"
+    },
+    {
+      "id": "program-events-state-control",
+      "corpus_id": "breakout-retest-confirmation",
+      "path": ["SemanticProgramV2", "execute_program_v2"],
+      "comparison_boundaries": ["Event ordering", "State transitions", "checkpoint identity"],
+      "status": "reference_only",
+      "blocker": "No maintained general Event/State/Control LEAN lowering."
+    },
+    {
+      "id": "program-cross-sectional-score",
+      "corpus_id": "composite-factor-rerank",
+      "path": ["SemanticProgramV2", "execute_program_v2"],
+      "comparison_boundaries": ["domain coverage", "factor values", "composite score", "ranking", "selection"],
+      "status": "reference_only",
+      "blocker": "No maintained general cross-sectional Score LEAN lowering."
+    },
+    {
+      "id": "program-provider-volume",
+      "corpus_id": "price-volume-liquidity-screen",
+      "path": ["SemanticProgramV2", "synthetic DailyMarketSnapshot"],
+      "comparison_boundaries": ["raw volume", "rolling volume mean", "condition truth"],
+      "status": "provider_blocked",
+      "blocker": "The maintained provider does not advertise raw Volume."
+    }
+  ]
+}

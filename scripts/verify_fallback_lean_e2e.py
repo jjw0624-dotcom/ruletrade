@@ -14,11 +14,13 @@ def main() -> None:
     parser.add_argument(
         "--fixture", type=Path, default=Path("tests/fixtures/lean-filter-data")
     )
+    parser.add_argument("--filter-source-field-path", default="config.threshold")
     args = parser.parse_args()
     events, primary, fallback, orders = verify_fallback_e2e(
         args.log.read_text(encoding="utf-8"),
         json.loads(args.result.read_text(encoding="utf-8")),
         args.fixture,
+        filter_source_field_path=args.filter_source_field_path,
     )
     print(
         f"validated {events} Fallback events; primary={primary}; "

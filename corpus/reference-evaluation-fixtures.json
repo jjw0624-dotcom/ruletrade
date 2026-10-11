@@ -1,0 +1,70 @@
+{
+  "schema_version": "ruletrade.dev/reference-fixtures/v1",
+  "snapshot": {
+    "id": "semantic-corpus-synthetic-v1",
+    "clock": "daily-close",
+    "domain": {"growth": ["A", "B", "C"]},
+    "provider_claim": "synthetic adjusted-close fixture only"
+  },
+  "fixtures": [
+    {
+      "corpus_id": "strongest-etfs",
+      "cutoff": "2026-07-03",
+      "requested_members": ["A", "B", "C"],
+      "available_members": ["A", "B", "C"],
+      "missing_members": [],
+      "condition_truth": {"A": "true", "B": "true", "C": "false"},
+      "ranking": ["B", "A"],
+      "scores": {"B": "24.27272727272727272727272727", "A": "9.69230769230769230769230769"},
+      "selected": ["B", "A"],
+      "fallback": {"used": false, "asset": "TLT"},
+      "targets": {"A": "0.5", "B": "0.5"},
+      "provenance": ["select-growth", "growth-selection", "eligibility-return", "ranking-return", "allocate-selection"]
+    },
+    {
+      "corpus_id": "price-over-sma", "cutoff": "2026-01-09",
+      "observations": {"asset-a-price": "14", "asset-a-sma": "13"},
+      "condition_truth": {"price-over-sma": "true"},
+      "events": [{"id": "price-over-sma-event", "outcome": "triggered", "occurrence": 1}],
+      "remembered_values": {"observed-price": "14"},
+      "provenance": ["price-event-statement", "remember-price"]
+    },
+    {
+      "corpus_id": "candidate-over-group-median", "cutoff": "2026-01-09",
+      "requested_members": ["A", "B", "C"], "available_members": ["A", "B", "C"], "missing_members": [],
+      "group_median": "0.076923076923076923076923077", "eligible": ["B"], "selected": ["B"],
+      "targets": {"B": "1"}, "provenance": ["group-median-return", "select-growth", "allocate-selection"]
+    },
+    {
+      "corpus_id": "composite-factor-rerank", "cutoff": "2026-01-09",
+      "requested_members": ["A", "B", "C"], "available_members": ["A", "B", "C"], "missing_members": [],
+      "composite_scores": {"B": "1", "A": "1.25", "C": "1.5"},
+      "ranking_direction": "ascending", "selected": ["B", "A"], "targets": {"A": "0.5", "B": "0.5"},
+      "provenance": ["return-rank", "return-percentile", "composite-score", "select-growth"]
+    },
+    {
+      "corpus_id": "two-of-three-confirmation", "cutoff": "2026-01-09",
+      "condition_truth": {"a-positive": "true", "b-positive": "true", "c-high": "false", "two-of-three": "true"},
+      "events": [{"id": "threshold-event", "outcome": "triggered", "occurrence": 1}],
+      "remembered_values": {"threshold-price": "14"}, "provenance": ["two-of-three", "threshold-event-statement"]
+    },
+    {
+      "corpus_id": "breakout-retest-confirmation", "cutoff": "2026-01-09",
+      "state_before": {"phase": "idle"},
+      "transitions": [{"id": "arm-transition", "to": "armed"}, {"id": "enter-transition", "to": "entered"}],
+      "state_after": {"phase": "entered"}, "provenance": ["arm-statement", "enter-statement"]
+    },
+    {
+      "corpus_id": "higher-timeframe-context", "cutoff": "2026-01-12",
+      "value_observed_at": "2026-01-09", "observations": {"weekly-close-value": "14"},
+      "condition_truth": {"weekly-above-level": "true"}, "remembered_values": {"weekly-context": "14"},
+      "provenance": ["weekly-close-value", "weekly-context-event-statement", "remember-weekly-context"]
+    },
+    {
+      "corpus_id": "risk-off-override", "cutoff": "2026-01-09",
+      "condition_truth": {"risk-trigger": "true"}, "winning_policy": "cash-override",
+      "fallback_reason": null, "targets": {"CASH": "1"},
+      "provenance": ["risk-policy", "cash-override", "cash-allocation"]
+    }
+  ]
+}

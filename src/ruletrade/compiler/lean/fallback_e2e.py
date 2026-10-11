@@ -45,6 +45,8 @@ def verify_fallback_e2e(
     log_text: str,
     result_payload: object,
     fixture: Path,
+    *,
+    filter_source_field_path: str = "config.threshold",
 ) -> tuple[int, int, int, int]:
     validate_lean_completion(log_text)
     validate_zero_failed_data_requests(log_text)
@@ -136,6 +138,7 @@ def verify_fallback_e2e(
                 filter_event,
                 decision_universe=("QQQ", "VGT", "SOXX", "SCHG"),
                 rejected=reference.rejected,
+                source_field_path=filter_source_field_path,
             )
             verify_v2_selection_facts(
                 selection_event,
