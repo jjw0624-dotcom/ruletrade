@@ -397,6 +397,17 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         authoring_reachable=False,
         verified_profile=False,
     )
+    backend_verified = OperationCapability(
+        parseable=True,
+        type_valid=True,
+        role_valid=True,
+        provider_available=True,
+        historical_safe=True,
+        reference_evaluable=True,
+        backend_lowerable=True,
+        authoring_reachable=False,
+        verified_profile=True,
+    )
     provider_blocked = OperationCapability(
         parseable=True,
         type_valid=True,
@@ -430,6 +441,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "program.cross_sectional_aggregate@1": reference_only,
         "program.cross_sectional_normalization@1": reference_only,
         "program.score@1": reference_only,
+        "program.weighted_daily_score@1": backend_verified,
         "program.condition_points@1": reference_only,
         "program.n_of_m@1": reference_only,
         "program.event@1": reference_only,
@@ -441,6 +453,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "program.multi_clock@1": reference_only,
         "program.allocation@1": reference_only,
         "program.score_allocation@1": reference_only,
+        "program.proportional_score_allocation.direct@1": backend_verified,
         "program.allocation_bounds@1": reference_only,
         "program.policy_precedence@1": reference_only,
         # The maintained provider exposes neither these fields nor PIT identity.
