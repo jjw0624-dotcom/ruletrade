@@ -430,7 +430,11 @@ def _lean_daily_value(value: DailyValueNode) -> LeanValue:
         return LeanValue(
             kind="literal", value_type="decimal", literal=value.value,
         )
-    if value.kind == "trailing_return" and value.subject_kind == SubjectKind.CANDIDATE:
+    if (
+        value.kind == "trailing_return"
+        and value.operands
+        and value.operands[0].subject_kind == SubjectKind.CANDIDATE
+    ):
         return LeanValue(
             kind="trailing_return", value_type="percentage", subject="candidate",
             observations=value.observations,
@@ -442,7 +446,11 @@ def _lean_daily_value(value: DailyValueNode) -> LeanValue:
         and value.basis == PriceBasis.ADJUSTED
     ):
         return LeanValue(kind="current_price", value_type="money_per_share", subject="candidate")
-    if value.kind == "sma" and value.subject_kind == SubjectKind.CANDIDATE:
+    if (
+        value.kind == "sma"
+        and value.operands
+        and value.operands[0].subject_kind == SubjectKind.CANDIDATE
+    ):
         return LeanValue(
             kind="rolling_price", value_type="money_per_share", subject="candidate",
             observations=value.observations, aggregate="mean",

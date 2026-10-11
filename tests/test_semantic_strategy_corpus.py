@@ -195,12 +195,24 @@ def test_weighted_score_and_proportional_allocation_reach_typed_lean_plan() -> N
     assert "WeightedScore(" in source
     assert '"method", "proportional_score"' in source
 
+    from ruletrade.strategy.v2.validation import v2_capabilities
+    ledger = v2_capabilities()
+    assert ledger["program.weighted_daily_score@1"].backend_lowerable
+    assert ledger["program.proportional_score_allocation.direct@1"].backend_lowerable
+    assert not ledger["program.score_allocation@1"].backend_lowerable
+
 
 def test_weighted_score_reference_is_deterministic_under_asset_order_changes() -> None:
     program = weighted_momentum_allocation_program()
     snapshot = reference_snapshot()
     expected = execute_program_v2(program, snapshot, cutoff_index=4)
-    reordered = snapshot.model_copy(update={"domains": {"growth": ("C", "B", "A")}})
+    reordered = DailyMarketSnapshot(
+        snapshot_id=snapshot.snapshot_id,
+        clock=snapshot.clock,
+        dates=snapshot.dates,
+        domains={"growth": ("C", "B", "A")},
+        series=snapshot.series,
+    )
     actual = execute_program_v2(program, reordered, cutoff_index=4)
     assert actual.selection_outputs == expected.selection_outputs
     assert actual.selection_scores == expected.selection_scores
