@@ -39,6 +39,7 @@ def verify_v2_filter_facts(
     *,
     decision_universe: tuple[str, ...],
     rejected: tuple[str, ...],
+    source_field_path: str = "config.threshold",
 ) -> None:
     if event.schema_version < 2:
         return
@@ -53,7 +54,7 @@ def verify_v2_filter_facts(
     if stops != {asset: "filter" for asset in rejected}:
         raise ValueError("v2 filter stopping-stage evidence mismatch")
     source = next(item for item in event.source_components if item.role == "filter")
-    if source.field_path != "config.threshold":
+    if source.field_path != source_field_path:
         raise ValueError("v2 filter source field-path mismatch")
 
 

@@ -14,4 +14,5 @@ PYTHONPATH=src ruletrade_python scripts/run_lean_backtest.py \
   --dataset-id filter-synthetic
 PYTHONPATH=src ruletrade_python scripts/verify_fallback_lean_e2e.py \
   --log "$work/lean.log" \
-  --result "$work/backtest-result.json"
+  --result "$work/backtest-result.json" \
+  --filter-source-field-path condition
