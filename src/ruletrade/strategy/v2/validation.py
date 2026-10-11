@@ -343,11 +343,13 @@ def requirements_for_strategy(strategy: CanonicalStrategyV2) -> HistoryRequireme
     def visit(condition: ConditionV2) -> None:
         if isinstance(condition, ComparisonV2):
             requirements.extend((_history_requirement(condition.left), _history_requirement(condition.right)))
-        elif isinstance(condition, BooleanGroupV2):
+        elif isinstance(condition, (BooleanGroupV2, NOfMConditionV2)):
             for child in condition.children:
                 visit(child)
-        else:
+        elif isinstance(condition, NotConditionV2):
             visit(condition.child)
+        # State and Event-window predicates depend on checkpoints rather than
+        # market history and therefore add no observation requirement.
 
     if strategy.selection is not None:
         requirements.append(_history_requirement(strategy.selection.ranking))

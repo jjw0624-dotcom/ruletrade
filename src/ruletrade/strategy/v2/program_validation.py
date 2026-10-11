@@ -37,7 +37,13 @@ from ruletrade.strategy.v2.models import (
     CrossSectionalValueV2,
     CrossSectionalAggregateValueV2,
 )
-from ruletrade.strategy.v2.semantic_types import Quantity, SemanticDType, SemanticType, Unit
+from ruletrade.strategy.v2.semantic_types import (
+    Quantity,
+    SemanticDType,
+    SemanticType,
+    Unit,
+    semantic_content_hash,
+)
 from ruletrade.strategy.v2.validation import (
     SemanticDiagnostic,
     SemanticRole,
@@ -218,6 +224,36 @@ def _condition_semantic_ids(condition) -> set[str]:
 
 def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic, ...]:
     diagnostics: list[SemanticDiagnostic] = []
+
+    # A semantic address may be embedded more than once to share a concept, but
+    # it may never identify two different contents.  This protects Evidence and
+    # caches from aliasing without forbidding equivalent expressions that use
+    # distinct semantic IDs.
+    identities: dict[str, tuple[str, str]] = {}
+
+    def inspect_identity(value: object, path: str) -> None:
+        if isinstance(value, dict):
+            semantic_id = value.get("semantic_id")
+            if isinstance(semantic_id, str):
+                content = {
+                    key: item for key, item in value.items() if key != "semantic_id"
+                }
+                content_hash = semantic_content_hash(content)
+                previous = identities.get(semantic_id)
+                if previous is not None and previous[0] != content_hash:
+                    diagnostics.append(SemanticDiagnostic(
+                        "semantic_id_content_conflict", path,
+                        f"Semantic id {semantic_id!r} has different content at {previous[1]} and {path}.",
+                    ))
+                else:
+                    identities[semantic_id] = (content_hash, path)
+            for key, item in value.items():
+                inspect_identity(item, f"{path}.{key}")
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                inspect_identity(item, f"{path}[{index}]")
+
+    inspect_identity(program.model_dump(mode="json"), "program")
     clocks = {clock.id: clock for clock in program.clocks}
     statement_ids: set[str] = set()
     event_ids: set[str] = set()
@@ -301,12 +337,14 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                     "Selection output ids must be unique.",
                 ))
             declared_selection_outputs.add(statement.output_id)
-            for cross_section in _cross_domain_values(statement.selection.ranking):
-                if cross_section.domain_id != statement.selection.universe_id:
-                    diagnostics.append(SemanticDiagnostic(
-                        "cross_section_domain_mismatch", f"{path}.selection.ranking",
-                        "Cross-sectional ranking domain must equal the Selection universe.",
-                    ))
+            for value_index, value in enumerate(_selection_values(statement)):
+                for cross_section in _cross_domain_values(value):
+                    if cross_section.domain_id != statement.selection.universe_id:
+                        diagnostics.append(SemanticDiagnostic(
+                            "cross_section_domain_mismatch",
+                            f"{path}.selection.values[{value_index}]",
+                            "Cross-sectional values inside a Selection must use its explicit universe domain.",
+                        ))
             if statement.selection.eligibility is not None:
                 condition(statement.selection.eligibility, f"{path}.selection.eligibility", SemanticRole.ELIGIBILITY, statement.selection.binding.id)
             for index, score_condition in enumerate(_score_condition_terms(statement.selection.ranking)):
