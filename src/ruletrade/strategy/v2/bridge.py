@@ -5,9 +5,11 @@ daily static-Universe Selection subset after v2 semantic validation succeeds.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
+from ruletrade.compiler.lean.plan import LeanScoreTerm, LeanValue, normalize_lean_plan
 from ruletrade.strategy.v1.models import (
     AssetSetDefinition,
     ArithmeticExpression,
@@ -40,10 +42,12 @@ from ruletrade.strategy.v2.models import (
     LiteralValue,
     NotConditionV2,
     ProgramStatementV2,
+    ScoreValueV2,
     SelectionStatementV2,
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
+from ruletrade.strategy.v2.semantic_types import semantic_content_hash
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 
@@ -63,7 +67,9 @@ def _program_statements(items: tuple[ProgramStatementV2, ...]) -> tuple[ProgramS
     return tuple(result)
 
 
-def _program_selection(strategy: CanonicalStrategyV2) -> tuple[SelectionStatementV2, str]:
+def _program_selection(
+    strategy: CanonicalStrategyV2,
+) -> tuple[SelectionStatementV2, AllocationStatementV2, str]:
     if strategy.program is None:
         raise V2LoweringError("Program-native lowering requires a Semantic Program")
     statements = _program_statements(strategy.program.statements)
@@ -81,13 +87,18 @@ def _program_selection(strategy: CanonicalStrategyV2) -> tuple[SelectionStatemen
     allocations = tuple(item for item in statements if isinstance(item, AllocationStatementV2) and any(
         leg.target.kind == "selection" and leg.target.ref == selection.output_id for leg in item.legs
     ))
-    if len(allocations) != 1 or allocations[0].method != "equal":
-        raise V2LoweringError("production Program lowering requires one equal allocation for the Selection")
+    if len(allocations) != 1 or allocations[0].method not in {"equal", "proportional_score"}:
+        raise V2LoweringError(
+            "production Program lowering requires one supported Selection allocation"
+        )
+    allocation = allocations[0]
+    if allocation.minimum_weight is not None or allocation.maximum_weight is not None or allocation.cash_remainder_asset is not None:
+        raise V2LoweringError("bounded Selection allocation has no maintained LEAN lowering")
     clock_id = selection.clock_id or allocations[0].clock_id
     clock = next((item for item in strategy.program.clocks if item.id == clock_id), strategy.program.clocks[0])
     if clock.timeframe not in {"daily", "monthly"}:
         raise V2LoweringError(f"{clock.timeframe} Program timing has no maintained LEAN lowering")
-    return selection, clock.timeframe
+    return selection, allocation, clock.timeframe
 
 
 def _program_split(strategy: CanonicalStrategyV2) -> AllocationStatementV2 | None:
@@ -201,7 +212,11 @@ def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
     program_timeframe = "daily"
     selection = strategy.selection
     if selection is None:
-        statement, program_timeframe = _program_selection(strategy)
+        statement, allocation, program_timeframe = _program_selection(strategy)
+        if allocation.method != "equal":
+            raise V2LoweringError(
+                "legacy v1 conversion cannot represent score-proportional allocation"
+            )
         selection = statement.selection
     universe = next((item for item in strategy.definitions.groups if item.id == selection.universe_id), None)
     if universe is None:
@@ -316,6 +331,146 @@ def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
 
 
 def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
-    """Production-connected proof: v2 validation -> explicit bridge -> maintained compiler."""
+    """Lower the maintained Program subset to the typed LEAN plan.
 
-    return compile_strategy_to_lean_plan(lower_v2_to_v1(strategy))
+    Equal-weight Selection retains the historical v1 topology bridge. Weighted
+    Score plus score-proportional allocation reuses that proven topology, then
+    replaces the placeholder ranking/allocation nodes with typed v2 plan values.
+    The placeholder never escapes this function or becomes authoritative data.
+    """
+
+    diagnostics = validate_strategy_v2(strategy)
+    if diagnostics:
+        rendered = "; ".join(f"{item.path}: {item.code}" for item in diagnostics)
+        raise V2LoweringError(f"v2 semantic validation failed: {rendered}")
+    if strategy.selection is not None or strategy.program is None:
+        return compile_strategy_to_lean_plan(lower_v2_to_v1(strategy))
+
+    statement, allocation, _timeframe = _program_selection(strategy)
+    if allocation.method == "equal":
+        return compile_strategy_to_lean_plan(lower_v2_to_v1(strategy))
+    if allocation.method != "proportional_score":
+        raise V2LoweringError(f"unsupported Selection allocation: {allocation.method}")
+    if statement.selection.fallback_asset is not None:
+        raise V2LoweringError("score-proportional allocation does not support Selection fallback")
+    if _program_split(strategy) is not None:
+        raise V2LoweringError("score-proportional allocation does not support Portfolio Split")
+    ranking = statement.selection.ranking
+    if not isinstance(ranking, ScoreValueV2) or ranking.condition_terms:
+        raise V2LoweringError(
+            "score-proportional allocation requires a weighted Value Score without Condition terms"
+        )
+    ranking_value = _lean_score_value(ranking)
+    seed = ranking.terms[0].value
+
+    replacement_statements: list[ProgramStatementV2] = []
+    for item in strategy.program.statements:
+        if item.semantic_id == statement.semantic_id:
+            replacement_statements.append(item.model_copy(update={
+                "selection": item.selection.model_copy(update={"ranking": seed}),
+            }))
+        elif item.semantic_id == allocation.semantic_id:
+            replacement_statements.append(item.model_copy(update={
+                "method": "equal",
+                "minimum_weight": None,
+                "maximum_weight": None,
+                "cash_remainder_asset": None,
+            }))
+        else:
+            replacement_statements.append(item)
+    topology_strategy = strategy.model_copy(update={
+        "program": strategy.program.model_copy(update={"statements": tuple(replacement_statements)}),
+    })
+    plan = compile_strategy_to_lean_plan(lower_v2_to_v1(topology_strategy))
+    if len(plan.momentum_selections) != 1:
+        raise V2LoweringError("score-proportional lowering requires one typed Selection plan")
+    lowered_selection = replace(
+        plan.momentum_selections[0],
+        score_component_id=ranking.semantic_id,
+        score_field="selection.ranking",
+        ranking_value=ranking_value,
+        lookback_bars=max(0, _lean_value_observations(ranking_value) - 1),
+    )
+    sleeves = tuple(
+        replace(
+            sleeve,
+            weighting_method="proportional_score",
+            allocation_component_id=allocation.semantic_id,
+        )
+        if sleeve.selection_id == lowered_selection.id
+        else sleeve
+        for sleeve in plan.target_sleeves
+    )
+    return normalize_lean_plan(replace(
+        plan,
+        strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
+        momentum_selections=(lowered_selection,),
+        target_sleeves=sleeves,
+    ))
+
+
+def _lean_value_observations(value: LeanValue) -> int:
+    if value.kind == "literal":
+        return 0
+    if value.kind == "current_price":
+        return 1
+    if value.kind == "trailing_return":
+        return int(value.observations or 0) + 1
+    if value.kind == "rolling_price":
+        return int(value.observations or 0)
+    if value.kind == "scale" and value.operand is not None:
+        return _lean_value_observations(value.operand)
+    if value.kind == "weighted_score":
+        return max((_lean_value_observations(term.value) for term in value.score_terms), default=0)
+    return 0
+
+
+def _lean_daily_value(value: DailyValueNode) -> LeanValue:
+    if value.kind == "literal":
+        return LeanValue(
+            kind="literal", value_type="decimal", literal=value.value,
+        )
+    if value.kind == "trailing_return" and value.subject_kind == SubjectKind.CANDIDATE:
+        return LeanValue(
+            kind="trailing_return", value_type="percentage", subject="candidate",
+            observations=value.observations,
+        )
+    if (
+        value.kind == "observe"
+        and value.subject_kind == SubjectKind.CANDIDATE
+        and value.field == MarketField.CLOSE
+        and value.basis == PriceBasis.ADJUSTED
+    ):
+        return LeanValue(kind="current_price", value_type="money_per_share", subject="candidate")
+    if value.kind == "sma" and value.subject_kind == SubjectKind.CANDIDATE:
+        return LeanValue(
+            kind="rolling_price", value_type="money_per_share", subject="candidate",
+            observations=value.observations, aggregate="mean",
+        )
+    if value.kind == "arithmetic" and value.arithmetic == "multiply":
+        for operand, factor in ((value.operands[0], value.operands[1]), (value.operands[1], value.operands[0])):
+            if factor.kind == "literal" and factor.value is not None:
+                return LeanValue(
+                    kind="scale", value_type="decimal", operand=_lean_daily_value(operand),
+                    factor=factor.value,
+                )
+    raise V2LoweringError(f"DailyValue {value.kind!r} has no weighted-Score LEAN lowering")
+
+
+def _lean_score_value(score: ScoreValueV2) -> LeanValue:
+    terms: list[LeanScoreTerm] = []
+    for term in score.terms:
+        if not isinstance(term.value, DailyValueNode):
+            raise V2LoweringError(
+                "weighted-Score LEAN lowering currently requires scalar DailyValue terms"
+            )
+        terms.append(LeanScoreTerm(value=_lean_daily_value(term.value), weight=term.weight))
+    return LeanValue(
+        kind="weighted_score",
+        value_type="decimal",
+        score_terms=tuple(terms),
+        missing_policy=score.missing_policy,
+        normalization=score.normalization,
+        clamp_min=score.clamp_min,
+        clamp_max=score.clamp_max,
+    )

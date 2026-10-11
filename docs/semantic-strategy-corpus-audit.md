@@ -19,12 +19,12 @@ format. `CanonicalStrategyV2.program` remains authoritative.
 | Recursive Condition | Comparison, ALL, ANY, NOT, N-of-M, State and Event-window Conditions | T/F/U reference semantics and bounded validation | N-of-M, State, and Event-window lowering remain unsupported. |
 | Candidate scope | `CandidateBinding` owned by `SelectionV2` | Candidate Values reject a different binder | No Candidate escape is permitted; no change needed. |
 | Cross-sectional transforms | rank, percentile, quantile, bucket, min-max, z-score | Explicit domain, coverage observations, stable ties | Reference-only outside the narrow Selection bridge. Domain validation now covers Eligibility as well as Ranking. |
-| Composite Score | weighted Value and Condition terms | Missing policy, normalization, clamp, deterministic reranking | Reference-only; deliberately not made Builder-authorable. |
+| Composite Score | weighted Value and Condition terms | Missing policy, normalization, clamp, deterministic reranking | Scalar DailyValue weighted terms now lower in the verified score-proportional slice; cross-sectional and Condition terms remain reference-only. |
 | Temporal semantics | Event, State transition, remembered and Event-relative Values | Deterministic checkpointed reference execution | No general production lowering. |
 | Multiple clocks | session/daily/weekly/monthly completed boundaries | Last-completed higher-timeframe evaluation; prefix invariant | Only daily/monthly Selection timing lowers through the maintained bridge. |
 | Event occurrence | every, first, ordinal; scheduled and condition edges | Deterministic count/cutoff checkpoints | General Event lowering unsupported. |
 | State machine | explicit parallel state keys and ordered transitions | Checkpoint shape validation and ordered same-cutoff transitions | Hierarchical state is not inferred; production lowering unsupported. |
-| Allocation | equal/fixed, proportional score, inverse volatility, bounds, cash remainder | Reference evaluation rejects impossible weights and non-positive scores | Maintained V2 bridge supports equal Selection allocation and one two-leg fixed Portfolio split only. |
+| Allocation | equal/fixed, proportional score, inverse volatility, bounds, cash remainder | Reference evaluation rejects impossible weights and non-positive scores | Maintained V2 bridge supports equal Selection allocation, one two-leg fixed Portfolio split, and the strict direct score-proportional slice. |
 | Guards/overrides/fallback | guarded primary, unique priority overrides, fallback | Total precedence and explicit winning reason | Selection shortage fallback lowers; general guarded policy does not. |
 | Missing/Unknown | missing Values retain reasons; Conditions use T/F/U | Unknown is never coerced to False or zero | Provider availability must remain separate. |
 | Determinism | stable semantic IDs, semantic content hashes, explicit cutoffs | repeat, input-domain reorder, and future-prefix invariants | Cache identity continues to include cutoff, domain snapshots, binding, operator lock, and run identity. |
@@ -101,7 +101,7 @@ fields.
 `corpus/lean-differential-matrix.json` records the executable and reference-only
 profiles. The maintained executable proof is:
 
-`CanonicalStrategyV2 → validate_strategy_v2 → lower_v2_to_v1 → typed LEAN plan → generated C# → DockerLeanRunner → structured differential`
+`CanonicalStrategyV2 → validate_strategy_v2 → typed LEAN plan → generated C# → DockerLeanRunner → structured differential`
 
 `make check-lean-semantic-corpus` generates C# from the V2 Strongest-ETFs corpus
 profile, executes it against the tracked `filter-synthetic` LEAN data, and reuses
@@ -113,6 +113,9 @@ target weights use exact Decimal comparison.
 
 Compilation alone is not counted as Docker verification. General Events, State,
 Control, cross-sectional Score, and advanced Allocation remain reference-only.
+`make check-lean-weighted-score` separately verifies weighted scalar Score,
+Selection, and score-proportional target weights against the same Docker LEAN
+fixture at every emitted daily decision.
 
 ## Capability matrix summary
 
@@ -120,9 +123,10 @@ Control, cross-sectional Score, and advanced Allocation remain reference-only.
 |---|---:|---:|---:|---:|---:|---:|
 | Strongest ETFs monthly Selection/fallback | yes | yes | yes | yes | yes | yes |
 | Multi-clause maintained Selection subset | yes | yes | yes | not separately proven | yes | yes |
+| Weighted scalar Score + proportional allocation | yes | yes | yes | yes | yes | no |
 | Cross-sectional aggregate / composite Score | yes | yes | no | no | yes | no |
 | Event / State / remembered / multi-clock | yes | yes | no | no | yes | no |
-| Score or inverse-volatility allocation | yes | yes | no | no | yes | no |
+| Inverse-volatility / bounded allocation | yes | yes | no | no | yes | no |
 | Raw Volume screen | yes | synthetic only | no | no | no | no |
 | PIT universe / fundamentals / cash contribution | no or incomplete | no | no | no | no | no |
 | Ambiguous prose | no | no | no | no | irrelevant | no |
@@ -138,8 +142,8 @@ operation cannot imply UI authorability.
 
 - General Program lowering for Control, Event, State, remembered Values, and
   higher-timeframe orchestration.
-- Backend lowering for cross-sectional normalization, composite Score, N-of-M,
-  score-derived Allocation, bounds, and cash remainder.
+- Backend lowering for cross-sectional normalization, Condition-point Score,
+  N-of-M, inverse-volatility Allocation, bounds, and cash remainder.
 - Authoritative providers for Volume, raw OHLC, PIT membership, fundamentals,
   and corporate actions.
 - Semantics for external contributions, tax lots, derivatives, rolling model fit,

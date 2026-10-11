@@ -13,6 +13,8 @@ from ruletrade.strategy.v2.corpus import (
     load_corpus,
     reference_snapshot,
     strongest_etfs_strategy,
+    weighted_momentum_allocation_program,
+    weighted_momentum_allocation_strategy,
 )
 from ruletrade.strategy.v2.daily_values import DailyMarketSnapshot
 from ruletrade.strategy.v2.models import (
@@ -22,6 +24,7 @@ from ruletrade.strategy.v2.models import (
     StrategyDefinitionsV2,
 )
 from ruletrade.strategy.v2.projections import inspector_addresses, projection_bundle
+from ruletrade.strategy.v2.program_execution import execute_program_v2
 from ruletrade.strategy.v2.semantic_types import Axis
 from ruletrade.strategy.v2.validation import requirements_for_strategy, validate_strategy_v2
 from ruletrade.strategy.v2.program_validation import validate_program_v2
@@ -168,6 +171,64 @@ def test_v2_executable_corpus_profile_reaches_the_strict_lean_plan() -> None:
     assert plan.momentum_selections[0].count == 2
     assert plan.target_sleeves[0].fallback_symbols == ("TLT",)
     assert '"filter_field", "condition"' in generate_csharp(plan)
+
+
+def test_weighted_score_and_proportional_allocation_reach_typed_lean_plan() -> None:
+    from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan
+    from ruletrade.compiler.lean import generate_csharp
+
+    strategy = weighted_momentum_allocation_strategy()
+    plan = compile_v2_strategy_to_lean_plan(strategy)
+    selection = plan.momentum_selections[0]
+    sleeve = plan.target_sleeves[0]
+    assert selection.ranking_value is not None
+    assert selection.ranking_value.kind == "weighted_score"
+    assert [term.weight for term in selection.ranking_value.score_terms] == [
+        Decimal("0.6"), Decimal("0.4"),
+    ]
+    assert selection.lookback_bars == 63
+    assert selection.score_component_id == "weighted-momentum-score"
+    assert selection.score_field == "selection.ranking"
+    assert sleeve.weighting_method == "proportional_score"
+    assert sleeve.allocation_component_id == "allocate-by-score"
+    source = generate_csharp(plan)
+    assert "WeightedScore(" in source
+    assert '"method", "proportional_score"' in source
+
+
+def test_weighted_score_reference_is_deterministic_under_asset_order_changes() -> None:
+    program = weighted_momentum_allocation_program()
+    snapshot = reference_snapshot()
+    expected = execute_program_v2(program, snapshot, cutoff_index=4)
+    reordered = snapshot.model_copy(update={"domains": {"growth": ("C", "B", "A")}})
+    actual = execute_program_v2(program, reordered, cutoff_index=4)
+    assert actual.selection_outputs == expected.selection_outputs
+    assert actual.selection_scores == expected.selection_scores
+    assert actual.target_weights == expected.target_weights
+    assert sum(actual.target_weights.values(), Decimal(0)) == Decimal(1)
+
+
+def test_weighted_score_projection_preserves_decision_terms_and_semantic_addresses() -> None:
+    strategy = weighted_momentum_allocation_strategy()
+    bundle = projection_bundle(strategy)
+    structure_roles = {item.role for item in bundle["structure"].items}
+    flow_roles = {item.role for item in bundle["flow"].items}
+    blocky = bundle["blocky"]
+    assert {"portfolio", "investment", "assets", "selection", "allocation"} <= structure_roles
+    assert "destination" in flow_roles
+    score = next(
+        item for item in blocky.items
+        if item.address.semantic_id == "weighted-momentum-score"
+    )
+    assert score.label == "Score · weighted terms"
+    assert score.address.canonical_path.endswith("selection.ranking")
+    terms = {
+        item.address.semantic_id: item.detail
+        for item in blocky.items
+        if item.parent_id == score.id
+    }
+    assert terms == {"short-return": "weight=0.6", "long-return": "weight=0.4"}
+    assert all(item.address.semantic_id for item in blocky.items)
 
 
 def test_history_planning_accepts_n_of_m_and_state_conditions() -> None:

@@ -46,6 +46,10 @@ architecture when they conflict with code or the living architecture.
 | `repository-engineering.md` | CURRENT | Artifact and repository validation policy |
 | `authoring.md` | CURRENT | Backend-authoritative semantic authoring contract |
 | `semantic-composition-model-v1.md` | MVP 1 | Shared semantic vocabulary and distinct Flow/Logic headless contracts |
+| `semantic-strategy-corpus-audit.md` | CURRENT | Baseline 33-case semantic capability and evidence audit |
+| `expanded-semantic-corpus-execution-closure.md` | CURRENT | 169-fragment reconciliation, weighted Score execution closure, gaps, and evidence |
+| `semantic-projection-contracts.md` | CURRENT | UI-independent Structure/Flow/Blocky/Rules/Summary/Inspector manifests |
+| `builder-semantic-migration-plan.md` | CURRENT / DESIGN ONLY | KEEP/ADAPT/REPLACE/REMOVE handoff; no UI implementation |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |
 | `final-frontend-mvp-cohesion.md` | HISTORICAL | Pre-workbench frontend cohesion record |

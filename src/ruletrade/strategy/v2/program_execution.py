@@ -596,7 +596,7 @@ class _Runtime:
         )
         ordered = tuple(member for _score, member in ranked)
         complete = len(ordered) >= selection.count
-        if complete or selection.shortage_policy == "choose_all":
+        if ordered and (complete or selection.shortage_policy == "choose_all"):
             selected = ordered[:selection.count]
             outcome = "selected"
         elif selection.fallback_asset:
@@ -661,7 +661,14 @@ class _Runtime:
             per_asset = None if leg.weight is None else leg.weight / Decimal(len(assets))
             expanded.extend((asset, per_asset) for asset in assets)
         if not expanded:
-            raise ProgramExecutionError("allocation_has_no_resolved_targets")
+            self.retained = True
+            self.evidence.append(ProgramDecisionEvidence(
+                statement.semantic_id,
+                "allocation",
+                "unresolved_retain",
+                "no resolved targets; retain current holdings",
+            ))
+            return
         if statement.method == "equal":
             weight = Decimal(1) / Decimal(len(expanded))
             weights: dict[str, Decimal] = {}

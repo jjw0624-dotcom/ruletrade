@@ -30,8 +30,17 @@ class LeanFilterClause:
 
 
 @dataclass(frozen=True)
+class LeanScoreTerm:
+    value: "LeanValue"
+    weight: Decimal
+
+
+@dataclass(frozen=True)
 class LeanValue:
-    kind: Literal["literal", "trailing_return", "current_price", "rolling_price", "scale"]
+    kind: Literal[
+        "literal", "trailing_return", "current_price", "rolling_price", "scale",
+        "weighted_score",
+    ]
     value_type: Literal["decimal", "percentage", "money_per_share"]
     subject: Literal["asset", "candidate"] | None = None
     asset: str | None = None
@@ -40,6 +49,11 @@ class LeanValue:
     aggregate: Literal["mean", "median", "min", "max"] | None = None
     operand: "LeanValue | None" = None
     factor: Decimal | None = None
+    score_terms: tuple[LeanScoreTerm, ...] = ()
+    missing_policy: Literal["require_all", "renormalize_available"] | None = None
+    normalization: Literal["none", "sum_abs"] | None = None
+    clamp_min: Decimal | None = None
+    clamp_max: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +82,7 @@ class LeanMomentumSelection:
     cooldown_state_id: str | None = None
     ranking_value: LeanValue | None = None
     eligibility: tuple[LeanComparison, ...] = ()
+    score_field: str = "config.lookback_bars"
 
 
 @dataclass(frozen=True)
@@ -90,6 +105,8 @@ class LeanTargetSleeve:
     source_sleeve_component_id: str | None = None
     local_total_weight: Decimal | None = None
     source_allocation: Decimal | None = None
+    weighting_method: Literal["equal", "proportional_score"] = "equal"
+    allocation_component_id: str | None = None
 
 
 @dataclass(frozen=True)
