@@ -24,6 +24,7 @@ SCORE_PATTERN = re.compile(
     r"RULETRADE_MOMENTUM\|(?P<event>\d{4}-\d{2}-\d{2})"
     r"\|scores=(?P<scores>[A-Z0-9.,_=:+-]+)"
     r"\|ranked=(?P<ranked>[A-Z0-9,]*)"
+    r"(?:\|candidate=[A-Z0-9,]*)?"
     r"\|selected=(?P<selected>[A-Z0-9,]*)"
 )
 

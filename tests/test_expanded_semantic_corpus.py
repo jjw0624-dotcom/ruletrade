@@ -4,6 +4,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+from ruletrade.compiler.lean.weighted_score_e2e import SCORE_PATTERN
 from ruletrade.strategy.v2.corpus import (
     reference_snapshot,
     weighted_momentum_allocation_program,
@@ -17,6 +18,17 @@ MATRIX = Path(__file__).parents[1] / "corpus" / "expanded-semantic-case-matrix.j
 
 def _matrix() -> dict[str, object]:
     return json.loads(MATRIX.read_text(encoding="utf-8"))
+
+
+def test_weighted_score_trace_parser_accepts_generated_candidate_evidence() -> None:
+    trace = (
+        "RULETRADE_MOMENTUM|2024-01-02|scores=A=0.6,B=0.4,C=0.000001"
+        "|ranked=A,B,C|candidate=A,B|selected=A,B|decision=executed"
+    )
+    match = SCORE_PATTERN.search(trace)
+    assert match is not None
+    assert match.group("event") == "2024-01-02"
+    assert match.group("selected") == "A,B"
 
 
 def test_expanded_matrix_reconciles_every_source_case_without_count_inflation() -> None:
