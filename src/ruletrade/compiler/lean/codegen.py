@@ -727,8 +727,6 @@ def generate_csharp(
             f"        SetCash({_decimal_literal(settings.initial_cash)});",
         )
     )
-    if temporal is not None and temporal.profile == "event-state-multiclock@1":
-        lines.append("        SetTimeZone(TimeZones.NewYork);")
     for subscription_index, subscription in enumerate(plan.subscriptions):
         ticker = _csharp_string(subscription.symbol)
         if needs_history:
