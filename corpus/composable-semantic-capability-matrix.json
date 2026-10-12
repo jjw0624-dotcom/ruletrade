@@ -43,12 +43,11 @@
     },
     {
       "id": "split-independent-investments-aggregate",
-      "canonical_fixture": null,
+      "canonical_fixture": "composable-split-execution",
       "reference_evaluable": true,
       "typed_plan_lowerable": true,
       "generated_csharp_compiles": true,
-      "docker_differential": false,
-      "status": "not_proven_in_docker"
+      "docker_differential": true
     },
     {
       "id": "checkpointed-integrated-pipeline",
@@ -56,8 +55,7 @@
       "reference_evaluable": true,
       "typed_plan_lowerable": true,
       "generated_csharp_compiles": true,
-      "docker_differential": false,
-      "status": "not_proven_in_fresh_process"
+      "docker_differential": true
     }
   ],
   "deferred": [
