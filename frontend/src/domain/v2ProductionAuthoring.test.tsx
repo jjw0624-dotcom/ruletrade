@@ -13,6 +13,7 @@ import { productBlockLabel } from "../components/ProductBlockyProjection";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { fallbackBootstrap } from "../test/fixture";
 import { projectProductionFlowCanvas } from "../views/FlowView";
+import { projectProgramBlocky, projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "./programProjections";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -434,5 +435,52 @@ describe("mounted v2 production editor", () => {
     }
     expect(programAllocationToolDescription(splitStrategy)).toBe("Selected assets are weighted equally within their Investment.");
     expect(programAllocationToolDescription(splitStrategy)).not.toBe("Equal allocation is configured.");
+  });
+});
+
+describe("perspective-specific SemanticProgramV2 projections", () => {
+  const programStrategy = (): CanonicalStrategyV2 => ({
+    ...strategy,
+    selection: null,
+    program: {
+      semantic_id: "program",
+      clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+      initial_state: { regime: "waiting" }, formalizations: [],
+      statements: [{ kind: "select", semantic_id: "program-selection", output_id: "selected-growth", clock_id: "daily-close", selection: strategy.selection! }, {
+        kind: "allocate", semantic_id: "selected-allocation", method: "equal", clock_id: "daily-close",
+        legs: [{ semantic_id: "selected-leg", target: { semantic_id: "selected-target", kind: "selection", ref: "selected-growth" }, weight: null }],
+        minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+      }, {
+        kind: "on_event", semantic_id: "risk-event-statement",
+        event: { semantic_id: "risk-event", clock_id: "daily-close", trigger: "rising_edge", occurrence: "every", ordinal: null, condition: { kind: "state_equals", semantic_id: "risk-waiting", state_key: "regime", expected: "waiting" } },
+        statements: [{ kind: "transition", semantic_id: "activate-statement", transition: { semantic_id: "activate", state_key: "regime", from_value: "waiting", to_value: "active", clock_id: "daily-close", when: { kind: "state_equals", semantic_id: "still-waiting", state_key: "regime", expected: "waiting" } } }],
+      }],
+    },
+  });
+
+  it("does not derive Blocky, Rules, or Summary from the Structure tree", () => {
+    const value = programStrategy();
+    const structure = projectProgramProductStructure(value);
+    const blocky = projectProgramBlocky(value);
+    const rules = projectProgramRules(value);
+    const summary = projectProgramSummary(value);
+    expect(structure.children[0]?.children.map((item) => item.label)).toContain("Assets");
+    expect(blocky.map((item) => item.role)).toEqual(expect.arrayContaining(["context", "trigger", "selection", "condition", "value", "event", "state"]));
+    expect(blocky.some((item) => item.label === "Assets")).toBe(false);
+    expect(rules.some((item) => item.text.includes("On rising edge"))).toBe(true);
+    expect(summary).toMatchObject({ title: "Profile A selection" });
+    expect(summary.description).toContain("choose 2");
+  });
+
+  it("keeps Flow capital-first and omits Event/State internals", () => {
+    const flow = projectProgramCapitalFlow(programStrategy());
+    expect(flow.nodes.map((item) => item.label)).toEqual(["Portfolio", "Growth", "Choose 2 assets", "Selected assets", "TLT", "Rebalance"]);
+    expect(flow.nodes.some((item) => item.label.includes("regime"))).toBe(false);
+    expect(flow.edges.map((item) => `${item.source}->${item.target}`)).toEqual(expect.arrayContaining([
+      "program-selection->selected:program-selection",
+      "program-selection->fallback:program-selection",
+      "selected:program-selection->rebalance",
+      "fallback:program-selection->rebalance",
+    ]));
   });
 });

@@ -6,6 +6,7 @@ and view-specific meaning that future Builder surfaces may render.
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -51,11 +52,19 @@ class ProjectionItem(FrozenModel):
     route: Literal["contains", "capital", "selected", "fallback", "action", "computes"] | None = None
 
 
+class ProjectionLink(FrozenModel):
+    source_id: str
+    target_id: str
+    route: Literal["contains", "capital", "selected", "fallback", "action", "computes"]
+    label: str | None = None
+
+
 class ProjectionManifest(FrozenModel):
     schema_version: Literal["ruletrade.dev/semantic-projection/v1"] = "ruletrade.dev/semantic-projection/v1"
     kind: ProjectionKind
     strategy_id: str
     items: tuple[ProjectionItem, ...]
+    links: tuple[ProjectionLink, ...] = ()
     omitted: tuple[str, ...] = ()
     semantic_valid: bool
     execution_claim: Literal["none", "incomplete", "supported", "unsupported"] = "none"
@@ -68,6 +77,8 @@ class ProjectionManifest(FrozenModel):
         known = set(ids)
         if any(item.parent_id is not None and item.parent_id not in known for item in self.items):
             raise ValueError(f"{self.kind} projection contains an unknown parent")
+        if any(link.source_id not in known or link.target_id not in known for link in self.links):
+            raise ValueError(f"{self.kind} projection contains an unknown link endpoint")
         return self
 
 
@@ -85,6 +96,15 @@ class InspectorAddressManifest(FrozenModel):
 
 def _address(kind: SemanticAddress.__annotations__["kind"], semantic_id: str, path: str) -> SemanticAddress:
     return SemanticAddress(kind=kind, semantic_id=semantic_id, canonical_path=path)
+
+
+def _execution_claim(strategy: CanonicalStrategyV2) -> Literal["none", "incomplete", "supported", "unsupported"]:
+    # Capability is a separate projection dimension.  Rendering never requires
+    # successful lowering, but consumers may truthfully label Test readiness.
+    from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
+
+    state = assess_v2_execution_capability(strategy).execution_state
+    return {"incomplete": "incomplete", "unsupported": "unsupported", "executable": "supported"}[state]
 
 
 def _condition_label(condition) -> str:
@@ -141,6 +161,24 @@ def _statement_children(statement: ProgramStatementV2) -> tuple[tuple[str, Progr
     return ()
 
 
+def _is_blank_bootstrap(statement: ProgramStatementV2) -> bool:
+    return (
+        isinstance(statement, AllocationStatementV2)
+        and statement.semantic_id == "initial-retain-allocation"
+        and len(statement.legs) == 1
+        and statement.legs[0].target.kind == "retain"
+    )
+
+
+def _all_statements(items: tuple[ProgramStatementV2, ...]) -> tuple[ProgramStatementV2, ...]:
+    result: list[ProgramStatementV2] = []
+    for statement in items:
+        result.append(statement)
+        for _, child in _statement_children(statement):
+            result.extend(_all_statements((child,)))
+    return tuple(result)
+
+
 def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
     program = strategy.program
     strategy_id = program.semantic_id if program else strategy.metadata.name
@@ -150,31 +188,61 @@ def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
         address=_address("strategy", strategy_id, "program"), order=0,
     )]
     asset_sets = {item.id: item for item in strategy.definitions.asset_sets}
+    statements = _all_statements(program.statements if program else ())
     selections = {
         item.selection.universe_id: item
-        for item in (program.statements if program else ())
+        for item in statements
         if isinstance(item, SelectionStatementV2)
     }
     allocations = {
         leg.target.ref: statement
-        for statement in (program.statements if program else ())
+        for statement in statements
         if isinstance(statement, AllocationStatementV2)
+        if sum(item.target.kind == "selection" for item in statement.legs) == 1
         for leg in statement.legs
         if leg.target.kind == "selection" and leg.target.ref is not None
     }
     order = 1
+    split_shares: dict[str, Decimal] = {}
+    split_statement: AllocationStatementV2 | None = None
+    selections_by_output = {
+        item.output_id: item for item in statements if isinstance(item, SelectionStatementV2)
+    }
+    for statement in (item for item in statements if isinstance(item, AllocationStatementV2) and item.method == "fixed"):
+        candidate: dict[str, Decimal] = {}
+        for leg in statement.legs:
+            group_id = leg.target.ref if leg.target.kind == "group" else None
+            if leg.target.kind == "selection":
+                selected = selections_by_output.get(leg.target.ref or "")
+                group_id = selected.selection.universe_id if selected else None
+            if group_id is not None and leg.weight is not None:
+                candidate[group_id] = leg.weight
+        if len(candidate) > 1:
+            split_shares, split_statement = candidate, statement
+            break
+    split_id = None
+    if split_statement is not None:
+        split_id = f"structure:split:{split_statement.semantic_id}"
+        items.append(ProjectionItem(
+            id=split_id, role="split", label="Split",
+            detail=" / ".join(f"{float(value):.0%}" for value in split_shares.values()),
+            address=_address("statement", split_statement.semantic_id, f"program.statements[{split_statement.semantic_id}]"),
+            parent_id=root_id, order=order, route="contains",
+        ))
+        order += 1
     for index, group in enumerate(strategy.definitions.groups):
         investment_id = f"structure:investment:{group.id}"
         items.append(ProjectionItem(
             id=investment_id, role="investment", label=group.name or "Investment",
             address=_address("definition", group.id, f"definitions.groups[{index}]"),
-            parent_id=root_id, order=order, route="contains",
+            parent_id=split_id or root_id, order=order, route="contains",
+            detail=(f"{float(split_shares[group.id]):.0%} of Portfolio" if group.id in split_shares else None),
         ))
         order += 1
-        assets = asset_sets[group.asset_set_ref].assets
+        assets = asset_sets.get(group.asset_set_ref)
         items.append(ProjectionItem(
             id=f"structure:assets:{group.id}", role="assets", label="Assets",
-            detail=", ".join(assets) if assets else "No assets",
+            detail=", ".join(assets.assets) if assets and assets.assets else "No assets",
             address=_address("definition", group.asset_set_ref, f"definitions.asset_sets[{group.asset_set_ref}]"),
             parent_id=investment_id, order=order, route="contains",
         ))
@@ -221,8 +289,11 @@ def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
                     route="contains",
                 ))
                 order += 1
+    used_clock_ids = {
+        item.clock_id for item in selections.values() if item.clock_id is not None
+    }
     for index, clock in enumerate(program.clocks if program else ()):
-        if clock.timeframe != "daily" or clock.id != "daily-close":
+        if selections and (clock.id in used_clock_ids or (not used_clock_ids and index == 0)):
             items.append(ProjectionItem(
                 id=f"structure:clock:{clock.id}", role="rebalance", label="Rebalance",
                 detail=clock.timeframe.title(),
@@ -234,24 +305,21 @@ def project_structure(strategy: CanonicalStrategyV2) -> ProjectionManifest:
         kind="structure", strategy_id=strategy_id, items=tuple(items),
         omitted=("mathematical operator internals", "execution diagnostics"),
         semantic_valid=not validate_strategy_v2(strategy),
+        execution_claim=_execution_claim(strategy),
     )
 
 
 def project_flow(strategy: CanonicalStrategyV2) -> ProjectionManifest:
     structure = project_structure(strategy)
-    relevant = [item for item in structure.items if item.role in {"portfolio", "investment", "selection", "fallback", "rebalance"}]
+    relevant = [item for item in structure.items if item.role in {"portfolio", "split", "investment", "selection", "fallback", "rebalance"}]
     items: list[ProjectionItem] = []
-    previous_by_investment: dict[str, str] = {}
+    links: list[ProjectionLink] = []
+    endpoints: list[str] = []
     for order, item in enumerate(relevant):
-        parent_id = None
+        flow_id = item.id.replace("structure:", "flow:")
+        parent_id = item.parent_id.replace("structure:", "flow:") if item.parent_id else None
         route: ProjectionItem.__annotations__["route"] = "capital"
-        if item.role == "investment":
-            parent_id = next(candidate.id for candidate in relevant if candidate.role == "portfolio")
-            previous_by_investment[item.id] = item.id
-        elif item.role == "selection":
-            structure_parent = next(candidate for candidate in structure.items if candidate.id == item.parent_id)
-            parent_id = previous_by_investment.get(structure_parent.id, structure_parent.id.replace("structure:", "flow:"))
-        elif item.role == "fallback":
+        if item.role == "fallback":
             selected = next(
                 candidate for candidate in relevant
                 if candidate.role == "selection" and candidate.parent_id == item.parent_id
@@ -259,32 +327,48 @@ def project_flow(strategy: CanonicalStrategyV2) -> ProjectionManifest:
             parent_id = selected.id.replace("structure:", "flow:")
             route = "fallback"
         elif item.role == "rebalance":
-            selection = next((candidate for candidate in reversed(relevant) if candidate.role == "selection"), None)
-            parent_id = selection.id.replace("structure:", "flow:") if selection else relevant[0].id.replace("structure:", "flow:")
+            parent_id = None
             route = "action"
         items.append(item.model_copy(update={
-            "id": item.id.replace("structure:", "flow:"),
-            "parent_id": parent_id.replace("structure:", "flow:") if parent_id else None,
+            "id": flow_id,
+            "parent_id": parent_id,
             "order": order,
             "route": route,
         }))
+        if parent_id:
+            links.append(ProjectionLink(source_id=parent_id, target_id=flow_id, route=route))
         if item.role == "selection":
+            selected_id = f"flow:selected:{item.address.semantic_id}"
             items.append(ProjectionItem(
-                id=f"flow:selected:{item.address.semantic_id}", role="destination",
+                id=selected_id, role="destination",
                 label="Selected assets", address=item.address,
-                parent_id=item.id.replace("structure:", "flow:"), order=order + 1, route="selected",
+                parent_id=flow_id, order=order + 1, route="selected",
             ))
+            links.append(ProjectionLink(source_id=flow_id, target_id=selected_id, route="selected"))
+            endpoints.append(selected_id)
+        elif item.role == "fallback":
+            endpoints.append(flow_id)
+        elif item.role == "investment" and not any(candidate.role == "selection" and candidate.parent_id == item.id for candidate in relevant):
+            endpoints.append(flow_id)
+    rebalance = next((item for item in items if item.role == "rebalance"), None)
+    if rebalance is not None:
+        links.extend(ProjectionLink(source_id=source, target_id=rebalance.id, route="action") for source in dict.fromkeys(endpoints))
     return ProjectionManifest(
-        kind="flow", strategy_id=structure.strategy_id, items=tuple(items),
+        kind="flow", strategy_id=structure.strategy_id, items=tuple(items), links=tuple(links),
         omitted=("indicator calculations", "condition expression internals"),
         semantic_valid=structure.semantic_valid,
+        execution_claim=structure.execution_claim,
     )
 
 
 def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
     program = strategy.program
     strategy_id = program.semantic_id if program else strategy.metadata.name
-    items: list[ProjectionItem] = []
+    root_id = f"blocky:context:{strategy_id}"
+    items: list[ProjectionItem] = [ProjectionItem(
+        id=root_id, role="portfolio", label="Portfolio",
+        address=_address("strategy", strategy_id, "program"), order=0,
+    )]
 
     def visit_value(value, path: str, parent_id: str, detail: str | None = None) -> None:
         item_id = f"blocky:value:{value.semantic_id}"
@@ -311,6 +395,36 @@ def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
                     item_id,
                     f"weight={term.weight}",
                 )
+            for index, term in enumerate(value.condition_terms):
+                visit_condition(
+                    term.condition,
+                    f"{path}.condition_terms[{index}].condition",
+                    item_id,
+                    f"points={term.true_points}",
+                )
+        elif hasattr(value, "source"):
+            visit_value(value.source, f"{path}.source", item_id)
+        elif hasattr(value, "operands"):
+            for index, operand in enumerate(value.operands):
+                visit_value(operand, f"{path}.operands[{index}]", item_id)
+
+    def visit_condition(condition, path: str, parent_id: str, detail: str | None = None) -> None:
+        item_id = f"blocky:condition:{condition.semantic_id}"
+        if any(item.id == item_id for item in items):
+            return
+        items.append(ProjectionItem(
+            id=item_id, role="condition", label=_condition_label(condition), detail=detail,
+            address=_address("condition", condition.semantic_id, path),
+            parent_id=parent_id, order=len(items), route="computes",
+        ))
+        if isinstance(condition, ComparisonV2):
+            visit_value(condition.left, f"{path}.left", item_id)
+            visit_value(condition.right, f"{path}.right", item_id)
+        elif isinstance(condition, (BooleanGroupV2, NOfMConditionV2)):
+            for index, child in enumerate(condition.children):
+                visit_condition(child, f"{path}.children[{index}]", item_id)
+        elif isinstance(condition, NotConditionV2):
+            visit_condition(condition.child, f"{path}.child", item_id)
 
     def visit(statement: ProgramStatementV2, path: str, parent_id: str | None, relation: str | None = None) -> None:
         role, label = _statement_label(statement)
@@ -333,12 +447,7 @@ def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
         elif isinstance(statement, GuardedAllocationStatementV2):
             condition = statement.guard
         if condition is not None:
-            items.append(ProjectionItem(
-                id=f"blocky:condition:{condition.semantic_id}", role="condition",
-                label=_condition_label(condition),
-                address=_address("condition", condition.semantic_id, f"{path}.condition"),
-                parent_id=item_id, order=len(items), route="computes",
-            ))
+            visit_condition(condition, f"{path}.condition", item_id)
         if isinstance(statement, SelectionStatementV2):
             ranking = statement.selection.ranking
             visit_value(
@@ -347,30 +456,42 @@ def project_blocky(strategy: CanonicalStrategyV2) -> ProjectionManifest:
                 item_id,
                 f"rank {statement.selection.direction}",
             )
+            if statement.selection.fallback_asset:
+                items.append(ProjectionItem(
+                    id=f"blocky:fallback:{statement.semantic_id}", role="fallback",
+                    label=f"Fallback → {statement.selection.fallback_asset}",
+                    address=_address("statement", statement.semantic_id, f"{path}.selection.fallback_asset"),
+                    parent_id=item_id, order=len(items), route="computes",
+                ))
         for index, (child_relation, child) in enumerate(_statement_children(statement)):
             visit(child, f"{path}.{child_relation}[{index}]", item_id, child_relation)
 
     for index, statement in enumerate(program.statements if program else ()):
-        visit(statement, f"program.statements[{index}]", None)
+        if not _is_blank_bootstrap(statement):
+            visit(statement, f"program.statements[{index}]", root_id)
     return ProjectionManifest(
         kind="blocky", strategy_id=strategy_id, items=tuple(items),
         omitted=("portfolio ownership decoration", "provider/runtime status"),
         semantic_valid=not validate_strategy_v2(strategy),
+        execution_claim=_execution_claim(strategy),
     )
 
 
 def project_rules(strategy: CanonicalStrategyV2) -> ProjectionManifest:
     blocky = project_blocky(strategy)
+    readable = [item for item in blocky.items if item.role not in {"portfolio", "condition", "value"}]
     items = tuple(item.model_copy(update={
         "id": item.id.replace("blocky:", "rules:"),
         "parent_id": None,
+        "order": index,
         "route": None,
-        "label": f"{item.order + 1}. {item.label}",
-    }) for item in blocky.items if item.role != "condition")
+        "label": f"{index + 1}. {item.label}",
+    }) for index, item in enumerate(readable))
     return ProjectionManifest(
         kind="rules", strategy_id=blocky.strategy_id, items=items,
         omitted=("visual containment", "execution diagnostics"),
         semantic_valid=blocky.semantic_valid,
+        execution_claim=blocky.execution_claim,
     )
 
 
@@ -392,27 +513,39 @@ def project_summary(strategy: CanonicalStrategyV2) -> ProjectionManifest:
         kind="summary", strategy_id=structure.strategy_id, items=(root,),
         omitted=("operator internals", "full rule order", "runtime availability"),
         semantic_valid=structure.semantic_valid,
+        execution_claim=structure.execution_claim,
     )
 
 
 def inspector_addresses(strategy: CanonicalStrategyV2) -> InspectorAddressManifest:
-    blocky = project_blocky(strategy)
+    bundle = projection_bundle(strategy)
     operations = {
-        "selection": ("set_selection_assets", "set_selection_eligibility", "set_selection_ranking", "set_selection_fallback"),
-        "allocation": ("set_allocation",),
-        "condition": ("replace_condition",),
-        "event": ("replace_event",),
-        "transition": ("replace_transition",),
-        "memory": ("replace_remembered_value",),
-        "policy": ("replace_policy",),
-        "control": ("replace_control",),
+        "investment": ("remove_program_investment",),
+        "assets": ("set_program_asset_set",),
+        "selection": ("set_selection_assets", "set_selection_eligibility", "set_selection_ranking", "set_selection_fallback", "set_program_selection", "set_program_condition", "set_program_value", "set_program_fallback"),
+        "fallback": ("set_program_fallback",),
+        "allocation": ("set_program_allocation",),
+        "condition": ("set_program_condition",),
+        "event": ("set_program_event",),
+        "transition": ("set_program_transition",),
+        "memory": ("set_program_value",),
+        "policy": ("set_program_condition", "set_program_allocation"),
+        "control": ("set_program_condition",),
+        "split": ("set_program_split",),
+        "rebalance": ("set_program_schedule",),
     }
+    by_address: dict[tuple[str, str, str], tuple[SemanticAddress, set[str]]] = {}
+    for manifest in bundle.values():
+        for item in manifest.items:
+            key = (item.address.kind, item.address.semantic_id, item.address.canonical_path)
+            known = by_address.setdefault(key, (item.address, set()))
+            known[1].update(operations.get(item.role, ()))
     intents = tuple(InspectorIntent(
-        address=item.address,
-        valid_operations=operations.get(item.role, ()),
-        read_only_reason=None if item.role in operations else "No production authoring operation is registered for this semantic role.",
-    ) for item in blocky.items)
-    return InspectorAddressManifest(strategy_id=blocky.strategy_id, intents=intents)
+        address=item,
+        valid_operations=tuple(sorted(valid)),
+        read_only_reason=None if valid else "No production authoring operation is registered for this semantic role.",
+    ) for item, valid in by_address.values())
+    return InspectorAddressManifest(strategy_id=next(iter(bundle.values())).strategy_id, intents=intents)
 
 
 def projection_bundle(strategy: CanonicalStrategyV2) -> dict[ProjectionKind, ProjectionManifest]:
