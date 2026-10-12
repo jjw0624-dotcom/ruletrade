@@ -100,3 +100,9 @@ Docker-verified. The daily profile additionally has exact semantic replay across
 fresh LEAN processes. Native brokerage/order-ticket restoration, generalized
 Event/State workflows, generalized multi-clock execution, intraday clocks, and
 UI authoring remain NOT PROVEN. See `docs/temporal-stateful-execution.md`.
+
+`composable-semantic-execution@1` additionally proves the explicit combinations
+recorded in `corpus/composable-semantic-capability-matrix.json`. Atomic support
+must never be promoted to combination support without a row-level reference,
+typed-plan, generated-compile, and Docker result. See
+`docs/composable-semantic-execution.md`.

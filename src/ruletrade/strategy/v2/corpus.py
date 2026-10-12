@@ -727,6 +727,233 @@ def temporal_multiclock_strategy() -> CanonicalStrategyV2:
     })
 
 
+def composable_semantic_execution_program() -> SemanticProgramV2:
+    """Weekly context + daily State + weighted cross-sectional execution.
+
+    This fixture is intentionally assembled only from ordinary Program Core
+    nodes.  It is the integration oracle, never a backend-recognized template.
+    """
+
+    weekly = ClockedValueV2(
+        semantic_id="composition-weekly-close",
+        source=_asset("QQQ", "composition-weekly-source"),
+        clock_id="weekly-close",
+    )
+    weekly_event = EventStatementV2(
+        semantic_id="composition-weekly-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="composition-weekly-event", clock_id="daily-close",
+            condition=_comparison(
+                "composition-weekly-positive", weekly, "gt",
+                _price_literal("0", "composition-weekly-zero"),
+            ),
+            trigger="while_true", occurrence="first",
+        ),
+        statements=(
+            RememberValueStatementV2(
+                semantic_id="remember-weekly-context", memory_id="weekly-context",
+                value=weekly,
+            ),
+            StateTransitionStatementV2(
+                semantic_id="arm-growth",
+                transition=StateTransitionV2(
+                    semantic_id="arm-growth-transition", state_key="regime",
+                    from_value="defensive", to_value="armed",
+                    when=StateConditionV2(
+                        semantic_id="defensive-state", state_key="regime",
+                        expected="defensive",
+                    ),
+                ),
+            ),
+        ),
+    )
+    confirmation = EventStatementV2(
+        semantic_id="composition-confirmation-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="composition-confirmation-event", clock_id="daily-close",
+            condition=BooleanGroupV2(
+                kind="all", semantic_id="composition-confirmation-condition",
+                children=(
+                    StateConditionV2(
+                        semantic_id="armed-state", state_key="regime", expected="armed",
+                    ),
+                    _comparison(
+                        "composition-daily-positive", _asset("QQQ", "composition-daily-price"),
+                        "gt", _price_literal("0", "composition-daily-zero"),
+                    ),
+                ),
+            ),
+            trigger="while_true", occurrence="first",
+        ),
+        statements=(StateTransitionStatementV2(
+            semantic_id="confirm-growth",
+            transition=StateTransitionV2(
+                semantic_id="confirm-growth-transition", state_key="regime",
+                from_value="armed", to_value="growth",
+                when=StateConditionV2(
+                    semantic_id="armed-transition-state", state_key="regime", expected="armed",
+                ),
+            ),
+        ),),
+    )
+    score = ScoreValueV2(
+        semantic_id="composition-weighted-score",
+        terms=(
+            ScoreTermV2(
+                semantic_id="composition-short-term",
+                value=_candidate_return("composition-short-return", 21), weight=Decimal("0.6"),
+            ),
+            ScoreTermV2(
+                semantic_id="composition-long-term",
+                value=_candidate_return("composition-long-return", 63), weight=Decimal("0.4"),
+            ),
+        ),
+        normalization="sum_abs", clamp_min=Decimal("0.000001"),
+    )
+    selection = _selection(score, count=2, fallback="TLT", clock_id="daily-close")
+    growth = AllocationStatementV2(
+        semantic_id="composition-growth-allocation", method="proportional_score",
+        clock_id="daily-close",
+        legs=(AllocationLegV2(
+            semantic_id="composition-growth-leg",
+            target=AllocationTargetV2(
+                semantic_id="composition-growth-target", kind="selection", ref=selection.output_id,
+            ),
+        ),),
+    )
+    defensive = AllocationStatementV2(
+        semantic_id="composition-defensive-allocation", method="fixed",
+        clock_id="daily-close",
+        legs=(AllocationLegV2(
+            semantic_id="composition-defensive-leg",
+            target=AllocationTargetV2(
+                semantic_id="composition-defensive-target", kind="asset", ref="TLT",
+            ), weight=Decimal(1),
+        ),),
+    )
+    policy = GuardedAllocationStatementV2(
+        semantic_id="composition-policy", primary=defensive,
+        overrides=(OverrideRuleV2(
+            semantic_id="composition-growth-override", priority=100,
+            when=StateConditionV2(
+                semantic_id="growth-state", state_key="regime", expected="growth",
+            ), action=growth,
+        ),),
+    )
+    return _program(
+        selection, weekly_event, confirmation, policy,
+        clocks=(
+            ProgramClockV2(id="daily-close", timeframe="daily", timezone="America/New_York"),
+            ProgramClockV2(id="weekly-close", timeframe="weekly", timezone="America/New_York"),
+        ),
+        initial_state={"regime": "defensive"},
+    )
+
+
+def composable_semantic_execution_strategy() -> CanonicalStrategyV2:
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Composable weekly regime weighted momentum"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinitionV2(
+                id="growth-assets", assets=["QQQ", "VGT", "SOXX", "SCHG"],
+            ),),
+            groups=(GroupDefinition(
+                id="growth", name="Growth investment", asset_set_ref="growth-assets",
+            ),),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={
+            "compare": "1", "daily.trailing_return": "1", "program.score": "1",
+            "program.event": "1", "program.state": "1", "program.memory": "1",
+            "program.policy": "1", "program.clocked_value": "1",
+        },
+        program=composable_semantic_execution_program(),
+    )
+
+
+def composable_split_execution_strategy() -> CanonicalStrategyV2:
+    """Two independent Selection investments aggregated by one fixed policy."""
+
+    def selected(
+        semantic_id: str, output_id: str, universe_id: str, binding_id: str,
+    ) -> SelectionStatementV2:
+        ranking = DailyValueNode(
+            semantic_id=f"{semantic_id}-return", kind="trailing_return", observations=21,
+            operands=(DailyValueNode(
+                semantic_id=f"{semantic_id}-source", kind="observe",
+                subject_kind=SubjectKind.CANDIDATE, binding_id=binding_id,
+                field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+            ),),
+        )
+        return SelectionStatementV2(
+            semantic_id=semantic_id, output_id=output_id, clock_id="daily-close",
+            selection=SelectionV2(
+                semantic_id=f"{semantic_id}-definition", universe_id=universe_id,
+                binding=CandidateBinding(id=binding_id, domain_id=universe_id),
+                ranking=ranking,
+                direction="descending", count=1, shortage_policy="choose_all",
+            ),
+        )
+
+    growth = selected("select-growth-sleeve", "growth-output", "growth", "growth-candidate")
+    defense = selected("select-defense-sleeve", "defense-output", "defense", "defense-candidate")
+    split = AllocationStatementV2(
+        semantic_id="independent-investment-split", method="fixed", clock_id="daily-close",
+        legs=(
+            AllocationLegV2(
+                semantic_id="growth-split-leg",
+                target=AllocationTargetV2(
+                    semantic_id="growth-split-target", kind="selection", ref="growth-output",
+                ), weight=Decimal("0.6"),
+            ),
+            AllocationLegV2(
+                semantic_id="defense-split-leg",
+                target=AllocationTargetV2(
+                    semantic_id="defense-split-target", kind="selection", ref="defense-output",
+                ), weight=Decimal("0.4"),
+            ),
+        ),
+    )
+    cash = AllocationStatementV2(
+        semantic_id="halted-cash", method="fixed",
+        legs=(AllocationLegV2(
+            semantic_id="halted-cash-leg",
+            target=AllocationTargetV2(semantic_id="halted-cash-target", kind="cash"),
+            weight=Decimal(1),
+        ),),
+    )
+    policy = GuardedAllocationStatementV2(
+        semantic_id="independent-investment-policy", primary=split,
+        overrides=(OverrideRuleV2(
+            semantic_id="halted-override", priority=100,
+            when=StateConditionV2(
+                semantic_id="halted-state", state_key="mode", expected="halted",
+            ), action=cash,
+        ),),
+    )
+    program = _program(
+        growth, defense, policy, initial_state={"mode": "active"},
+    )
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Independent investment aggregation"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(
+                AssetSetDefinitionV2(id="growth-assets", assets=["QQQ", "VGT"]),
+                AssetSetDefinitionV2(id="defense-assets", assets=["TLT", "IEF"]),
+            ),
+            groups=(
+                GroupDefinition(id="growth", name="Growth", asset_set_ref="growth-assets"),
+                GroupDefinition(id="defense", name="Defense", asset_set_ref="defense-assets"),
+            ),
+            asset_axis=Axis(name="asset", domain_id="growth"),
+        ),
+        operator_lock={"compare": "1", "daily.trailing_return": "1", "program.policy": "1"},
+        program=program,
+    )
+
+
 PROGRAM_FIXTURES = {
     "strongest-etfs": strongest_etfs_program,
     "price-over-sma": price_over_sma_program,
@@ -739,6 +966,7 @@ PROGRAM_FIXTURES = {
     "weighted-momentum-allocation": weighted_momentum_allocation_program,
     "temporal-breakout-state-machine": temporal_breakout_program,
     "temporal-multiclock-state-machine": temporal_multiclock_program,
+    "composable-semantic-execution": composable_semantic_execution_program,
 }
 
 
