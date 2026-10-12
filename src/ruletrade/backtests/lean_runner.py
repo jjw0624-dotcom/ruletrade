@@ -145,6 +145,7 @@ class DockerLeanRunner:
             "golden-synthetic": "lean-data",
             "filter-synthetic": "lean-filter-data",
             "cooldown-synthetic": "lean-cooldown-data",
+            "temporal-synthetic": "lean-temporal-data",
         }
         is_local_real_data = dataset_id == "us-equity-daily-local"
         if dataset_id not in fixture_names and not is_local_real_data:
@@ -158,7 +159,8 @@ class DockerLeanRunner:
             if not data_directory.is_dir():
                 raise LeanExecutionError("Local LEAN market data is unavailable.")
         else:
-            data_directory = self.repo_root / "tests" / "fixtures" / fixture_names[dataset_id]
+            base = "build/lean" if dataset_id == "temporal-synthetic" else "tests/fixtures"
+            data_directory = self.repo_root / base / fixture_names[dataset_id]
             if not data_directory.is_dir():
                 raise LeanExecutionError("Synthetic LEAN fixture is missing.")
 

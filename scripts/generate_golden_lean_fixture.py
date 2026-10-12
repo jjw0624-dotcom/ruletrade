@@ -17,6 +17,7 @@ SYMBOLS = {
 FILTER_PHASES = {"qqq": 0, "vgt": 30, "soxx": 60, "schg": 90}
 FILTER_FIXTURE_SYMBOLS = (*FILTER_PHASES, "tlt", "ief")
 COOLDOWN_FIXTURE_SYMBOLS = ("qqq", "ief")
+TEMPORAL_FIXTURE_SYMBOLS = ("qqq",)
 
 # Full-day NASDAQ closures in the fixture period. Early closes remain
 # trading days because a Daily TradeBar still exists for them.
@@ -124,6 +125,24 @@ def cooldown_daily_rows(symbol: str) -> str:
     return "\n".join(rows) + "\n"
 
 
+def temporal_daily_rows(_symbol: str) -> str:
+    """Fixture-local breakout → retest → confirmation close sequence."""
+
+    sequence = (10, 11, 13, 12, 14, 14, 14, 14, 14)
+    dates = trading_dates()
+    first = dates.index(date(2024, 1, 2))
+    rows = []
+    for index, trading_date in enumerate(dates):
+        offset = index - first
+        price = 10 if offset < 0 else sequence[min(offset, len(sequence) - 1)]
+        close = price * 10_000
+        rows.append(
+            f"{trading_date:%Y%m%d} 00:00,"
+            f"{close},{close},{close},{close},{1_000_000 + index}"
+        )
+    return "\n".join(rows) + "\n"
+
+
 def _write_deterministic_zip(path: Path, entry_name: str, contents: str) -> None:
     info = ZipInfo(entry_name, date_time=ZIP_TIMESTAMP)
     info.compress_type = ZIP_DEFLATED
@@ -143,12 +162,14 @@ def generate_fixture(output: Path, *, profile: str = "golden") -> None:
     symbols = (
         FILTER_FIXTURE_SYMBOLS
         if profile == "filter"
-        else COOLDOWN_FIXTURE_SYMBOLS if profile == "cooldown" else SYMBOLS
+        else COOLDOWN_FIXTURE_SYMBOLS if profile == "cooldown"
+        else TEMPORAL_FIXTURE_SYMBOLS if profile == "temporal" else SYMBOLS
     )
     row_factory = (
         filter_daily_rows
         if profile == "filter"
-        else cooldown_daily_rows if profile == "cooldown" else daily_rows
+        else cooldown_daily_rows if profile == "cooldown"
+        else temporal_daily_rows if profile == "temporal" else daily_rows
     )
     for symbol in symbols:
         _write_deterministic_zip(
@@ -181,7 +202,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--profile",
-        choices=("golden", "filter", "cooldown"),
+        choices=("golden", "filter", "cooldown", "temporal"),
         default="golden",
     )
     args = parser.parse_args()

@@ -88,6 +88,8 @@ jobs:
         run: make check-lean-semantic-corpus
       - name: Run weighted Score / Allocation LEAN differential
         run: make check-lean-weighted-score
+      - name: Run temporal and stateful LEAN differential
+        run: make check-lean-temporal-stateful
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.1

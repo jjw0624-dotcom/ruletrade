@@ -75,6 +75,20 @@
       "blocker": "No maintained general Event/State/Control LEAN lowering."
     },
     {
+      "id": "event-state-daily-v1-profile",
+      "corpus_id": "synthetic-temporal-breakout-state-machine",
+      "expanded_case_overlap": [],
+      "expanded_case_claim": "Explicit synthetic formalization only; no natural-language case is claimed as a complete verified strategy.",
+      "path": ["CanonicalStrategyV2", "validate_strategy_v2", "LeanTemporalProgram(event-state-daily@1)", "generate_csharp", "DockerLeanRunner", "verify_temporal_e2e"],
+      "timeframe": "daily completed close",
+      "data_fixture": "temporal-synthetic",
+      "comparison_boundaries": ["Value readiness", "Event occurrence and order", "pre/post State", "remembered Value and capture cutoff", "temporal window", "policy winner", "target exposure", "order intent", "actual filled order"],
+      "tolerance": {"discrete_state_event_policy": "exact", "remembered_value": "exact Decimal", "target_weight": "exact Decimal", "fill_quantity": "non-zero actual LEAN fill"},
+      "ci_command": "make check-lean-temporal-stateful",
+      "status": "docker_verified",
+      "not_proven": ["general Event/State lowering", "weekly/daily LEAN alignment", "genuine LEAN checkpoint restore"]
+    },
+    {
       "id": "program-cross-sectional-score",
       "corpus_id": "composite-factor-rerank",
       "path": ["SemanticProgramV2", "execute_program_v2"],

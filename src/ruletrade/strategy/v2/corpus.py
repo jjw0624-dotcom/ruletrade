@@ -28,6 +28,7 @@ from ruletrade.strategy.v2.models import (
     AllocationLegV2,
     AllocationStatementV2,
     AllocationTargetV2,
+    BarsSinceEventValueV2,
     BooleanGroupV2,
     CandidateBinding,
     CanonicalStrategyV2,
@@ -37,11 +38,13 @@ from ruletrade.strategy.v2.models import (
     CrossSectionalValueV2,
     EventDefinitionV2,
     EventStatementV2,
+    EventWindowConditionV2,
     GuardedAllocationStatementV2,
     LiteralValue,
     NOfMConditionV2,
     OverrideRuleV2,
     ProgramClockV2,
+    RememberedValueV2,
     RememberValueStatementV2,
     ScoreTermV2,
     ScoreValueV2,
@@ -150,6 +153,15 @@ def reference_snapshot() -> DailyMarketSnapshot:
             "TLT": {"close:adjusted": (Decimal(20),) * 130},
             "CASH": {"close:adjusted": (Decimal(1),) * 130},
         },
+    )
+
+
+def temporal_reference_snapshot() -> DailyMarketSnapshot:
+    return DailyMarketSnapshot(
+        snapshot_id="lean-temporal-data@1", clock=Clock(id="daily-close"),
+        dates=("2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08", "2024-01-09", "2024-01-10"),
+        domains={"temporal-group": ("QQQ",)},
+        series={"QQQ": {"close:adjusted": tuple(map(Decimal, ("10", "11", "13", "12", "14", "14", "14")))}},
     )
 
 
@@ -494,6 +506,172 @@ def policy_override_program() -> SemanticProgramV2:
     ))
 
 
+def temporal_breakout_program() -> SemanticProgramV2:
+    """Synthetic, fully specified daily breakout/retest/confirmation profile.
+
+    Assumptions are deliberately fixture-local: QQQ breaks above 12, the
+    completed breakout close is remembered, a retest is strictly below that
+    remembered close, and confirmation must close back above it within two
+    completed observations.  This is not attributed to a research fragment.
+    """
+
+    price = _asset("QQQ", "temporal-price")
+    remembered = RememberedValueV2(
+        semantic_id="remembered-breakout-level", memory_id="breakout-level",
+        quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE,
+        refinement="adjusted_close",
+    )
+
+    def transition(statement_id: str, before: str, after: str) -> StateTransitionStatementV2:
+        return StateTransitionStatementV2(
+            semantic_id=statement_id,
+            transition=StateTransitionV2(
+                semantic_id=f"{statement_id}-transition", state_key="phase",
+                from_value=before, to_value=after,
+                when=StateConditionV2(
+                    semantic_id=f"{statement_id}-guard", state_key="phase", expected=before,
+                ),
+            ),
+        )
+
+    breakout = EventStatementV2(
+        semantic_id="breakout-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="breakout-event", clock_id="daily-close",
+            condition=_comparison(
+                "breakout-condition", price, "gt", _price_literal("12", "breakout-threshold"),
+            ),
+            trigger="crosses_above", occurrence="first",
+        ),
+        statements=(
+            RememberValueStatementV2(
+                semantic_id="remember-breakout", memory_id="breakout-level", value=price,
+            ),
+            transition("arm-breakout", "idle", "broken"),
+        ),
+    )
+    retest = EventStatementV2(
+        semantic_id="retest-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="retest-event", clock_id="daily-close",
+            condition=BooleanGroupV2(
+                kind="all", semantic_id="retest-condition", children=(
+                    StateConditionV2(
+                        semantic_id="retest-state", state_key="phase", expected="broken",
+                    ),
+                    _comparison("retest-level", price, "lt", remembered),
+                    EventWindowConditionV2(
+                        semantic_id="retest-window", event_id="breakout-event",
+                        relation="within", observations=3,
+                    ),
+                ),
+            ),
+            trigger="while_true",
+        ),
+        statements=(transition("accept-retest", "broken", "retested"),),
+    )
+    confirmation = EventStatementV2(
+        semantic_id="confirmation-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="confirmation-event", clock_id="daily-close",
+            condition=BooleanGroupV2(
+                kind="all", semantic_id="confirmation-condition", children=(
+                    StateConditionV2(
+                        semantic_id="confirmation-state", state_key="phase", expected="retested",
+                    ),
+                    _comparison("confirmation-level", price, "gt", remembered),
+                    EventWindowConditionV2(
+                        semantic_id="confirmation-window", event_id="retest-event",
+                        relation="within", observations=2,
+                    ),
+                ),
+            ),
+            trigger="while_true",
+        ),
+        statements=(transition("confirm-entry", "retested", "confirmed"),),
+    )
+    expire = EventStatementV2(
+        semantic_id="expiry-event-statement",
+        event=EventDefinitionV2(
+            semantic_id="expiry-event", clock_id="daily-close",
+            condition=BooleanGroupV2(
+                kind="all", semantic_id="expiry-condition", children=(
+                    StateConditionV2(
+                        semantic_id="expiry-state", state_key="phase", expected="retested",
+                    ),
+                    _comparison(
+                        "expiry-window-elapsed",
+                        BarsSinceEventValueV2(
+                            semantic_id="bars-since-retest", event_id="retest-event",
+                        ),
+                        "gt",
+                        LiteralValue(
+                            semantic_id="confirmation-window-size", value=Decimal(2),
+                            quantity=Quantity.COUNT, unit=Unit.COUNT,
+                            refinement="elapsed_observations@1",
+                        ),
+                    ),
+                ),
+            ),
+            trigger="while_true",
+        ),
+        statements=(transition("expire-entry", "retested", "expired"),),
+    )
+
+    cash = AllocationStatementV2(
+        semantic_id="temporal-cash", method="fixed",
+        legs=(AllocationLegV2(
+            semantic_id="temporal-cash-leg",
+            target=AllocationTargetV2(semantic_id="temporal-cash-target", kind="cash"),
+            weight=Decimal(1),
+        ),),
+    )
+    invested = AllocationStatementV2(
+        semantic_id="temporal-invested", method="fixed",
+        legs=(AllocationLegV2(
+            semantic_id="temporal-invested-leg",
+            target=AllocationTargetV2(
+                semantic_id="temporal-invested-target", kind="asset", ref="QQQ",
+            ),
+            weight=Decimal(1),
+        ),),
+    )
+    policy = GuardedAllocationStatementV2(
+        semantic_id="temporal-policy", primary=cash,
+        overrides=(OverrideRuleV2(
+            semantic_id="confirmed-override", priority=100,
+            when=StateConditionV2(
+                semantic_id="confirmed-state", state_key="phase", expected="confirmed",
+            ),
+            action=invested,
+        ),),
+    )
+    return _program(
+        breakout, retest, confirmation, expire, policy,
+        initial_state={"phase": "idle"},
+    )
+
+
+def temporal_breakout_strategy() -> CanonicalStrategyV2:
+    return CanonicalStrategyV2(
+        semantic_profile="profile-a/daily-compositional-core@1",
+        metadata=StrategyMetadata(name="Synthetic temporal breakout state machine"),
+        definitions=StrategyDefinitionsV2(
+            asset_sets=(AssetSetDefinitionV2(id="temporal-assets", assets=["QQQ"]),),
+            groups=(GroupDefinition(
+                id="temporal-group", name="Temporal investment",
+                asset_set_ref="temporal-assets",
+            ),),
+            asset_axis=Axis(name="asset", domain_id="temporal-group"),
+        ),
+        operator_lock={
+            "compare": "1", "program.event": "1", "program.state": "1",
+            "program.memory": "1", "program.policy": "1",
+        },
+        program=temporal_breakout_program(),
+    )
+
+
 PROGRAM_FIXTURES = {
     "strongest-etfs": strongest_etfs_program,
     "price-over-sma": price_over_sma_program,
@@ -504,6 +682,7 @@ PROGRAM_FIXTURES = {
     "higher-timeframe": higher_timeframe_program,
     "policy-override": policy_override_program,
     "weighted-momentum-allocation": weighted_momentum_allocation_program,
+    "temporal-breakout-state-machine": temporal_breakout_program,
 }
 
 
@@ -521,8 +700,26 @@ def evaluate_corpus_entry(
 ) -> ProgramExecutionResult:
     if not entry.capabilities.reference_evaluable:
         raise ValueError(f"corpus entry {entry.id!r} is not reference-evaluable")
-    return execute_program_v2(
-        corpus_program(entry), snapshot or reference_snapshot(), cutoff_index=cutoff_index,
+    resolved_snapshot = snapshot or (
+        temporal_reference_snapshot()
+        if entry.fixture == "temporal-breakout-state-machine"
+        else reference_snapshot()
     )
-    CanonicalStrategyV2,
-    StrategyDefinitionsV2,
+    if entry.fixture == "temporal-breakout-state-machine":
+        prior = None
+        final = None
+        last = cutoff_index if cutoff_index is not None else len(resolved_snapshot.dates) - 1
+        for index in range(last + 1):
+            final = execute_program_v2(
+                corpus_program(entry), resolved_snapshot, cutoff_index=index,
+                prior_state=None if prior is None else prior.state,
+                event_cutoffs=None if prior is None else prior.event_cutoffs,
+                prior_event_truths=None if prior is None else prior.event_truths,
+                event_counts=None if prior is None else prior.event_counts,
+                state_entered_cutoffs=None if prior is None else prior.state_entered_cutoffs,
+                remembered_values=None if prior is None else prior.remembered_values,
+            )
+            prior = final
+        assert final is not None
+        return final
+    return execute_program_v2(corpus_program(entry), resolved_snapshot, cutoff_index=cutoff_index)
