@@ -250,9 +250,14 @@ def _composable_policy_method_lines(plan: LeanPlan, target, index: int) -> tuple
         sleeve = sleeves.get(selection.id)
         symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
         ranking = _value_csharp(_ranking_value(selection), "ticker")
+        # A Selection without an eligibility Condition ranks its whole ready
+        # universe.  The older momentum helper's implicit `> 0` threshold is
+        # a legacy UI convenience, not a Program-Core semantic default.  In
+        # particular, independent sleeves must be able to select the least
+        # negative candidate when every candidate has a negative return.
         eligibility = (
             " && ".join(_eligibility_condition(selection, item) for item in selection.eligibility)
-            or _filter_condition(selection, "item.Value")
+            if selection.eligibility else "true"
         )
         order = _ranking_method(selection)
         success = _selection_success(selection, f"chosen{leg_index}")
