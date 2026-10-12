@@ -89,7 +89,7 @@ export function CompatibilitySelectionBuilderAdapter({ canonical, dirty, status,
   return <StrategyBuilderWorkspace program={{
     activeView: view, onViewChange: setView,
     leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: setSelectedId, perspective: view }} />,
-    representations, inspector, feedback: <>{message}{result}</>, draftMessage: status === "unfinished" ? message : null,
+    representations, inspector, inspectorOpen: Boolean(selectedId), onCloseInspector: () => setSelectedId(""), feedback: <>{message}{result}</>, draftMessage: status === "unfinished" ? message : null,
     onUndo: undo, onRedo: redo, canUndo, canRedo,
   }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} testDisabled={status !== "saved"} testTitle={message} />;
 }

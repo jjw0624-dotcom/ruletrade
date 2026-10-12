@@ -30,7 +30,7 @@ const blank: CanonicalStrategyV2 = {
     asset_sets: [{ id: "initial-assets", assets: [] }], groups: [],
     asset_axis: { name: "asset", domain_id: "initial-assets", coordinate_policy: "member_identity" },
   },
-  operator_lock: {}, selection: null,
+  operator_lock: {}, selection: null, predicate: null,
   program: { semantic_id: "program", clocks: [], initial_state: {}, formalizations: [], statements: [] },
 };
 
