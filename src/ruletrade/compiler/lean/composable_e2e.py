@@ -39,7 +39,10 @@ def verify_composable_e2e(
     allocations = [item for item in records if item.get("kind") == "allocation"]
     checkpoints = [item for item in records if item.get("kind") == "checkpoint"]
     if not boundaries or not selections or not allocations:
-        raise ValueError("composable LEAN path did not exercise its complete pipeline")
+        raise ValueError(
+            "composable LEAN path did not exercise its complete pipeline: "
+            f"boundaries={len(boundaries)} selections={len(selections)} allocations={len(allocations)}"
+        )
     if len(checkpoints) != len(boundaries):
         raise ValueError("every composable boundary must emit a checkpoint")
 
