@@ -16,6 +16,7 @@ from ruletrade.compiler.lean.plan import (
     LeanQuarterlyEvent,
     LeanRandomSelection,
     LeanRebalance,
+    LeanScoreTerm,
     LeanSnapshotAllocation,
     LeanSubscription,
     LeanTargetSleeve,
@@ -77,6 +78,14 @@ def _lower_value(value) -> LeanValue:
         aggregate=value.aggregate,
         operand=_lower_value(value.operand) if value.operand is not None else None,
         factor=value.factor,
+        score_terms=tuple(
+            LeanScoreTerm(value=_lower_value(term.value), weight=term.weight)
+            for term in getattr(value, "score_terms", ())
+        ),
+        missing_policy=getattr(value, "missing_policy", None),
+        normalization=getattr(value, "normalization", None),
+        clamp_min=getattr(value, "clamp_min", None),
+        clamp_max=getattr(value, "clamp_max", None),
     )
 
 

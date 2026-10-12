@@ -78,6 +78,8 @@ def _value_observations(value: LeanValue | None) -> int:
         return int(value.observations or 0) + 1
     if value.kind == "rolling_price":
         return int(value.observations or 0)
+    if value.kind == "weighted_score":
+        return max((_value_observations(term.value) for term in value.score_terms), default=0)
     return _value_observations(value.operand)
 
 
@@ -86,6 +88,8 @@ def _value_assets(value: LeanValue | None) -> set[str]:
         return set()
     assets = {value.asset} if value.subject == "asset" and value.asset else set()
     assets.update(_value_assets(value.operand))
+    for term in value.score_terms:
+        assets.update(_value_assets(term.value))
     return assets
 
 
@@ -101,6 +105,16 @@ def _value_csharp(value: LeanValue, candidate: str) -> str:
         return f"RollingPrice({ticker}, {value.observations}, {_csharp_string(value.aggregate or 'mean')})"
     if value.kind == "scale" and value.operand is not None:
         return f"ScaleValue({_value_csharp(value.operand, candidate)}, {_decimal_literal(value.factor or Decimal(0))})"
+    if value.kind == "weighted_score":
+        values = ", ".join(_value_csharp(term.value, candidate) for term in value.score_terms)
+        weights = ", ".join(_decimal_literal(term.weight) for term in value.score_terms)
+        clamp_min = "null" if value.clamp_min is None else _decimal_literal(value.clamp_min)
+        clamp_max = "null" if value.clamp_max is None else _decimal_literal(value.clamp_max)
+        return (
+            f"WeightedScore(new decimal?[] {{ {values} }}, new decimal[] {{ {weights} }}, "
+            f"{_csharp_string(value.missing_policy or 'require_all')}, "
+            f"{_csharp_string(value.normalization or 'none')}, {clamp_min}, {clamp_max})"
+        )
     raise ValueError(f"unsupported LEAN value: {value.kind}")
 
 
@@ -581,6 +595,25 @@ def generate_csharp(
             "        return value.HasValue ? value.Value * factor : (decimal?)null;",
             "    }",
             "",
+            "    private static decimal? WeightedScore(decimal?[] values, decimal[] weights, string missingPolicy, string normalization, decimal? clampMin, decimal? clampMax)",
+            "    {",
+            "        if (values.Length != weights.Length || values.Length == 0) return null;",
+            '        if (missingPolicy == "require_all" && values.Any(value => !value.HasValue)) return null;',
+            "        decimal total = 0m;",
+            "        decimal availableWeight = 0m;",
+            "        for (var index = 0; index < values.Length; index++)",
+            "        {",
+            "            if (!values[index].HasValue) continue;",
+            "            total += values[index].Value * weights[index];",
+            "            availableWeight += Math.Abs(weights[index]);",
+            "        }",
+            "        if (availableWeight == 0m) return null;",
+            '        if (missingPolicy == "renormalize_available" || normalization == "sum_abs") total /= availableWeight;',
+            "        if (clampMin.HasValue) total = Math.Max(clampMin.Value, total);",
+            "        if (clampMax.HasValue) total = Math.Min(clampMax.Value, total);",
+            "        return total;",
+            "    }",
+            "",
             "    private static bool CompareValues(decimal? left, decimal? right, string operation)",
             "    {",
             "        if (!left.HasValue || !right.HasValue) return false;",
@@ -793,7 +826,7 @@ def generate_csharp(
                     f'            + "|selected=" + ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : "")',
                     f'            + "|decision=" + ({_selection_success(selection, variable)} ? "executed" : "insufficient"));',
                     '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                    f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                    f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", {_csharp_string(selection.score_field)},',
                     f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
                     f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
                     '            "scores", string.Join(",", scores.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
@@ -834,10 +867,21 @@ def generate_csharp(
                 lines.append(f"        if ({variable}.Count < {selection.count}) return;")
         total = _decimal_literal(sleeve.total_weight)
         source_sleeve = _csharp_string(snapshot.source_sleeve_component_id)
-        lines.extend(
-            (
+        if sleeve.weighting_method == "proportional_score":
+            if sleeve.selection_id is None or sleeve.fallback_symbols:
+                raise ValueError("score-proportional snapshots require a scored Selection without fallback")
+            lines.extend((
+                f"        var positiveScoreTotal = {variable}.Sum(item => Math.Max(0m, scores[item]));",
+                "        if (positiveScoreTotal <= 0m) return;",
+                f"        _targetSnapshot{snapshot_index} = {variable}.ToDictionary(item => item, item => {total} * Math.Max(0m, scores[item]) / positiveScoreTotal);",
+            ))
+        else:
+            lines.extend((
                 f"        var localWeight = {total} / {variable}.Count;",
                 f"        _targetSnapshot{snapshot_index} = {variable}.ToDictionary(item => item, item => localWeight);",
+            ))
+        lines.extend(
+            (
                 f"        _targetSnapshotTimestamp{snapshot_index} = eventIdentity;",
                 f'        Debug("RULETRADE_REFRESH|" + eventIdentity + "|sleeve=" + {source_sleeve}',
                 '            + "|schedule=" + scheduleName',
@@ -1118,7 +1162,7 @@ def generate_csharp(
                                         f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
                                         f'            + "|candidate=" + string.Join(",", {candidate_variable}));',
                                         '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", {_csharp_string(selection.score_field)},',
                                         f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
                                         f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
@@ -1170,7 +1214,7 @@ def generate_csharp(
                                         f'            + "|selected=" + ({_selection_success(selection, variable)} ? string.Join(",", {variable}) : "")',
                                         f'            + "|decision=" + ({_selection_success(selection, variable)} ? "executed" : "{insufficient_decision}"));',
                                         '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", {_csharp_string(selection.score_field)},',
                                         f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
                                         f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
@@ -1239,7 +1283,7 @@ def generate_csharp(
                                         f'            + "|ranked=" + string.Join(",", {ranked_variable}.Select(item => item.Key))',
                                         f'            + "|selected=" + string.Join(",", {variable}));',
                                         '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
-                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", "config.lookback_bars",',
+                                        f'            "score_component", {_csharp_string(selection.score_component_id)}, "score_field", {_csharp_string(selection.score_field)},',
                                         f'            "rank_component", {_csharp_string(selection.rank_component_id)}, "rank_field", "config.direction",',
                                         f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "selection_field", "config.count",',
                                         f'            "scores", string.Join(",", {scores_variable}.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
@@ -1262,20 +1306,52 @@ def generate_csharp(
                     if has_cooldown:
                         lines.extend((f"        if ({variable}.Count > 0)", "        {"))
                     indent = "    " if has_cooldown else ""
-                    lines.extend(
-                        (
-                            f"{indent}        var {weight_variable} = {weight} / {variable}.Count();",
-                            f"{indent}        foreach (var ticker in {variable})",
-                            f"{indent}        {{",
-                            f"{indent}            var symbol = _symbols[ticker];",
+                    if sleeve.weighting_method == "proportional_score":
+                        if (
+                            sleeve.selection_id is None
+                            or sleeve.selection_id not in momentum_selections
+                            or sleeve.fallback_symbols
+                            or has_cooldown
+                            or sleeve.source_sleeve_component_id is not None
+                        ):
+                            raise ValueError(
+                                "score-proportional allocation requires one direct scored Selection without fallback, cooldown, or Portfolio scaling"
+                            )
+                        score_total_variable = f"positiveScoreTotal{event_index}_{rebalance_index}_{sleeve_index}"
+                        lines.extend(
                             (
-                                f"{indent}            {targets_variable}[symbol] = "
-                                f"{targets_variable}.ContainsKey(symbol) ? "
-                                f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
-                            ),
-                            f"{indent}        }}",
+                                f"        var {score_total_variable} = {variable}.Sum(ticker => Math.Max(0m, {scores_variable}[ticker]));",
+                                f"        if ({score_total_variable} <= 0m) return;",
+                                f"        foreach (var ticker in {variable})",
+                                "        {",
+                                f"            var {weight_variable} = {weight} * Math.Max(0m, {scores_variable}[ticker]) / {score_total_variable};",
+                                "            var symbol = _symbols[ticker];",
+                                (
+                                    f"            {targets_variable}[symbol] = "
+                                    f"{targets_variable}.ContainsKey(symbol) ? "
+                                    f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
+                                ),
+                                "        }",
+                                '        EmitDecisionEvidence(eventIdentity, "allocation", "score_proportional",',
+                                f'            "allocation_component", {_csharp_string(sleeve.allocation_component_id or sleeve.id)}, "method", "proportional_score",',
+                                f'            "positive_score_total", {score_total_variable}.ToString("G29", CultureInfo.InvariantCulture));',
+                            )
                         )
-                    )
+                    else:
+                        lines.extend(
+                            (
+                                f"{indent}        var {weight_variable} = {weight} / {variable}.Count();",
+                                f"{indent}        foreach (var ticker in {variable})",
+                                f"{indent}        {{",
+                                f"{indent}            var symbol = _symbols[ticker];",
+                                (
+                                    f"{indent}            {targets_variable}[symbol] = "
+                                    f"{targets_variable}.ContainsKey(symbol) ? "
+                                    f"{targets_variable}[symbol] + {weight_variable} : {weight_variable};"
+                                ),
+                                f"{indent}        }}",
+                            )
+                        )
                     if has_cooldown:
                         lines.append("        }")
                     if sleeve.source_sleeve_component_id is not None:
