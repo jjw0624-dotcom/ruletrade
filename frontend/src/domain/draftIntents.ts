@@ -22,7 +22,7 @@ export interface DraftIntentResult {
  * Only complete, explicitly supported intents produce a Canonical operation.
  */
 export function translateDraftIntent(strategy: CanonicalStrategyV2, intent: DraftIntent): DraftIntentResult {
-  if (["move_block", "move_flow_node", "set_flow_viewport"].includes(intent.kind)) {
+  if (intent.kind === "move_block" || intent.kind === "move_flow_node" || intent.kind === "set_flow_viewport") {
     return { status: "layout_only", semanticEffect: "none" };
   }
   if (intent.kind === "connect_block") {

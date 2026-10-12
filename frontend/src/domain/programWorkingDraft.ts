@@ -66,9 +66,10 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
   try {
     const raw = storage.getItem(programDraftStorageKey(strategyKey));
     if (!raw) return emptyProgramWorkingDraft(strategyKey);
-    const value = JSON.parse(raw) as Partial<ProgramWorkingDraft> & { schema?: string };
-    const legacy = value.schema === "ruletrade.dev/program-working-draft/v1";
-    if ((!legacy && value.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed as Partial<ProgramWorkingDraft>;
+    const legacy = parsed.schema === "ruletrade.dev/program-working-draft/v1";
+    if ((!legacy && parsed.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
     return {
       ...emptyProgramWorkingDraft(strategyKey),
       ...value,
