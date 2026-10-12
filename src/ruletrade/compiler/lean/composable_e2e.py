@@ -71,9 +71,12 @@ def verify_composable_e2e(
     start = dates.index("20240102")
     observed_cutoffs = {item["cutoff"] for item in boundaries}
     start_week = date.fromisoformat(snapshot.dates[start]).isocalendar()[:2]
-    activation = next(
-        index for index in range(start + 1, len(dates))
-        if date.fromisoformat(snapshot.dates[index]).isocalendar()[:2] != start_week
+    activation = (
+        next(
+            index for index in range(start + 1, len(dates))
+            if date.fromisoformat(snapshot.dates[index]).isocalendar()[:2] != start_week
+        )
+        if profile == "integrated" else start
     )
     for cutoff in range(start, len(dates)):
         rendered = snapshot.dates[cutoff]
