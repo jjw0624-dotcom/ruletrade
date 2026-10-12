@@ -1,7 +1,7 @@
 import type { Viewport, XYPosition } from "@xyflow/react";
 import type { ConditionV2 } from "./canonicalV2";
 
-export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v1" as const;
+export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v2" as const;
 
 export type ProgramDraftStatus = "clean" | "incomplete" | "invalid" | "ready" | "unsupported";
 export type ProgramDraftConcept =
@@ -28,8 +28,10 @@ export interface ProgramWorkingDraft {
   blockPositions: Record<string, XYPosition>;
   flowPositions: Record<string, XYPosition>;
   blockConnections: Record<string, ProgramDraftConnection>;
+  blockDisclosure: Record<string, 0 | 1 | 2>;
   flowViewport: Viewport | null;
   selectedDraftId: string | null;
+  diagnostics: Array<{ code: string; productMessage: string; technicalDetail: string }>;
   updatedAt: string;
 }
 
@@ -42,8 +44,10 @@ export function emptyProgramWorkingDraft(strategyKey: string): ProgramWorkingDra
     blockPositions: {},
     flowPositions: {},
     blockConnections: {},
+    blockDisclosure: {},
     flowViewport: null,
     selectedDraftId: null,
+    diagnostics: [],
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -62,14 +66,18 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
   try {
     const raw = storage.getItem(programDraftStorageKey(strategyKey));
     if (!raw) return emptyProgramWorkingDraft(strategyKey);
-    const value = JSON.parse(raw) as Partial<ProgramWorkingDraft>;
-    if (value.schema !== PROGRAM_WORKING_DRAFT_SCHEMA || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
+    const value = JSON.parse(raw) as Partial<ProgramWorkingDraft> & { schema?: string };
+    const legacy = value.schema === "ruletrade.dev/program-working-draft/v1";
+    if ((!legacy && value.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
     return {
       ...emptyProgramWorkingDraft(strategyKey),
       ...value,
       blockPositions: value.blockPositions ?? {},
       flowPositions: value.flowPositions ?? {},
       blockConnections: value.blockConnections ?? {},
+      blockDisclosure: value.blockDisclosure ?? {},
+      diagnostics: value.diagnostics ?? [],
+      schema: PROGRAM_WORKING_DRAFT_SCHEMA,
     };
   } catch {
     return emptyProgramWorkingDraft(strategyKey);
@@ -80,7 +88,8 @@ export function persistProgramWorkingDraft(draft: ProgramWorkingDraft, storage: 
   if (!storage) return;
   try {
     if (draft.status === "clean" && !draft.concept && Object.keys(draft.blockPositions).length === 0
-      && Object.keys(draft.flowPositions).length === 0 && !draft.flowViewport) {
+      && Object.keys(draft.flowPositions).length === 0 && Object.keys(draft.blockConnections).length === 0
+      && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport) {
       storage.removeItem(programDraftStorageKey(draft.strategyKey));
       return;
     }
@@ -105,6 +114,10 @@ export function withBlockPosition(draft: ProgramWorkingDraft, id: string, positi
 
 export function withFlowPositions(draft: ProgramWorkingDraft, positions: Record<string, XYPosition>): ProgramWorkingDraft {
   return { ...draft, flowPositions: { ...draft.flowPositions, ...positions } };
+}
+
+export function withBlockDisclosure(draft: ProgramWorkingDraft, id: string, level: 0 | 1 | 2): ProgramWorkingDraft {
+  return { ...draft, blockDisclosure: { ...draft.blockDisclosure, [id]: level } };
 }
 
 export type ProgramConnectionKind = "statement" | "condition" | "value" | "fallback";

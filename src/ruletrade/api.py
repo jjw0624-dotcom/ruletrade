@@ -162,6 +162,7 @@ from ruletrade.strategy.v2.bridge import V2LoweringError, lower_v2_to_v1
 from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
+from ruletrade.strategy.v2.perspectives import PerspectiveBundleV2, perspective_bundle
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
 from ruletrade.strategy.v2.projections import inspector_addresses, projection_bundle
 from ruletrade.strategy.v2.semantic_types import FrozenModel
@@ -772,6 +773,19 @@ def canonical_v2_semantic_projections(spec: CanonicalStrategyV2) -> dict[str, ob
         },
         "inspector": inspector_addresses(spec).model_dump(mode="json"),
     }
+
+
+@app.post(
+    "/v2/canonical/strategies/perspectives",
+    response_model=PerspectiveBundleV2,
+)
+def canonical_v2_perspectives(spec: CanonicalStrategyV2) -> PerspectiveBundleV2:
+    """Translate committed meaning into capital and decision perspectives.
+
+    This boundary is intentionally independent from production lowering,
+    runtime availability and visual layout state.
+    """
+    return perspective_bundle(spec)
 
 
 @app.post(
