@@ -107,9 +107,10 @@ describe("mounted v2 production editor", () => {
     expect(JSON.parse(body)).toEqual({ name: "Blank", assets: [] });
     expect(body).not.toContain("SPY");
   });
-  it("starts without a stale semantic Inspector selection", () => {
+  it("keeps the compatibility Selection Inspector explicitly closable", () => {
     const markup = renderToStaticMarkup(<V2StrategyEditor persisted={detail} onHome={() => undefined} />);
-    expect(markup).not.toContain('aria-label="Semantic Inspector"');
+    expect(markup).toContain('aria-label="Semantic Inspector"');
+    expect(markup).toContain('aria-label="Close Inspector"');
     expect(markup).toContain("Choose 2 assets");
     expect(markup).toContain("126-observation return");
   });
