@@ -226,7 +226,7 @@ export function SemanticProgramToolbox({ tools, categories }: {
     <section className="blocky-toolbox-library" aria-label={`${activeCategory} blocks`} data-scroll-container="bounded">{displayed.map((tool) => {
       const availability = tool.availability ?? (tool.disabled ? "unavailable" : "ready");
       const status = availability === "ready" ? "Ready" : availability === "needs_context" ? "Needs context" : "Unavailable";
-      return <article className={`blocky-toolbox-entry ${availability}`} key={tool.id} role="listitem"><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} aria-describedby={`${tool.id}-description`} onClick={tool.onAdd}><span className="blocky-toolbox-title"><strong>{tool.label}</strong><small aria-label="Availability status">{status}</small></span></button><p id={`${tool.id}-description`}>{tool.description}</p></article>;
+      return <article className={`blocky-toolbox-entry ${availability}`} key={tool.id} role="listitem"><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} draggable={!tool.disabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("application/x-ruletrade-program-tool", tool.id); }} aria-describedby={`${tool.id}-description`} onClick={tool.onAdd}><span className="blocky-toolbox-title"><strong>{tool.label}</strong><small aria-label="Availability status">{status}</small></span></button><p id={`${tool.id}-description`}>{tool.description}</p></article>;
     })}</section>
   </div>;
 }

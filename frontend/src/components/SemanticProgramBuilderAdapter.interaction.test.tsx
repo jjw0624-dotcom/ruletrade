@@ -11,7 +11,7 @@ vi.mock("@xyflow/react", () => ({
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
   Position: { Top: "top", Bottom: "bottom" },
-  ReactFlow: ({ onPaneClick }: { onPaneClick?: () => void }) => <button type="button" data-testid="flow-pane" onClick={onPaneClick}>Flow canvas</button>,
+  ReactFlow: ({ onPaneClick, nodesDraggable, panOnDrag }: { onPaneClick?: () => void; nodesDraggable?: boolean; panOnDrag?: boolean }) => <button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button>,
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
@@ -97,5 +97,12 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(close).toBeTruthy();
     act(() => close!.click());
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
+  });
+
+  it("keeps Flow node drag and canvas pan as independent production interactions", () => {
+    render("flow");
+    const canvas = container.querySelector('[data-testid="flow-pane"]');
+    expect(canvas?.getAttribute("data-nodes-draggable")).toBe("true");
+    expect(canvas?.getAttribute("data-pan-on-drag")).toBe("true");
   });
 });

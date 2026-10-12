@@ -14,3 +14,18 @@
 .strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector-content{display:grid;gap:.75rem}.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector-content>section{display:grid;gap:.45rem;padding:.7rem 0;border-bottom:1px solid var(--border)}.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector h2,.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector h3{margin:0}.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector h3{color:var(--muted);font-size:.72rem;letter-spacing:.06em}.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector select,.strategy-builder-workspace[data-production-builder-shell="true"] .semantic-inspector input{width:100%}
 .condition-draft,.value-draft{display:grid;gap:.65rem}.draft-comparison{grid-template-columns:auto 5rem minmax(0,1fr);align-items:end}
 @media(max-width:900px){.draft-comparison{grid-template-columns:1fr}}
+.program-asset-universe { display: grid; gap: 12px; min-width: 0; }
+.program-asset-search { display: grid; gap: 6px; max-height: 210px; overflow: auto; padding-right: 4px; }
+.program-asset-search > button { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid var(--line, #dbe4ee); border-radius: 10px; background: var(--surface, #fff); padding: 8px; }
+.program-asset-search > button.selected { border-color: var(--accent, #2563eb); }
+.program-asset-search span:first-child { display: grid; min-width: 0; }
+.program-asset-search small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.program-asset-search em { font-style: normal; font-size: 11px; }
+.program-selected-assets { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.program-selected-assets li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line, #e5e7eb); padding: 5px 0; }
+.asset-order-actions { display: flex; gap: 4px; }
+.asset-order-actions button { min-width: 28px; min-height: 28px; }
+.program-asset-preview { display: grid; gap: 8px; }
+.program-asset-preview > div:first-child { display: grid; }
+.program-asset-preview .asset-price-chart { min-height: 180px; }
+.program-manual-symbol { display: flex; gap: 8px; margin-top: 8px; }
