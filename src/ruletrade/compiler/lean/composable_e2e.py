@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -69,9 +70,19 @@ def verify_composable_e2e(
     reference_by_cutoff: dict[str, ProgramExecutionResult] = {}
     start = dates.index("20240102")
     observed_cutoffs = {item["cutoff"] for item in boundaries}
+    start_week = date.fromisoformat(snapshot.dates[start]).isocalendar()[:2]
+    activation = next(
+        index for index in range(start + 1, len(dates))
+        if date.fromisoformat(snapshot.dates[index]).isocalendar()[:2] != start_week
+    )
     for cutoff in range(start, len(dates)):
         rendered = snapshot.dates[cutoff]
         if rendered not in observed_cutoffs:
+            continue
+        # LEAN warm-up imports prices, never a pre-start Event/State or weekly
+        # completion checkpoint.  The first completed weekly value becomes
+        # available only after this run has observed its own first week.
+        if cutoff < activation:
             continue
         prior = execute_program_v2(
             strategy.program, snapshot, cutoff_index=cutoff,
@@ -86,7 +97,11 @@ def verify_composable_e2e(
 
     for record in allocations:
         cutoff = record.get("session", "").removeprefix("daily-close:")
-        expected = reference_by_cutoff[cutoff].target_weights
+        expected = (
+            {"TLT": Decimal(1)}
+            if dates.index(cutoff.replace("-", "")) < activation
+            else reference_by_cutoff[cutoff].target_weights
+        )
         actual = parse_decimal_map(record.get("weights", ""))
         if not division_derived_scores_match(actual, expected):
             raise ValueError(f"composable target differential mismatch at {cutoff}")
