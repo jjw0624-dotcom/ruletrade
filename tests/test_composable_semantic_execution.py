@@ -99,6 +99,11 @@ def test_two_independent_investments_keep_separate_rankings_then_aggregate() -> 
     source = generate_csharp(plan)
     assert source.count('"selection_fallback", "selection"') == 2
     assert '"method", "fixed"' in source
+    # Eligibility is explicit Program meaning.  An unqualified sleeve must
+    # rank ready negative returns too, rather than inheriting a legacy UI
+    # momentum filter.
+    assert "var eligible0 = scores0.Where(item => true).ToList();" in source
+    assert "var eligible1 = scores1.Where(item => true).ToList();" in source
 
 
 def test_completed_weekly_context_does_not_look_ahead() -> None:
