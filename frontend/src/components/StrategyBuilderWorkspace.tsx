@@ -177,11 +177,16 @@ export interface ProgramWorkspaceProps {
 
 function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
+  const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
+  const switchView = (view: ProgramBuilderView) => {
+    setVisitedViews((current) => current.has(view) ? current : new Set(current).add(view));
+    program.onViewChange(view);
+  };
   return <section className="strategy-builder-workspace" data-workspace-runtime-contract="capital-flow-minimal" data-production-builder-shell="true">
     <header className="builder-chrome">
       <button className="builder-brand" aria-label="Back to Home" onClick={onHome}><span className="brand-mark">R</span></button>
       <div className="representation-switcher" aria-label="Strategy representation">
-        {(Object.keys(labels) as ProgramBuilderView[]).map((view) => <button key={view} aria-pressed={program.activeView === view} className={program.activeView === view ? "active" : ""} onClick={() => program.onViewChange(view)}>{labels[view]}</button>)}
+        {(Object.keys(labels) as ProgramBuilderView[]).map((view) => <button key={view} aria-pressed={program.activeView === view} className={program.activeView === view ? "active" : ""} onClick={() => switchView(view)}>{labels[view]}</button>)}
       </div>
       <button className="builder-identity" onClick={onRename} disabled={!onRename}><strong>{name}</strong><small>{dirty ? "Unsaved changes" : persisted ? "Saved" : "Preview"}</small></button>
       <div className="builder-actions">
@@ -196,7 +201,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
       <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`}>
         {program.leftPanel}
         <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>
-          {(Object.keys(labels) as ProgramBuilderView[]).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
+          {(Object.keys(labels) as ProgramBuilderView[]).filter((view) => visitedViews.has(view)).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
         </main>
         {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>

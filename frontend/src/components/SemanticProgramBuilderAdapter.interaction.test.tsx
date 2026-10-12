@@ -20,6 +20,8 @@ vi.mock("./ProductBlockyProjection", () => ({
 
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 const blank: CanonicalStrategyV2 = {
   api_version: "ruletrade.dev/strategy/v2",
   semantic_profile: "profile-a/daily-compositional-core@1",
@@ -32,10 +34,10 @@ const blank: CanonicalStrategyV2 = {
   program: { semantic_id: "program", clocks: [], initial_state: {}, formalizations: [], statements: [] },
 };
 
-function clickButton(container: HTMLElement, label: string) {
+async function clickButton(container: HTMLElement, label: string) {
   const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === label);
   expect(button, `button ${label}`).toBeTruthy();
-  act(() => button!.click());
+  await act(async () => button!.click());
 }
 
 describe("SemanticProgram Builder interaction lifecycle", () => {
@@ -60,33 +62,33 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     />));
   }
 
-  it("mounts Blocky once and preserves the workspace element across representations", () => {
+  it("mounts Blocky once and preserves the workspace element across representations", async () => {
     render("blocky");
     const workspace = container.querySelector('[data-testid="blocky-workspace"]');
     expect(workspace).toBeTruthy();
-    clickButton(container, "Flow");
-    clickButton(container, "Blocky");
+    await clickButton(container, "Flow");
+    await clickButton(container, "Blocky");
     expect(container.querySelector('[data-testid="blocky-workspace"]')).toBe(workspace);
   });
 
-  it("keeps Structure and Add ownership exclusive with separated tool content", () => {
+  it("keeps Structure and Add ownership exclusive with separated tool content", async () => {
     render();
     expect(container.textContent).not.toContain("A capital path backed by assets.");
-    clickButton(container, "Add");
+    await clickButton(container, "Add");
     expect(container.textContent).toContain("A capital path backed by assets.");
     expect(container.querySelector('small[aria-label="Availability status"]')?.textContent).toBe("Ready");
-    clickButton(container, "Structure");
+    await clickButton(container, "Structure");
     expect(container.textContent).not.toContain("A capital path backed by assets.");
   });
 
-  it("opens, closes, and clears focus that has no target in the next view", () => {
+  it("opens, closes, and clears focus that has no target in the next view", async () => {
     render();
-    clickButton(container, "Portfolio");
+    await clickButton(container, "Portfolio");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeTruthy();
-    clickButton(container, "Guide");
+    await clickButton(container, "Guide");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
-    clickButton(container, "Summary");
-    clickButton(container, "Portfolio");
+    await clickButton(container, "Summary");
+    await clickButton(container, "Portfolio");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeTruthy();
     const close = container.querySelector<HTMLButtonElement>('button[aria-label="Close Inspector"]');
     expect(close).toBeTruthy();
