@@ -1,0 +1,14 @@
+{
+  "schema_version": "ruletrade.dev/visual-authoring-capability-matrix/v1",
+  "dependency_head": "22197b8d5d1b5674f8d2ec3b96ea5e8a3acc977c",
+  "capabilities": [
+    {"id": "unfinished-control", "representable": true, "draft_authorable": true, "committable_when_complete": true, "execution_profile": "capability-gated"},
+    {"id": "block-layout", "representable": true, "draft_authorable": true, "semantic_mutation": false, "persistent": true},
+    {"id": "typed-block-connection", "representable": true, "draft_authorable": true, "invalid_connection_rejected": true, "general_commit": false},
+    {"id": "flow-layout-and-viewport", "representable": true, "draft_authorable": true, "semantic_mutation": false, "persistent": true},
+    {"id": "portfolio-split-route", "representable": true, "draft_authorable": true, "committable_when_complete": true, "execution_profile": "capability-gated"},
+    {"id": "explicit-asset-universe", "representable": true, "draft_authorable": true, "catalog_search": true, "chart": "adjusted-close-daily"},
+    {"id": "provider-dynamic-universe", "representable": true, "draft_authorable": false, "reason": "No honest point-in-time provider membership contract."},
+    {"id": "arbitrary-temporal-graph", "representable": true, "draft_authorable": false, "reason": "Outside the maintained production authoring profile."}
+  ]
+}

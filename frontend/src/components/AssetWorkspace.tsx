@@ -63,7 +63,64 @@ export function AssetWorkspace({ initialSymbol="QQQ", strategyId, revisionId, st
   </section>;
 }
 
-function PriceChart({detail}:{detail:AssetDetail}) {
+export function ProgramAssetUniverseEditor({ assets: initialAssets, onCommit }: {
+  assets: string[];
+  onCommit: (assets: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<AssetSummary[]>([]);
+  const [selected, setSelected] = useState<string[]>(initialAssets);
+  const [focused, setFocused] = useState(initialAssets[0] ?? "QQQ");
+  const [detail, setDetail] = useState<AssetDetail | null>(null);
+  const [manual, setManual] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => setSelected(initialAssets), [initialAssets]);
+  useEffect(() => {
+    let live = true;
+    assetWorkspaceApi.list(query).then(({ items }) => { if (live) { setResults(items); setMessage(null); } })
+      .catch((reason) => { if (live) setMessage(reason instanceof Error ? reason.message : "Asset search is unavailable."); });
+    return () => { live = false; };
+  }, [query]);
+  useEffect(() => {
+    if (!focused) { setDetail(null); return; }
+    let live = true;
+    assetWorkspaceApi.detail(focused, today()).then((value) => { if (live) setDetail(value); })
+      .catch(() => { if (live) setDetail(null); });
+    return () => { live = false; };
+  }, [focused]);
+  const add = (symbol: string) => {
+    const normalized = symbol.trim().toUpperCase();
+    if (!normalized || selected.includes(normalized)) return;
+    setSelected([...selected, normalized]); setFocused(normalized);
+  };
+  const move = (index: number, offset: number) => {
+    const target = index + offset;
+    if (target < 0 || target >= selected.length) return;
+    const next = [...selected];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    setSelected(next);
+  };
+  return <section className="program-asset-universe" aria-label="Investment universe editor">
+    <p className="fixed-setting">Search the existing asset catalog, then commit an explicit strategy universe.</p>
+    <label>Find an asset<input aria-label="Search assets by ticker or name" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="QQQ or Invesco" /></label>
+    <div className="program-asset-search" role="list" aria-label="Asset search results">{results.map((asset) => {
+      const included = selected.includes(asset.symbol);
+      return <button type="button" role="listitem" key={asset.symbol} className={focused === asset.symbol ? "selected" : ""} onClick={() => { setFocused(asset.symbol); if (!included) add(asset.symbol); }}>
+        <span><strong>{asset.symbol}</strong><small>{asset.name}</small></span><span className={`asset-data-status ${asset.data_status}`}>{asset.data_status.replaceAll("_", " ")}</span><em>{included ? "Selected" : "Add"}</em>
+      </button>;
+    })}</div>
+    <ol className="program-selected-assets" aria-label="Selected assets">{selected.map((symbol, index) => <li key={symbol}>
+      <button type="button" className="text-button" onClick={() => setFocused(symbol)}>{symbol}</button>
+      <span className="asset-order-actions"><button type="button" aria-label={`Move ${symbol} up`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" aria-label={`Move ${symbol} down`} disabled={index === selected.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" aria-label={`Remove ${symbol}`} onClick={() => setSelected(selected.filter((item) => item !== symbol))}>×</button></span>
+    </li>)}</ol>
+    {detail && <div className="program-asset-preview"><div><strong>{detail.asset.symbol}</strong><span>{detail.asset.name}</span><small>Adjusted close · daily · through {detail.as_of}</small></div><PriceChart detail={detail} /></div>}
+    <details><summary>Enter a symbol manually</summary><div className="program-manual-symbol"><input aria-label="Manual asset symbol" value={manual} onChange={(event) => setManual(event.target.value)} placeholder="TLT" /><button type="button" className="secondary-button" onClick={() => { add(manual); setManual(""); }}>Add symbol</button></div><p>Manual entry does not guarantee provider or historical-data availability.</p></details>
+    {message && <p role="status">{message}</p>}
+    <button type="button" className="primary-button" disabled={JSON.stringify(selected) === JSON.stringify(initialAssets)} onClick={() => onCommit(selected)}>Use selected assets</button>
+  </section>;
+}
+
+export function PriceChart({detail}:{detail:AssetDetail}) {
  const root=useRef<HTMLDivElement>(null); const chart=useRef<IChartApi|null>(null);
  useEffect(()=>{if(!root.current)return; const instance=createChart(root.current,{height:260,layout:{background:{color:"transparent"},textColor:"#64748b"},rightPriceScale:{borderVisible:false},timeScale:{borderVisible:false}}); const series=instance.addSeries(LineSeries,{color:"#2563eb",lineWidth:2});series.setData(detail.series.map((p)=>({time:p.date,value:Number(p.adjusted_close)})));instance.timeScale().fitContent();chart.current=instance;const resize=new ResizeObserver(()=>instance.applyOptions({width:root.current?.clientWidth??600}));resize.observe(root.current);return()=>{resize.disconnect();instance.remove();chart.current=null}},[detail]);
  return <div className="asset-price-chart" ref={root} role="img" aria-label={`${detail.asset.symbol} adjusted price through ${detail.as_of}`}/>;

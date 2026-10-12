@@ -3,6 +3,7 @@ import * as Blockly from "blockly";
 
 import type { ProductNode } from "../domain/productSemantics";
 import type { ProgramBlockNode } from "../domain/programProjections";
+import type { ProgramDraftConcept } from "../domain/programWorkingDraft";
 import { registerBlockyProgramBlocks } from "./blockyProgramBlocks";
 
 function blockType(node: ProductNode) {
@@ -124,17 +125,28 @@ function semanticBlockType(node: ProgramBlockNode) {
 }
 
 /** Program-native logic projection. It never consumes the Structure tree. */
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, draft = null, onPositionChange, onConnectionChange, onDraftDelete, onToolDrop }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
+  positions?: Record<string, { x: number; y: number }>;
+  connections?: Record<string, { childId: string; parentId: string | null; inputName: string | null }>;
+  draft?: ProgramDraftConcept;
+  onPositionChange?: (blockId: string, position: { x: number; y: number }) => void;
+  onConnectionChange?: (childId: string, parentId: string | null, inputName: string | null) => void;
+  onDraftDelete?: () => void;
+  onToolDrop?: (toolId: string, position: { x: number; y: number }) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const nodesRef = useRef(nodes);
   const onSelectRef = useRef(onSelect);
+  const callbacksRef = useRef({ onPositionChange, onConnectionChange, onDraftDelete });
+  const positionsRef = useRef(positions);
   nodesRef.current = nodes;
   onSelectRef.current = onSelect;
+  callbacksRef.current = { onPositionChange, onConnectionChange, onDraftDelete };
+  positionsRef.current = positions;
 
   useEffect(() => {
     if (!host.current) return;
@@ -155,10 +167,32 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
         if (selected) onSelectRef.current(selected.address.focusId);
       }
     };
-    canvas.addChangeListener(listener);
+    const editListener = (event: Blockly.Events.Abstract) => {
+      const blockId = (event as Blockly.Events.Abstract & { blockId?: string }).blockId;
+      if (!blockId) return;
+      if (event.type === Blockly.Events.BLOCK_MOVE) {
+        const block = canvas.getBlockById(blockId);
+        if (!block) return;
+        const address = readAddress(block);
+        if (!address) return;
+        const xy = block.getRelativeToSurfaceXY();
+        callbacksRef.current.onPositionChange?.(address, { x: xy.x, y: xy.y });
+        const parent = block.getParent();
+        const parentId = readAddress(parent);
+        const inputName = parent?.inputList.find((input) => input.connection?.targetBlock() === block)?.name
+          ?? (parent && parent.nextConnection?.targetBlock() === block ? "NEXT" : null);
+        callbacksRef.current.onConnectionChange?.(address, parentId, inputName);
+      }
+      if (event.type === Blockly.Events.BLOCK_DELETE) {
+        const raw = (event as Blockly.Events.Abstract & { oldJson?: { data?: string } }).oldJson?.data;
+        try { if (raw && (JSON.parse(raw) as { productId?: string }).productId?.startsWith("draft:")) callbacksRef.current.onDraftDelete?.(); }
+        catch { /* Ignore malformed third-party Blockly data. */ }
+      }
+    };
+    canvas.addChangeListener(listener); canvas.addChangeListener(editListener);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
     resizeObserver?.observe(host.current);
-    return () => { resizeObserver?.disconnect(); canvas.removeChangeListener(listener); canvas.dispose(); workspace.current = null; };
+    return () => { resizeObserver?.disconnect(); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
   }, []);
 
   useEffect(() => {
@@ -172,6 +206,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
         return id ? [[id, block as Blockly.BlockSvg] as const] : [];
       }));
       for (const [id, block] of existing) {
+        if (id.startsWith("draft:")) continue;
         const node = wanted.get(id);
         if (!node || block.type !== semanticBlockType(node)) {
           block.dispose(false);
@@ -184,23 +219,66 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
         if (!block) {
           block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
           setAddress(block, node.id);
-          block.setDeletable(false); block.setMovable(false); block.contextMenu = false;
+          block.setDeletable(false); block.setMovable(node.role !== "context"); block.contextMenu = false;
           block.initSvg(); block.render();
           existing.set(node.id, block);
         }
         const label = node.detail ? `${node.label} · ${node.detail}` : node.label;
         if (block.getFieldValue("LABEL") !== label) block.setFieldValue(label, "LABEL");
-        if (isNew) block.moveBy(40 + node.depth * 54, 36 + index * 92);
+        if (isNew) {
+          const saved = positionsRef.current[node.id];
+          block.moveBy(saved?.x ?? 40 + node.depth * 54, saved?.y ?? 36 + index * 92);
+        }
       });
+      const draftId = draft ? `draft:${draft.semanticId}` : null;
+      const existingDraft = draftId ? existing.get(draftId) : null;
+      if (draft && draftId && !existingDraft) {
+        const type = draft.kind === "control" ? "rt_control" : draft.kind === "selection" ? "rt_selection" : "rt_event";
+        const block = canvas.newBlock(type) as Blockly.BlockSvg;
+        setAddress(block, draftId);
+        if (block.getField("LABEL")) block.setFieldValue(draft.kind === "selection" ? "Choose assets · unfinished" : draft.kind === "event_state" ? "Event → State · unfinished" : "IF · set condition", "LABEL");
+        block.setDeletable(true); block.setMovable(true); block.contextMenu = false;
+        block.initSvg(); block.render();
+        const saved = positionsRef.current[draftId]; block.moveBy(saved?.x ?? 360, saved?.y ?? 80);
+        existing.set(draftId, block);
+      }
+      const draftConditionId = draft?.kind === "control" && draft.condition ? `${draftId}:condition` : null;
+      if (draftConditionId && !existing.has(draftConditionId)) {
+        const condition = canvas.newBlock("rt_condition") as Blockly.BlockSvg;
+        setAddress(condition, draftConditionId); condition.setFieldValue("Condition · configured", "LABEL");
+        condition.setDeletable(true); condition.setMovable(true); condition.contextMenu = false;
+        condition.initSvg(); condition.render();
+        const saved = positionsRef.current[draftConditionId]; condition.moveBy(saved?.x ?? 120, saved?.y ?? 110);
+        existing.set(draftConditionId, condition);
+      }
+      if (draftId && draftConditionId) {
+        const control = existing.get(draftId); const condition = existing.get(draftConditionId);
+        const input = control?.getInput("CONDITION")?.connection;
+        if (input && condition?.outputConnection && input.targetConnection !== condition.outputConnection) {
+          if (input.isConnected()) input.disconnect();
+          if (condition.outputConnection.isConnected()) condition.outputConnection.disconnect();
+          input.connect(condition.outputConnection);
+        }
+      }
+      const activeDraftIds = new Set([draftId, draftConditionId].filter((id): id is string => Boolean(id)));
+      for (const [id, block] of existing) if (id.startsWith("draft:") && !activeDraftIds.has(id)) { block.dispose(false); existing.delete(id); }
       for (const node of nodes) {
-        if (!node.connection) continue;
-        const parent = existing.get(node.connection.parentId);
+        const tentative = connections[node.id];
+        const connection = tentative
+          ? tentative.parentId ? { kind: tentative.inputName === "NEXT" ? "next" as const : "input" as const, parentId: tentative.parentId, inputName: tentative.inputName ?? "NEXT" } : null
+          : node.connection;
         const child = existing.get(node.id);
-        if (!parent || !child) continue;
-        const parentConnection = node.connection.kind === "next"
+        if (!child) continue;
+        if (!connection) {
+          if (tentative) { if (child.previousConnection?.isConnected()) child.previousConnection.disconnect(); if (child.outputConnection?.isConnected()) child.outputConnection.disconnect(); }
+          continue;
+        }
+        const parent = existing.get(connection.parentId);
+        if (!parent) continue;
+        const parentConnection = connection.kind === "next"
           ? parent.nextConnection
-          : parent.getInput(node.connection.inputName)?.connection;
-        const childConnection = node.connection.kind === "next" ? child.previousConnection : child.outputConnection;
+          : parent.getInput(connection.inputName)?.connection;
+        const childConnection = connection.kind === "next" ? child.previousConnection : child.outputConnection;
         if (!parentConnection || !childConnection || parentConnection.targetConnection === childConnection) continue;
         if (parentConnection.isConnected()) parentConnection.disconnect();
         if (childConnection.isConnected()) childConnection.disconnect();
@@ -209,7 +287,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
       for (const block of existing.values()) block.render();
       Blockly.svgResize(canvas);
     } finally { Blockly.Events.enable(); }
-  }, [nodes]);
+  }, [nodes, draft, connections]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -218,7 +296,9 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
     workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === node.id)?.select();
   }, [selectedId, nodes]);
 
-  return <div className="blocky-representation" data-blocky-contract="semantic-program-v1" data-blocky-node-count={nodes.length}>
+  return <div className="blocky-representation" data-blocky-contract="semantic-program-v1" data-blocky-node-count={nodes.length}
+    onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-program-tool")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+    onDrop={(event) => { const toolId = event.dataTransfer.getData("application/x-ruletrade-program-tool"); if (!toolId) return; event.preventDefault(); const rect = host.current?.getBoundingClientRect(); onToolDrop?.(toolId, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) }); }}>
     <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />
   </div>;
 }

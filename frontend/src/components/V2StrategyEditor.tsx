@@ -7,6 +7,7 @@ import { executeV2Lean, executeV2Selection, v2ExecutionCapability, V2ExecutionEr
 import { DEFAULT_BACKTEST_CONFIG, type LeanBacktestResponse } from "../domain/backtest";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
+import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, withProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 
 export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   persisted: StrategyDetailV2;
@@ -24,9 +25,12 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [executionCapability, setExecutionCapability] = useState<V2ExecutionCapability | null>(null);
   const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
   const [redoStack, setRedoStack] = useState<typeof initial[]>([]);
+  const draftKey = persisted.strategy.id;
+  const [workingDraft, setWorkingDraft] = useState<ProgramWorkingDraft>(() => loadProgramWorkingDraft(draftKey, browserProgramDraftStorage()));
   const sequence = useRef(0);
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => persistProgramWorkingDraft(workingDraft, browserProgramDraftStorage()), [workingDraft]);
   useEffect(() => {
     let active = true;
     void v2ExecutionCapability(canonical).then((value) => { if (active) setExecutionCapability(value); }).catch(() => {
@@ -142,9 +146,10 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   if (canonical.selection === null && canonical.program) {
     return <SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
-      undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
+      workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
+      undo={() => { if (workingDraft.concept) { setWorkingDraft(withProgramDraftConcept(workingDraft, null)); working(false); return; } const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
-      canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
+      canUndo={Boolean(workingDraft.concept) || undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
       run={() => void run()} executionCapability={executionCapability} />;
   }
   if (canonical.selection === null) return null;

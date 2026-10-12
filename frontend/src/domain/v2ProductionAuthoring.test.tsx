@@ -6,7 +6,7 @@ import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { programAllocationToolDescription, programFlowGeometry, programFlowManifest, projectProgramFlowCanvas, projectProgramProductFlow, projectProgramProductFlowGraph, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
+import { compileControlDraft, programAllocationToolDescription, programFlowGeometry, programFlowManifest, projectProgramFlowCanvas, projectProgramProductFlow, projectProgramProductFlowGraph, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 import { productBlockLabel } from "../components/ProductBlockyProjection";
@@ -474,6 +474,24 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
     ]));
   });
 
+  it("compiles a connected unfinished IF through the same validated Program operation boundary", () => {
+    const value = programStrategy();
+    const operation = compileControlDraft(value, {
+      kind: "control", semanticId: "risk-control", condition: {
+        kind: "state_equals", semantic_id: "risk-is-active", state_key: "regime", expected: "active",
+      },
+    }, {
+      "statement:program-selection": { childId: "statement:program-selection", parentId: "draft:risk-control", inputName: "THEN" },
+    });
+    expect(operation?.kind).toBe("set_semantic_program");
+    if (operation?.kind !== "set_semantic_program") throw new Error("expected program operation");
+    expect(operation.program.statements[0]).toMatchObject({
+      kind: "control", semantic_id: "risk-control", then_statements: [{ semantic_id: "program-selection" }],
+      otherwise_statements: [], unknown_policy: "retain",
+    });
+    expect(operation.program.statements.filter((item) => item.semantic_id === "program-selection")).toEqual([]);
+  });
+
   it("keeps toolbox label, availability, and description as separate elements", () => {
     const tools: ProductAddAction[] = [
       { id: "investment", category: "Capital", label: "Investment", description: "A capital path backed by assets.", disabled: false, availability: "ready", onAdd: () => undefined },
@@ -483,6 +501,7 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
     expect(markup).toContain("<strong>Investment</strong>");
     expect(markup).toContain('<small aria-label="Availability status">Ready</small>');
     expect(markup).toContain('<p id="investment-description">A capital path backed by assets.</p>');
+    expect(markup).toContain('draggable="true"');
     expect(markup).not.toContain("InvestmentReady");
     expect(markup).not.toContain("SplitSplit capital");
   });
