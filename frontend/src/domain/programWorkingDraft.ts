@@ -1,4 +1,4 @@
-import type { Position, Viewport } from "@xyflow/react";
+import type { Viewport, XYPosition } from "@xyflow/react";
 import type { ConditionV2 } from "./canonicalV2";
 
 export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v1" as const;
@@ -25,8 +25,8 @@ export interface ProgramWorkingDraft {
   strategyKey: string;
   status: ProgramDraftStatus;
   concept: ProgramDraftConcept;
-  blockPositions: Record<string, Position>;
-  flowPositions: Record<string, Position>;
+  blockPositions: Record<string, XYPosition>;
+  flowPositions: Record<string, XYPosition>;
   blockConnections: Record<string, ProgramDraftConnection>;
   flowViewport: Viewport | null;
   selectedDraftId: string | null;
@@ -99,11 +99,11 @@ export function withProgramDraftConcept(draft: ProgramWorkingDraft, concept: Pro
   };
 }
 
-export function withBlockPosition(draft: ProgramWorkingDraft, id: string, position: Position): ProgramWorkingDraft {
+export function withBlockPosition(draft: ProgramWorkingDraft, id: string, position: XYPosition): ProgramWorkingDraft {
   return { ...draft, blockPositions: { ...draft.blockPositions, [id]: position } };
 }
 
-export function withFlowPositions(draft: ProgramWorkingDraft, positions: Record<string, Position>): ProgramWorkingDraft {
+export function withFlowPositions(draft: ProgramWorkingDraft, positions: Record<string, XYPosition>): ProgramWorkingDraft {
   return { ...draft, flowPositions: { ...draft.flowPositions, ...positions } };
 }
 
