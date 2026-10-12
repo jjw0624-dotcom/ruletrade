@@ -112,7 +112,14 @@ function semanticBlockType(node: ProgramBlockNode) {
   if (node.role === "trigger") return "rt_trigger";
   if (node.role === "selection") return "rt_selection";
   if (node.role === "allocation") return "rt_allocation";
-  if (node.role === "control" || node.role === "policy") return "rt_control";
+  if (node.role === "condition") return "rt_condition";
+  if (node.role === "value") return "rt_value";
+  if (node.role === "fallback") return "rt_fallback";
+  if (node.role === "control") return "rt_control";
+  if (node.role === "event") return "rt_event";
+  if (node.role === "state") return "rt_state";
+  if (node.role === "memory") return "rt_memory";
+  if (node.role === "policy") return "rt_policy";
   return "rt_action";
 }
 
@@ -124,6 +131,10 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
 }) {
   const host = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
+  const nodesRef = useRef(nodes);
+  const onSelectRef = useRef(onSelect);
+  nodesRef.current = nodes;
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     if (!host.current) return;
@@ -137,33 +148,66 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
     const listener = (event: Blockly.Events.Abstract) => {
       if (event.type !== Blockly.Events.CLICK) return;
       const click = event as Blockly.Events.Abstract & { targetType?: string; blockId?: string };
-      if (click.targetType === Blockly.Events.ClickTarget.WORKSPACE) onSelect(null);
+      if (click.targetType === Blockly.Events.ClickTarget.WORKSPACE) onSelectRef.current(null);
       if (click.targetType === Blockly.Events.ClickTarget.BLOCK && click.blockId) {
         const id = readAddress(canvas.getBlockById(click.blockId));
-        const selected = nodes.find((item) => item.id === id);
-        if (selected) onSelect(selected.address.focusId);
+        const selected = nodesRef.current.find((item) => item.id === id);
+        if (selected) onSelectRef.current(selected.address.focusId);
       }
     };
     canvas.addChangeListener(listener);
-    return () => { canvas.removeChangeListener(listener); canvas.dispose(); workspace.current = null; };
-  }, [nodes, onSelect]);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
+    resizeObserver?.observe(host.current);
+    return () => { resizeObserver?.disconnect(); canvas.removeChangeListener(listener); canvas.dispose(); workspace.current = null; };
+  }, []);
 
   useEffect(() => {
     const canvas = workspace.current;
     if (!canvas) return;
     Blockly.Events.disable();
     try {
-      canvas.clear();
+      const wanted = new Map(nodes.map((node) => [node.id, node]));
+      const existing = new Map(canvas.getAllBlocks(false).flatMap((block) => {
+        const id = readAddress(block);
+        return id ? [[id, block as Blockly.BlockSvg] as const] : [];
+      }));
+      for (const [id, block] of existing) {
+        const node = wanted.get(id);
+        if (!node || block.type !== semanticBlockType(node)) {
+          block.dispose(false);
+          existing.delete(id);
+        }
+      }
       nodes.forEach((node, index) => {
-        const block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
+        let block = existing.get(node.id);
+        const isNew = !block;
+        if (!block) {
+          block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
+          setAddress(block, node.id);
+          block.setDeletable(false); block.setMovable(false); block.contextMenu = false;
+          block.initSvg(); block.render();
+          existing.set(node.id, block);
+        }
         const label = node.detail ? `${node.label} · ${node.detail}` : node.label;
-        block.setFieldValue(label, node.role === "trigger" ? "LABEL" : "LABEL");
-        setAddress(block, node.id);
-        block.setDeletable(false); block.setMovable(true); block.contextMenu = false;
-        block.initSvg(); block.render();
-        block.moveBy(40 + node.depth * 54, 36 + index * 92);
+        if (block.getFieldValue("LABEL") !== label) block.setFieldValue(label, "LABEL");
+        if (isNew) block.moveBy(40 + node.depth * 54, 36 + index * 92);
       });
-      canvas.clearUndo(); Blockly.svgResize(canvas);
+      for (const node of nodes) {
+        if (!node.connection) continue;
+        const parent = existing.get(node.connection.parentId);
+        const child = existing.get(node.id);
+        if (!parent || !child) continue;
+        const parentConnection = node.connection.kind === "next"
+          ? parent.nextConnection
+          : parent.getInput(node.connection.inputName)?.connection;
+        const childConnection = node.connection.kind === "next" ? child.previousConnection : child.outputConnection;
+        if (!parentConnection || !childConnection || parentConnection.targetConnection === childConnection) continue;
+        if (parentConnection.isConnected()) parentConnection.disconnect();
+        if (childConnection.isConnected()) childConnection.disconnect();
+        parentConnection.connect(childConnection);
+      }
+      for (const block of existing.values()) block.render();
+      Blockly.svgResize(canvas);
     } finally { Blockly.Events.enable(); }
   }, [nodes]);
 

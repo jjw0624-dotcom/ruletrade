@@ -199,7 +199,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 /* Shared Strategy Builder workspace */
 .builder-shell { height: 100vh; overflow: hidden; }
 .strategy-builder-workspace { position: relative; height: 100vh; display: grid; grid-template-areas: "chrome" "workbench"; grid-template-rows: 54px minmax(0, 1fr); color: var(--text); background: #f7f8f6; }
-.builder-chrome { grid-area: chrome; z-index: 20; display: grid; grid-template-columns: 38px minmax(0,auto) minmax(110px, 1fr) auto; align-items: center; gap: 12px; padding: 7px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.96); }
+.builder-chrome { grid-area: chrome; z-index: 20; display: grid; grid-template-columns: 38px minmax(0,auto) minmax(110px, 1fr) auto auto; align-items: center; gap: 12px; padding: 7px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.96); }
 .builder-brand { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; }
 .representation-switcher { display: flex; min-width: 0; max-width: 100%; overflow-x: auto; gap: 2px; padding: 3px; border-radius: 8px; background: #edf1ed; }
 .representation-switcher button { flex: none; padding: 6px 10px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 700; }
@@ -215,9 +215,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .builder-core.left-open { grid-template-columns: 268px minmax(0,1fr); }
 .builder-core.inspector-open { grid-template-columns: 42px minmax(0,1fr); }
 .builder-core.left-open.inspector-open { grid-template-columns: 268px minmax(0,1fr); }
+.program-builder-core.left-open.inspector-open { grid-template-columns: 268px minmax(0,1fr) minmax(300px,360px); }
 .workspace-left-root { position: relative; min-width: 0; border-right: 1px solid var(--border); background: rgba(250,251,249,.97); }
 .workspace-panel-toggle { position: absolute; z-index: 5; top: 9px; right: 7px; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
-.workspace-left-panel { height: 100%; overflow: auto; padding-top: 46px; box-sizing:border-box; }
+.workspace-left-panel { height: 100%; min-height:0; overflow:hidden; padding-top: 46px; box-sizing:border-box; }
+.workspace-left-tabs{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.workspace-left-tabs>.structure-panel,.workspace-left-tabs>.blocks-panel{min-height:0;overflow:auto}
 .workspace-left-panel[data-perspective="blocky"]{overflow:hidden}.workspace-left-panel[data-perspective="blocky"] .workspace-left-tabs{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}.workspace-left-panel[data-perspective="blocky"] .structure-panel{min-height:0;overflow:auto}
 .workspace-panel-tabs { display: grid; grid-template-columns: 1fr 1fr; margin: 0 12px 12px; padding: 3px; border-radius: 7px; background: #e9eeea; }
 .workspace-panel-tabs button { padding: 6px; border: 0; border-radius: 5px; background: transparent; font-size: 12px; }
@@ -230,6 +233,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .construction-card, .shape-transformation-control { margin: 10px 12px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: #fff; }
 .construction-card[draggable="true"] { cursor: grab; }
 .representation-workspace { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #f8f9f7; }
+.program-representation-slot{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
+.program-representation-slot[hidden]{display:none}
 .representation-layer { width: 100%; height: 100%; overflow: auto; }
 .representation-layer[hidden] { display: none; }
 .flow-layer { overflow: hidden; }
@@ -268,6 +273,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .semantic-inspector-content h2, .semantic-inspector-content p { margin: 0; }
 .semantic-inspector-content label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .semantic-inspector-content input, .semantic-inspector-content select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.program-builder-core > .semantic-inspector{position:relative;z-index:1;inset:auto;width:auto;height:100%;min-height:0;box-shadow:none}
 .workspace-edge-rail { position: absolute; z-index: 90; top: 66px; right: 8px; display: grid; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 14px rgba(20,40,30,.09); }
 .workspace-edge-tool { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
 .workspace-edge-tool:hover, .workspace-edge-tool[aria-expanded="true"] { color: var(--text); background: #e8f2ec; }
@@ -311,7 +317,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .research-state { min-height: 260px; display: grid; place-items: center; align-content: center; gap: 8px; padding: 28px; text-align: center; }
 .research-state h2, .research-state p { margin: 0; }
 .legacy-example-entry { max-width: 680px; }
-.guide-representation { min-height: 100%; padding: 40px clamp(24px,5vw,70px); }
+.guide-representation { min-height: 100%; box-sizing:border-box; padding: 40px clamp(24px,5vw,70px); overflow:auto; }
 .representation-intro { max-width: 650px; margin-bottom: 28px; }
 .representation-intro h1 { margin: 5px 0; font-size: 31px; }
 .representation-intro p { color: var(--muted); }
@@ -322,6 +328,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .guide-object span { color: var(--muted); }
 .guide-object:hover, .guide-object.selected { background: #eaf2ed; }
 .guide-object.selected { box-shadow: inset 3px 0 var(--accent); }
+.program-rule-line{display:block;width:100%;padding:10px 12px;border:0;border-radius:6px;background:transparent;color:inherit;text-align:left;line-height:1.45}
+.program-rule-line:hover,.program-rule-line[aria-pressed="true"]{background:#eaf2ed}.program-rule-line[aria-pressed="true"]{box-shadow:inset 3px 0 var(--accent)}
 @media(max-width:900px){.builder-core.left-open,.builder-core.left-open.inspector-open{grid-template-columns:220px minmax(0,1fr)}.semantic-inspector{position:absolute;right:0;top:0;bottom:0;width:300px;z-index:10}.builder-identity{justify-self:start}.guide-object{grid-template-columns:1fr}.research-resize-handle{display:none}.workspace-research-surface{position:fixed;z-index:80;inset:54px 0 0 0}}
 
 /* Investment Strategy Lab consolidation */

@@ -23,6 +23,9 @@ export interface ProgramBlockNode {
   detail?: string;
   depth: number;
   address: ProgramProjectionAddress;
+  connection?:
+    | { kind: "next"; parentId: string }
+    | { kind: "input"; parentId: string; inputName: string };
 }
 
 export interface ProgramRuleLine {
@@ -114,40 +117,44 @@ export function projectProgramCapitalFlow(strategy: CanonicalStrategyV2): { node
   return { nodes, edges };
 }
 
-function conditionBlocks(condition: ConditionV2, path: string, depth: number, focusId: string): ProgramBlockNode[] {
-  const node: ProgramBlockNode = { id: `condition:${condition.semantic_id}`, role: "condition", label: describeConditionV2(condition), depth, address: address("condition", condition.semantic_id, path, focusId) };
-  if (condition.kind === "all" || condition.kind === "any" || condition.kind === "n_of_m") return [node, ...condition.children.flatMap((child, index) => conditionBlocks(child, `${path}.children[${index}]`, depth + 1, focusId))];
-  if (condition.kind === "not") return [node, ...conditionBlocks(condition.child, `${path}.child`, depth + 1, focusId)];
-  if (condition.kind === "comparison") return [node, ...valueBlocks(condition.left, `${path}.left`, depth + 1, focusId), ...valueBlocks(condition.right, `${path}.right`, depth + 1, focusId)];
+function conditionBlocks(condition: ConditionV2, path: string, depth: number, focusId: string, connection?: ProgramBlockNode["connection"]): ProgramBlockNode[] {
+  const node: ProgramBlockNode = { id: `condition:${condition.semantic_id}`, role: "condition", label: describeConditionV2(condition), depth, address: address("condition", condition.semantic_id, path, focusId), connection };
+  if (condition.kind === "all" || condition.kind === "any" || condition.kind === "n_of_m") return [node, ...condition.children.flatMap((child, index) => conditionBlocks(child, `${path}.children[${index}]`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: `ARG_${index + 1}` }))];
+  if (condition.kind === "not") return [node, ...conditionBlocks(condition.child, `${path}.child`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: "ARG_1" })];
+  if (condition.kind === "comparison") return [node, ...valueBlocks(condition.left, `${path}.left`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: "ARG_1" }), ...valueBlocks(condition.right, `${path}.right`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: "ARG_2" })];
   return [node];
 }
 
-function valueBlocks(value: ValueExpressionV2, path: string, depth: number, focusId: string): ProgramBlockNode[] {
-  const node: ProgramBlockNode = { id: `value:${value.semantic_id}`, role: "value", label: describeValueV2(value), depth, address: address("value", value.semantic_id, path, focusId) };
-  if (value.kind === "score") return [node, ...value.terms.flatMap((term, index) => valueBlocks(term.value, `${path}.terms[${index}].value`, depth + 1, focusId).map((item, itemIndex) => itemIndex === 0 ? { ...item, detail: `weight ${term.weight}` } : item)), ...value.condition_terms.flatMap((term, index) => conditionBlocks(term.condition, `${path}.condition_terms[${index}].condition`, depth + 1, focusId))];
-  if (value.kind === "cross_sectional" || value.kind === "cross_sectional_aggregate") return [node, ...valueBlocks(value.source, `${path}.source`, depth + 1, focusId)];
-  if ("operands" in value && Array.isArray(value.operands)) return [node, ...value.operands.flatMap((operand, index) => valueBlocks(operand, `${path}.operands[${index}]`, depth + 1, focusId))];
+function valueBlocks(value: ValueExpressionV2, path: string, depth: number, focusId: string, connection?: ProgramBlockNode["connection"]): ProgramBlockNode[] {
+  const node: ProgramBlockNode = { id: `value:${value.semantic_id}`, role: "value", label: describeValueV2(value), depth, address: address("value", value.semantic_id, path, focusId), connection };
+  if (value.kind === "score") return [node, ...value.terms.flatMap((term, index) => valueBlocks(term.value, `${path}.terms[${index}].value`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: `ARG_${index + 1}` }).map((item, itemIndex) => itemIndex === 0 ? { ...item, detail: `weight ${term.weight}` } : item)), ...value.condition_terms.flatMap((term, index) => conditionBlocks(term.condition, `${path}.condition_terms[${index}].condition`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: `ARG_${value.terms.length + index + 1}` }))];
+  if (value.kind === "cross_sectional" || value.kind === "cross_sectional_aggregate") return [node, ...valueBlocks(value.source, `${path}.source`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: "ARG_1" })];
+  if ("operands" in value && Array.isArray(value.operands)) return [node, ...value.operands.flatMap((operand, index) => valueBlocks(operand, `${path}.operands[${index}]`, depth + 1, focusId, { kind: "input", parentId: node.id, inputName: `ARG_${index + 1}` }))];
   return [node];
 }
 
-function statementBlocks(statement: ProgramStatementV2, path: string, depth: number, relation?: string): ProgramBlockNode[] {
+function statementBlocks(statement: ProgramStatementV2, path: string, depth: number, connection?: ProgramBlockNode["connection"], relation?: string): ProgramBlockNode[] {
   const role: ProgramBlockNode["role"] = ({ select: "selection", allocate: "allocation", control: "control", on_event: "event", transition: "state", remember_value: "memory", guarded_allocation: "policy", unresolved: "unresolved" } as const)[statement.kind];
-  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role, label: describeProgramStatement(statement), detail: relation, depth, address: address("statement", statement.semantic_id, path) };
+  const allocationLabel = statement.kind === "allocate"
+    ? statement.method === "fixed" && statement.legs.length > 1 ? "Split Portfolio capital" : "Allocate capital"
+    : null;
+  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role, label: allocationLabel ?? describeProgramStatement(statement), detail: statement.kind === "allocate" ? statement.method.replaceAll("_", " ") : relation, depth, address: address("statement", statement.semantic_id, path), connection };
   if (statement.kind === "select") return [
     { ...root, detail: `${statement.selection.direction === "descending" ? "highest" : "lowest"}; ${statement.selection.shortage_policy.replaceAll("_", " ")}` },
-    ...(statement.selection.eligibility ? conditionBlocks(statement.selection.eligibility, `${path}.selection.eligibility`, depth + 1, `qualification:${statement.semantic_id}`) : []),
-    ...valueBlocks(statement.selection.ranking, `${path}.selection.ranking`, depth + 1, statement.semantic_id),
+    ...(statement.selection.eligibility ? conditionBlocks(statement.selection.eligibility, `${path}.selection.eligibility`, depth + 1, `qualification:${statement.semantic_id}`, { kind: "input", parentId: root.id, inputName: "ELIGIBILITY" }) : []),
+    ...valueBlocks(statement.selection.ranking, `${path}.selection.ranking`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "RANKING" }),
     ...(statement.selection.fallback_asset ? [{
       id: `fallback:${statement.semantic_id}`, role: "fallback" as const,
       label: `Fallback → ${statement.selection.fallback_asset}`, depth: depth + 1,
       address: address("statement", statement.semantic_id, `${path}.selection.fallback_asset`, `fallback:${statement.semantic_id}`),
+      connection: { kind: "input" as const, parentId: root.id, inputName: "FALLBACK" },
     }] : []),
   ];
-  if (statement.kind === "control") return [root, ...conditionBlocks(statement.condition, `${path}.condition`, depth + 1, statement.semantic_id), ...statement.then_statements.flatMap((item, index) => statementBlocks(item, `${path}.then_statements[${index}]`, depth + 1, "THEN")), ...statement.otherwise_statements.flatMap((item, index) => statementBlocks(item, `${path}.otherwise_statements[${index}]`, depth + 1, "OTHERWISE"))];
-  if (statement.kind === "on_event") return [root, ...(statement.event.condition ? conditionBlocks(statement.event.condition, `${path}.event.condition`, depth + 1, statement.semantic_id) : []), ...statement.statements.flatMap((item, index) => statementBlocks(item, `${path}.statements[${index}]`, depth + 1, "ON EVENT"))];
-  if (statement.kind === "transition") return [root, ...conditionBlocks(statement.transition.when, `${path}.transition.when`, depth + 1, statement.semantic_id)];
-  if (statement.kind === "remember_value") return [root, ...valueBlocks(statement.value, `${path}.value`, depth + 1, statement.semantic_id)];
-  if (statement.kind === "guarded_allocation") return [root, ...(statement.guard ? conditionBlocks(statement.guard, `${path}.guard`, depth + 1, statement.semantic_id) : []), ...statementBlocks(statement.primary, `${path}.primary`, depth + 1, "PRIMARY"), ...statement.overrides.flatMap((override, index) => [...conditionBlocks(override.when, `${path}.overrides[${index}].when`, depth + 1, statement.semantic_id), ...statementBlocks(override.action, `${path}.overrides[${index}].action`, depth + 1, `OVERRIDE ${override.priority}`)]), ...(statement.fallback ? statementBlocks(statement.fallback, `${path}.fallback`, depth + 1, "FALLBACK") : [])];
+  if (statement.kind === "control") return [root, ...conditionBlocks(statement.condition, `${path}.condition`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" }), ...statement.then_statements.flatMap((item, index) => statementBlocks(item, `${path}.then_statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.then_statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "THEN" }, "THEN")), ...statement.otherwise_statements.flatMap((item, index) => statementBlocks(item, `${path}.otherwise_statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.otherwise_statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "ELSE" }, "OTHERWISE"))];
+  if (statement.kind === "on_event") return [root, ...(statement.event.condition ? conditionBlocks(statement.event.condition, `${path}.event.condition`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" }) : []), ...statement.statements.flatMap((item, index) => statementBlocks(item, `${path}.statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "DO" }, "ON EVENT"))];
+  if (statement.kind === "transition") return [root, ...conditionBlocks(statement.transition.when, `${path}.transition.when`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" })];
+  if (statement.kind === "remember_value") return [root, ...valueBlocks(statement.value, `${path}.value`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "VALUE" })];
+  if (statement.kind === "guarded_allocation") return [root, ...(statement.guard ? conditionBlocks(statement.guard, `${path}.guard`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" }) : []), ...statementBlocks(statement.primary, `${path}.primary`, depth + 1, { kind: "input", parentId: root.id, inputName: "DO" }, "PRIMARY"), ...statement.overrides.flatMap((override, index) => [...conditionBlocks(override.when, `${path}.overrides[${index}].when`, depth + 1, statement.semantic_id, { kind: "input", parentId: `statement:${override.action.semantic_id}`, inputName: "CONDITION" }), ...statementBlocks(override.action, `${path}.overrides[${index}].action`, depth + 1, { kind: "next", parentId: index ? `statement:${statement.overrides[index - 1]!.action.semantic_id}` : `statement:${statement.primary.semantic_id}` }, `OVERRIDE ${override.priority}`)]), ...(statement.fallback ? statementBlocks(statement.fallback, `${path}.fallback`, depth + 1, { kind: "next", parentId: statement.overrides.length ? `statement:${statement.overrides.at(-1)!.action.semantic_id}` : `statement:${statement.primary.semantic_id}` }, "FALLBACK") : [])];
   return [root];
 }
 
@@ -155,9 +162,26 @@ function statementBlocks(statement: ProgramStatementV2, path: string, depth: num
 export function projectProgramBlocky(strategy: CanonicalStrategyV2): ProgramBlockNode[] {
   const program = strategy.program;
   const nodes: ProgramBlockNode[] = [{ id: "context:portfolio", role: "context", label: "Portfolio", depth: 0, address: address("strategy", program?.semantic_id ?? "program", "program", "portfolio") }];
-  for (const [index, clock] of (program?.clocks ?? []).entries()) nodes.push({ id: `clock:${clock.id}`, role: "trigger", label: `Every ${clock.timeframe} close`, depth: 1, address: address("clock", clock.id, `program.clocks[${index}]`, "rebalance") });
-  for (const [index, statement] of (program?.statements ?? []).entries()) if (!isProgramBootstrap(statement)) nodes.push(...statementBlocks(statement, `program.statements[${index}]`, 1));
+  for (const [index, clock] of (program?.clocks ?? []).entries()) nodes.push({ id: `clock:${clock.id}`, role: "trigger", label: `${clock.timeframe[0]!.toUpperCase()}${clock.timeframe.slice(1)} close`, depth: 1, address: address("clock", clock.id, `program.clocks[${index}]`, "rebalance") });
+  const lastByClock = new Map<string, string>();
+  for (const [index, statement] of (program?.statements ?? []).entries()) if (!isProgramBootstrap(statement)) {
+    const clockId = statement.kind === "on_event" ? statement.event.clock_id
+      : statement.kind === "transition" ? statement.transition.clock_id
+        : "clock_id" in statement ? statement.clock_id
+          : statement.kind === "guarded_allocation" ? statement.primary.clock_id
+            : null;
+    const prior = clockId ? lastByClock.get(clockId) : undefined;
+    const connection = clockId ? { kind: "next" as const, parentId: prior ?? `clock:${clockId}` } : undefined;
+    nodes.push(...statementBlocks(statement, `program.statements[${index}]`, 1, connection));
+    if (clockId) lastByClock.set(clockId, `statement:${statement.semantic_id}`);
+  }
   return nodes;
+}
+
+export function programBlockConnectionManifest(nodes: ProgramBlockNode[]): string[] {
+  return nodes.flatMap((node) => node.connection
+    ? [`${node.connection.parentId}:${node.connection.kind === "input" ? node.connection.inputName : "NEXT"}->${node.id}`]
+    : []);
 }
 
 function ruleLines(statement: ProgramStatementV2, path: string, depth: number): ProgramRuleLine[] {

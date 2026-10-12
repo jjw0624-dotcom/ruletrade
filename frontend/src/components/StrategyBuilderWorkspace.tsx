@@ -149,6 +149,8 @@ export interface ProgramBuilderContract {
   leftPanel: ReactNode;
   representations: Record<ProgramBuilderView, ReactNode>;
   inspector: ReactNode;
+  inspectorOpen: boolean;
+  onCloseInspector: () => void;
   feedback: ReactNode;
   draftMessage: string | null;
   onUndo: () => void;
@@ -191,10 +193,12 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
     </header>
     {program.feedback && <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>}
     <div className="builder-workbench builder-only" data-research-layout="builder-only">
-      <div className="builder-core left-open inspector-open">
+      <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`}>
         {program.leftPanel}
-        <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>{program.representations[program.activeView]}</main>
-        <SemanticInspector semanticProgram={{ content: program.inspector, onDiscardDraft: program.onDiscardDraft }} />
+        <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>
+          {(Object.keys(labels) as ProgramBuilderView[]).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
+        </main>
+        {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
     </div>
   </section>;

@@ -238,7 +238,7 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map((leg) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[leg.target.ref!] ?? 0} onChange={(event) => setWeights({ ...weights, [leg.target.ref!]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map((leg) => ({ id: leg.target.ref!, weight: weights[leg.target.ref!] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
-function ProgramFlowProjection({ flow, edges, blank, onSelect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string) => void }) {
+function ProgramFlowProjection({ flow, edges, blank, onSelect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void }) {
   const manifest = programFlowManifest({ nodes: flow, edges });
   const canvas = projectProgramFlowCanvas({ nodes: flow, edges });
   const geometry = programFlowGeometry(canvas);
@@ -253,6 +253,7 @@ function ProgramFlowProjection({ flow, edges, blank, onSelect }: { flow: Product
       <ReactFlow<ProgramFlowCanvasNode, ProgramFlowCanvasEdge>
         nodes={canvas.nodes} edges={canvas.edges} nodeTypes={programFlowNodeTypes}
         onNodeClick={(_, node) => onSelect(focusById.get(node.id) ?? node.id)}
+        onPaneClick={() => onSelect(null)}
         nodesDraggable={false} nodesConnectable={false} elementsSelectable
         fitView fitViewOptions={{ padding: .14, maxZoom: 1.25 }} minZoom={.45} maxZoom={1.6}>
         <Background gap={24} size={1} /><Controls showInteractive={false} />
@@ -364,7 +365,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const roots = useMemo(() => visibleRoots(canonical), [canonical]);
   const all = useMemo(() => flatten(roots), [roots]);
   const productStatements = useMemo(() => all.filter((item) => item.kind !== "unresolved"), [all]);
-  const [selectedId, setSelectedId] = useState<string | null>(productStatements[0]?.semantic_id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftConcept>(null);
   const selected = productStatements.find((item) => item.semantic_id === selectedId) ?? null;
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
@@ -428,6 +429,27 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const blocky = useMemo(() => projectProgramBlocky(canonical), [canonical]);
   const rules = useMemo(() => projectProgramRules(canonical), [canonical]);
   const summary = useMemo(() => projectProgramSummary(canonical), [canonical]);
+  const structureFocusIds = useMemo(() => {
+    const ids = new Set<string>();
+    const visit = (node: ProductStructureNode) => { ids.add(node.id); node.children.forEach(visit); };
+    visit(structure);
+    return ids;
+  }, [structure]);
+  const focusByView = useMemo<Record<ProgramBuilderView, Set<string>>>(() => ({
+    overview: new Set(summary.addresses.map((item) => item.focusId)),
+    guided: new Set(all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => item.semantic_id)),
+    flow: new Set(flow.map((item) => item.focusId ?? item.id)),
+    blocky: new Set(blocky.map((item) => item.address.focusId)),
+    rules: new Set(rules.map((item) => item.address.focusId)),
+    code: new Set(),
+    ai: new Set(),
+  }), [all, blocky, flow, rules, summary]);
+  focusByView.overview.add("portfolio");
+  for (const id of structureFocusIds) focusByView.overview.add(id);
+  const switchView = (next: ProgramBuilderView) => {
+    if (!draft && selectedId && !focusByView[next].has(selectedId)) setSelectedId(null);
+    setView(next);
+  };
   const selectedInvestment = selectedId?.startsWith("investment:") ? canonical.definitions.groups.find((group) => group.id === selectedId.slice("investment:".length)) : null;
   const selectedInvestmentShare = selectedInvestment && portfolioSplit?.legs.find((leg) => leg.target.kind === "group" && leg.target.ref === selectedInvestment.id)?.weight;
   const inspector = draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={draft.universeId} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
@@ -444,11 +466,11 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
     blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select} /></section>,
     flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select} />,
-    rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <p key={line.id} style={{ paddingLeft: `${line.depth * 18}px` }} data-semantic-address={line.address.semanticId}>{line.text}</p>)}</section>,
+    rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <button type="button" className="program-rule-line" key={line.id} style={{ paddingLeft: `${12 + line.depth * 18}px` }} data-semantic-address={line.address.semanticId} aria-pressed={selectedId === line.address.focusId} onClick={() => select(line.address.focusId)}>{line.text}</button>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" disabled>Choose assets · add an investment first</button><button className="secondary-button" type="button" disabled>Split a portfolio · add two investments first</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
     code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,
     ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,
   };
   const authoringFeedback = status === "saved" ? null : message;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: setView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, draftMessage: draft ? "Finish or discard the current semantic draft." : status === "unfinished" ? message : null, feedback: authoringFeedback, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: draft ? () => { setDraft(null); working(false); } : undefined }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved"} testTitle={executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: draft ? "Finish or discard the current semantic draft." : status === "unfinished" ? message : null, feedback: authoringFeedback, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: draft ? () => { setDraft(null); working(false); } : undefined }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved"} testTitle={executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
 }
