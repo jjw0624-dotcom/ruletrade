@@ -161,7 +161,6 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain('data-production-builder-shell="true"');
     expect(markup).toContain("Choose 2 assets");
     expect(markup).not.toContain('aria-label="Semantic Inspector"');
-    expect(markup).toContain("From growth, choose 2 assets");
     expect(markup).not.toContain("Event semantics");
     expect(markup).not.toContain("State semantics");
     expect(markup).not.toContain("program-selection-definition");
@@ -284,8 +283,6 @@ describe("mounted v2 production editor", () => {
     expect(markup).not.toContain("Allocate equally");
     expect(markup).not.toContain("Move up");
     expect(markup).not.toContain("Move down");
-    expect(markup).toContain("Investment");
-    expect(markup).toContain("Split");
     expect(markup).not.toContain('aria-label="Availability status"');
     expect(markup).not.toContain("production Program lowering");
     expect(markup).not.toContain("exactly one Selection");

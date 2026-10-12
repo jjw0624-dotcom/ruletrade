@@ -37,7 +37,10 @@ const blank: CanonicalStrategyV2 = {
 async function clickButton(container: HTMLElement, label: string) {
   const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === label);
   expect(button, `button ${label}`).toBeTruthy();
-  await act(async () => button!.click());
+  await act(async () => {
+    button!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+    button!.click();
+  });
 }
 
 describe("SemanticProgram Builder interaction lifecycle", () => {
