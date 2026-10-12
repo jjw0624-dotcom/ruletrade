@@ -12,9 +12,11 @@ import { ProgramBlockyProjection } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
 import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
 import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
-import { projectProgramBlocky, projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
+import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
-import { emptyProgramWorkingDraft, hasFlowCycle, validProgramBlockConnection, withBlockPosition, withFlowPositions, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { emptyProgramWorkingDraft, withBlockDisclosure, withBlockPosition, withFlowPositions, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
+import { translateDraftIntent } from "../domain/draftIntents";
 import "./SemanticProgramBuilderAdapter.css";
 
 function flatten(items: ProgramStatementV2[]): ProgramStatementV2[] {
@@ -273,7 +275,7 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map((leg) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[leg.target.ref!] ?? 0} onChange={(event) => setWeights({ ...weights, [leg.target.ref!]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map((leg) => ({ id: leg.target.ref!, weight: weights[leg.target.ref!] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
-function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void }) {
+function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
   const manifest = programFlowManifest({ nodes: flow, edges });
   const projected = projectProgramFlowCanvas({ nodes: flow, edges });
   const canvas = { ...projected, nodes: projected.nodes.map((node) => ({ ...node, position: positions[node.id] ?? node.position })) };
@@ -291,6 +293,7 @@ function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewpo
         onNodeClick={(_, node) => onSelect(focusById.get(node.id) ?? node.id)}
         onPaneClick={() => onSelect(null)} onNodeDragStop={(_, node) => onPositionChange(node.id, node.position)}
         onMoveEnd={(_, nextViewport) => onViewportChange(nextViewport)} onConnect={onConnect}
+        onEdgesDelete={(deleted) => deleted.forEach((edge) => onDisconnect(edge.source, edge.target))}
         nodesDraggable nodesConnectable elementsSelectable panOnDrag selectionOnDrag={false}
         fitView={!viewport} defaultViewport={viewport ?? { x: 0, y: 0, zoom: 1 }} fitViewOptions={{ padding: .14, maxZoom: 1.25 }} minZoom={.45} maxZoom={1.6}>
         <Background gap={24} size={1} /><Controls showInteractive={false} />
@@ -473,9 +476,19 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   ];
   const blank = canonical.definitions.groups.length === 0 && draft === null;
   const structure = projectProgramProductStructure(canonical);
-  const flowGraph = useMemo(() => projectProgramProductFlowGraph(canonical), [canonical]);
+  const perspectiveCapability: PerspectiveCapability = {
+    representable: true,
+    referenceEvaluable: executionCapability?.reference_valid ?? null,
+    backendLowerable: executionCapability?.backend_lowerable ?? false,
+    dockerVerified: null,
+    providerSupported: executionCapability ? executionCapability.provider_state !== "unavailable" : null,
+    uiAuthorable: executionCapability?.authorable ?? true,
+    runtimeAvailable: executionCapability ? executionCapability.runtime_state === "available" : null,
+  };
+  const perspectives = useMemo(() => derivePerspectiveBundle(canonical, perspectiveCapability), [canonical, executionCapability]);
+  const flowGraph = perspectives.capitalFlow;
   const flow = flowGraph.nodes;
-  const blocky = useMemo(() => projectProgramBlocky(canonical), [canonical]);
+  const blocky = perspectives.decisionLogic.blocks;
   const rules = useMemo(() => projectProgramRules(canonical), [canonical]);
   const summary = useMemo(() => projectProgramSummary(canonical), [canonical]);
   const structureFocusIds = useMemo(() => {
@@ -515,17 +528,18 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
     blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
-      positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} draft={draft}
+      positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft}
       onPositionChange={(id, position) => updateWorkingDraft(withBlockPosition(workingDraft, id, position))}
+      onDisclosureChange={(id, level) => updateWorkingDraft(withBlockDisclosure(workingDraft, id, level))}
       onConnectionChange={(childId, parentId, inputName) => {
         const child = blocky.find((item) => item.id === childId);
         const childType = child?.role === "condition" ? "condition" : child?.role === "value" ? "value" : child?.role === "fallback" ? "fallback" : "statement";
-        const valid = parentId === null || validProgramBlockConnection("statement", inputName, childType);
         const expectedParent = child?.connection?.parentId ?? null;
         const expectedInput = child?.connection ? child.connection.kind === "next" ? "NEXT" : child.connection.inputName : null;
-        const layoutOnly = expectedParent === parentId && expectedInput === inputName;
-        const nextStatus = !valid ? "invalid" : layoutOnly ? workingDraft.status : draft ? "incomplete" : "unsupported";
-        updateWorkingDraft({ ...workingDraft, status: nextStatus, blockConnections: layoutOnly ? workingDraft.blockConnections : { ...workingDraft.blockConnections, [childId]: { childId, parentId, inputName } } });
+        const result = translateDraftIntent(canonical, { kind: "connect_block", childId, childType, parentId, inputName, projected: { childId, parentId: expectedParent, inputName: expectedInput } });
+        const layoutOnly = result.status === "layout_only";
+        const nextStatus = result.status === "invalid" ? "invalid" : layoutOnly ? workingDraft.status : draft ? "incomplete" : "unsupported";
+        updateWorkingDraft({ ...workingDraft, status: nextStatus, diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics, blockConnections: layoutOnly ? workingDraft.blockConnections : { ...workingDraft.blockConnections, [childId]: { childId, parentId, inputName } } });
         if (!layoutOnly) working(true);
       }}
       onDraftDelete={() => { setDraft(null); working(false); }}
@@ -542,14 +556,13 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraft, flowViewport: viewport })}
       onConnect={(connection) => {
         if (!connection.source || !connection.target) return;
-        const next = { source: connection.source, target: connection.target };
-        if (hasFlowCycle(flowGraph.edges, next)) { updateWorkingDraft({ ...workingDraft, status: "invalid" }); working(true); return; }
-        const targetInvestment = connection.target.startsWith("investment:");
-        if (connection.source === "portfolio" && targetInvestment && canonical.definitions.groups.length === 2 && !portfolioSplit) {
-          applyProduct({ kind: "setAllocation", method: "fixed", investments: canonical.definitions.groups.map((group) => ({ id: group.id, weight: .5 })) });
-          return;
-        }
-        updateWorkingDraft({ ...workingDraft, status: "unsupported" }); working(true);
+        const result = translateDraftIntent(canonical, { kind: "connect_flow", sourceId: connection.source, targetId: connection.target, projectedEdges: flowGraph.edges });
+        if (result.semanticEffect === "commit_operation" && result.operation) { apply(result.operation); return; }
+        updateWorkingDraft({ ...workingDraft, status: result.status === "invalid" ? "invalid" : "unsupported", diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics }); working(true);
+      }}
+      onDisconnect={(sourceId, targetId) => {
+        const result = translateDraftIntent(canonical, { kind: "disconnect_flow", sourceId, targetId });
+        updateWorkingDraft({ ...workingDraft, status: "unsupported", diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics }); working(true);
       }} />,
     rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <button type="button" className="program-rule-line" key={line.id} style={{ paddingLeft: `${12 + line.depth * 18}px` }} data-semantic-address={line.address.semanticId} aria-pressed={selectedId === line.address.focusId} onClick={() => select(line.address.focusId)}>{line.text}</button>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Use the same recipes available throughout RuleTrade.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" disabled>Choose assets · add an investment first</button><button className="secondary-button" type="button" disabled>Split a portfolio · add two investments first</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
@@ -562,7 +575,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       : workingDraft.status === "unsupported" ? "That relationship is meaningful but is not supported by the current semantic operation profile."
         : status === "unfinished" ? message : null;
   const discardWorkspaceDraft = draft || ["invalid", "unsupported"].includes(workingDraft.status) ? () => {
-    updateWorkingDraft({ ...workingDraft, concept: null, status: "clean", selectedDraftId: null, blockConnections: {} }); working(false);
+    updateWorkingDraft({ ...workingDraft, concept: null, status: "clean", selectedDraftId: null, blockConnections: {}, diagnostics: [] }); working(false);
   } : undefined;
   return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: discardWorkspaceDraft }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || workingDraft.status !== "clean"} testTitle={workspaceDraftMessage ?? executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
 }

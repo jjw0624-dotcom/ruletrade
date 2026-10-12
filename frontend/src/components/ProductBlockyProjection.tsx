@@ -125,15 +125,17 @@ function semanticBlockType(node: ProgramBlockNode) {
 }
 
 /** Program-native logic projection. It never consumes the Structure tree. */
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, draft = null, onPositionChange, onConnectionChange, onDraftDelete, onToolDrop }: {
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete, onToolDrop }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
   positions?: Record<string, { x: number; y: number }>;
   connections?: Record<string, { childId: string; parentId: string | null; inputName: string | null }>;
+  disclosure?: Record<string, 0 | 1 | 2>;
   draft?: ProgramDraftConcept;
   onPositionChange?: (blockId: string, position: { x: number; y: number }) => void;
   onConnectionChange?: (childId: string, parentId: string | null, inputName: string | null) => void;
+  onDisclosureChange?: (blockId: string, level: 0 | 1 | 2) => void;
   onDraftDelete?: () => void;
   onToolDrop?: (toolId: string, position: { x: number; y: number }) => void;
 }) {
@@ -141,11 +143,11 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const nodesRef = useRef(nodes);
   const onSelectRef = useRef(onSelect);
-  const callbacksRef = useRef({ onPositionChange, onConnectionChange, onDraftDelete });
+  const callbacksRef = useRef({ onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete });
   const positionsRef = useRef(positions);
   nodesRef.current = nodes;
   onSelectRef.current = onSelect;
-  callbacksRef.current = { onPositionChange, onConnectionChange, onDraftDelete };
+  callbacksRef.current = { onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete };
   positionsRef.current = positions;
 
   useEffect(() => {
@@ -188,6 +190,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         try { if (raw && (JSON.parse(raw) as { productId?: string }).productId?.startsWith("draft:")) callbacksRef.current.onDraftDelete?.(); }
         catch { /* Ignore malformed third-party Blockly data. */ }
       }
+      if (event.type === Blockly.Events.BLOCK_CHANGE) {
+        const change = event as Blockly.Events.Abstract & { element?: string; newValue?: unknown };
+        if (change.element === "collapsed") {
+          const block = canvas.getBlockById(blockId);
+          const address = readAddress(block);
+          if (address) callbacksRef.current.onDisclosureChange?.(address, change.newValue ? 0 : 1);
+        }
+      }
     };
     canvas.addChangeListener(listener); canvas.addChangeListener(editListener);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
@@ -219,12 +229,13 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         if (!block) {
           block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
           setAddress(block, node.id);
-          block.setDeletable(false); block.setMovable(node.role !== "context"); block.contextMenu = false;
+          block.setDeletable(false); block.setMovable(node.role !== "context"); block.contextMenu = node.role !== "context";
           block.initSvg(); block.render();
           existing.set(node.id, block);
         }
         const label = node.detail ? `${node.label} · ${node.detail}` : node.label;
         if (block.getFieldValue("LABEL") !== label) block.setFieldValue(label, "LABEL");
+        block.setCollapsed((disclosure[node.id] ?? 1) === 0);
         if (isNew) {
           const saved = positionsRef.current[node.id];
           block.moveBy(saved?.x ?? 40 + node.depth * 54, saved?.y ?? 36 + index * 92);
@@ -287,7 +298,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       for (const block of existing.values()) block.render();
       Blockly.svgResize(canvas);
     } finally { Blockly.Events.enable(); }
-  }, [nodes, draft, connections]);
+  }, [nodes, draft, connections, disclosure]);
 
   useEffect(() => {
     if (!selectedId) return;

@@ -49,6 +49,7 @@ architecture when they conflict with code or the living architecture.
 | `semantic-strategy-corpus-audit.md` | CURRENT | Baseline 33-case semantic capability and evidence audit |
 | `expanded-semantic-corpus-execution-closure.md` | CURRENT | 169-fragment reconciliation, weighted Score execution closure, gaps, and evidence |
 | `semantic-projection-contracts.md` | CURRENT | UI-independent Structure/Flow/Blocky/Rules/Summary/Inspector manifests |
+| `perspective-translation-v2.md` | CURRENT | Reconciled Internal/Capital Flow/Decision Logic translation, DraftIntent, equivalence, and capability contracts |
 | `builder-semantic-migration-plan.md` | CURRENT / DESIGN ONLY | KEEP/ADAPT/REPLACE/REMOVE handoff; no UI implementation |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |
