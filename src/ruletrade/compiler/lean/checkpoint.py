@@ -182,7 +182,7 @@ def validate_checkpoint(
         raise TemporalCheckpointError("checkpoint_clock_mismatch")
     if checkpoint.operator_versions != tuple(sorted(program.operator_versions)):
         raise TemporalCheckpointError("checkpoint_operator_version_mismatch")
-    if checkpoint.asset_universe != (program.anchor_symbol,):
+    if checkpoint.asset_universe != (program.asset_universe or (program.anchor_symbol,)):
         raise TemporalCheckpointError("checkpoint_asset_universe_mismatch")
     if checkpoint.statement_order != (
         *(item.statement_id for item in program.events), program.policy_statement_id,

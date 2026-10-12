@@ -205,9 +205,21 @@ class LeanTemporalPolicyTarget:
     semantic_id: str
     state_key: str
     state_value: str
-    target_kind: Literal["asset", "cash", "retain"]
+    target_kind: Literal["asset", "cash", "retain", "portfolio"]
     asset: str | None = None
     weight: Decimal = Decimal(1)
+    allocation_method: Literal["equal", "fixed", "proportional_score"] = "fixed"
+    legs: tuple["LeanTemporalAllocationLeg", ...] = ()
+
+
+@dataclass(frozen=True)
+class LeanTemporalAllocationLeg:
+    """One typed downstream target selected by temporal policy precedence."""
+
+    semantic_id: str
+    target_kind: Literal["asset", "selection", "cash", "retain"]
+    target_ref: str | None = None
+    weight: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -218,7 +230,10 @@ class LeanTemporalProgram:
     later events and the policy observe the new checkpoint at the same close.
     """
 
-    profile: Literal["event-state-daily@1", "event-state-multiclock@1"]
+    profile: Literal[
+        "event-state-daily@1", "event-state-multiclock@1",
+        "composable-semantic-execution@1",
+    ]
     semantic_id: str
     checkpoint_identity: str
     operator_versions: tuple[tuple[str, str], ...]
@@ -228,6 +243,12 @@ class LeanTemporalProgram:
     events: tuple[LeanTemporalEvent, ...]
     policy_statement_id: str
     policy_targets: tuple[LeanTemporalPolicyTarget, ...]
+    asset_universe: tuple[str, ...] = ()
+    execution_order: tuple[str, ...] = (
+        "data_clocks", "value_readiness", "conditions", "events", "state_memory",
+        "policy", "universe", "score_rank", "selection_fallback",
+        "allocation_aggregation", "order_intent", "checkpoint_evidence",
+    )
 
 
 @dataclass(frozen=True)
@@ -235,7 +256,10 @@ class LeanTemporalCheckpoint:
     """Validated state imported by a fresh generated LEAN algorithm process."""
 
     schema_version: Literal["ruletrade-temporal-checkpoint@1"]
-    profile: Literal["event-state-daily@1", "event-state-multiclock@1"]
+    profile: Literal[
+        "event-state-daily@1", "event-state-multiclock@1",
+        "composable-semantic-execution@1",
+    ]
     strategy_identity: str
     checkpoint_identity: str
     snapshot_id: str

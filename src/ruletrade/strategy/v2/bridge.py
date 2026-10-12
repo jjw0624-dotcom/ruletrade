@@ -11,6 +11,7 @@ from decimal import Decimal
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.plan import (
     LeanPlan, LeanScoreTerm, LeanSubscription, LeanTemporalAction,
+    LeanTemporalAllocationLeg,
     LeanTemporalCondition, LeanTemporalEvent, LeanTemporalPolicyTarget,
     LeanTemporalProgram, LeanTemporalValue, LeanValue, normalize_lean_plan,
 )
@@ -175,17 +176,48 @@ def _fixed_policy_target(allocation: AllocationStatementV2, *, semantic_id: str,
     )
 
 
+def _composable_policy_target(
+    allocation: AllocationStatementV2, *, semantic_id: str,
+    state_key: str, state_value: str, selection_outputs: dict[str, str],
+) -> LeanTemporalPolicyTarget:
+    """Lower policy output without coupling Event/State to a concrete asset."""
+
+    if allocation.method not in {"equal", "fixed", "proportional_score"}:
+        raise V2LoweringError(f"composable policy cannot lower {allocation.method!r} allocation")
+    legs: list[LeanTemporalAllocationLeg] = []
+    for leg in allocation.legs:
+        target = leg.target
+        if target.kind == "selection":
+            selection_id = selection_outputs.get(target.ref or "")
+            if selection_id is None:
+                raise V2LoweringError(f"policy references unknown Selection output {target.ref!r}")
+            ref = selection_id
+        elif target.kind in {"asset", "cash", "retain"}:
+            ref = target.ref
+        else:
+            raise V2LoweringError("composable policy supports asset, Selection, cash, and retain targets")
+        legs.append(LeanTemporalAllocationLeg(
+            semantic_id=leg.semantic_id, target_kind=target.kind,
+            target_ref=ref, weight=leg.weight,
+        ))
+    return LeanTemporalPolicyTarget(
+        semantic_id=semantic_id, state_key=state_key, state_value=state_value,
+        target_kind="portfolio", allocation_method=allocation.method, legs=tuple(legs),
+    )
+
+
 def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     if strategy.program is None:
         return None
     top = strategy.program.statements
     events = tuple(item for item in top if isinstance(item, EventStatementV2))
+    selections = tuple(item for item in top if isinstance(item, SelectionStatementV2))
     policies = tuple(item for item in top if isinstance(item, GuardedAllocationStatementV2))
     if not events and not policies:
         return None
-    if len(policies) != 1 or len(events) + 1 != len(top):
+    if len(policies) != 1 or len(events) + len(selections) + 1 != len(top):
         raise V2LoweringError(
-            "event-state-daily@1 requires ordered Events followed by one guarded policy"
+            "temporal execution requires Selections, ordered Events, and one guarded policy"
         )
     clocks = {item.id: item for item in strategy.program.clocks}
     lowered_events: list[LeanTemporalEvent] = []
@@ -220,35 +252,123 @@ def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
             actions=tuple(_temporal_action(item) for item in statement.statements),
         ))
     policy = policies[0]
-    if policy.guard is not None or policy.fallback is not None or len(policy.overrides) != 1:
+    if policy.guard is not None or policy.fallback is not None or not policy.overrides:
         raise V2LoweringError(
-            "event-state-daily@1 policy requires one State override and a primary target"
+            "temporal policy requires State overrides and a primary target"
         )
-    override = policy.overrides[0]
-    if not isinstance(override.when, StateConditionV2):
-        raise V2LoweringError("temporal policy override requires a State equality condition")
-    policy_targets = (
-        _fixed_policy_target(
+    selection_outputs = {item.output_id: item.selection.semantic_id for item in selections}
+    state_key: str | None = None
+    lowered_targets: list[LeanTemporalPolicyTarget] = []
+    for override in sorted(policy.overrides, key=lambda item: item.priority, reverse=True):
+        if not isinstance(override.when, StateConditionV2):
+            raise V2LoweringError("temporal policy override requires a State equality condition")
+        state_key = state_key or override.when.state_key
+        if override.when.state_key != state_key:
+            raise V2LoweringError("composable temporal policy requires one explicit State axis")
+        lower = _composable_policy_target if selections else _fixed_policy_target
+        lowered_targets.append(lower(
             override.action, semantic_id=override.semantic_id,
             state_key=override.when.state_key, state_value=override.when.expected,
-        ),
-        _fixed_policy_target(
-            policy.primary, semantic_id=policy.primary.semantic_id,
-            state_key=override.when.state_key, state_value="*",
-        ),
-    )
+            **({"selection_outputs": selection_outputs} if selections else {}),
+        ))
+    assert state_key is not None
+    lower = _composable_policy_target if selections else _fixed_policy_target
+    lowered_targets.append(lower(
+        policy.primary, semantic_id=policy.primary.semantic_id,
+        state_key=state_key, state_value="*",
+        **({"selection_outputs": selection_outputs} if selections else {}),
+    ))
+    policy_targets = tuple(lowered_targets)
     for target in policy_targets:
         if target.asset:
             symbols.add(target.asset)
-    if len(symbols) != 1:
+        for leg in target.legs:
+            if leg.target_kind == "asset" and leg.target_ref:
+                symbols.add(leg.target_ref)
+    for selection in selections:
+        if selection.selection.fallback_asset:
+            symbols.add(selection.selection.fallback_asset)
+    if not symbols:
+        for selection in selections:
+            group = next((item for item in strategy.definitions.groups if item.id == selection.selection.universe_id), None)
+            asset_set = next((item for item in strategy.definitions.asset_sets if group and item.id == group.asset_set_ref), None)
+            if asset_set:
+                symbols.update(asset_set.assets)
+    if not symbols:
         raise V2LoweringError("event-state-daily@1 currently requires one adjusted-close asset")
-    anchor = next(iter(symbols))
+    anchor = next((value.asset for event in lowered_events for value in (event.condition.left, event.condition.right) if value.asset), sorted(symbols)[0])
+    selection_plans: list[LeanPlan] = []
+    compiled_selection_ids: dict[str, str] = {}
+    for selection in selections:
+        referenced = [
+            target for target in policy_targets for leg in target.legs
+            if leg.target_kind == "selection" and leg.target_ref == selection.selection.semantic_id
+        ]
+        method = "proportional_score" if referenced and referenced[0].allocation_method == "proportional_score" else "equal"
+        isolated_allocation = AllocationStatementV2(
+            semantic_id=f"{selection.semantic_id}-execution-allocation", method=method,
+            clock_id=selection.clock_id,
+            legs=(policy.primary.legs[0].model_copy(update={
+                "semantic_id": f"{selection.semantic_id}-execution-leg",
+                "target": policy.primary.legs[0].target.model_copy(update={
+                    "semantic_id": f"{selection.semantic_id}-execution-target",
+                    "kind": "selection", "ref": selection.output_id,
+                }), "weight": None,
+            }),),
+        )
+        topology_selection = selection.model_copy(update={
+            "selection": selection.selection.model_copy(update={"fallback_asset": None}),
+        })
+        isolated = strategy.model_copy(update={
+            "program": strategy.program.model_copy(update={"statements": (topology_selection, isolated_allocation)}),
+        })
+        selection_plan = compile_v2_strategy_to_lean_plan(isolated)
+        if len(selection_plan.momentum_selections) != 1:
+            raise V2LoweringError("composable Selection must lower to one typed ranking node")
+        original_selection_id = selection_plan.momentum_selections[0].id
+        compiled_selection_id = selection.selection.semantic_id
+        selection_plan = replace(
+            selection_plan,
+            momentum_selections=(replace(
+                selection_plan.momentum_selections[0], id=compiled_selection_id,
+            ),),
+            target_sleeves=tuple(replace(
+                sleeve, id=f"{compiled_selection_id}-sleeve",
+                selection_id=compiled_selection_id,
+            ) if sleeve.selection_id == original_selection_id else sleeve
+            for sleeve in selection_plan.target_sleeves),
+        )
+        compiled_selection_ids[selection.selection.semantic_id] = compiled_selection_id
+        if selection.selection.fallback_asset:
+            selection_plan = replace(selection_plan, target_sleeves=tuple(
+                replace(
+                    sleeve, fallback_component_id=f"{selection.semantic_id}-fallback",
+                    fallback_symbols=(selection.selection.fallback_asset,),
+                ) if sleeve.selection_id == compiled_selection_id else sleeve
+                for sleeve in selection_plan.target_sleeves
+            ))
+        selection_plans.append(selection_plan)
+    policy_targets = tuple(replace(
+        target,
+        legs=tuple(replace(
+            leg, target_ref=compiled_selection_ids.get(leg.target_ref or "", leg.target_ref),
+        ) for leg in target.legs),
+    ) for target in policy_targets)
+    subscriptions = {symbol: LeanSubscription(symbol) for symbol in symbols}
+    momentum = []
+    sleeves = []
+    for selection_plan in selection_plans:
+        subscriptions.update({item.symbol: item for item in selection_plan.subscriptions})
+        momentum.extend(selection_plan.momentum_selections)
+        sleeves.extend(selection_plan.target_sleeves)
     return normalize_lean_plan(LeanPlan(
         strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
-        subscriptions=(LeanSubscription(anchor),), random_selections=(),
-        target_sleeves=(), rebalances=(), monthly_events=(),
+        subscriptions=tuple(subscriptions.values()), random_selections=(),
+        target_sleeves=tuple(sleeves), rebalances=(), monthly_events=(),
+        momentum_selections=tuple(momentum),
         temporal_program=LeanTemporalProgram(
             profile=(
+                "composable-semantic-execution@1" if selections else
                 "event-state-multiclock@1"
                 if any(
                     value.kind == "completed_weekly_price"
@@ -272,10 +392,13 @@ def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
                 ),
             }),
             operator_versions=tuple(sorted(strategy.operator_lock.items())),
-            clock_id=lowered_events[0].clock_id, anchor_symbol=anchor,
+            clock_id=(
+                lowered_events[0].clock_id if lowered_events else
+                selections[0].clock_id or strategy.program.clocks[0].id
+            ), anchor_symbol=anchor,
             initial_state=tuple(sorted(strategy.program.initial_state.items())),
             events=tuple(lowered_events), policy_statement_id=policy.semantic_id,
-            policy_targets=policy_targets,
+            policy_targets=policy_targets, asset_universe=tuple(sorted(subscriptions)),
         ),
     ))
 

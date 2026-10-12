@@ -43,6 +43,7 @@ def parse_temporal_evidence(log_text: str) -> tuple[dict[str, str], ...]:
             "boundary", "event", "remember", "transition", "policy_decision",
             "target", "checkpoint", "order", "weekly_completion",
             "checkpoint_import", "portfolio_restore",
+            "selection", "allocation",
         }:
             records.append(fields)
     return tuple(records)

@@ -220,6 +220,89 @@ def _temporal_condition_lines(condition: LeanTemporalCondition, prefix: str) -> 
     return tuple(lines)
 
 
+def _composable_policy_method_lines(plan: LeanPlan, target, index: int) -> tuple[str, ...]:
+    """Generate a policy-local Selection → Allocation pipeline.
+
+    The method consumes only typed plan nodes.  It deliberately contains no
+    corpus/strategy-name branching, so every supported composition shares the
+    same readiness, ranking, shortage, aggregation, and evidence semantics.
+    """
+
+    selections = {item.id: item for item in plan.momentum_selections}
+    sleeves = {item.selection_id: item for item in plan.target_sleeves if item.selection_id}
+    lines = [
+        f"    private Dictionary<string, decimal> ComposablePolicy{index}(string eventIdentity)",
+        "    {",
+        "        var aggregate = new Dictionary<string, decimal>(StringComparer.Ordinal);",
+    ]
+    for leg_index, leg in enumerate(target.legs):
+        factor = leg.weight if target.allocation_method == "fixed" else Decimal(1)
+        if leg.target_kind == "asset":
+            lines.extend((
+                f"        aggregate[{_csharp_string(leg.target_ref or '')}] = aggregate.TryGetValue({_csharp_string(leg.target_ref or '')}, out var assetWeight{leg_index}) ? assetWeight{leg_index} + {_decimal_literal(factor or Decimal(0))} : {_decimal_literal(factor or Decimal(0))};",
+            ))
+            continue
+        if leg.target_kind in {"cash", "retain"}:
+            continue
+        selection = selections.get(leg.target_ref or "")
+        if selection is None:
+            raise ValueError(f"composable policy references missing Selection {leg.target_ref!r}")
+        sleeve = sleeves.get(selection.id)
+        symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+        ranking = _value_csharp(_ranking_value(selection), "ticker")
+        eligibility = (
+            " && ".join(_eligibility_condition(selection, item) for item in selection.eligibility)
+            or _filter_condition(selection, "item.Value")
+        )
+        order = _ranking_method(selection)
+        success = _selection_success(selection, f"chosen{leg_index}")
+        fallback = () if sleeve is None else sleeve.fallback_symbols
+        fallback_items = ", ".join(_csharp_string(item) for item in fallback)
+        lines.extend((
+            f"        var scores{leg_index} = new Dictionary<string, decimal>(StringComparer.Ordinal);",
+            f"        foreach (var ticker in new[] {{ {symbols} }})",
+            "        {",
+            f"            var observed = {ranking};",
+            f"            if (observed.HasValue) scores{leg_index}[ticker] = observed.Value;",
+            "        }",
+            f"        var eligible{leg_index} = scores{leg_index}.Where(item => {eligibility}).ToList();",
+            f"        var ranked{leg_index} = eligible{leg_index}.{order}(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal).ToList();",
+            f"        var chosen{leg_index} = ranked{leg_index}.Take({selection.count}).Select(item => item.Key).ToList();",
+            f"        var primaryComplete{leg_index} = {success};",
+            f"        if (!primaryComplete{leg_index}) chosen{leg_index} = new List<string> {{ {fallback_items} }};",
+            '        EmitDecisionEvidence(eventIdentity, "selection_fallback", "selection",',
+            f'            "selection_id", {_csharp_string(selection.id)}, "ranked", EvidenceRanks(ranked{leg_index}.Select(item => item.Key)),',
+            f'            "selected", string.Join(",", chosen{leg_index}), "primary_complete", primaryComplete{leg_index} ? "true" : "false",',
+            f'            "fallback", primaryComplete{leg_index} ? "false" : "true");',
+        ))
+        if target.allocation_method == "proportional_score":
+            lines.extend((
+                f"        var positiveTotal{leg_index} = chosen{leg_index}.Where(item => scores{leg_index}.ContainsKey(item)).Sum(item => Math.Max(0m, scores{leg_index}[item]));",
+                f"        foreach (var ticker in chosen{leg_index})",
+                "        {",
+                f"            var localWeight = primaryComplete{leg_index} && positiveTotal{leg_index} > 0m ? Math.Max(0m, scores{leg_index}[ticker]) / positiveTotal{leg_index} : (chosen{leg_index}.Count == 0 ? 0m : 1m / chosen{leg_index}.Count);",
+                f"            var weight = localWeight * {_decimal_literal(factor or Decimal(0))};",
+                f"            aggregate[ticker] = aggregate.TryGetValue(ticker, out var existing{leg_index}) ? existing{leg_index} + weight : weight;",
+                "        }",
+            ))
+        else:
+            lines.extend((
+                f"        foreach (var ticker in chosen{leg_index})",
+                "        {",
+                f"            var weight = (chosen{leg_index}.Count == 0 ? 0m : 1m / chosen{leg_index}.Count) * {_decimal_literal(factor or Decimal(0))};",
+                f"            aggregate[ticker] = aggregate.TryGetValue(ticker, out var existing{leg_index}) ? existing{leg_index} + weight : weight;",
+                "        }",
+            ))
+    lines.extend((
+        '        EmitDecisionEvidence(eventIdentity, "allocation_aggregation", "allocation", "policy_id", ' + _csharp_string(target.semantic_id) + ',',
+        '            "method", ' + _csharp_string(target.allocation_method) + ', "weights", string.Join(",", aggregate.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
+        "        return aggregate;",
+        "    }",
+        "",
+    ))
+    return tuple(lines)
+
+
 def _temporal_method_lines(
     plan: LeanPlan, settings: CSharpGenerationSettings,
 ) -> tuple[str, ...]:
@@ -239,13 +322,18 @@ def _temporal_method_lines(
         '        return "true";',
         "    }",
         "",
+    ]
+    for index, target in enumerate(temporal.policy_targets):
+        if target.target_kind == "portfolio":
+            lines.extend(_composable_policy_method_lines(plan, target, index))
+    lines.extend([
         "    private void ExecuteTemporalBoundary(string cutoff)",
         "    {",
         "        _boundaryIndex++;",
         f'        var eventIdentity = {_csharp_string(temporal.clock_id)} + ":" + cutoff;',
         '        EmitDecisionEvidence(eventIdentity, "observation", "boundary", "clock", '
         f'{_csharp_string(temporal.clock_id)}, "cutoff", cutoff, "boundary_index", _boundaryIndex.ToString(CultureInfo.InvariantCulture));',
-    ]
+    ])
     for index, event in enumerate(temporal.events):
         prefix = f"temporal{index}"
         lines.extend(_temporal_condition_lines(event.condition, prefix))
@@ -325,6 +413,7 @@ def _temporal_method_lines(
         '        var policyTarget = "retain";',
         '        var policyAsset = "";',
         '        var policyRule = "retain";',
+        '        var policyWeights = new Dictionary<string, decimal>(StringComparer.Ordinal);',
     ))
     for index, target in enumerate(temporal.policy_targets):
         condition = (
@@ -338,25 +427,37 @@ def _temporal_method_lines(
             f"            policyTarget = {_csharp_string(target.target_kind)};",
             f"            policyAsset = {_csharp_string(target.asset or '')};",
             f"            policyRule = {_csharp_string(target.semantic_id)};",
+            *(
+                (f"            policyWeights = ComposablePolicy{index}(eventIdentity);",)
+                if target.target_kind == "portfolio" else ()
+            ),
             "        }",
         ))
     lines.extend((
         '        EmitDecisionEvidence(eventIdentity, "policy", "policy_decision", "rule_id", policyRule,',
         '            "target_kind", policyTarget, "asset", policyAsset, "weight", policyTarget == "retain" ? "" : "1",',
+        '            "weights", string.Join(",", policyWeights.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
         '            "state", string.Join(",", _state.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)));',
-        "        if (policyTarget != \"retain\" && policyTarget + \"|\" + policyAsset != _lastPolicyTarget)",
+        '        var policySignature = policyTarget == "portfolio" ? "portfolio|" + string.Join(";", policyWeights.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))) : policyTarget + "|" + policyAsset;',
+        "        if (policyTarget != \"retain\" && policySignature != _lastPolicyTarget)",
         "        {",
         "            if (policyTarget == \"asset\") SetHoldings(_symbols[policyAsset], 1m);",
         "            else if (policyTarget == \"cash\") Liquidate();",
-        '            EmitDecisionEvidence(eventIdentity, "order_intent", "target", "target_kind", policyTarget, "asset", policyAsset, "weight", "1");',
-        '            _lastPolicyTarget = policyTarget + "|" + policyAsset;',
+        "            else if (policyTarget == \"portfolio\")",
+        "            {",
+        "                foreach (var holding in Portfolio.Where(item => item.Value.Invested && !policyWeights.ContainsKey(item.Key.Value)).ToList()) Liquidate(holding.Key);",
+        "                foreach (var item in policyWeights) SetHoldings(_symbols[item.Key], item.Value);",
+        "            }",
+        '            EmitDecisionEvidence(eventIdentity, "order_intent", "target", "target_kind", policyTarget, "asset", policyAsset, "weight", "1",',
+        '                "weights", string.Join(",", policyWeights.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
+        '            _lastPolicyTarget = policySignature;',
         "        }",
         '        EmitDecisionEvidence(eventIdentity, "checkpoint", "checkpoint",',
         f'            "schema_version", "ruletrade-temporal-checkpoint@1", "profile", {_csharp_string(temporal.profile)},',
         f'            "strategy_identity", {_csharp_string(plan.strategy_identity)}, "checkpoint_identity", {_csharp_string(temporal.checkpoint_identity)},',
         f'            "snapshot_id", {_csharp_string(settings.snapshot_id)}, "clock", {_csharp_string(temporal.clock_id)},',
         f'            "operator_versions", {_csharp_string(",".join(f"{key}={value}" for key, value in temporal.operator_versions))}, "cutoff", cutoff, "boundary_index", _boundaryIndex.ToString(CultureInfo.InvariantCulture),',
-        f'            "asset_universe", {_csharp_string(temporal.anchor_symbol)}, "statement_order", {_csharp_string(",".join((*[item.statement_id for item in temporal.events], temporal.policy_statement_id)))},',
+        f'            "asset_universe", {_csharp_string(",".join(temporal.asset_universe or (temporal.anchor_symbol,)))}, "statement_order", {_csharp_string(",".join((*[item.statement_id for item in temporal.events], temporal.policy_statement_id)))},',
         '            "state", string.Join(",", _state.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
         '            "events", string.Join(",", _eventCutoffs.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
         '            "event_truths", string.Join(",", _eventTruth.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
@@ -1004,6 +1105,16 @@ def generate_csharp(
             "                    SetHoldings(_symbols[restoreParts[1]], 1m);",
             '                    EmitDecisionEvidence(temporalCutoff, "checkpoint_import", "portfolio_restore",',
             '                        "target_kind", "asset", "asset", restoreParts[1], "classification", "brokerage_reconstitution");',
+            "                }",
+            '                else if (restoreParts.Length == 2 && restoreParts[0] == "portfolio")',
+            "                {",
+            "                    foreach (var encoded in restoreParts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))",
+            "                    {",
+            "                        var pair = encoded.Split('=');",
+            "                        if (pair.Length == 2 && _symbols.ContainsKey(pair[0]) && decimal.TryParse(pair[1], NumberStyles.Number, CultureInfo.InvariantCulture, out var restoredWeight)) SetHoldings(_symbols[pair[0]], restoredWeight);",
+            "                    }",
+            '                    EmitDecisionEvidence(temporalCutoff, "checkpoint_import", "portfolio_restore",',
+            '                        "target_kind", "portfolio", "weights", restoreParts[1], "classification", "brokerage_reconstitution");',
             "                }",
             "                _portfolioRestorePending = false;",
             "            }",

@@ -1,0 +1,70 @@
+{
+  "schema_version": "ruletrade.dev/composable-capability-matrix/v1",
+  "profile": "composable-semantic-execution@1",
+  "invariant": "A and B are composable only when the combination row is explicitly proven.",
+  "execution_order": [
+    "data_clocks",
+    "value_readiness",
+    "conditions",
+    "events",
+    "state_memory",
+    "policy",
+    "universe",
+    "score_rank",
+    "selection_fallback",
+    "allocation_aggregation",
+    "order_intent",
+    "checkpoint_evidence"
+  ],
+  "combinations": [
+    {
+      "id": "weekly-condition-daily-selection",
+      "canonical_fixture": "composable-semantic-execution",
+      "reference_evaluable": true,
+      "typed_plan_lowerable": true,
+      "generated_csharp_compiles": true,
+      "docker_differential": true
+    },
+    {
+      "id": "daily-event-state-score-allocation",
+      "canonical_fixture": "composable-semantic-execution",
+      "reference_evaluable": true,
+      "typed_plan_lowerable": true,
+      "generated_csharp_compiles": true,
+      "docker_differential": true
+    },
+    {
+      "id": "policy-selection-fallback",
+      "canonical_fixture": "composable-semantic-execution",
+      "reference_evaluable": true,
+      "typed_plan_lowerable": true,
+      "generated_csharp_compiles": true,
+      "docker_differential": true
+    },
+    {
+      "id": "split-independent-investments-aggregate",
+      "canonical_fixture": null,
+      "reference_evaluable": true,
+      "typed_plan_lowerable": true,
+      "generated_csharp_compiles": true,
+      "docker_differential": false,
+      "status": "not_proven_in_docker"
+    },
+    {
+      "id": "checkpointed-integrated-pipeline",
+      "canonical_fixture": "composable-semantic-execution",
+      "reference_evaluable": true,
+      "typed_plan_lowerable": true,
+      "generated_csharp_compiles": true,
+      "docker_differential": false,
+      "status": "not_proven_in_fresh_process"
+    }
+  ],
+  "deferred": [
+    "arbitrary boolean policy guards",
+    "non-State policy overrides",
+    "intraday clocks",
+    "native order-ticket restoration",
+    "Builder authoring"
+  ]
+}

@@ -644,7 +644,9 @@ class _Runtime:
             output_id = statement.legs[0].target.ref or ""
             scores = self.selection_scores.get(output_id, {})
             if not scores:
-                return False
+                # Explicit Selection fallback members intentionally have no
+                # candidate score and remain a resolvable replacement target.
+                return bool(self.selections.get(output_id, ()))
             if statement.method == "inverse_volatility":
                 return all(value > 0 for value in scores.values())
             return any(value > 0 for value in scores.values())
@@ -702,7 +704,14 @@ class _Runtime:
             selected = self.selections.get(output_id, ())
             scores = self.selection_scores.get(output_id, {})
             if statement.method == "proportional_score":
-                raw = {asset: max(Decimal(0), scores.get(asset, Decimal(0))) for asset in selected}
+                # A Selection fallback is an explicit replacement portfolio,
+                # not a scored candidate.  Preserve it with equal positive raw
+                # weights instead of treating missing candidate scores as zero.
+                raw = (
+                    {asset: Decimal(1) for asset in selected}
+                    if selected and not any(asset in scores for asset in selected)
+                    else {asset: max(Decimal(0), scores.get(asset, Decimal(0))) for asset in selected}
+                )
             else:
                 if any(scores.get(asset, Decimal(0)) <= 0 for asset in selected):
                     raise ProgramExecutionError("inverse_volatility_requires_positive_values")
