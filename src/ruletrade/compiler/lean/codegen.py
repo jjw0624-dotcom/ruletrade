@@ -1081,7 +1081,7 @@ def generate_csharp(
             "        {",
             "            _lastTemporalBoundary = Time.Date;",
             '            var temporalCutoff = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);',
-            f"            if ({_csharp_string(temporal.profile)} == \"event-state-multiclock@1\")",
+            f"            if ({_csharp_string(temporal.profile)} == \"event-state-multiclock@1\" || {_csharp_string(temporal.profile)} == \"composable-semantic-execution@1\")",
             "            {",
             '            var temporalWeekKey = ISOWeek.GetYear(Time.Date).ToString(CultureInfo.InvariantCulture) + "-W" + ISOWeek.GetWeekOfYear(Time.Date).ToString("D2", CultureInfo.InvariantCulture);',
             "            if (!string.IsNullOrEmpty(_activeWeekKey) && _activeWeekKey != temporalWeekKey)",
