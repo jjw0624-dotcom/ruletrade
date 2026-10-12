@@ -39,6 +39,7 @@ from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
     CandidateCurrentPriceValue,
     CandidateTrailingReturnValue,
+    ClockedValueV2,
     CanonicalStrategyV2,
     BooleanGroupV2,
     BarsSinceEventValueV2,
@@ -68,6 +69,18 @@ class V2LoweringError(ValueError):
 
 
 def _temporal_value(value: ValueExpressionV2) -> LeanTemporalValue:
+    if isinstance(value, ClockedValueV2) and (
+        isinstance(value.source, DailyValueNode)
+        and value.source.kind == "observe"
+        and value.source.subject_kind == SubjectKind.ASSET
+        and value.source.field == MarketField.CLOSE
+        and value.source.basis == PriceBasis.ADJUSTED
+        and value.source.subject_id
+    ):
+        return LeanTemporalValue(
+            kind="completed_weekly_price", semantic_id=value.semantic_id,
+            asset=value.source.subject_id, clock_id=value.clock_id,
+        )
     if isinstance(value, DailyValueNode) and (
         value.kind == "observe"
         and value.subject_kind == SubjectKind.ASSET
@@ -188,8 +201,18 @@ def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
             raise V2LoweringError(f"unsupported temporal Event occurrence: {event.occurrence}")
         condition = _temporal_condition(event.condition)
         for value in (condition.left, condition.right):
-            if value.kind == "current_price" and value.asset:
+            if value.kind in {"current_price", "completed_weekly_price"} and value.asset:
                 symbols.add(value.asset)
+            if value.kind == "completed_weekly_price":
+                weekly = clocks.get(value.clock_id or "")
+                if weekly is None or weekly.timeframe != "weekly" or weekly.boundary != "close":
+                    raise V2LoweringError(
+                        "multi-clock temporal profile requires a completed weekly close clock"
+                    )
+                if weekly.timezone != clock.timezone or weekly.timezone != "America/New_York":
+                    raise V2LoweringError(
+                        "multi-clock temporal profile requires aligned America/New_York clocks"
+                    )
         lowered_events.append(LeanTemporalEvent(
             semantic_id=event.semantic_id, statement_id=statement.semantic_id,
             clock_id=event.clock_id, trigger=event.trigger,
@@ -225,16 +248,34 @@ def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         subscriptions=(LeanSubscription(anchor),), random_selections=(),
         target_sleeves=(), rebalances=(), monthly_events=(),
         temporal_program=LeanTemporalProgram(
-            profile="event-state-daily@1", semantic_id=strategy.program.semantic_id,
+            profile=(
+                "event-state-multiclock@1"
+                if any(
+                    value.kind == "completed_weekly_price"
+                    for item in lowered_events
+                    for value in (item.condition.left, item.condition.right)
+                )
+                else "event-state-daily@1"
+            ),
+            semantic_id=strategy.program.semantic_id,
             checkpoint_identity=semantic_content_hash({
                 "program": strategy.program.model_dump(mode="json"),
                 "operator_lock": strategy.operator_lock,
-                "execution_profile": "event-state-daily@1",
+                "execution_profile": (
+                    "event-state-multiclock@1"
+                    if any(
+                        value.kind == "completed_weekly_price"
+                        for item in lowered_events
+                        for value in (item.condition.left, item.condition.right)
+                    )
+                    else "event-state-daily@1"
+                ),
             }),
             operator_versions=tuple(sorted(strategy.operator_lock.items())),
             clock_id=lowered_events[0].clock_id, anchor_symbol=anchor,
             initial_state=tuple(sorted(strategy.program.initial_state.items())),
-            events=tuple(lowered_events), policy_targets=policy_targets,
+            events=tuple(lowered_events), policy_statement_id=policy.semantic_id,
+            policy_targets=policy_targets,
         ),
     ))
 

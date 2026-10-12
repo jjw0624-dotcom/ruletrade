@@ -154,12 +154,16 @@ class LeanOnDataExecution:
 class LeanTemporalValue:
     """A scalar used by the bounded temporal/stateful execution profile."""
 
-    kind: Literal["current_price", "literal", "remembered", "bars_since_event"]
+    kind: Literal[
+        "current_price", "completed_weekly_price", "literal", "remembered",
+        "bars_since_event",
+    ]
     semantic_id: str
     asset: str | None = None
     literal: Decimal | None = None
     memory_id: str | None = None
     event_id: str | None = None
+    clock_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -214,7 +218,7 @@ class LeanTemporalProgram:
     later events and the policy observe the new checkpoint at the same close.
     """
 
-    profile: Literal["event-state-daily@1"]
+    profile: Literal["event-state-daily@1", "event-state-multiclock@1"]
     semantic_id: str
     checkpoint_identity: str
     operator_versions: tuple[tuple[str, str], ...]
@@ -222,7 +226,42 @@ class LeanTemporalProgram:
     anchor_symbol: str
     initial_state: tuple[tuple[str, str], ...]
     events: tuple[LeanTemporalEvent, ...]
+    policy_statement_id: str
     policy_targets: tuple[LeanTemporalPolicyTarget, ...]
+
+
+@dataclass(frozen=True)
+class LeanTemporalCheckpoint:
+    """Validated state imported by a fresh generated LEAN algorithm process."""
+
+    schema_version: Literal["ruletrade-temporal-checkpoint@1"]
+    profile: Literal["event-state-daily@1", "event-state-multiclock@1"]
+    strategy_identity: str
+    checkpoint_identity: str
+    snapshot_id: str
+    clock_id: str
+    cutoff: str
+    boundary_index: int
+    operator_versions: tuple[tuple[str, str], ...]
+    asset_universe: tuple[str, ...]
+    statement_order: tuple[str, ...]
+    state: tuple[tuple[str, str], ...]
+    state_entered_cutoffs: tuple[tuple[str, int], ...]
+    event_cutoffs: tuple[tuple[str, int], ...]
+    event_truths: tuple[tuple[str, str], ...]
+    event_counts: tuple[tuple[str, int], ...]
+    memory: tuple[tuple[str, Decimal], ...]
+    memory_capture_cutoffs: tuple[tuple[str, int], ...]
+    memory_value_ids: tuple[tuple[str, str], ...]
+    last_policy_target: str
+    active_week_key: str = ""
+    active_week_close: Decimal | None = None
+    active_week_cutoff: str = ""
+    completed_weekly_close: Decimal | None = None
+    completed_weekly_source_cutoff: str = ""
+    completed_weekly_available_cutoff: str = ""
+    portfolio_target: str = ""
+    integrity_hash: str = ""
 
 
 @dataclass(frozen=True)

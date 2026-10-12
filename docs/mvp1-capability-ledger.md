@@ -89,3 +89,14 @@ Persisted Evidence supplies exact `component_id` and `field_path` provenance for
 Automated coverage must include the production dispatch function used by the rendered control, backend request shape, Canonical replacement, and semantic reprojection—not only construction helpers. The maintained corpus covers one investment, Top-N, Eligibility, fallback, Cooldown, Predicate with and without ELSE, two sleeves, and independent schedules.
 
 Headless tests prove dispatch, atomic state transition, capability gating, semantic identity, point-in-time bounds, draft gating, and reprojection. WSL/browser acceptance remains responsible for actual drag geometry, chart interaction, canvas readability, Inspector overlays, keyboard/delete behavior, and the complete saved Test/Evidence journey.
+
+## Temporal reliability profiles
+
+The backend capability ledger independently tracks representability, reference
+evaluation, lowering, Docker verification, checkpoint export/import,
+fresh-process replay, provider support, and UI authoring. Only
+`event-state-daily@1` and `event-state-multiclock@1` are lowerable and
+Docker-verified. The daily profile additionally has exact semantic replay across
+fresh LEAN processes. Native brokerage/order-ticket restoration, generalized
+Event/State workflows, generalized multi-clock execution, intraday clocks, and
+UI authoring remain NOT PROVEN. See `docs/temporal-stateful-execution.md`.

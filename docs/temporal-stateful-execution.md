@@ -1,51 +1,90 @@
-# Temporal and stateful execution contract
+# Temporal execution reliability and multi-clock contract
 
 `SemanticProgramV2` remains authoritative. `LeanTemporalProgram` is a typed,
-versioned execution plan for the bounded `event-state-daily@1` backend profile;
-it is not an authoring model and it is never reconstructed from a projection.
+versioned backend plan for two bounded profiles; it is not an authoring model.
 
-## Observation-boundary order
+## Reliability capability-gap audit
 
-At each completed daily close the runtime performs these operations in order:
+| Capability | Daily profile | Weekly → daily profile | General family |
+|---|---:|---:|---:|
+| Representable | yes | yes | partial |
+| Reference-evaluable | yes | yes | partial |
+| Backend-lowerable | yes | yes | no |
+| Docker-verified | yes | yes | no |
+| Checkpoint-exportable | yes | yes | no |
+| Checkpoint-restorable | yes | yes | no |
+| Fresh-process replay verified | yes, bounded fixture | not separately claimed | no |
+| Provider-supported | adjusted close | adjusted close | profile-dependent |
+| UI-authorable | no | no | no |
 
-1. Commit the new adjusted-close observation to the daily window. No later
-   observation is visible.
-2. Visit top-level Event statements in persisted Program order.
-3. Evaluate each Event's Values and Condition against the checkpoint produced
-   by all earlier statements at this boundary. Missing Values yield Unknown and
-   cannot trigger an Event.
-4. Apply trigger and occurrence semantics using the prior Event truth/count.
-5. For a triggered Event, record its cutoff, then execute nested statements in
-   their persisted order. A remembered Value captures the current completed
-   observation. A successful transition commits immediately.
-6. Later Events therefore see post-transition State and newly captured memory.
-   They cannot see a future observation. Event-window checks require a strictly
-   later boundary (`current > event cutoff`).
-7. After every Event, evaluate policy. The highest supported State override is
-   considered before the primary target. The winning policy sees post-transition
-   State.
-8. Calculate target exposure. `retain` does not mutate it. Submit an order intent
-   only when the target changes, preventing duplicate intents.
-9. Emit the durable checkpoint observation after policy and order intent. It
-   contains clock/cutoff, State, Event cutoffs, and remembered Values. Actual
-   fills are emitted separately from `OnOrderEvent`.
+`event-state-daily@1` and `event-state-multiclock@1` are the only promoted
+profiles. This does not promote arbitrary Event/State graphs or clocks.
 
-Reference replay accepts explicitly addressed State, Event history, counts,
-State-entry cutoffs, and memory. It rejects unknown addresses and future cutoffs.
-Generated LEAN emits checkpoint evidence, but genuine LEAN process restoration
-from that checkpoint is **not proven** and is not advertised.
+## Boundary order
 
-## Capability gap matrix
+At each completed daily bar the runtime:
 
-| Family | Representable | Reference | LEAN lowerable | Docker differential | Provider | Builder authoring |
-|---|---:|---:|---:|---:|---:|---:|
-| `event-state-daily@1` synthetic profile | yes | yes | yes | yes | adjusted close | no |
-| General Event/State/Memory | yes | yes | no | no | profile-dependent | no |
-| Weekly completed context → daily trigger | yes | yes | no | no | adjusted close | no |
-| Reference checkpoint replay | yes | yes | n/a | n/a | synthetic | no |
-| Genuine LEAN checkpoint restore | n/a | n/a | no | no | n/a | no |
-| Intraday/session lifecycle | partial | no | no | no | unavailable | no |
+1. commits the adjusted close;
+2. when the ISO week changes, exposes the prior week's last observed trading
+   close and records both its source cutoff and the current availability cutoff;
+3. visits Events in persisted statement order;
+4. evaluates T/F/U conditions against only committed observations and the
+   checkpoint produced by earlier statements at the same boundary;
+5. records Event occurrence, memory captures, and State transitions immediately;
+6. applies policy in `guard → priority override → primary → fallback → retain`
+   order as supported by Program Core;
+7. submits a semantic order intent only when the target changes; and
+8. emits a complete checkpoint after policy evaluation.
 
-The synthetic thresholds and windows are fixture assumptions, not claims about
-the natural-language research corpus. The expanded corpus remains a collection
-of fragments unless a case has its own complete formalization.
+An incomplete or missing weekly observation is Unknown, never zero or False.
+The first week in a fixture has no completed weekly value. Holiday-shortened
+weeks use their last actual observed trading bar. Future rows cannot change an
+earlier cutoff.
+
+## Checkpoint schema and integrity
+
+`ruletrade-temporal-checkpoint@1` contains:
+
+- strategy semantic identity and execution-profile identity;
+- snapshot identity, asset universe, statement order, operator versions;
+- clock, cutoff, and monotonic boundary index;
+- State plus State-entry cutoffs;
+- Event cutoffs, truth values, and occurrence counts;
+- remembered decimal Values, capture cutoffs, and Value semantic identities;
+- weekly in-progress and last-completed aggregates;
+- last semantic policy target and intended portfolio target; and
+- a SHA-256 hash over canonical JSON excluding the hash field.
+
+Import rejects incompatible schema/profile/operator versions, a mismatched
+semantic hash or snapshot, asset/statement-order mismatch, future checkpoints,
+unknown State/Event/Memory addresses, incomplete remembered Values, invalid
+truth values, and a corrupted integrity hash. Technical provenance remains in
+the checkpoint/import observations.
+
+## Fresh-process proof and brokerage boundary
+
+`make check-lean-temporal-reliability` runs one continuous LEAN backtest and a
+four-process interrupted chain. Each process is a new Docker LEAN algorithm.
+The host exports the prior process's structured checkpoint to a sealed JSON
+file; the next generated algorithm validates and imports it. Cut points cover
+pre-Event, post-transition/active-window, and post-fill states. All semantic
+boundaries, Event/State/memory results, policies, targets, and checkpoints must
+match the continuous run exactly.
+
+LEAN brokerage internals and order tickets are not serializable through this
+bounded compiler harness. After a post-fill restart, the fresh account restores
+the intended target with an explicitly observed `brokerage_reconstitution`
+order. That order is not counted as a new semantic intent. Native brokerage
+state/order-ticket restoration remains **NOT PROVEN**.
+
+## Evidence and exclusions
+
+The common `RULETRADE_EVIDENCE_V2` protocol includes checkpoint export/import,
+restoration identity, weekly completion/availability, daily cutoff, Event/State
+trace, policy result, target, order intent, portfolio reconstitution, and fills.
+Absent evidence is a failure.
+
+Still **NOT PROVEN**: arbitrary Event/State workflow graphs, arbitrary
+multi-clock composition, intraday/session execution, native brokerage restore,
+live trading, broad provider coverage, and Builder authoring. The Builder UI is
+unchanged.

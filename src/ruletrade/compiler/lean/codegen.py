@@ -13,6 +13,7 @@ from ruletrade.compiler.lean.plan import (
     LeanRandomSelection,
     LeanSnapshotAllocation,
     LeanTemporalCondition,
+    LeanTemporalCheckpoint,
     LeanTemporalEvent,
     LeanTemporalValue,
     LeanValue,
@@ -26,6 +27,8 @@ class CSharpGenerationSettings:
     start_date: date = date(2024, 1, 1)
     end_date: date = date(2024, 12, 31)
     initial_cash: Decimal = Decimal("100000")
+    snapshot_id: str = "unspecified"
+    temporal_checkpoint: LeanTemporalCheckpoint | None = None
 
 
 def _csharp_string(value: str) -> str:
@@ -189,6 +192,8 @@ def _temporal_value_csharp(value: LeanTemporalValue, variable: str) -> str:
     if value.kind == "bars_since_event":
         event_id = _csharp_string(value.event_id or "")
         return f"_eventCutoffs.TryGetValue({event_id}, out var {variable}EventValueCutoff) ? (decimal?)(_boundaryIndex - {variable}EventValueCutoff) : null"
+    if value.kind == "completed_weekly_price":
+        return "_completedWeeklyClose"
     raise ValueError(f"unsupported temporal Value: {value.kind}")
 
 
@@ -215,7 +220,9 @@ def _temporal_condition_lines(condition: LeanTemporalCondition, prefix: str) -> 
     return tuple(lines)
 
 
-def _temporal_method_lines(plan: LeanPlan) -> tuple[str, ...]:
+def _temporal_method_lines(
+    plan: LeanPlan, settings: CSharpGenerationSettings,
+) -> tuple[str, ...]:
     temporal = plan.temporal_program
     if temporal is None:
         return ()
@@ -281,6 +288,8 @@ def _temporal_method_lines(plan: LeanPlan) -> tuple[str, ...]:
                     f"            if ({action_prefix}Value.HasValue)",
                     "            {",
                     f"                _memory[{_csharp_string(action.memory_id or '')}] = {action_prefix}Value.Value;",
+                    f"                _memoryCaptureCutoffs[{_csharp_string(action.memory_id or '')}] = _boundaryIndex;",
+                    f"                _memoryValueIds[{_csharp_string(action.memory_id or '')}] = {_csharp_string(action.value.semantic_id)};",
                     '                EmitDecisionEvidence(eventIdentity, "memory_capture", "remember",',
                     f'                    "statement_id", {_csharp_string(action.semantic_id)}, "memory_id", {_csharp_string(action.memory_id or "")},',
                     f'                    "value_id", {_csharp_string(action.value.semantic_id)}, "capture_cutoff", cutoff,',
@@ -300,7 +309,11 @@ def _temporal_method_lines(plan: LeanPlan) -> tuple[str, ...]:
                 lines.extend((
                     f"            var {action_prefix}PreState = _state.TryGetValue({key}, out var {action_prefix}StateValue) ? {action_prefix}StateValue : \"\";",
                     f"            var {action_prefix}Selected = {action_prefix}PreState == {before};",
-                    f"            if ({action_prefix}Selected) _state[{key}] = {after};",
+                    f"            if ({action_prefix}Selected)",
+                    "            {",
+                    f"                _state[{key}] = {after};",
+                    f"                _stateEnteredCutoffs[{key}] = _boundaryIndex;",
+                    "            }",
                     '            EmitDecisionEvidence(eventIdentity, "state_transition", "transition",',
                     f'                "statement_id", {_csharp_string(action.semantic_id)}, "state_key", {key},',
                     f'                "pre_state", {action_prefix}PreState, "selected", {action_prefix}Selected ? "true" : "false",',
@@ -339,11 +352,23 @@ def _temporal_method_lines(plan: LeanPlan) -> tuple[str, ...]:
         '            _lastPolicyTarget = policyTarget + "|" + policyAsset;',
         "        }",
         '        EmitDecisionEvidence(eventIdentity, "checkpoint", "checkpoint",',
-        f'            "profile", "event-state-daily@1", "checkpoint_identity", {_csharp_string(temporal.checkpoint_identity)},',
-        f'            "operator_versions", {_csharp_string(",".join(f"{key}={value}" for key, value in temporal.operator_versions))}, "cutoff", cutoff,',
+        f'            "schema_version", "ruletrade-temporal-checkpoint@1", "profile", {_csharp_string(temporal.profile)},',
+        f'            "strategy_identity", {_csharp_string(plan.strategy_identity)}, "checkpoint_identity", {_csharp_string(temporal.checkpoint_identity)},',
+        f'            "snapshot_id", {_csharp_string(settings.snapshot_id)}, "clock", {_csharp_string(temporal.clock_id)},',
+        f'            "operator_versions", {_csharp_string(",".join(f"{key}={value}" for key, value in temporal.operator_versions))}, "cutoff", cutoff, "boundary_index", _boundaryIndex.ToString(CultureInfo.InvariantCulture),',
+        f'            "asset_universe", {_csharp_string(temporal.anchor_symbol)}, "statement_order", {_csharp_string(",".join((*[item.statement_id for item in temporal.events], temporal.policy_statement_id)))},',
         '            "state", string.Join(",", _state.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
         '            "events", string.Join(",", _eventCutoffs.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
-        '            "memory", string.Join(",", _memory.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
+        '            "event_truths", string.Join(",", _eventTruth.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
+        '            "event_counts", string.Join(",", _eventCounts.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
+        '            "state_entered_cutoffs", string.Join(",", _stateEnteredCutoffs.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
+        '            "memory", string.Join(",", _memory.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))),',
+        '            "memory_capture_cutoffs", string.Join(",", _memoryCaptureCutoffs.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
+        '            "memory_value_ids", string.Join(",", _memoryValueIds.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
+        '            "last_policy_target", _lastPolicyTarget, "portfolio_target", _lastPolicyTarget,',
+        '            "active_week_key", _activeWeekKey, "active_week_close", _activeWeekClose.HasValue ? _activeWeekClose.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+        '            "active_week_cutoff", _activeWeekCutoff, "completed_weekly_close", _completedWeeklyClose.HasValue ? _completedWeeklyClose.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
+        '            "completed_weekly_source_cutoff", _completedWeeklySourceCutoff, "completed_weekly_available_cutoff", _completedWeeklyAvailableCutoff);',
         "    }",
         "",
         "    public override void OnOrderEvent(OrderEvent orderEvent)",
@@ -648,8 +673,19 @@ def generate_csharp(
             "    private readonly Dictionary<string, int> _eventCutoffs = new Dictionary<string, int>();",
             "    private readonly Dictionary<string, string> _eventTruth = new Dictionary<string, string>();",
             "    private readonly Dictionary<string, int> _eventCounts = new Dictionary<string, int>();",
+            "    private readonly Dictionary<string, int> _stateEnteredCutoffs = new Dictionary<string, int>();",
+            "    private readonly Dictionary<string, int> _memoryCaptureCutoffs = new Dictionary<string, int>();",
+            "    private readonly Dictionary<string, string> _memoryValueIds = new Dictionary<string, string>();",
             "    private string _lastPolicyTarget = \"\";",
             "    private DateTime _lastTemporalBoundary = DateTime.MinValue;",
+            "    private string _activeWeekKey = \"\";",
+            "    private decimal? _activeWeekClose;",
+            "    private string _activeWeekCutoff = \"\";",
+            "    private decimal? _completedWeeklyClose;",
+            "    private string _completedWeeklySourceCutoff = \"\";",
+            "    private string _completedWeeklyAvailableCutoff = \"\";",
+            "    private string _restoredPortfolioTarget = \"\";",
+            "    private bool _portfolioRestorePending;",
         ))
     for index in range(len(scheduled_events)):
         lines.append(f"    private string _pendingEvent{index};")
@@ -717,6 +753,46 @@ def generate_csharp(
             lines.append(
                 f"        _state[{_csharp_string(state_key)}] = {_csharp_string(state_value)};"
             )
+        checkpoint = settings.temporal_checkpoint
+        if checkpoint is not None:
+            lines.extend((
+                "        _state.Clear();",
+                "        _eventCutoffs.Clear();",
+                "        _eventTruth.Clear();",
+                "        _eventCounts.Clear();",
+                "        _memory.Clear();",
+            ))
+            for key, value in checkpoint.state:
+                lines.append(f"        _state[{_csharp_string(key)}] = {_csharp_string(value)};")
+            for key, value in checkpoint.state_entered_cutoffs:
+                lines.append(f"        _stateEnteredCutoffs[{_csharp_string(key)}] = {value};")
+            for key, value in checkpoint.event_cutoffs:
+                lines.append(f"        _eventCutoffs[{_csharp_string(key)}] = {value};")
+            for key, value in checkpoint.event_truths:
+                lines.append(f"        _eventTruth[{_csharp_string(key)}] = {_csharp_string(value)};")
+            for key, value in checkpoint.event_counts:
+                lines.append(f"        _eventCounts[{_csharp_string(key)}] = {value};")
+            for key, value in checkpoint.memory:
+                lines.append(f"        _memory[{_csharp_string(key)}] = {_decimal_literal(value)};")
+            for key, value in checkpoint.memory_capture_cutoffs:
+                lines.append(f"        _memoryCaptureCutoffs[{_csharp_string(key)}] = {value};")
+            for key, value in checkpoint.memory_value_ids:
+                lines.append(f"        _memoryValueIds[{_csharp_string(key)}] = {_csharp_string(value)};")
+            lines.extend((
+                f"        _boundaryIndex = {checkpoint.boundary_index};",
+                f"        _lastPolicyTarget = {_csharp_string(checkpoint.last_policy_target)};",
+                f"        _activeWeekKey = {_csharp_string(checkpoint.active_week_key)};",
+                f"        _activeWeekClose = {(('(decimal?)' + _decimal_literal(checkpoint.active_week_close)) if checkpoint.active_week_close is not None else '(decimal?)null')};",
+                f"        _activeWeekCutoff = {_csharp_string(checkpoint.active_week_cutoff)};",
+                f"        _completedWeeklyClose = {(('(decimal?)' + _decimal_literal(checkpoint.completed_weekly_close)) if checkpoint.completed_weekly_close is not None else '(decimal?)null')};",
+                f"        _completedWeeklySourceCutoff = {_csharp_string(checkpoint.completed_weekly_source_cutoff)};",
+                f"        _completedWeeklyAvailableCutoff = {_csharp_string(checkpoint.completed_weekly_available_cutoff)};",
+                f"        _restoredPortfolioTarget = {_csharp_string(checkpoint.portfolio_target)};",
+                "        _portfolioRestorePending = !string.IsNullOrEmpty(_restoredPortfolioTarget) && !_restoredPortfolioTarget.StartsWith(\"cash|\", StringComparison.Ordinal);",
+                '        EmitDecisionEvidence(' + _csharp_string(checkpoint.cutoff) + ', "checkpoint_import", "checkpoint_import",',
+                f'            "schema_version", {_csharp_string(checkpoint.schema_version)}, "integrity_hash", {_csharp_string(checkpoint.integrity_hash)},',
+                f'            "restoration_identity", {_csharp_string(checkpoint.checkpoint_identity + ":" + checkpoint.cutoff)}, "source_cutoff", {_csharp_string(checkpoint.cutoff)});',
+            ))
     for index, event in enumerate(scheduled_events):
         anchor = _csharp_string(event.anchor_symbol)
         date_rule = (
@@ -903,7 +979,35 @@ def generate_csharp(
             f"        if (_lastTemporalBoundary != Time.Date && slice.Bars.ContainsKey(_symbols[{anchor}]))",
             "        {",
             "            _lastTemporalBoundary = Time.Date;",
-            '            ExecuteTemporalBoundary(Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));',
+            '            var temporalCutoff = Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);',
+            f"            if ({_csharp_string(temporal.profile)} == \"event-state-multiclock@1\")",
+            "            {",
+            '            var temporalWeekKey = ISOWeek.GetYear(Time.Date).ToString(CultureInfo.InvariantCulture) + "-W" + ISOWeek.GetWeekOfYear(Time.Date).ToString("D2", CultureInfo.InvariantCulture);',
+            "            if (!string.IsNullOrEmpty(_activeWeekKey) && _activeWeekKey != temporalWeekKey)",
+            "            {",
+            "                _completedWeeklyClose = _activeWeekClose;",
+            "                _completedWeeklySourceCutoff = _activeWeekCutoff;",
+            "                _completedWeeklyAvailableCutoff = temporalCutoff;",
+            '                EmitDecisionEvidence(temporalCutoff, "observation", "weekly_completion",',
+            '                    "weekly_source_cutoff", _completedWeeklySourceCutoff, "available_cutoff", temporalCutoff,',
+            '                    "value", _completedWeeklyClose.HasValue ? _completedWeeklyClose.Value.ToString("G29", CultureInfo.InvariantCulture) : "unknown");',
+            "            }",
+            "            _activeWeekKey = temporalWeekKey;",
+            f"            _activeWeekClose = CurrentPrice({anchor});",
+            "            _activeWeekCutoff = temporalCutoff;",
+            "            }",
+            "            if (_portfolioRestorePending)",
+            "            {",
+            '                var restoreParts = _restoredPortfolioTarget.Split(\'|\');',
+            '                if (restoreParts.Length == 2 && restoreParts[0] == "asset" && _symbols.ContainsKey(restoreParts[1]))',
+            "                {",
+            "                    SetHoldings(_symbols[restoreParts[1]], 1m);",
+            '                    EmitDecisionEvidence(temporalCutoff, "checkpoint_import", "portfolio_restore",',
+            '                        "target_kind", "asset", "asset", restoreParts[1], "classification", "brokerage_reconstitution");',
+            "                }",
+            "                _portfolioRestorePending = false;",
+            "            }",
+            "            ExecuteTemporalBoundary(temporalCutoff);",
             "        }",
         ))
     if plan.target_snapshots:
@@ -1691,7 +1795,7 @@ def generate_csharp(
                 )
         lines.extend(("    }", ""))
 
-    lines.extend(_temporal_method_lines(plan))
+    lines.extend(_temporal_method_lines(plan, settings))
     lines.append("}")
     if plan.random_selections:
         lines.extend(("", _random_helper_source(), ""))

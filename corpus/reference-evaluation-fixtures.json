@@ -66,6 +66,16 @@
       "provenance": ["breakout-event-statement", "remember-breakout", "arm-breakout", "retest-event-statement", "accept-retest", "confirmation-event-statement", "confirm-entry", "temporal-policy"]
     },
     {
+      "corpus_id": "synthetic-temporal-multiclock-state-machine", "cutoff": "2024-01-10",
+      "fixture_id": "lean-multiclock-data@1",
+      "synthetic_assumptions": {"weekly_completion": "prior ISO week's last observed trading close becomes available on the next week's first observed daily bar", "daily_cutoff": "completed adjusted close only", "timezone": "LEAN US equity exchange calendar"},
+      "weekly_context": {"source_cutoff": "2024-01-05", "available_cutoff": "2024-01-08", "value": "14"},
+      "event_cutoffs": {"breakout-event": 4, "retest-event": 5, "confirmation-event": 6},
+      "state_after": {"phase": "confirmed"}, "remembered_values": {"breakout-level": "13"},
+      "targets": {"QQQ": "1"},
+      "provenance": ["completed-weekly-close", "breakout-event-statement", "remember-breakout", "arm-breakout", "accept-retest", "confirm-entry", "temporal-policy"]
+    },
+    {
       "corpus_id": "higher-timeframe-context", "cutoff": "2026-01-12",
       "value_observed_at": "2026-01-09", "observations": {"weekly-close-value": "14"},
       "condition_truth": {"weekly-above-level": "true"}, "remembered_values": {"weekly-context": "14"},

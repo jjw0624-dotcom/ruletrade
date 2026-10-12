@@ -8,7 +8,7 @@ from zipfile import ZipFile
 
 from ruletrade.backtests.normalization import normalize_lean_result
 from ruletrade.compiler.lean.e2e import validate_lean_completion, validate_zero_failed_data_requests
-from ruletrade.strategy.v2.corpus import temporal_breakout_strategy
+from ruletrade.strategy.v2.corpus import temporal_breakout_strategy, temporal_multiclock_strategy
 from ruletrade.strategy.v2.daily_values import DailyMarketSnapshot
 from ruletrade.strategy.v2.program_execution import ProgramExecutionResult, execute_program_v2
 from ruletrade.strategy.v2.semantic_types import Clock
@@ -23,6 +23,7 @@ class TemporalDifferentialResult:
     policy_decisions: int
     order_intents: int
     actual_orders: int
+    weekly_completions: int = 0
 
 
 def parse_temporal_evidence(log_text: str) -> tuple[dict[str, str], ...]:
@@ -40,13 +41,16 @@ def parse_temporal_evidence(log_text: str) -> tuple[dict[str, str], ...]:
             fields[unquote(key)] = unquote(value)
         if fields.get("kind") in {
             "boundary", "event", "remember", "transition", "policy_decision",
-            "target", "checkpoint", "order",
+            "target", "checkpoint", "order", "weekly_completion",
+            "checkpoint_import", "portfolio_restore",
         }:
             records.append(fields)
     return tuple(records)
 
 
-def load_temporal_snapshot(fixture: Path) -> DailyMarketSnapshot:
+def load_temporal_snapshot(
+    fixture: Path, *, snapshot_id: str = "lean-temporal-data@1",
+) -> DailyMarketSnapshot:
     archive_path = fixture / "equity" / "usa" / "daily" / "qqq.zip"
     with ZipFile(archive_path) as archive:
         rows = [
@@ -55,15 +59,17 @@ def load_temporal_snapshot(fixture: Path) -> DailyMarketSnapshot:
             if row[:8] >= "20240102"
         ]
     return DailyMarketSnapshot(
-        snapshot_id="lean-temporal-data@1", clock=Clock(id="daily-close"),
+        snapshot_id=snapshot_id, clock=Clock(id="daily-close"),
         dates=tuple(f"{row[0][:4]}-{row[0][4:6]}-{row[0][6:8]}" for row in rows),
         domains={"temporal-group": ("QQQ",)},
         series={"QQQ": {"close:adjusted": tuple(Decimal(row[4]) / Decimal(10_000) for row in rows)}},
     )
 
 
-def reference_temporal_trace(snapshot: DailyMarketSnapshot) -> tuple[ProgramExecutionResult, ...]:
-    strategy = temporal_breakout_strategy()
+def reference_temporal_trace(
+    snapshot: DailyMarketSnapshot, *, profile: str = "daily",
+) -> tuple[ProgramExecutionResult, ...]:
+    strategy = temporal_multiclock_strategy() if profile == "multiclock" else temporal_breakout_strategy()
     assert strategy.program is not None
     prior: ProgramExecutionResult | None = None
     results: list[ProgramExecutionResult] = []
@@ -90,12 +96,30 @@ def verify_temporal_e2e(
     log_text: str,
     result_payload: object,
     fixture: Path,
+    *,
+    profile: str = "daily",
 ) -> TemporalDifferentialResult:
     validate_lean_completion(log_text)
     validate_zero_failed_data_requests(log_text)
     records = parse_temporal_evidence(log_text)
-    snapshot = load_temporal_snapshot(fixture)
-    reference = reference_temporal_trace(snapshot)
+    snapshot_id = "lean-multiclock-data@1" if profile == "multiclock" else "lean-temporal-data@1"
+    snapshot = load_temporal_snapshot(fixture, snapshot_id=snapshot_id)
+    boundary_cutoffs = [item["cutoff"] for item in records if item.get("kind") == "boundary"]
+    if not boundary_cutoffs:
+        raise ValueError("temporal LEAN execution emitted no decision boundaries")
+    final_cutoff = max(boundary_cutoffs)
+    length = max(index for index, item in enumerate(snapshot.dates) if item <= final_cutoff) + 1
+    snapshot = DailyMarketSnapshot(
+        snapshot_id=snapshot.snapshot_id,
+        clock=snapshot.clock,
+        dates=snapshot.dates[:length],
+        domains=snapshot.domains,
+        series={
+            symbol: {field: values[:length] for field, values in fields.items()}
+            for symbol, fields in snapshot.series.items()
+        },
+    )
+    reference = reference_temporal_trace(snapshot, profile=profile)
     by_cutoff: dict[str, list[dict[str, str]]] = {}
     for record in records:
         cutoff = record.get("cutoff") or record.get("session", "").removeprefix("daily-close:")
@@ -165,7 +189,8 @@ def verify_temporal_e2e(
         checkpoints = [item for item in observed if item.get("kind") == "checkpoint"]
         if len(checkpoints) != 1:
             raise ValueError(f"checkpoint evidence mismatch at {expected.cutoff}")
-        if not checkpoints[0].get("checkpoint_identity") or checkpoints[0].get("profile") != "event-state-daily@1":
+        expected_profile = "event-state-multiclock@1" if profile == "multiclock" else "event-state-daily@1"
+        if not checkpoints[0].get("checkpoint_identity") or checkpoints[0].get("profile") != expected_profile:
             raise ValueError(f"checkpoint identity mismatch at {expected.cutoff}")
         if not checkpoints[0].get("operator_versions"):
             raise ValueError(f"checkpoint operator versions missing at {expected.cutoff}")
@@ -188,9 +213,17 @@ def verify_temporal_e2e(
     )
     if min(item.get("session", "") for item in order_records) < confirmation_cutoff:
         raise ValueError("temporal actual order preceded the confirmed policy decision")
+    weekly = [item for item in records if item.get("kind") == "weekly_completion"]
+    if profile == "multiclock":
+        if not weekly:
+            raise ValueError("multi-clock LEAN execution emitted no completed weekly observations")
+        for item in weekly:
+            if item.get("weekly_source_cutoff", "") >= item.get("available_cutoff", ""):
+                raise ValueError("weekly context was available before its completed source cutoff")
     return TemporalDifferentialResult(
         boundaries=len(reference), triggered_events=triggered_events,
         transitions=transitions, memory_captures=captures,
         policy_decisions=policies, order_intents=intents,
         actual_orders=len(order_records),
+        weekly_completions=len(weekly),
     )
