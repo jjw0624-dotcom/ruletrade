@@ -82,7 +82,15 @@
       "formalization_status": "formalized", "fixture": "temporal-breakout-state-machine", "dependencies": ["adjusted_close", "daily-close", "event-checkpoint", "state:phase", "memory:breakout-level"],
       "expected_behavior": {"cutoff_index": 4, "fixture_id": "lean-temporal-data@1", "event_order": ["breakout-event", "retest-event", "confirmation-event", "expiry-event"], "state_trace": ["idle", "idle", "broken", "retested", "confirmed"], "remembered_values": {"breakout-level": "13"}, "targets": {"QQQ": "1"}},
       "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": true, "docker_verified": true, "provider_supported": true, "ui_authorable": false},
-      "limitation": "Docker verification is limited to event-state-daily@1; generalized Event/State, weekly/daily lowering, and LEAN checkpoint restore are not claimed."
+      "limitation": "Docker verification is limited to event-state-daily@1. Fresh-process replay is verified for semantic state; post-fill brokerage state is reconstituted by an explicitly classified target order rather than restored as native LEAN brokerage state."
+    },
+    {
+      "id": "synthetic-temporal-multiclock-state-machine", "family": "multi-clock-event-state", "title": "Completed weekly context with daily confirmation",
+      "provenance": {"source_kind": "architecture_stress", "source_reference": "synthetic execution profile:event-state-multiclock@1", "source_phrase": "Synthetic formalization; no source strategy attribution.", "interpretation": "The last actual trading close of a prior week becomes available on the first observed daily bar of the next ISO week, arms State, and daily retest/confirmation Events subsequently determine exposure."},
+      "formalization_status": "formalized", "fixture": "temporal-multiclock-state-machine", "dependencies": ["adjusted_close", "daily-close", "weekly-close", "event-checkpoint", "state:phase", "memory:breakout-level"],
+      "expected_behavior": {"cutoff_index": 6, "fixture_id": "lean-multiclock-data@1", "weekly_source_cutoff": "2024-01-05", "weekly_available_cutoff": "2024-01-08", "state_trace": ["idle", "idle", "idle", "idle", "broken", "retested", "confirmed"], "remembered_values": {"breakout-level": "13"}, "targets": {"QQQ": "1"}},
+      "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": true, "docker_verified": true, "provider_supported": true, "ui_authorable": false},
+      "limitation": "Docker verification is limited to completed weekly adjusted close feeding the bounded daily Event/State profile; arbitrary clock graphs and intraday/session clocks remain unsupported."
     },
 
     {"id": "weakest-positive-momentum", "family": "selection", "title": "Weakest positive momentum", "provenance": {"source_kind": "research_pattern", "source_reference": "strategy-corpus-v1#2", "source_phrase": "Choose the weakest assets that still have positive momentum."}, "formalization_status": "partial", "dependencies": ["adjusted_close"], "expected_behavior": {}, "capabilities": {"representable": true, "reference_evaluable": true, "backend_lowerable": true, "docker_verified": false, "provider_supported": true, "ui_authorable": true}, "limitation": "No dedicated golden fixture in this corpus revision."},

@@ -545,6 +545,23 @@ class _Runtime:
         )
 
     def last_completed_clock_cutoff(self, clock_id: str) -> int | None:
+        clock = next(item for item in self.program.clocks if item.id == clock_id)
+        if clock.timeframe == "weekly":
+            # A weekly close becomes usable only when a later observed trading
+            # day proves that the prior trading week is complete.  This treats
+            # holiday-shortened weeks correctly and never peeks at future rows.
+            current = date.fromisoformat(self.snapshot.dates[self.cutoff])
+            if (
+                clock.terminal_boundary_policy == "fixture_end_is_boundary"
+                and self.cutoff == len(self.snapshot.dates) - 1
+            ):
+                return self.cutoff
+            current_week = current.isocalendar()[:2]
+            for index in range(self.cutoff - 1, -1, -1):
+                observed = date.fromisoformat(self.snapshot.dates[index])
+                if observed.isocalendar()[:2] != current_week:
+                    return index
+            return None
         for index in range(self.cutoff, -1, -1):
             if self._clock_due_at(clock_id, index, allow_terminal=index == self.cutoff):
                 return index

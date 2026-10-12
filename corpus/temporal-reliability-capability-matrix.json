@@ -1,0 +1,47 @@
+{
+  "schema_version": "ruletrade.dev/temporal-reliability-capabilities/v1",
+  "profiles": [
+    {
+      "profile": "event-state-daily@1",
+      "representable": "PASS",
+      "reference_evaluable": "PASS",
+      "backend_lowerable": "PASS",
+      "docker_verified": "PASS",
+      "checkpoint_exportable": "PASS",
+      "checkpoint_restorable": "PASS",
+      "restart_replay_verified": "PASS",
+      "provider_supported": "PASS:adjusted_close",
+      "ui_authorable": "UNSUPPORTED",
+      "evidence": ["make check-lean-temporal-stateful", "make check-lean-temporal-reliability"],
+      "limitations": ["native LEAN brokerage state and order tickets are not restored", "post-fill fresh-account exposure uses classified brokerage reconstitution"]
+    },
+    {
+      "profile": "event-state-multiclock@1",
+      "representable": "PASS",
+      "reference_evaluable": "PASS",
+      "backend_lowerable": "PASS",
+      "docker_verified": "PASS",
+      "checkpoint_exportable": "PASS",
+      "checkpoint_restorable": "PASS",
+      "restart_replay_verified": "NOT_PROVEN",
+      "provider_supported": "PASS:adjusted_close",
+      "ui_authorable": "UNSUPPORTED",
+      "evidence": ["make check-lean-temporal-multiclock"],
+      "limitations": ["one prior-completed-weekly adjusted close feeding daily Event/State only", "arbitrary clock graphs are unsupported"]
+    },
+    {
+      "profile": "general-event-state-multiclock",
+      "representable": "PARTIAL",
+      "reference_evaluable": "PARTIAL",
+      "backend_lowerable": "UNSUPPORTED",
+      "docker_verified": "NOT_PROVEN",
+      "checkpoint_exportable": "UNSUPPORTED",
+      "checkpoint_restorable": "UNSUPPORTED",
+      "restart_replay_verified": "NOT_PROVEN",
+      "provider_supported": "PROFILE_DEPENDENT",
+      "ui_authorable": "UNSUPPORTED",
+      "evidence": [],
+      "limitations": ["no generalized workflow graph, arbitrary State machine, intraday clock, or broad provider contract"]
+    }
+  ]
+}

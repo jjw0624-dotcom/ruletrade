@@ -165,6 +165,18 @@ def temporal_reference_snapshot() -> DailyMarketSnapshot:
     )
 
 
+def temporal_multiclock_reference_snapshot() -> DailyMarketSnapshot:
+    return DailyMarketSnapshot(
+        snapshot_id="lean-multiclock-data@1", clock=Clock(id="daily-close"),
+        dates=("2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05",
+               "2024-01-08", "2024-01-09", "2024-01-10"),
+        domains={"temporal-group": ("QQQ",)},
+        series={"QQQ": {"close:adjusted": tuple(map(
+            Decimal, ("10", "11", "13", "14", "13", "12", "15"),
+        ))}},
+    )
+
+
 def _asset(symbol: str, semantic_id: str) -> DailyValueNode:
     return DailyValueNode(
         semantic_id=semantic_id,
@@ -672,6 +684,49 @@ def temporal_breakout_strategy() -> CanonicalStrategyV2:
     )
 
 
+def temporal_multiclock_program() -> SemanticProgramV2:
+    """Bounded weekly-context → daily Event/State composition profile."""
+
+    base = temporal_breakout_program()
+    breakout = base.statements[0]
+    assert isinstance(breakout, EventStatementV2)
+    condition = breakout.event.condition
+    assert isinstance(condition, ComparisonV2)
+    assert isinstance(condition.left, DailyValueNode)
+    weekly_value = ClockedValueV2(
+        semantic_id="completed-weekly-close",
+        source=condition.left,
+        clock_id="weekly-close",
+    )
+    weekly_condition = condition.model_copy(update={"left": weekly_value})
+    weekly_breakout = breakout.model_copy(update={
+        "event": breakout.event.model_copy(update={"condition": weekly_condition}),
+    })
+    return base.model_copy(update={
+        "clocks": (
+            ProgramClockV2(
+                id="daily-close", timeframe="daily", timezone="America/New_York",
+            ),
+            ProgramClockV2(
+                id="weekly-close", timeframe="weekly", timezone="America/New_York",
+            ),
+        ),
+        "statements": (weekly_breakout, *base.statements[1:]),
+    })
+
+
+def temporal_multiclock_strategy() -> CanonicalStrategyV2:
+    base = temporal_breakout_strategy()
+    return base.model_copy(update={
+        "metadata": StrategyMetadata(name="Synthetic weekly context and daily state machine"),
+        "operator_lock": {
+            **base.operator_lock,
+            "program.clocked_value": "1",
+        },
+        "program": temporal_multiclock_program(),
+    })
+
+
 PROGRAM_FIXTURES = {
     "strongest-etfs": strongest_etfs_program,
     "price-over-sma": price_over_sma_program,
@@ -683,6 +738,7 @@ PROGRAM_FIXTURES = {
     "policy-override": policy_override_program,
     "weighted-momentum-allocation": weighted_momentum_allocation_program,
     "temporal-breakout-state-machine": temporal_breakout_program,
+    "temporal-multiclock-state-machine": temporal_multiclock_program,
 }
 
 
@@ -700,12 +756,17 @@ def evaluate_corpus_entry(
 ) -> ProgramExecutionResult:
     if not entry.capabilities.reference_evaluable:
         raise ValueError(f"corpus entry {entry.id!r} is not reference-evaluable")
+    temporal_fixtures = {
+        "temporal-breakout-state-machine", "temporal-multiclock-state-machine",
+    }
     resolved_snapshot = snapshot or (
         temporal_reference_snapshot()
         if entry.fixture == "temporal-breakout-state-machine"
+        else temporal_multiclock_reference_snapshot()
+        if entry.fixture == "temporal-multiclock-state-machine"
         else reference_snapshot()
     )
-    if entry.fixture == "temporal-breakout-state-machine":
+    if entry.fixture in temporal_fixtures:
         prior = None
         final = None
         last = cutoff_index if cutoff_index is not None else len(resolved_snapshot.dates) - 1

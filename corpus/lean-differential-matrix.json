@@ -86,7 +86,20 @@
       "tolerance": {"discrete_state_event_policy": "exact", "remembered_value": "exact Decimal", "target_weight": "exact Decimal", "fill_quantity": "non-zero actual LEAN fill"},
       "ci_command": "make check-lean-temporal-stateful",
       "status": "docker_verified",
-      "not_proven": ["general Event/State lowering", "weekly/daily LEAN alignment", "genuine LEAN checkpoint restore"]
+      "restart_replay": {"command": "make check-lean-temporal-reliability", "cutoffs": ["2024-01-03", "2024-01-04", "2024-01-08"], "semantic_equivalence": "exact", "post_fill": "fresh-account portfolio target reconstitution is classified separately"},
+      "not_proven": ["general Event/State lowering", "native LEAN brokerage/order-ticket restoration"]
+    },
+    {
+      "id": "event-state-multiclock-v1-profile",
+      "corpus_id": "synthetic-temporal-multiclock-state-machine",
+      "path": ["CanonicalStrategyV2", "LeanTemporalProgram(event-state-multiclock@1)", "generate_csharp", "DockerLeanRunner", "verify_temporal_e2e"],
+      "timeframe": "prior completed weekly close available at next observed daily boundary",
+      "data_fixture": "multiclock-synthetic",
+      "comparison_boundaries": ["weekly source cutoff", "weekly availability cutoff", "daily Event order", "State", "memory", "policy", "target", "filled order"],
+      "tolerance": {"clock_state_event_policy": "exact", "values_and_targets": "exact Decimal", "fill_quantity": "non-zero actual LEAN fill"},
+      "ci_command": "make check-lean-temporal-multiclock",
+      "status": "docker_verified",
+      "not_proven": ["arbitrary multi-clock graphs", "intraday/session clocks", "generalized multi-clock State machines"]
     },
     {
       "id": "program-cross-sectional-score",

@@ -1,4 +1,4 @@
-.PHONY: bootstrap install test check-fast check check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful validate backtest api frontend smoke
+.PHONY: bootstrap install test check-fast check check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful check-lean-temporal-reliability check-lean-temporal-multiclock validate backtest api frontend smoke
 
 bootstrap:
 	uv sync --extra bt --extra dev --locked
@@ -32,6 +32,12 @@ check-lean-weighted-score:
 
 check-lean-temporal-stateful:
 	./scripts/run_temporal_stateful_lean_e2e.sh
+
+check-lean-temporal-reliability:
+	./scripts/run_temporal_reliability_lean_e2e.sh
+
+check-lean-temporal-multiclock:
+	./scripts/run_temporal_multiclock_lean_e2e.sh
 
 validate:
 	python -m ruletrade.cli validate examples/monthly_dca.yaml
