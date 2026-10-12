@@ -151,6 +151,81 @@ class LeanOnDataExecution:
 
 
 @dataclass(frozen=True)
+class LeanTemporalValue:
+    """A scalar used by the bounded temporal/stateful execution profile."""
+
+    kind: Literal["current_price", "literal", "remembered", "bars_since_event"]
+    semantic_id: str
+    asset: str | None = None
+    literal: Decimal | None = None
+    memory_id: str | None = None
+    event_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LeanTemporalCondition:
+    semantic_id: str
+    operator: Literal["gt", "gte", "lt", "lte", "eq", "neq"]
+    left: LeanTemporalValue
+    right: LeanTemporalValue
+    required_state_key: str | None = None
+    required_state_value: str | None = None
+    after_event_id: str | None = None
+    within_observations: int | None = None
+
+
+@dataclass(frozen=True)
+class LeanTemporalAction:
+    kind: Literal["remember", "transition"]
+    semantic_id: str
+    memory_id: str | None = None
+    value: LeanTemporalValue | None = None
+    state_key: str | None = None
+    from_value: str | None = None
+    to_value: str | None = None
+
+
+@dataclass(frozen=True)
+class LeanTemporalEvent:
+    semantic_id: str
+    statement_id: str
+    clock_id: str
+    trigger: Literal["rising_edge", "while_true", "crosses_above", "crosses_below"]
+    occurrence: Literal["every", "first"]
+    condition: LeanTemporalCondition
+    actions: tuple[LeanTemporalAction, ...]
+
+
+@dataclass(frozen=True)
+class LeanTemporalPolicyTarget:
+    semantic_id: str
+    state_key: str
+    state_value: str
+    target_kind: Literal["asset", "cash", "retain"]
+    asset: str | None = None
+    weight: Decimal = Decimal(1)
+
+
+@dataclass(frozen=True)
+class LeanTemporalProgram:
+    """Versioned, deliberately bounded Event/State LEAN profile.
+
+    Events execute in tuple order. Successful actions commit immediately, so
+    later events and the policy observe the new checkpoint at the same close.
+    """
+
+    profile: Literal["event-state-daily@1"]
+    semantic_id: str
+    checkpoint_identity: str
+    operator_versions: tuple[tuple[str, str], ...]
+    clock_id: str
+    anchor_symbol: str
+    initial_state: tuple[tuple[str, str], ...]
+    events: tuple[LeanTemporalEvent, ...]
+    policy_targets: tuple[LeanTemporalPolicyTarget, ...]
+
+
+@dataclass(frozen=True)
 class LeanMonthlyEvent:
     id: str
     day: int
@@ -192,6 +267,7 @@ class LeanPlan:
     quarterly_events: tuple[LeanQuarterlyEvent, ...] = ()
     daily_events: tuple[LeanDailyEvent, ...] = ()
     cooldown_states: tuple[LeanCooldownState, ...] = ()
+    temporal_program: LeanTemporalProgram | None = None
 
 
 def _unique_by_id(items: tuple[object, ...], label: str) -> None:
@@ -219,6 +295,13 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
     _unique_by_id(plan.quarterly_events, "quarterly event")
     _unique_by_id(plan.daily_events, "daily event")
     _unique_by_id(plan.cooldown_states, "cooldown state")
+    if plan.temporal_program is not None:
+        event_ids = [item.semantic_id for item in plan.temporal_program.events]
+        if len(event_ids) != len(set(event_ids)):
+            raise ValueError("duplicate temporal event id")
+        target_ids = [item.semantic_id for item in plan.temporal_program.policy_targets]
+        if len(target_ids) != len(set(target_ids)):
+            raise ValueError("duplicate temporal policy target id")
 
     grouped_events: dict[tuple[int, str, LeanOnDataExecution], LeanMonthlyEvent] = {}
     for event in sorted(plan.monthly_events, key=lambda item: item.id):

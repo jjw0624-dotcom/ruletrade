@@ -12,6 +12,9 @@ from ruletrade.compiler.lean.plan import (
     LeanQuarterlyEvent,
     LeanRandomSelection,
     LeanSnapshotAllocation,
+    LeanTemporalCondition,
+    LeanTemporalEvent,
+    LeanTemporalValue,
     LeanValue,
     normalize_lean_plan,
 )
@@ -173,6 +176,187 @@ def _uses_legacy_predicate(rebalance) -> bool:
 
 def _value_json(value: LeanValue) -> str:
     return json.dumps(asdict(value), default=str, separators=(",", ":"), sort_keys=True)
+
+
+def _temporal_value_csharp(value: LeanTemporalValue, variable: str) -> str:
+    if value.kind == "current_price":
+        return f"CurrentPrice({_csharp_string(value.asset or '')})"
+    if value.kind == "literal":
+        return f"(decimal?){_decimal_literal(value.literal or Decimal(0))}"
+    if value.kind == "remembered":
+        memory_id = _csharp_string(value.memory_id or "")
+        return f"_memory.TryGetValue({memory_id}, out var {variable}MemoryValue) ? {variable}MemoryValue : (decimal?)null"
+    if value.kind == "bars_since_event":
+        event_id = _csharp_string(value.event_id or "")
+        return f"_eventCutoffs.TryGetValue({event_id}, out var {variable}EventValueCutoff) ? (decimal?)(_boundaryIndex - {variable}EventValueCutoff) : null"
+    raise ValueError(f"unsupported temporal Value: {value.kind}")
+
+
+def _temporal_condition_lines(condition: LeanTemporalCondition, prefix: str) -> tuple[str, ...]:
+    operator = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "==", "neq": "!="}[condition.operator]
+    lines = [
+        f"        var {prefix}Left = {_temporal_value_csharp(condition.left, prefix + 'Left')};",
+        f"        var {prefix}Right = {_temporal_value_csharp(condition.right, prefix + 'Right')};",
+        f"        var {prefix}Ready = {prefix}Left.HasValue && {prefix}Right.HasValue;",
+        f"        var {prefix}Truth = {prefix}Ready ? ({prefix}Left.Value {operator} {prefix}Right.Value ? \"true\" : \"false\") : \"unknown\";",
+    ]
+    if condition.required_state_key is not None:
+        lines.extend((
+            f"        var {prefix}StateTruth = StateEquals({_csharp_string(condition.required_state_key)}, {_csharp_string(condition.required_state_value or '')}) ? \"true\" : \"false\";",
+            f"        {prefix}Truth = AllTruth({prefix}Truth, {prefix}StateTruth);",
+        ))
+    if condition.after_event_id is not None:
+        event_id = _csharp_string(condition.after_event_id)
+        window = int(condition.within_observations or 0)
+        lines.extend((
+            f"        var {prefix}WindowTruth = _eventCutoffs.TryGetValue({event_id}, out var {prefix}EventCutoff) ? (_boundaryIndex > {prefix}EventCutoff && _boundaryIndex - {prefix}EventCutoff <= {window} ? \"true\" : \"false\") : \"unknown\";",
+            f"        {prefix}Truth = AllTruth({prefix}Truth, {prefix}WindowTruth);",
+        ))
+    return tuple(lines)
+
+
+def _temporal_method_lines(plan: LeanPlan) -> tuple[str, ...]:
+    temporal = plan.temporal_program
+    if temporal is None:
+        return ()
+    lines: list[str] = [
+        "    private bool StateEquals(string key, string expected)",
+        "    {",
+        "        return _state.TryGetValue(key, out var value) && value == expected;",
+        "    }",
+        "",
+        "    private static string AllTruth(string left, string right)",
+        "    {",
+        '        if (left == "false" || right == "false") return "false";',
+        '        if (left == "unknown" || right == "unknown") return "unknown";',
+        '        return "true";',
+        "    }",
+        "",
+        "    private void ExecuteTemporalBoundary(string cutoff)",
+        "    {",
+        "        _boundaryIndex++;",
+        f'        var eventIdentity = {_csharp_string(temporal.clock_id)} + ":" + cutoff;',
+        '        EmitDecisionEvidence(eventIdentity, "observation", "boundary", "clock", '
+        f'{_csharp_string(temporal.clock_id)}, "cutoff", cutoff, "boundary_index", _boundaryIndex.ToString(CultureInfo.InvariantCulture));',
+    ]
+    for index, event in enumerate(temporal.events):
+        prefix = f"temporal{index}"
+        lines.extend(_temporal_condition_lines(event.condition, prefix))
+        event_id = _csharp_string(event.semantic_id)
+        trigger = (
+            f'{prefix}Truth == "true"'
+            if event.trigger == "while_true"
+            else f'{prefix}Truth == "true" && {prefix}Previous != "true"'
+            if event.trigger in {"rising_edge", "crosses_above"}
+            else f'{prefix}Truth == "false" && {prefix}Previous == "true"'
+        )
+        lines.extend((
+            f"        var {prefix}Previous = _eventTruth.TryGetValue({event_id}, out var {prefix}PriorTruth) ? {prefix}PriorTruth : \"false\";",
+            f"        var {prefix}Triggered = {trigger};",
+            f"        _eventTruth[{event_id}] = {prefix}Truth;",
+            f"        if ({prefix}Triggered)",
+            "        {",
+            f"            var {prefix}Count = _eventCounts.TryGetValue({event_id}, out var {prefix}PriorCount) ? {prefix}PriorCount + 1 : 1;",
+            f"            _eventCounts[{event_id}] = {prefix}Count;",
+        ))
+        if event.occurrence == "first":
+            lines.append(f"            {prefix}Triggered = {prefix}Count == 1;")
+        lines.extend((
+            "        }",
+            '        EmitDecisionEvidence(eventIdentity, "event_detection", "event",',
+            f'            "event_id", {event_id}, "statement_id", {_csharp_string(event.statement_id)},',
+            f'            "condition_id", {_csharp_string(event.condition.semantic_id)}, "status", {prefix}Truth == "unknown" ? "unknown" : "ready",',
+            f'            "truth", {prefix}Truth,',
+            f'            "previous_truth", {prefix}Previous, "triggered", {prefix}Triggered ? "true" : "false",',
+            f'            "event_order", {_csharp_string(str(index))});',
+            f"        if ({prefix}Triggered)",
+            "        {",
+            f"            _eventCutoffs[{event_id}] = _boundaryIndex;",
+        ))
+        for action_index, action in enumerate(event.actions):
+            action_prefix = f"{prefix}Action{action_index}"
+            if action.kind == "remember" and action.value is not None:
+                lines.extend((
+                    f"            var {action_prefix}Value = {_temporal_value_csharp(action.value, action_prefix)};",
+                    f"            if ({action_prefix}Value.HasValue)",
+                    "            {",
+                    f"                _memory[{_csharp_string(action.memory_id or '')}] = {action_prefix}Value.Value;",
+                    '                EmitDecisionEvidence(eventIdentity, "memory_capture", "remember",',
+                    f'                    "statement_id", {_csharp_string(action.semantic_id)}, "memory_id", {_csharp_string(action.memory_id or "")},',
+                    f'                    "value_id", {_csharp_string(action.value.semantic_id)}, "capture_cutoff", cutoff,',
+                    f'                    "value", {action_prefix}Value.Value.ToString("G29", CultureInfo.InvariantCulture));',
+                    "            }",
+                    "            else",
+                    "            {",
+                    '                EmitDecisionEvidence(eventIdentity, "memory_capture", "remember",',
+                    f'                    "statement_id", {_csharp_string(action.semantic_id)}, "memory_id", {_csharp_string(action.memory_id or "")},',
+                    '                    "status", "unknown");',
+                    "            }",
+                ))
+            elif action.kind == "transition":
+                key = _csharp_string(action.state_key or "")
+                before = _csharp_string(action.from_value or "")
+                after = _csharp_string(action.to_value or "")
+                lines.extend((
+                    f"            var {action_prefix}PreState = _state.TryGetValue({key}, out var {action_prefix}StateValue) ? {action_prefix}StateValue : \"\";",
+                    f"            var {action_prefix}Selected = {action_prefix}PreState == {before};",
+                    f"            if ({action_prefix}Selected) _state[{key}] = {after};",
+                    '            EmitDecisionEvidence(eventIdentity, "state_transition", "transition",',
+                    f'                "statement_id", {_csharp_string(action.semantic_id)}, "state_key", {key},',
+                    f'                "pre_state", {action_prefix}PreState, "selected", {action_prefix}Selected ? "true" : "false",',
+                    f'                "post_state", {action_prefix}Selected ? {after} : {action_prefix}PreState, "event_id", {event_id});',
+                ))
+        lines.append("        }")
+
+    lines.extend((
+        '        var policyTarget = "retain";',
+        '        var policyAsset = "";',
+        '        var policyRule = "retain";',
+    ))
+    for index, target in enumerate(temporal.policy_targets):
+        condition = (
+            "true" if target.state_value == "*"
+            else f"StateEquals({_csharp_string(target.state_key)}, {_csharp_string(target.state_value)})"
+        )
+        keyword = "if" if index == 0 else "else if"
+        lines.extend((
+            f"        {keyword} ({condition})",
+            "        {",
+            f"            policyTarget = {_csharp_string(target.target_kind)};",
+            f"            policyAsset = {_csharp_string(target.asset or '')};",
+            f"            policyRule = {_csharp_string(target.semantic_id)};",
+            "        }",
+        ))
+    lines.extend((
+        '        EmitDecisionEvidence(eventIdentity, "policy", "policy_decision", "rule_id", policyRule,',
+        '            "target_kind", policyTarget, "asset", policyAsset, "weight", policyTarget == "retain" ? "" : "1",',
+        '            "state", string.Join(",", _state.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)));',
+        "        if (policyTarget != \"retain\" && policyTarget + \"|\" + policyAsset != _lastPolicyTarget)",
+        "        {",
+        "            if (policyTarget == \"asset\") SetHoldings(_symbols[policyAsset], 1m);",
+        "            else if (policyTarget == \"cash\") Liquidate();",
+        '            EmitDecisionEvidence(eventIdentity, "order_intent", "target", "target_kind", policyTarget, "asset", policyAsset, "weight", "1");',
+        '            _lastPolicyTarget = policyTarget + "|" + policyAsset;',
+        "        }",
+        '        EmitDecisionEvidence(eventIdentity, "checkpoint", "checkpoint",',
+        f'            "profile", "event-state-daily@1", "checkpoint_identity", {_csharp_string(temporal.checkpoint_identity)},',
+        f'            "operator_versions", {_csharp_string(",".join(f"{key}={value}" for key, value in temporal.operator_versions))}, "cutoff", cutoff,',
+        '            "state", string.Join(",", _state.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value)),',
+        '            "events", string.Join(",", _eventCutoffs.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString(CultureInfo.InvariantCulture))),',
+        '            "memory", string.Join(",", _memory.OrderBy(item => item.Key).Select(item => item.Key + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
+        "    }",
+        "",
+        "    public override void OnOrderEvent(OrderEvent orderEvent)",
+        "    {",
+        "        if (orderEvent.Status != OrderStatus.Filled && orderEvent.Status != OrderStatus.PartiallyFilled) return;",
+        '        EmitDecisionEvidence(Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), "orders", "order",',
+        '            "order_id", orderEvent.OrderId.ToString(CultureInfo.InvariantCulture),',
+        '            "symbol", orderEvent.Symbol.Value, "quantity", orderEvent.FillQuantity.ToString("G29", CultureInfo.InvariantCulture),',
+        '            "price", orderEvent.FillPrice.ToString("G29", CultureInfo.InvariantCulture), "status", orderEvent.Status.ToString());',
+        "    }",
+        "",
+    ))
+    return tuple(lines)
 
 
 def _condition_evidence_lines(comparisons, component_id: str, symbols: str, prefix: str) -> tuple[str, ...]:
@@ -393,6 +577,7 @@ def generate_csharp(
             *(operand for comparison in selection.eligibility for operand in (comparison.left, comparison.right)),
         )
     )
+    temporal = plan.temporal_program
     snapshot_indexes = {snapshot.id: index for index, snapshot in enumerate(plan.target_snapshots)}
     cooldown_indexes = {state.id: index for index, state in enumerate(plan.cooldown_states)}
     scheduled_events = tuple(
@@ -409,6 +594,8 @@ def generate_csharp(
     ) | frozenset(item.asset for item in predicates if item.asset) | frozenset(
         symbol for value in (*condition_values, *selection_values) for symbol in _value_assets(value)
     )
+    if temporal is not None:
+        history_symbols = history_symbols | frozenset((temporal.anchor_symbol,))
     needs_history = bool(history_symbols)
     has_subscription_only_assets = history_symbols != frozenset(
         subscription.symbol for subscription in plan.subscriptions
@@ -422,6 +609,8 @@ def generate_csharp(
         "using QuantConnect.Algorithm;",
         "using QuantConnect.Data;",
     ]
+    if temporal is not None:
+        lines.append("using QuantConnect.Orders;")
     if needs_history:
         lines.append("using QuantConnect.Indicators;")
     if plan.random_selections:
@@ -448,8 +637,20 @@ def generate_csharp(
             [item.lookback_bars + 1 for item in plan.momentum_selections]
             + [item.lookback_bars + 1 for item in predicates]
             + [_value_observations(value) for value in (*condition_values, *selection_values)]
+            + ([1] if temporal is not None else [])
             + [1]
         )
+    if temporal is not None:
+        lines.extend((
+            "    private int _boundaryIndex = -1;",
+            "    private readonly Dictionary<string, string> _state = new Dictionary<string, string>();",
+            "    private readonly Dictionary<string, decimal> _memory = new Dictionary<string, decimal>();",
+            "    private readonly Dictionary<string, int> _eventCutoffs = new Dictionary<string, int>();",
+            "    private readonly Dictionary<string, string> _eventTruth = new Dictionary<string, string>();",
+            "    private readonly Dictionary<string, int> _eventCounts = new Dictionary<string, int>();",
+            "    private string _lastPolicyTarget = \"\";",
+            "    private DateTime _lastTemporalBoundary = DateTime.MinValue;",
+        ))
     for index in range(len(scheduled_events)):
         lines.append(f"    private string _pendingEvent{index};")
     for index in range(len(plan.target_snapshots)):
@@ -508,8 +709,14 @@ def generate_csharp(
         else:
             lines.append(f"        _symbols[{ticker}] = AddEquity({ticker}, Resolution.Daily).Symbol;")
     if needs_history:
-        warm_up_bars = max(1, history_capacity - 1)
-        lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
+        warm_up_bars = max(0, history_capacity - 1)
+        if warm_up_bars:
+            lines.append(f"        SetWarmUp({warm_up_bars}, Resolution.Daily);")
+    if temporal is not None:
+        for state_key, state_value in temporal.initial_state:
+            lines.append(
+                f"        _state[{_csharp_string(state_key)}] = {_csharp_string(state_value)};"
+            )
     for index, event in enumerate(scheduled_events):
         anchor = _csharp_string(event.anchor_symbol)
         date_rule = (
@@ -690,6 +897,15 @@ def generate_csharp(
                 "        }",
             )
         )
+    if temporal is not None:
+        anchor = _csharp_string(temporal.anchor_symbol)
+        lines.extend((
+            f"        if (_lastTemporalBoundary != Time.Date && slice.Bars.ContainsKey(_symbols[{anchor}]))",
+            "        {",
+            "            _lastTemporalBoundary = Time.Date;",
+            '            ExecuteTemporalBoundary(Time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));',
+            "        }",
+        ))
     if plan.target_snapshots:
         for event_index in range(len(scheduled_events)):
             lines.append(f"        string readyEvent{event_index} = null;")
@@ -1475,6 +1691,7 @@ def generate_csharp(
                 )
         lines.extend(("    }", ""))
 
+    lines.extend(_temporal_method_lines(plan))
     lines.append("}")
     if plan.random_selections:
         lines.extend(("", _random_helper_source(), ""))

@@ -55,6 +55,17 @@
       "state_after": {"phase": "entered"}, "provenance": ["arm-statement", "enter-statement"]
     },
     {
+      "corpus_id": "synthetic-temporal-breakout-state-machine", "cutoff": "2024-01-08",
+      "fixture_id": "lean-temporal-data@1",
+      "synthetic_assumptions": {"breakout_threshold": "12", "retest": "close strictly below remembered breakout close within 3 completed observations", "confirmation": "close above remembered breakout close within 2 completed observations"},
+      "event_order": ["breakout-event", "retest-event", "confirmation-event", "expiry-event"],
+      "event_cutoffs": {"breakout-event": 2, "retest-event": 3, "confirmation-event": 4},
+      "state_after": {"phase": "confirmed"},
+      "remembered_values": {"breakout-level": "13"},
+      "targets": {"QQQ": "1"},
+      "provenance": ["breakout-event-statement", "remember-breakout", "arm-breakout", "retest-event-statement", "accept-retest", "confirmation-event-statement", "confirm-entry", "temporal-policy"]
+    },
+    {
       "corpus_id": "higher-timeframe-context", "cutoff": "2026-01-12",
       "value_observed_at": "2026-01-09", "observations": {"weekly-close-value": "14"},
       "condition_truth": {"weekly-above-level": "true"}, "remembered_values": {"weekly-context": "14"},

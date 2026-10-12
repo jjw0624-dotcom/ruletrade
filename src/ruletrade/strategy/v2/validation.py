@@ -445,6 +445,7 @@ def v2_capabilities() -> dict[str, OperationCapability]:
         "program.condition_points@1": reference_only,
         "program.n_of_m@1": reference_only,
         "program.event@1": reference_only,
+        "program.event_state_daily@1": backend_verified,
         "program.scheduled_event@1": reference_only,
         "program.state_transition@1": reference_only,
         "program.remembered_value@1": reference_only,

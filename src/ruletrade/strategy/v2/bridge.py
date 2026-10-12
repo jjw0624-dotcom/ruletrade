@@ -9,7 +9,11 @@ from dataclasses import replace
 from decimal import Decimal
 
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
-from ruletrade.compiler.lean.plan import LeanScoreTerm, LeanValue, normalize_lean_plan
+from ruletrade.compiler.lean.plan import (
+    LeanPlan, LeanScoreTerm, LeanSubscription, LeanTemporalAction,
+    LeanTemporalCondition, LeanTemporalEvent, LeanTemporalPolicyTarget,
+    LeanTemporalProgram, LeanTemporalValue, LeanValue, normalize_lean_plan,
+)
 from ruletrade.strategy.v1.models import (
     AssetSetDefinition,
     ArithmeticExpression,
@@ -37,13 +41,21 @@ from ruletrade.strategy.v2.models import (
     CandidateTrailingReturnValue,
     CanonicalStrategyV2,
     BooleanGroupV2,
+    BarsSinceEventValueV2,
     ComparisonV2,
     ConditionV2,
+    EventStatementV2,
+    EventWindowConditionV2,
+    GuardedAllocationStatementV2,
     LiteralValue,
+    RememberedValueV2,
+    RememberValueStatementV2,
     NotConditionV2,
     ProgramStatementV2,
     ScoreValueV2,
     SelectionStatementV2,
+    StateConditionV2,
+    StateTransitionStatementV2,
     ValueExpressionV2,
 )
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
@@ -53,6 +65,178 @@ from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 class V2LoweringError(ValueError):
     pass
+
+
+def _temporal_value(value: ValueExpressionV2) -> LeanTemporalValue:
+    if isinstance(value, DailyValueNode) and (
+        value.kind == "observe"
+        and value.subject_kind == SubjectKind.ASSET
+        and value.field == MarketField.CLOSE
+        and value.basis == PriceBasis.ADJUSTED
+        and value.subject_id
+    ):
+        return LeanTemporalValue(
+            kind="current_price", semantic_id=value.semantic_id, asset=value.subject_id,
+        )
+    if isinstance(value, LiteralValue):
+        return LeanTemporalValue(
+            kind="literal", semantic_id=value.semantic_id, literal=value.value,
+        )
+    if isinstance(value, RememberedValueV2):
+        return LeanTemporalValue(
+            kind="remembered", semantic_id=value.semantic_id, memory_id=value.memory_id,
+        )
+    if isinstance(value, BarsSinceEventValueV2):
+        return LeanTemporalValue(
+            kind="bars_since_event", semantic_id=value.semantic_id, event_id=value.event_id,
+        )
+    raise V2LoweringError(
+        f"temporal profile cannot lower Value {getattr(value, 'kind', type(value).__name__)!r}"
+    )
+
+
+def _temporal_condition(condition: ConditionV2) -> LeanTemporalCondition:
+    state: StateConditionV2 | None = None
+    window: EventWindowConditionV2 | None = None
+    comparison: ComparisonV2 | None = None
+    children = condition.children if isinstance(condition, BooleanGroupV2) and condition.kind == "all" else (condition,)
+    for child in children:
+        if isinstance(child, StateConditionV2) and state is None:
+            state = child
+        elif isinstance(child, EventWindowConditionV2) and window is None:
+            window = child
+        elif isinstance(child, ComparisonV2) and comparison is None:
+            comparison = child
+        else:
+            raise V2LoweringError(
+                "temporal event profile requires at most one State guard, one Event window, and one Comparison"
+            )
+    if comparison is None:
+        raise V2LoweringError("temporal event profile requires one typed Comparison")
+    if window is not None and window.relation != "within":
+        raise V2LoweringError("temporal LEAN profile currently lowers only within Event windows")
+    return LeanTemporalCondition(
+        semantic_id=condition.semantic_id,
+        operator=comparison.operator,
+        left=_temporal_value(comparison.left),
+        right=_temporal_value(comparison.right),
+        required_state_key=None if state is None else state.state_key,
+        required_state_value=None if state is None else state.expected,
+        after_event_id=None if window is None else window.event_id,
+        within_observations=None if window is None else window.observations,
+    )
+
+
+def _temporal_action(statement: ProgramStatementV2) -> LeanTemporalAction:
+    if isinstance(statement, RememberValueStatementV2):
+        return LeanTemporalAction(
+            kind="remember", semantic_id=statement.semantic_id,
+            memory_id=statement.memory_id, value=_temporal_value(statement.value),
+        )
+    if isinstance(statement, StateTransitionStatementV2):
+        transition = statement.transition
+        if not isinstance(transition.when, StateConditionV2):
+            raise V2LoweringError("temporal transition action requires a State equality guard")
+        if (
+            transition.when.state_key != transition.state_key
+            or transition.when.expected != transition.from_value
+        ):
+            raise V2LoweringError("temporal transition State guard must match from_value")
+        return LeanTemporalAction(
+            kind="transition", semantic_id=statement.semantic_id,
+            state_key=transition.state_key, from_value=transition.from_value,
+            to_value=transition.to_value,
+        )
+    raise V2LoweringError(f"unsupported temporal Event action: {statement.kind}")
+
+
+def _fixed_policy_target(allocation: AllocationStatementV2, *, semantic_id: str, state_key: str, state_value: str) -> LeanTemporalPolicyTarget:
+    if allocation.method != "fixed" or len(allocation.legs) != 1 or allocation.legs[0].weight != Decimal(1):
+        raise V2LoweringError("temporal policy requires a single fixed 100% target")
+    target = allocation.legs[0].target
+    if target.kind not in {"asset", "cash", "retain"}:
+        raise V2LoweringError("temporal policy target must be asset, cash, or retain")
+    return LeanTemporalPolicyTarget(
+        semantic_id=semantic_id, state_key=state_key, state_value=state_value,
+        target_kind=target.kind, asset=target.ref, weight=Decimal(1),
+    )
+
+
+def _compile_temporal_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
+    if strategy.program is None:
+        return None
+    top = strategy.program.statements
+    events = tuple(item for item in top if isinstance(item, EventStatementV2))
+    policies = tuple(item for item in top if isinstance(item, GuardedAllocationStatementV2))
+    if not events and not policies:
+        return None
+    if len(policies) != 1 or len(events) + 1 != len(top):
+        raise V2LoweringError(
+            "event-state-daily@1 requires ordered Events followed by one guarded policy"
+        )
+    clocks = {item.id: item for item in strategy.program.clocks}
+    lowered_events: list[LeanTemporalEvent] = []
+    symbols: set[str] = set()
+    for statement in events:
+        event = statement.event
+        clock = clocks.get(event.clock_id)
+        if clock is None or clock.timeframe != "daily" or clock.boundary != "close":
+            raise V2LoweringError("event-state-daily@1 requires a completed daily close clock")
+        if event.trigger not in {"rising_edge", "while_true", "crosses_above", "crosses_below"}:
+            raise V2LoweringError(f"unsupported temporal Event trigger: {event.trigger}")
+        if event.occurrence not in {"every", "first"}:
+            raise V2LoweringError(f"unsupported temporal Event occurrence: {event.occurrence}")
+        condition = _temporal_condition(event.condition)
+        for value in (condition.left, condition.right):
+            if value.kind == "current_price" and value.asset:
+                symbols.add(value.asset)
+        lowered_events.append(LeanTemporalEvent(
+            semantic_id=event.semantic_id, statement_id=statement.semantic_id,
+            clock_id=event.clock_id, trigger=event.trigger,
+            occurrence=event.occurrence, condition=condition,
+            actions=tuple(_temporal_action(item) for item in statement.statements),
+        ))
+    policy = policies[0]
+    if policy.guard is not None or policy.fallback is not None or len(policy.overrides) != 1:
+        raise V2LoweringError(
+            "event-state-daily@1 policy requires one State override and a primary target"
+        )
+    override = policy.overrides[0]
+    if not isinstance(override.when, StateConditionV2):
+        raise V2LoweringError("temporal policy override requires a State equality condition")
+    policy_targets = (
+        _fixed_policy_target(
+            override.action, semantic_id=override.semantic_id,
+            state_key=override.when.state_key, state_value=override.when.expected,
+        ),
+        _fixed_policy_target(
+            policy.primary, semantic_id=policy.primary.semantic_id,
+            state_key=override.when.state_key, state_value="*",
+        ),
+    )
+    for target in policy_targets:
+        if target.asset:
+            symbols.add(target.asset)
+    if len(symbols) != 1:
+        raise V2LoweringError("event-state-daily@1 currently requires one adjusted-close asset")
+    anchor = next(iter(symbols))
+    return normalize_lean_plan(LeanPlan(
+        strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
+        subscriptions=(LeanSubscription(anchor),), random_selections=(),
+        target_sleeves=(), rebalances=(), monthly_events=(),
+        temporal_program=LeanTemporalProgram(
+            profile="event-state-daily@1", semantic_id=strategy.program.semantic_id,
+            checkpoint_identity=semantic_content_hash({
+                "program": strategy.program.model_dump(mode="json"),
+                "operator_lock": strategy.operator_lock,
+                "execution_profile": "event-state-daily@1",
+            }),
+            operator_versions=tuple(sorted(strategy.operator_lock.items())),
+            clock_id=lowered_events[0].clock_id, anchor_symbol=anchor,
+            initial_state=tuple(sorted(strategy.program.initial_state.items())),
+            events=tuple(lowered_events), policy_targets=policy_targets,
+        ),
+    ))
 
 
 def _program_statements(items: tuple[ProgramStatementV2, ...]) -> tuple[ProgramStatementV2, ...]:
@@ -345,6 +529,10 @@ def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
         raise V2LoweringError(f"v2 semantic validation failed: {rendered}")
     if strategy.selection is not None or strategy.program is None:
         return compile_strategy_to_lean_plan(lower_v2_to_v1(strategy))
+
+    temporal_plan = _compile_temporal_program(strategy)
+    if temporal_plan is not None:
+        return temporal_plan
 
     statement, allocation, _timeframe = _program_selection(strategy)
     if allocation.method == "equal":
