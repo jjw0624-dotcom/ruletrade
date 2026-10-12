@@ -1,0 +1,94 @@
+{
+  "schema_version": "ruletrade.dev/semantic-builder-capability-matrix/v1",
+  "baseline": "7951a1c4c5b43c6deb5e4f1552fbb72ab3812bac",
+  "invariant": "Each dimension is evidenced independently; representable does not imply executable or authorable.",
+  "journeys": [
+    {
+      "id": "blank",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": false,
+      "backend_lowerable": false,
+      "docker_verified": false,
+      "execution_state": "incomplete"
+    },
+    {
+      "id": "one-investment",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": false,
+      "backend_lowerable": false,
+      "docker_verified": false,
+      "execution_state": "incomplete"
+    },
+    {
+      "id": "strongest-etfs",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": true,
+      "backend_lowerable": true,
+      "docker_verified": true,
+      "execution_state": "executable"
+    },
+    {
+      "id": "nested-qualification-score-selection",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": true,
+      "backend_lowerable": true,
+      "docker_verified": true,
+      "execution_state": "executable"
+    },
+    {
+      "id": "event-state-temporal",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": true,
+      "backend_lowerable": true,
+      "docker_verified": true,
+      "execution_state": "executable",
+      "qualification": "The Event-to-State operation is UI-authorable; the complete fixture also needs an existing Selection and policy."
+    },
+    {
+      "id": "weekly-context-daily-decision",
+      "representable": true,
+      "ui_authorable": false,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": true,
+      "backend_lowerable": true,
+      "docker_verified": true,
+      "execution_state": "executable",
+      "missing_authoring_contract": "Clocked Value creation and explicit cross-clock binding are read-only in the current Inspector."
+    },
+    {
+      "id": "growth-defensive-multi-sleeve",
+      "representable": true,
+      "ui_authorable": true,
+      "persistable": true,
+      "reopenable": true,
+      "reference_evaluable": true,
+      "backend_lowerable": false,
+      "docker_verified": false,
+      "execution_state": "unsupported",
+      "qualification": "The equivalent independent-Selection guarded-policy engine fixture is Docker-verified. The currently authored unguarded multi-Selection split remains explicitly gated by the strict lowerer."
+    }
+  ],
+  "explicitly_gated": [
+    "intraday/session clocks",
+    "arbitrary control action topology creation",
+    "arbitrary Event trigger composition",
+    "native order-ticket restoration",
+    "provider-specific instruments outside the maintained equity corpus"
+  ]
+}

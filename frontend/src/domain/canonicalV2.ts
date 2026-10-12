@@ -92,6 +92,7 @@ export type V2AuthoringOperation =
   | { kind: "remove_program_investment"; investment_id: string }
   | { kind: "set_program_schedule"; clock_id: string; timeframe: "daily" | "weekly" | "monthly" }
   | { kind: "create_program_selection"; semantic_id: string; investment_id: string; clock_id: string; lookback: number; direction: "ascending" | "descending"; count: number; shortage_policy: "choose_all" | "require_full"; qualification_lookback?: number | null; qualification_operator?: "gt" | "gte" | "lt" | "lte" | null; qualification_threshold?: number | null }
+  | { kind: "create_program_event_state"; semantic_id: string; clock_id: string; asset: string; threshold: number; state_key: string; from_value: string; to_value: string }
   | { kind: "set_program_fallback"; semantic_id: string; fallback_asset: string | null }
   | { kind: "set_program_split"; semantic_id?: string; investments: Array<[string, number]> }
   | { kind: "set_selection_universe"; universe_id: string }

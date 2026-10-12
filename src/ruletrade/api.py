@@ -163,6 +163,7 @@ from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, Data
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
 from ruletrade.strategy.v2.program_execution import ProgramExecutionError, execute_program_v2
+from ruletrade.strategy.v2.projections import inspector_addresses, projection_bundle
 from ruletrade.strategy.v2.semantic_types import FrozenModel
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 
@@ -754,6 +755,23 @@ def canonical_v2_program_template(request: ProgramStrategyTemplateRequest) -> Ca
         return create_program_strategy_template(request)
     except V2AuthoringError as exc:
         raise HTTPException(status_code=422, detail={"code": exc.code, "path": exc.path, "message": str(exc)}) from exc
+
+
+@app.post("/v2/canonical/strategies/semantic-projections")
+def canonical_v2_semantic_projections(spec: CanonicalStrategyV2) -> dict[str, object]:
+    """Return view-specific, read-only manifests over one committed Program.
+
+    These manifests are intentionally separate from execution lowering and from
+    the mutable Builder draft.  Every item retains a stable semantic address so
+    any view can dispatch to the shared authoring boundary.
+    """
+    return {
+        "projections": {
+            kind: manifest.model_dump(mode="json")
+            for kind, manifest in projection_bundle(spec).items()
+        },
+        "inspector": inspector_addresses(spec).model_dump(mode="json"),
+    }
 
 
 @app.post(

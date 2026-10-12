@@ -25,7 +25,7 @@ export interface ConstructionOption {
   anchorSelection: SemanticSelection;
 }
 
-export type ToolboxCategory = "Capital" | "Destination" | "Routing" | "Allocation" | "Timing" | "Behavior";
+export type ToolboxCategory = "Capital" | "Destination" | "Routing" | "Logic" | "Data" | "Selection" | "State" | "Allocation" | "Timing" | "Behavior";
 export type ToolboxAvailability = "available_now" | "needs_context" | "unavailable" | "unsupported";
 
 export interface SemanticToolboxEntry {

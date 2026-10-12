@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import * as Blockly from "blockly";
 
 import type { ProductNode } from "../domain/productSemantics";
+import type { ProgramBlockNode } from "../domain/programProjections";
 import { registerBlockyProgramBlocks } from "./blockyProgramBlocks";
 
 function blockType(node: ProductNode) {
@@ -104,4 +105,120 @@ export function ProductBlockyProjection({ root, selectedId, onSelect }: {
   }, [selectedId, root]);
 
   return <div className="blocky-representation"><div className="blocky-canvas" ref={host} aria-label="Strategy product blocks" /></div>;
+}
+
+function semanticBlockType(node: ProgramBlockNode) {
+  if (node.role === "context") return "rt_context";
+  if (node.role === "trigger") return "rt_trigger";
+  if (node.role === "selection") return "rt_selection";
+  if (node.role === "allocation") return "rt_allocation";
+  if (node.role === "condition") return "rt_condition";
+  if (node.role === "value") return "rt_value";
+  if (node.role === "fallback") return "rt_fallback";
+  if (node.role === "control") return "rt_control";
+  if (node.role === "event") return "rt_event";
+  if (node.role === "state") return "rt_state";
+  if (node.role === "memory") return "rt_memory";
+  if (node.role === "policy") return "rt_policy";
+  return "rt_action";
+}
+
+/** Program-native logic projection. It never consumes the Structure tree. */
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect }: {
+  nodes: ProgramBlockNode[];
+  selectedId: string | null;
+  onSelect: (focusId: string | null) => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
+  const nodesRef = useRef(nodes);
+  const onSelectRef = useRef(onSelect);
+  nodesRef.current = nodes;
+  onSelectRef.current = onSelect;
+
+  useEffect(() => {
+    if (!host.current) return;
+    registerBlockyProgramBlocks();
+    const canvas = Blockly.inject(host.current, {
+      trashcan: false, sounds: false,
+      move: { scrollbars: true, drag: true, wheel: true },
+      zoom: { controls: true, wheel: true, startScale: .9, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
+    });
+    workspace.current = canvas;
+    const listener = (event: Blockly.Events.Abstract) => {
+      if (event.type !== Blockly.Events.CLICK) return;
+      const click = event as Blockly.Events.Abstract & { targetType?: string; blockId?: string };
+      if (click.targetType === Blockly.Events.ClickTarget.WORKSPACE) onSelectRef.current(null);
+      if (click.targetType === Blockly.Events.ClickTarget.BLOCK && click.blockId) {
+        const id = readAddress(canvas.getBlockById(click.blockId));
+        const selected = nodesRef.current.find((item) => item.id === id);
+        if (selected) onSelectRef.current(selected.address.focusId);
+      }
+    };
+    canvas.addChangeListener(listener);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
+    resizeObserver?.observe(host.current);
+    return () => { resizeObserver?.disconnect(); canvas.removeChangeListener(listener); canvas.dispose(); workspace.current = null; };
+  }, []);
+
+  useEffect(() => {
+    const canvas = workspace.current;
+    if (!canvas) return;
+    Blockly.Events.disable();
+    try {
+      const wanted = new Map(nodes.map((node) => [node.id, node]));
+      const existing = new Map(canvas.getAllBlocks(false).flatMap((block) => {
+        const id = readAddress(block);
+        return id ? [[id, block as Blockly.BlockSvg] as const] : [];
+      }));
+      for (const [id, block] of existing) {
+        const node = wanted.get(id);
+        if (!node || block.type !== semanticBlockType(node)) {
+          block.dispose(false);
+          existing.delete(id);
+        }
+      }
+      nodes.forEach((node, index) => {
+        let block = existing.get(node.id);
+        const isNew = !block;
+        if (!block) {
+          block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
+          setAddress(block, node.id);
+          block.setDeletable(false); block.setMovable(false); block.contextMenu = false;
+          block.initSvg(); block.render();
+          existing.set(node.id, block);
+        }
+        const label = node.detail ? `${node.label} · ${node.detail}` : node.label;
+        if (block.getFieldValue("LABEL") !== label) block.setFieldValue(label, "LABEL");
+        if (isNew) block.moveBy(40 + node.depth * 54, 36 + index * 92);
+      });
+      for (const node of nodes) {
+        if (!node.connection) continue;
+        const parent = existing.get(node.connection.parentId);
+        const child = existing.get(node.id);
+        if (!parent || !child) continue;
+        const parentConnection = node.connection.kind === "next"
+          ? parent.nextConnection
+          : parent.getInput(node.connection.inputName)?.connection;
+        const childConnection = node.connection.kind === "next" ? child.previousConnection : child.outputConnection;
+        if (!parentConnection || !childConnection || parentConnection.targetConnection === childConnection) continue;
+        if (parentConnection.isConnected()) parentConnection.disconnect();
+        if (childConnection.isConnected()) childConnection.disconnect();
+        parentConnection.connect(childConnection);
+      }
+      for (const block of existing.values()) block.render();
+      Blockly.svgResize(canvas);
+    } finally { Blockly.Events.enable(); }
+  }, [nodes]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const node = nodes.find((item) => item.address.focusId === selectedId);
+    if (!node) return;
+    workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === node.id)?.select();
+  }, [selectedId, nodes]);
+
+  return <div className="blocky-representation" data-blocky-contract="semantic-program-v1" data-blocky-node-count={nodes.length}>
+    <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />
+  </div>;
 }
