@@ -159,4 +159,37 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await clickButton(container, "Commit strategy meaning");
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_weighted_score_intent", count: 3 }));
   });
+
+  it.each([
+    ["blocky", "Logic", "Market regime rotation", "commit_market_regime_rotation_intent"],
+    ["flow", "Capital", "Growth + Defensive", "commit_split_portfolio_intent"],
+    ["blocky", "Data", "Weighted Score", "commit_weighted_score_intent"],
+    ["blocky", "State", "Breakout sequence", "commit_temporal_sequence_intent"],
+    ["blocky", "State", "Weekly context + daily signal", "commit_multi_clock_policy_intent"],
+  ] as const)("commits %s/%s intent through production controls", async (view, category, tool, kind) => {
+    const apply = vi.fn();
+    render(view, apply);
+    await clickButton(container, "Add");
+    await clickButton(container, category);
+    await clickTool(container, tool);
+    await clickButton(container, "Commit strategy meaning");
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind }));
+  });
+
+  it.each([
+    ["Destination", "Rotation universe", "market_regime_rotation"],
+    ["Allocation", "Growth / Defensive 70 / 30", "split_portfolio"],
+    ["Destination", "Score universe", "weighted_score"],
+    ["Destination", "Breakout asset", "temporal_sequence"],
+    ["Behavior", "Risk policy first", "multi_clock_policy"],
+  ] as const)("keeps alternate %s/%s construction as an incomplete draft", async (category, tool, recipe) => {
+    const apply = vi.fn();
+    render("flow", apply);
+    await clickButton(container, "Add");
+    await clickButton(container, category);
+    await clickTool(container, tool);
+    expect(container.querySelector(`[data-intent-recipe="${recipe}"]`)).toBeTruthy();
+    expect([...container.querySelectorAll("button")].find((item) => item.textContent === "Commit strategy meaning")?.hasAttribute("disabled")).toBe(true);
+    expect(apply).not.toHaveBeenCalled();
+  });
 });

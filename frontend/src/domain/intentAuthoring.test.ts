@@ -50,6 +50,22 @@ describe("intent-first unified authoring", () => {
     expect(compileFinancialIntent(draft)).toBeNull();
   });
 
+  it.each([
+    ["market_regime_rotation", "logic_first", "asset_first"],
+    ["split_portfolio", "flow_first", "allocation_first"],
+    ["weighted_score", "logic_first", "asset_first"],
+    ["temporal_sequence", "logic_first", "asset_first"],
+    ["multi_clock_policy", "timing_first", "logic_first"],
+  ] as const)("converges complete %s drafts from %s and %s", (recipe, completePath, alternatePath) => {
+    const complete = createFinancialIntentDraft(recipe, completePath);
+    const alternate = updateFinancialIntentDraft(
+      createFinancialIntentDraft(recipe, alternatePath),
+      complete.values,
+    );
+    expect(financialIntentReadiness(alternate).status).toBe("ready");
+    expect(compileFinancialIntent(alternate)).toEqual(compileFinancialIntent(complete));
+  });
+
   it("does not treat raw identity or metadata as normalized meaning", () => {
     const strategy = {
       api_version: "ruletrade.dev/strategy/v2", semantic_profile: "profile-a/daily-compositional-core@1",
