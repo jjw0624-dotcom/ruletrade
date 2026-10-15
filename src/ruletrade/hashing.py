@@ -200,7 +200,9 @@ def semantic_payload(
         # can differ before and after a JSON persistence round-trip while their
         # serialized semantic meaning is identical.  Hash the persisted form so
         # CAS remains stable across save/reopen.
-        return _normalize_value(spec.model_dump(mode="json", exclude={"metadata"}))
+        return _normalize_value(spec.model_dump(
+            mode="json", exclude={"metadata"}, exclude_defaults=True,
+        ))
 
     raise TypeError(
         f"unsupported strategy type: {type(spec).__name__}"

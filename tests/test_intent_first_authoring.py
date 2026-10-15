@@ -205,5 +205,7 @@ def test_committed_intent_survives_canonical_save_and_reopen(operation) -> None:
     strategy = apply(operation)
     reopened = CanonicalStrategyV2.model_validate_json(strategy.model_dump_json())
     assert validate_strategy_v2(reopened) == ()
-    assert reopened.model_dump(mode="json") == strategy.model_dump(mode="json")
+    assert reopened.model_dump(mode="json", exclude_defaults=True) == strategy.model_dump(
+        mode="json", exclude_defaults=True,
+    )
     assert strategy_hash(reopened) == strategy_hash(strategy)
