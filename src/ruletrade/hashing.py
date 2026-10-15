@@ -196,7 +196,11 @@ def semantic_payload(
         return _v1_semantic_payload(spec)
 
     if getattr(spec, "api_version", None) == "ruletrade.dev/strategy/v2" and hasattr(spec, "model_dump"):
-        return _normalize_value(spec.model_dump(mode="python", exclude={"metadata"}))
+        # V2 contains discriminated Program unions whose in-memory subclasses
+        # can differ before and after a JSON persistence round-trip while their
+        # serialized semantic meaning is identical.  Hash the persisted form so
+        # CAS remains stable across save/reopen.
+        return _normalize_value(spec.model_dump(mode="json", exclude={"metadata"}))
 
     raise TypeError(
         f"unsupported strategy type: {type(spec).__name__}"
