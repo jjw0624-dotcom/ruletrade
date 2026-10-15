@@ -131,7 +131,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   });
 
   it("starts asset-first intent in the production Builder and preserves contribution honestly", async () => {
-    render("blocky");
+    render("flow");
     await clickButton(container, "Add");
     await clickButton(container, "Destination");
     await clickTool(container, "Assets");
