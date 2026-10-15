@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from ruletrade.hashing import strategy_hash
+from ruletrade.hashing import semantic_payload, strategy_hash
 from ruletrade.strategy.v2.authoring import (
     ApplyV2AuthoringRequest,
     CommitMarketRegimeRotationIntent,
@@ -205,7 +205,5 @@ def test_committed_intent_survives_canonical_save_and_reopen(operation) -> None:
     strategy = apply(operation)
     reopened = CanonicalStrategyV2.model_validate_json(strategy.model_dump_json())
     assert validate_strategy_v2(reopened) == ()
-    assert reopened.model_dump(mode="json", exclude_defaults=True) == strategy.model_dump(
-        mode="json", exclude_defaults=True,
-    )
+    assert semantic_payload(reopened) == semantic_payload(strategy)
     assert strategy_hash(reopened) == strategy_hash(strategy)

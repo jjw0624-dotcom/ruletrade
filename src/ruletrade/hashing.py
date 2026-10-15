@@ -169,10 +169,36 @@ def _normalize_value(value: Any) -> Any:
         return _decimal_text(value)
 
     if isinstance(value, dict):
-        return {
+        normalized = {
             str(key): _normalize_value(item)
             for key, item in value.items()
         }
+        # A compact LiteralValue can deserialize through the broader
+        # DailyValueNode arm of a discriminated union. Pydantic then adds the
+        # DailyValue defaults below even though the semantic literal is
+        # unchanged. Remove only those known defaults so CAS remains stable
+        # across save/reopen without changing unrelated hash semantics.
+        if normalized.get("kind") == "literal" and "operands" in normalized:
+            daily_value_defaults = {
+                "operands": [],
+                "subject_kind": None,
+                "subject_id": None,
+                "binding_id": None,
+                "field": None,
+                "basis": None,
+                "observations": None,
+                "skip": 0,
+                "axis": None,
+                "reduction": None,
+                "missing_policy": "require_all",
+                "minimum_count": 1,
+                "minimum_fraction": "1",
+                "arithmetic": None,
+            }
+            for key, default in daily_value_defaults.items():
+                if normalized.get(key) == default:
+                    normalized.pop(key, None)
+        return normalized
 
     if isinstance(value, (list, tuple)):
         return [
@@ -198,10 +224,10 @@ def semantic_payload(
     if getattr(spec, "api_version", None) == "ruletrade.dev/strategy/v2" and hasattr(spec, "model_dump"):
         # V2 contains discriminated Program unions whose in-memory subclasses
         # can differ before and after a JSON persistence round-trip while their
-        # serialized semantic meaning is identical.  Hash the persisted form so
-        # CAS remains stable across save/reopen.
+        # semantic meaning is identical. _normalize_value removes only known
+        # representation-only defaults and preserves the existing hash contract.
         return _normalize_value(spec.model_dump(
-            mode="json", exclude={"metadata"}, exclude_defaults=True,
+            mode="python", exclude={"metadata"},
         ))
 
     raise TypeError(
