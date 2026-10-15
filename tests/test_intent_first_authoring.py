@@ -20,6 +20,7 @@ from ruletrade.strategy.v2.authoring import (
 )
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
+    CanonicalStrategyV2,
     ConditionalStatementV2,
     EventStatementV2,
     GuardedAllocationStatementV2,
@@ -159,3 +160,49 @@ def test_unformalized_temporal_variation_and_stale_cas_are_rejected() -> None:
             ),
         ))
     assert stale.value.code == "stale_authoring_source"
+
+
+@pytest.mark.parametrize("operation", [
+    CommitSingleAssetIntent(
+        kind="commit_single_asset_intent", investment_id="investment-1",
+        investment_name="Investment", asset_set_id="investment-1-assets",
+        asset="QQQ", timeframe="monthly", timing_meaning="rebalance",
+    ),
+    CommitMarketRegimeRotationIntent(
+        kind="commit_market_regime_rotation_intent",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"), trend_asset="QQQ",
+        trend_lookback=200, ranking_lookback=126, count=2,
+        fallback_asset="TLT", timeframe="monthly",
+    ),
+    CommitSplitPortfolioIntent(
+        kind="commit_split_portfolio_intent",
+        growth_assets=("QQQ", "VGT", "SOXX", "SCHG"),
+        growth_weight=Decimal("0.70"), defensive_asset="IEF",
+        ranking_lookback=126, fallback_asset="TLT", timeframe="monthly",
+    ),
+    CommitWeightedScoreIntent(
+        kind="commit_weighted_score_intent",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+        short_observations=21, long_observations=63,
+        short_weight=Decimal("0.6"), long_weight=Decimal("0.4"),
+        count=3, timeframe="monthly", missing_policy="require_all",
+    ),
+    CommitTemporalSequenceIntent(
+        kind="commit_temporal_sequence_intent", asset="QQQ",
+        breakout_threshold=Decimal(12), retest_window=3,
+        confirmation_window=2, expiry_state="expired",
+    ),
+    CommitMultiClockPolicyIntent(
+        kind="commit_multi_clock_policy_intent",
+        assets=("QQQ", "VGT", "SOXX", "SCHG"),
+        weekly_context_asset="QQQ", weekly_threshold=Decimal(0),
+        daily_signal_asset="QQQ", daily_threshold=Decimal(0),
+        score_observations=(21, 63), score_weights=(Decimal("0.6"), Decimal("0.4")),
+        count=2, fallback_asset="TLT", unknown_risk_policy="block",
+    ),
+])
+def test_committed_intent_survives_canonical_save_and_reopen(operation) -> None:
+    strategy = apply(operation)
+    reopened = CanonicalStrategyV2.model_validate_json(strategy.model_dump_json())
+    assert validate_strategy_v2(reopened) == ()
+    assert strategy_hash(reopened) == strategy_hash(strategy)
