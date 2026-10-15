@@ -780,7 +780,7 @@ def _compile_program_intent(
                     coordinate_policy="member_identity",
                 ),
             ),
-            "operator_lock": {}, "selection": None, "predicate": None,
+            "operator_lock": {"compare": "1"}, "selection": None, "predicate": None,
             "program": SemanticProgramV2(
                 semantic_id="program",
                 clocks=(ProgramClockV2(id=clock_id, timeframe=operation.timeframe),),
