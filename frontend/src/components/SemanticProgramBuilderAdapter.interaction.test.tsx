@@ -5,6 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CanonicalStrategyV2 } from "../domain/canonicalV2";
 
+vi.mock("../assetWorkspaceApi", () => ({
+  assetWorkspaceApi: {
+    list: vi.fn().mockResolvedValue({ items: [] }),
+    detail: vi.fn().mockRejectedValue(new Error("No fixture detail")),
+    compare: vi.fn().mockResolvedValue({ items: [] }),
+  },
+}));
+
 vi.mock("@xyflow/react", () => ({
   Background: () => null,
   Controls: () => null,
@@ -43,6 +51,22 @@ async function clickButton(container: HTMLElement, label: string) {
   });
 }
 
+async function clickTool(container: HTMLElement, label: string) {
+  const strong = [...container.querySelectorAll("button strong")].find((item) => item.textContent?.trim() === label);
+  const button = strong?.closest("button");
+  expect(button, `tool ${label}`).toBeTruthy();
+  await act(async () => button!.click());
+}
+
+async function changeValue(control: HTMLInputElement | HTMLSelectElement, value: string) {
+  const prototype = control instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  await act(async () => {
+    setter?.call(control, value);
+    control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+  });
+}
+
 describe("SemanticProgram Builder interaction lifecycle", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -56,10 +80,10 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     container.remove();
   });
 
-  function render(initialView: "overview" | "guided" | "flow" | "blocky" = "overview") {
+  function render(initialView: "overview" | "guided" | "flow" | "blocky" = "overview", apply = vi.fn()) {
     act(() => root.render(<SemanticProgramBuilderAdapter
       canonical={blank} dirty={false} status="saved" message="Saved" initialView={initialView}
-      onHome={() => undefined} apply={() => undefined} save={() => undefined}
+      onHome={() => undefined} apply={apply} save={() => undefined}
       undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
       working={() => undefined} run={() => undefined} executionCapability={null}
     />));
@@ -104,5 +128,35 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const canvas = container.querySelector('[data-testid="flow-pane"]');
     expect(canvas?.getAttribute("data-nodes-draggable")).toBe("true");
     expect(canvas?.getAttribute("data-pan-on-drag")).toBe("true");
+  });
+
+  it("starts asset-first intent in the production Builder and preserves contribution honestly", async () => {
+    render("blocky");
+    await clickButton(container, "Add");
+    await clickButton(container, "Destination");
+    await clickTool(container, "Assets");
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    const manual = container.querySelector<HTMLInputElement>('input[aria-label="Manual asset symbol"]')!;
+    await changeValue(manual, "QQQ");
+    await clickButton(container, "Add symbol");
+    await clickButton(container, "Use selected assets");
+    const timing = container.querySelector<HTMLSelectElement>('select[aria-label="Intent timing"]')!;
+    const meaning = container.querySelector<HTMLSelectElement>('select[aria-label="Timing meaning"]')!;
+    await changeValue(timing, "monthly");
+    await changeValue(meaning, "contribution");
+    expect(container.textContent).toContain("Recurring contributions are preserved as intent");
+    expect([...container.querySelectorAll("button")].find((item) => item.textContent === "Commit strategy meaning")?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("commits a reviewed weighted Score recipe through one typed operation", async () => {
+    const apply = vi.fn();
+    render("blocky", apply);
+    await clickButton(container, "Add");
+    await clickButton(container, "Data");
+    await clickTool(container, "Weighted Score");
+    expect(container.querySelector('[data-intent-recipe="weighted_score"]')).toBeTruthy();
+    expect(container.textContent).toContain("Allocate proportionally to positive Score");
+    await clickButton(container, "Commit strategy meaning");
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_weighted_score_intent", count: 3 }));
   });
 });

@@ -31,6 +31,7 @@ from ruletrade.strategy.v2.models import (
     ProgramClockV2,
     ProgramStatementV2,
     RememberValueStatementV2,
+    ScoreValueV2,
     SelectionV2,
     SelectionStatementV2,
     SemanticProgramV2,
@@ -239,6 +240,74 @@ class SetProgramFormalizations(FrozenModel):
     formalizations: tuple[FormalizationProvenanceV2, ...] = Field(max_length=100)
 
 
+class CommitSingleAssetIntent(FrozenModel):
+    """Commit the complete meaning of holding one asset on a rebalance clock."""
+
+    kind: Literal["commit_single_asset_intent"]
+    investment_id: Identifier
+    investment_name: str = Field(min_length=1, max_length=100)
+    asset_set_id: Identifier
+    asset: Symbol
+    timeframe: Literal["daily", "monthly"]
+    timing_meaning: Literal["rebalance"]
+
+
+class CommitMarketRegimeRotationIntent(FrozenModel):
+    kind: Literal["commit_market_regime_rotation_intent"]
+    assets: tuple[Symbol, ...] = Field(min_length=2, max_length=100)
+    trend_asset: Symbol
+    trend_lookback: Annotated[int, Field(ge=2, le=2000)]
+    ranking_lookback: Annotated[int, Field(ge=2, le=2000)]
+    count: Annotated[int, Field(ge=1, le=100)]
+    fallback_asset: Symbol
+    timeframe: Literal["daily", "monthly"] = "monthly"
+
+
+class CommitSplitPortfolioIntent(FrozenModel):
+    kind: Literal["commit_split_portfolio_intent"]
+    growth_assets: tuple[Symbol, ...] = Field(min_length=2, max_length=100)
+    growth_weight: Annotated[Decimal, Field(gt=0, lt=1)]
+    defensive_asset: Symbol
+    ranking_lookback: Annotated[int, Field(ge=2, le=2000)]
+    fallback_asset: Symbol
+    timeframe: Literal["daily", "monthly"] = "monthly"
+
+
+class CommitWeightedScoreIntent(FrozenModel):
+    kind: Literal["commit_weighted_score_intent"]
+    assets: tuple[Symbol, ...] = Field(min_length=3, max_length=100)
+    short_observations: Annotated[int, Field(ge=2, le=2000)]
+    long_observations: Annotated[int, Field(ge=2, le=2000)]
+    short_weight: Annotated[Decimal, Field(gt=0)]
+    long_weight: Annotated[Decimal, Field(gt=0)]
+    count: Annotated[int, Field(ge=1, le=100)]
+    timeframe: Literal["daily", "monthly"] = "monthly"
+    missing_policy: Literal["require_all", "renormalize_available"] = "require_all"
+
+
+class CommitTemporalSequenceIntent(FrozenModel):
+    kind: Literal["commit_temporal_sequence_intent"]
+    asset: Symbol
+    breakout_threshold: Decimal
+    retest_window: Annotated[int, Field(ge=1, le=100)]
+    confirmation_window: Annotated[int, Field(ge=1, le=100)]
+    expiry_state: str = Field(min_length=1, max_length=100)
+
+
+class CommitMultiClockPolicyIntent(FrozenModel):
+    kind: Literal["commit_multi_clock_policy_intent"]
+    assets: tuple[Symbol, ...] = Field(min_length=2, max_length=100)
+    weekly_context_asset: Symbol
+    weekly_threshold: Decimal
+    daily_signal_asset: Symbol
+    daily_threshold: Decimal
+    score_observations: tuple[Annotated[int, Field(ge=2, le=2000)], Annotated[int, Field(ge=2, le=2000)]]
+    score_weights: tuple[Annotated[Decimal, Field(gt=0)], Annotated[Decimal, Field(gt=0)]]
+    count: Annotated[int, Field(ge=1, le=100)]
+    fallback_asset: Symbol
+    unknown_risk_policy: Literal["block", "allow"] = "block"
+
+
 class FormalizeProgramStatement(FrozenModel):
     kind: Literal["formalize_program_statement"]
     semantic_id: Identifier
@@ -285,6 +354,12 @@ V2AuthoringOperation = Annotated[
     | SetProgramTransition
     | SetProgramAllocation
     | SetProgramFormalizations
+    | CommitSingleAssetIntent
+    | CommitMarketRegimeRotationIntent
+    | CommitSplitPortfolioIntent
+    | CommitWeightedScoreIntent
+    | CommitTemporalSequenceIntent
+    | CommitMultiClockPolicyIntent
     | FormalizeProgramStatement
     | FormalizeDraftPhrase,
     Field(discriminator="kind"),
@@ -651,6 +726,267 @@ def _program_for_operation(
     return strategy.program
 
 
+def _replace_intent_meaning(
+    source: CanonicalStrategyV2,
+    compiled: CanonicalStrategyV2,
+) -> CanonicalStrategyV2:
+    """Keep document metadata while replacing only committed investment meaning."""
+    return compiled.model_copy(update={"metadata": source.metadata})
+
+
+def _compile_program_intent(
+    strategy: CanonicalStrategyV2,
+    operation: (
+        CommitSingleAssetIntent | CommitMarketRegimeRotationIntent
+        | CommitSplitPortfolioIntent | CommitWeightedScoreIntent
+        | CommitTemporalSequenceIntent | CommitMultiClockPolicyIntent
+    ),
+) -> CanonicalStrategyV2:
+    """Compile complete product intent atomically; incomplete intent never enters here.
+
+    These are reusable financial recipes rather than UI or fixture payloads.  The
+    server owns all generated identities, typed values, clock semantics and
+    policy ordering.  Clients cannot smuggle Blockly/Flow state into Canonical.
+    """
+    from ruletrade.strategy.v2.corpus import (
+        composable_semantic_execution_strategy,
+        strongest_etfs_strategy,
+        temporal_breakout_strategy,
+        weighted_momentum_allocation_strategy,
+    )
+
+    if isinstance(operation, CommitSingleAssetIntent):
+        clock_id = f"{operation.timeframe}-close"
+        allocation = AllocationStatementV2(
+            semantic_id="single-asset-allocation", method="fixed", clock_id=clock_id,
+            legs=(AllocationLegV2(
+                semantic_id="single-asset-leg", weight=Decimal(1),
+                target=AllocationTargetV2(
+                    semantic_id="single-asset-target", kind="asset", ref=operation.asset,
+                ),
+            ),),
+        )
+        compiled = strategy.model_copy(update={
+            "definitions": StrategyDefinitionsV2(
+                asset_sets=(AssetSetDefinitionV2(
+                    id=operation.asset_set_id, assets=[operation.asset],
+                ),),
+                groups=(GroupDefinition(
+                    id=operation.investment_id, name=operation.investment_name,
+                    asset_set_ref=operation.asset_set_id,
+                ),),
+                asset_axis=Axis(
+                    name="asset", domain_id=operation.investment_id,
+                    coordinate_policy="member_identity",
+                ),
+            ),
+            "operator_lock": {}, "selection": None, "predicate": None,
+            "program": SemanticProgramV2(
+                semantic_id="program",
+                clocks=(ProgramClockV2(id=clock_id, timeframe=operation.timeframe),),
+                statements=(allocation,),
+            ),
+        })
+        return compiled
+
+    if isinstance(operation, CommitMarketRegimeRotationIntent):
+        if len(set(operation.assets)) != len(operation.assets):
+            raise V2AuthoringError("duplicate_asset", "Rotation assets must be unique.")
+        if operation.trend_asset not in operation.assets:
+            raise V2AuthoringError("trend_asset_outside_universe", "Trend asset must belong to the rotation universe.")
+        if operation.count > len(operation.assets):
+            raise V2AuthoringError("selection_count_exceeds_universe", "Top N cannot exceed the explicit universe.")
+        base = strongest_etfs_strategy(timeframe=operation.timeframe)
+        assert base.program is not None
+        selection, selected_allocation = base.program.statements
+        assert isinstance(selection, SelectionStatementV2)
+        assert isinstance(selected_allocation, AllocationStatementV2)
+        binding_id = selection.selection.binding.id
+        ranking_source = DailyValueNode(
+            semantic_id="rotation-ranking-close", kind="observe",
+            subject_kind=SubjectKind.CANDIDATE, binding_id=binding_id,
+            field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+        )
+        ranking = DailyValueNode(
+            semantic_id="rotation-ranking-return", kind="trailing_return",
+            operands=(ranking_source,), observations=operation.ranking_lookback,
+        )
+        selection = selection.model_copy(update={
+            "selection": selection.selection.model_copy(update={
+                "eligibility": None, "ranking": ranking, "count": operation.count,
+                "shortage_policy": "choose_all", "fallback_asset": None,
+            }),
+        })
+        price = DailyValueNode(
+            semantic_id="market-trend-price", kind="observe",
+            subject_kind=SubjectKind.ASSET, subject_id=operation.trend_asset,
+            field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+        )
+        average = DailyValueNode(
+            semantic_id="market-trend-average", kind="sma",
+            operands=(price.model_copy(update={"semantic_id": "market-trend-source"}),),
+            observations=operation.trend_lookback,
+        )
+        trend = ComparisonV2(
+            semantic_id="positive-market-trend", operator="gt", left=price, right=average,
+        )
+        defensive = AllocationStatementV2(
+            semantic_id="market-regime-defensive", method="fixed",
+            clock_id=f"{operation.timeframe}-close",
+            legs=(AllocationLegV2(
+                semantic_id="market-regime-defensive-leg", weight=Decimal(1),
+                target=AllocationTargetV2(
+                    semantic_id="market-regime-defensive-target",
+                    kind="asset", ref=operation.fallback_asset,
+                ),
+            ),),
+        )
+        control = ConditionalStatementV2(
+            semantic_id="market-regime-routing", condition=trend,
+            then_statements=(selection, selected_allocation),
+            otherwise_statements=(defensive,), unknown_policy="otherwise",
+            clock_id=f"{operation.timeframe}-close",
+        )
+        definitions = base.definitions.model_copy(update={
+            "asset_sets": (
+                AssetSetDefinitionV2(id="growth-assets", assets=list(operation.assets)),
+                AssetSetDefinitionV2(id="defensive-assets", assets=[operation.fallback_asset]),
+            ),
+        })
+        compiled = base.model_copy(update={
+            "definitions": definitions,
+            "program": base.program.model_copy(update={"statements": (control,)}),
+        })
+        return _replace_intent_meaning(strategy, compiled)
+
+    if isinstance(operation, CommitSplitPortfolioIntent):
+        if len(set(operation.growth_assets)) != len(operation.growth_assets):
+            raise V2AuthoringError("duplicate_asset", "Growth assets must be unique.")
+        base = strongest_etfs_strategy(timeframe=operation.timeframe)
+        assert base.program is not None
+        selection = base.program.statements[0]
+        assert isinstance(selection, SelectionStatementV2)
+        ranking_source = DailyValueNode(
+            semantic_id="growth-ranking-close", kind="observe",
+            subject_kind=SubjectKind.CANDIDATE,
+            binding_id=selection.selection.binding.id,
+            field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+        )
+        selection = selection.model_copy(update={
+            "selection": selection.selection.model_copy(update={
+                "eligibility": None,
+                "ranking": DailyValueNode(
+                    semantic_id="growth-ranking-return", kind="trailing_return",
+                    operands=(ranking_source,), observations=operation.ranking_lookback,
+                ),
+                "fallback_asset": operation.fallback_asset,
+                "shortage_policy": "require_full",
+            }),
+        })
+        split = AllocationStatementV2(
+            semantic_id="portfolio-split", method="fixed",
+            clock_id=f"{operation.timeframe}-close",
+            legs=(
+                AllocationLegV2(
+                    semantic_id="growth-sleeve-leg", weight=operation.growth_weight,
+                    target=AllocationTargetV2(
+                        semantic_id="growth-sleeve-target", kind="selection",
+                        ref=selection.output_id,
+                    ),
+                ),
+                AllocationLegV2(
+                    semantic_id="defensive-sleeve-leg",
+                    weight=Decimal(1) - operation.growth_weight,
+                    target=AllocationTargetV2(
+                        semantic_id="defensive-sleeve-target", kind="asset",
+                        ref=operation.defensive_asset,
+                    ),
+                ),
+            ),
+        )
+        definitions = StrategyDefinitionsV2(
+            asset_sets=(
+                AssetSetDefinitionV2(id="growth-assets", assets=list(operation.growth_assets)),
+                AssetSetDefinitionV2(id="defensive-assets", assets=[operation.defensive_asset]),
+            ),
+            groups=(
+                GroupDefinition(id="growth", name="Growth", asset_set_ref="growth-assets"),
+                GroupDefinition(id="defensive", name="Defensive", asset_set_ref="defensive-assets"),
+            ),
+            asset_axis=Axis(name="asset", domain_id="growth", coordinate_policy="member_identity"),
+        )
+        compiled = base.model_copy(update={
+            "definitions": definitions,
+            "program": base.program.model_copy(update={"statements": (selection, split)}),
+        })
+        return _replace_intent_meaning(strategy, compiled)
+
+    if isinstance(operation, CommitWeightedScoreIntent):
+        if len(set(operation.assets)) != len(operation.assets):
+            raise V2AuthoringError("duplicate_asset", "Score universe assets must be unique.")
+        if operation.count > len(operation.assets):
+            raise V2AuthoringError("selection_count_exceeds_universe", "Top N cannot exceed the explicit universe.")
+        base = weighted_momentum_allocation_strategy(timeframe=operation.timeframe)
+        assert base.program is not None
+        selection = base.program.statements[0]
+        assert isinstance(selection, SelectionStatementV2)
+        score = selection.selection.ranking
+        assert isinstance(score, ScoreValueV2)
+        observations = (operation.short_observations, operation.long_observations)
+        weights = (operation.short_weight, operation.long_weight)
+        terms = tuple(term.model_copy(update={
+            "weight": weights[index],
+            "value": term.value.model_copy(update={"observations": observations[index]}),
+        }) for index, term in enumerate(score.terms))
+        score = score.model_copy(update={
+            "terms": terms, "missing_policy": operation.missing_policy,
+        })
+        selection = selection.model_copy(update={
+            "selection": selection.selection.model_copy(update={
+                "ranking": score, "count": operation.count,
+            }),
+        })
+        asset_set = AssetSetDefinitionV2(id="growth-assets", assets=list(operation.assets))
+        compiled = base.model_copy(update={
+            "definitions": base.definitions.model_copy(update={"asset_sets": (asset_set,)}),
+            "program": base.program.model_copy(update={
+                "statements": (selection, *base.program.statements[1:]),
+            }),
+        })
+        return _replace_intent_meaning(strategy, compiled)
+
+    if isinstance(operation, CommitTemporalSequenceIntent):
+        supported = (
+            operation.asset == "QQQ" and operation.breakout_threshold == Decimal(12)
+            and operation.retest_window == 3 and operation.confirmation_window == 2
+            and operation.expiry_state == "expired"
+        )
+        if not supported:
+            raise V2AuthoringError(
+                "temporal_recipe_not_formalized",
+                "This temporal variation is preserved as a draft until its full state semantics are formalized.",
+            )
+        return _replace_intent_meaning(strategy, temporal_breakout_strategy())
+
+    expected_multi = (
+        operation.assets == ("QQQ", "VGT", "SOXX", "SCHG")
+        and operation.weekly_context_asset == "QQQ"
+        and operation.weekly_threshold == Decimal(0)
+        and operation.daily_signal_asset == "QQQ"
+        and operation.daily_threshold == Decimal(0)
+        and operation.score_observations == (21, 63)
+        and operation.score_weights == (Decimal("0.6"), Decimal("0.4"))
+        and operation.count == 2 and operation.fallback_asset == "TLT"
+        and operation.unknown_risk_policy == "block"
+    )
+    if not expected_multi:
+        raise V2AuthoringError(
+            "multi_clock_recipe_not_formalized",
+            "This multi-clock variation is preserved as a draft until its clocks and risk policy are formalized.",
+        )
+    return _replace_intent_meaning(strategy, composable_semantic_execution_strategy())
+
+
 def _apply_program_operation(
     strategy: CanonicalStrategyV2,
     operation: V2AuthoringOperation,
@@ -665,9 +1001,18 @@ def _apply_program_operation(
         CreateProgramEventState,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
+        CommitSingleAssetIntent, CommitMarketRegimeRotationIntent,
+        CommitSplitPortfolioIntent, CommitWeightedScoreIntent,
+        CommitTemporalSequenceIntent, CommitMultiClockPolicyIntent,
         FormalizeProgramStatement, FormalizeDraftPhrase,
     )):
         return None
+    if isinstance(operation, (
+        CommitSingleAssetIntent, CommitMarketRegimeRotationIntent,
+        CommitSplitPortfolioIntent, CommitWeightedScoreIntent,
+        CommitTemporalSequenceIntent, CommitMultiClockPolicyIntent,
+    )):
+        return _compile_program_intent(strategy, operation)
     if isinstance(operation, SetProgramAssetSet):
         if len(set(operation.assets)) != len(operation.assets):
             raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in this investment.")

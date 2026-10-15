@@ -244,10 +244,18 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       const draftId = draft ? `draft:${draft.semanticId}` : null;
       const existingDraft = draftId ? existing.get(draftId) : null;
       if (draft && draftId && !existingDraft) {
-        const type = draft.kind === "control" ? "rt_control" : draft.kind === "selection" ? "rt_selection" : "rt_event";
+        const type = draft.kind === "control" ? "rt_control"
+          : draft.kind === "selection" ? "rt_selection"
+            : draft.kind === "event_state" || (draft.kind === "financial_intent" && ["temporal_sequence", "multi_clock_policy"].includes(draft.recipe)) ? "rt_event"
+              : draft.kind === "financial_intent" && draft.recipe === "market_regime_rotation" ? "rt_control"
+                : draft.kind === "financial_intent" && draft.recipe === "weighted_score" ? "rt_selection"
+                  : "rt_allocation";
         const block = canvas.newBlock(type) as Blockly.BlockSvg;
         setAddress(block, draftId);
-        if (block.getField("LABEL")) block.setFieldValue(draft.kind === "selection" ? "Choose assets · unfinished" : draft.kind === "event_state" ? "Event → State · unfinished" : "IF · set condition", "LABEL");
+        if (block.getField("LABEL")) block.setFieldValue(draft.kind === "selection" ? "Choose assets · unfinished"
+          : draft.kind === "event_state" ? "Event → State · unfinished"
+            : draft.kind === "financial_intent" ? `${draft.recipe.replaceAll("_", " ")} · draft`
+              : "IF · set condition", "LABEL");
         block.setDeletable(true); block.setMovable(true); block.contextMenu = false;
         block.initSvg(); block.render();
         const saved = positionsRef.current[draftId]; block.moveBy(saved?.x ?? 360, saved?.y ?? 80);

@@ -1,0 +1,111 @@
+{
+  "schema_version": "ruletrade.dev/intent-authoring-user-actions/v1",
+  "evidence_boundary": "These are production Builder action contracts. Synthetic assumptions are explicit and are not attributed to source fragments.",
+  "journeys": [
+    {
+      "id": "single-qqq-asset-first",
+      "strategy": "Invest in QQQ every month",
+      "start_path": "asset_first",
+      "steps": [
+        {"action":"Add → Assets","view":"Blocky","draft_object":"single_asset","unresolved":["asset","timing","timing meaning"],"visible":"Invest in one asset · draft","commit":null,"capability":"incomplete","next":["search asset"]},
+        {"action":"Select QQQ","view":"Asset Workspace","draft_object":"single_asset.asset","unresolved":["timing","timing meaning"],"visible":"QQQ selected","commit":null,"capability":"incomplete","next":["choose timing"]},
+        {"action":"Every month → Rebalance existing capital","view":"Inspector","draft_object":"single_asset.timing","unresolved":[],"visible":"Hold QQQ and rebalance monthly","commit":"commit_single_asset_intent","capability":"semantic valid; execution capability assessed after commit","next":["commit","save"]}
+      ]
+    },
+    {
+      "id": "single-qqq-timing-first",
+      "strategy": "Invest in QQQ every month",
+      "start_path": "timing_first",
+      "steps": [
+        {"action":"Add → Rebalance","view":"Blocky","draft_object":"single_asset.timing","unresolved":["asset"],"visible":"Every month · rebalance","commit":null,"capability":"incomplete","next":["choose asset"]},
+        {"action":"Select QQQ","view":"Asset Workspace","draft_object":"single_asset.asset","unresolved":[],"visible":"Hold QQQ and rebalance monthly","commit":"commit_single_asset_intent","capability":"semantic valid","next":["commit"]}
+      ]
+    },
+    {
+      "id": "market-regime-logic-first",
+      "strategy": "A",
+      "start_path": "logic_first",
+      "steps": [
+        {"action":"Add → Market regime rotation","view":"Blocky","draft_object":"market_regime_rotation","unresolved":[],"visible":"IF QQQ > SMA(200), Top 2 by return(126), OTHERWISE TLT","commit":"commit_market_regime_rotation_intent","capability":"representable","next":["review explicit ELSE","commit"]}
+      ]
+    },
+    {
+      "id": "market-regime-asset-first",
+      "strategy": "A",
+      "start_path": "asset_first",
+      "steps": [
+        {"action":"Choose QQQ/VGT/SOXX/SCHG","view":"Asset Workspace","draft_object":"market_regime_rotation.assets","unresolved":["trend","ranking","ELSE"],"visible":"Explicit universe","commit":null,"capability":"incomplete","next":["define trend"]},
+        {"action":"Set trend/ranking/OTHERWISE","view":"Inspector","draft_object":"market_regime_rotation","unresolved":[],"visible":"Explicit conditional capital routes","commit":"commit_market_regime_rotation_intent","capability":"representable","next":["commit"]}
+      ]
+    },
+    {
+      "id": "split-flow-first",
+      "strategy": "B",
+      "start_path": "flow_first",
+      "steps": [
+        {"action":"Add → Growth + Defensive","view":"Flow","draft_object":"split_portfolio","unresolved":[],"visible":"Portfolio → Growth 70% / Defensive 30%","commit":"commit_split_portfolio_intent","capability":"representable","next":["review sleeves","commit"]}
+      ]
+    },
+    {
+      "id": "split-allocation-first",
+      "strategy": "B",
+      "start_path": "allocation_first",
+      "steps": [
+        {"action":"Set 70/30","view":"Inspector","draft_object":"split_portfolio.weights","unresolved":["Growth assets","Defensive asset"],"visible":"Unresolved parallel routes","commit":null,"capability":"incomplete","next":["configure routes"]},
+        {"action":"Set Growth momentum + TLT shortage; Defensive IEF","view":"Blocky","draft_object":"split_portfolio","unresolved":[],"visible":"Two scoped sleeves","commit":"commit_split_portfolio_intent","capability":"representable","next":["commit"]}
+      ]
+    },
+    {
+      "id": "weighted-score-logic-first",
+      "strategy": "C",
+      "start_path": "logic_first",
+      "steps": [
+        {"action":"Add → Weighted Score","view":"Blocky","draft_object":"weighted_score","unresolved":[],"visible":"0.6×return(21)+0.4×return(63) → Top 3 → proportional","commit":"commit_weighted_score_intent","capability":"Docker-verified supported subset","next":["commit","test"]}
+      ]
+    },
+    {
+      "id": "weighted-score-asset-first",
+      "strategy": "C",
+      "start_path": "asset_first",
+      "steps": [
+        {"action":"Choose Score universe","view":"Asset Workspace","draft_object":"weighted_score.assets","unresolved":["Score terms","Top N","allocation"],"visible":"Explicit universe","commit":null,"capability":"incomplete","next":["calculate Score"]},
+        {"action":"Set terms, Top 3, positive proportional allocation","view":"Inspector","draft_object":"weighted_score","unresolved":[],"visible":"Complete weighted Score","commit":"commit_weighted_score_intent","capability":"executable","next":["commit"]}
+      ]
+    },
+    {
+      "id": "temporal-logic-first",
+      "strategy": "D",
+      "start_path": "logic_first",
+      "steps": [
+        {"action":"Add → Breakout sequence","view":"Blocky","draft_object":"temporal_sequence","unresolved":[],"visible":"Breakout 12 → remember → retest ≤3 → confirm ≤2 → expire","commit":"commit_temporal_sequence_intent","capability":"Docker-verified formalized recipe","next":["commit"]}
+      ]
+    },
+    {
+      "id": "temporal-asset-first",
+      "strategy": "D",
+      "start_path": "asset_first",
+      "steps": [
+        {"action":"Choose QQQ","view":"Asset Workspace","draft_object":"temporal_sequence.asset","unresolved":["breakout","windows","expiry"],"visible":"Observed asset QQQ","commit":null,"capability":"incomplete","next":["define sequence"]},
+        {"action":"Define threshold and bounded windows","view":"Inspector","draft_object":"temporal_sequence","unresolved":[],"visible":"Ordered Event/State/Memory scenario","commit":"commit_temporal_sequence_intent","capability":"executable","next":["commit"]}
+      ]
+    },
+    {
+      "id": "multi-clock-timing-first",
+      "strategy": "E",
+      "start_path": "timing_first",
+      "steps": [
+        {"action":"Add → Weekly context + daily signal","view":"Blocky","draft_object":"multi_clock_policy","unresolved":[],"visible":"Completed weekly context → daily confirmation → risk precedence","commit":"commit_multi_clock_policy_intent","capability":"Docker-verified formalized recipe","next":["commit","test"]}
+      ]
+    },
+    {
+      "id": "multi-clock-logic-first",
+      "strategy": "E",
+      "start_path": "logic_first",
+      "steps": [
+        {"action":"Define risk policy first","view":"Blocky","draft_object":"multi_clock_policy.risk","unresolved":["weekly context","daily signal"],"visible":"Unknown blocks exposure","commit":null,"capability":"incomplete","next":["add completed weekly context"]},
+        {"action":"Add weekly and daily clocks/signals","view":"Inspector","draft_object":"multi_clock_policy","unresolved":[],"visible":"Two clocks with explicit precedence","commit":"commit_multi_clock_policy_intent","capability":"executable","next":["commit"]}
+      ]
+    }
+  ],
+  "counterexamples": ["incomplete_if","invalid_block_connection","asset_before_investment","selection_before_universe","split_before_sleeves","missing_score_terms","fallback_as_else","state_without_memory","expired_confirmation","incomplete_weekly_context","unknown_risk_guard","duplicate_exposure","stale_cas","draft_lost_on_view_switch","layout_mutates_canonical","construction_order_divergence"]
+}

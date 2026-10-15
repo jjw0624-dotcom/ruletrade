@@ -1,5 +1,6 @@
 import type { Viewport, XYPosition } from "@xyflow/react";
 import type { ConditionV2 } from "./canonicalV2";
+import type { FinancialIntentDraft } from "./intentAuthoring";
 
 export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v2" as const;
 
@@ -8,6 +9,7 @@ export type ProgramDraftConcept =
   | { kind: "selection"; semanticId: string; universeId: string; withQualification?: boolean }
   | { kind: "event_state"; semanticId: string }
   | { kind: "control"; semanticId: string; condition: ConditionV2 | null }
+  | FinancialIntentDraft
   | null;
 
 export interface ProgramDraftConnection {
