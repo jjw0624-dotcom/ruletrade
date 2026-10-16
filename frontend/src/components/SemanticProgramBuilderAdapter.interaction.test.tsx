@@ -94,6 +94,13 @@ async function clickTool(container: HTMLElement, label: string) {
   await act(async () => button!.click());
 }
 
+async function clickStructureItem(container: HTMLElement, label: string) {
+  const item = [...container.querySelectorAll("button.structure-item > span")].find((candidate) => candidate.textContent?.trim() === label);
+  const button = item?.closest("button");
+  expect(button, `structure item ${label}`).toBeTruthy();
+  await act(async () => button!.click());
+}
+
 async function changeValue(control: HTMLInputElement | HTMLSelectElement, value: string) {
   const prototype = control instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
@@ -137,13 +144,17 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("keeps layout-only Blocky drag out of Canonical and supports workspace undo/redo", async () => {
     const apply = vi.fn();
     const onWorkingDraftChange = vi.fn();
-    act(() => root.render(<SemanticProgramBuilderAdapter
-      canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="blocky"
-      onHome={() => undefined} apply={apply} save={() => undefined}
-      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
-      working={() => undefined} run={() => undefined} executionCapability={null}
-      workingDraft={emptyProgramWorkingDraft("growth-defensive")} onWorkingDraftChange={onWorkingDraftChange}
-    />));
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("growth-defensive"));
+      return <SemanticProgramBuilderAdapter
+        canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { onWorkingDraftChange(next); setDraft(next); }}
+      />;
+    }
+    act(() => root.render(<Harness />));
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="blocky-move"]')!.click());
     const moved = onWorkingDraftChange.mock.calls.at(-1)?.[0];
     expect(Object.values(moved.blockPositions)).toContainEqual({ x: 420, y: 180 });
@@ -223,7 +234,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("offers contextual Growth extensions without rebuilding the 70/30 portfolio", async () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
-    await clickButton(container, "Growth");
+    await clickStructureItem(container, "Growth");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
@@ -238,7 +249,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
 
   it("does not redirect Defensive context to Growth selection capabilities", async () => {
     render("blocky", vi.fn(), growthDefensive);
-    await clickButton(container, "Defensive");
+    await clickStructureItem(container, "Defensive");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
@@ -249,7 +260,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
-    await clickButton(container, "Growth");
+    await clickStructureItem(container, "Growth");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     await clickTool(container, "Value / Score");
