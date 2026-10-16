@@ -14,8 +14,8 @@ export interface WorkbenchResearchState {
   context: ResearchContext | null;
 }
 
-// Research is a stacked workspace. These values are vertical percentages and
-// intentionally reserve at least 38% for the active Builder representation.
+// Research is a right-side detail workspace. These values are horizontal
+// percentages and intentionally reserve at least 38% for the active Builder.
 export const RESEARCH_DEFAULT_SIZE = 48;
 export const RESEARCH_COMPARISON_SIZE = 58;
 export const RESEARCH_MIN_SIZE = 32;

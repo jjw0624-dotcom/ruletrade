@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CanonicalStrategyV2 } from "../domain/canonicalV2";
+import { emptyProgramWorkingDraft } from "../domain/programWorkingDraft";
 
 vi.mock("../assetWorkspaceApi", () => ({
   assetWorkspaceApi: {
@@ -19,11 +20,11 @@ vi.mock("@xyflow/react", () => ({
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
   Position: { Top: "top", Bottom: "bottom" },
-  ReactFlow: ({ onPaneClick, nodesDraggable, panOnDrag }: { onPaneClick?: () => void; nodesDraggable?: boolean; panOnDrag?: boolean }) => <button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button>,
+  ReactFlow: ({ onPaneClick, onNodeDragStop, onMoveEnd, nodes = [], nodesDraggable, panOnDrag }: { onPaneClick?: () => void; onNodeDragStop?: (event: unknown, node: { id: string; position: { x: number; y: number } }) => void; onMoveEnd?: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void; nodes?: Array<{ id: string }>; nodesDraggable?: boolean; panOnDrag?: boolean }) => <div><button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button><button type="button" data-testid="flow-node-drag" onClick={() => nodes[0] && onNodeDragStop?.({}, { id: nodes[0].id, position: { x: 510, y: 240 } })}>Move node</button><button type="button" data-testid="flow-pan" onClick={() => onMoveEnd?.({}, { x: 80, y: 45, zoom: .9 })}>Pan canvas</button></div>,
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
-  ProgramBlockyProjection: () => <div data-testid="blocky-workspace">Blocky workspace</div>,
+  ProgramBlockyProjection: ({ nodes = [], onBlockMove }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void }) => <div data-testid="blocky-workspace">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button></div>,
 }));
 
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
@@ -40,6 +41,41 @@ const blank: CanonicalStrategyV2 = {
   },
   operator_lock: {}, selection: null, predicate: null,
   program: { semantic_id: "program", clocks: [], initial_state: {}, formalizations: [], statements: [] },
+};
+
+const growthDefensive: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { ...blank.metadata, name: "Growth + Defensive" },
+  definitions: {
+    asset_sets: [
+      { id: "growth-assets", assets: ["QQQ", "VGT", "SOXX", "SCHG"] },
+      { id: "defensive-assets", assets: ["IEF"] },
+    ],
+    groups: [
+      { id: "growth", name: "Growth", asset_set_ref: "growth-assets", description: "" },
+      { id: "defensive", name: "Defensive", asset_set_ref: "defensive-assets", description: "" },
+    ],
+    asset_axis: { name: "asset", domain_id: "growth", coordinate_policy: "member_identity" },
+  },
+  program: {
+    semantic_id: "program", initial_state: {}, formalizations: [],
+    clocks: [{ id: "monthly-close", timeframe: "monthly", boundary: "close", timezone: "UTC", completed_only: true }],
+    statements: [{
+      kind: "select", semantic_id: "growth-selection", output_id: "growth-selected", clock_id: "monthly-close",
+      selection: {
+        semantic_id: "growth-selection-definition", universe_id: "growth",
+        binding: { id: "growth-candidate", domain_id: "growth" }, eligibility: null,
+        ranking: { semantic_id: "growth-return", kind: "trailing_return", operands: [{ semantic_id: "growth-close", kind: "observe", operands: [], subject_kind: "candidate", subject_id: null, binding_id: "growth-candidate", field: "close", basis: "adjusted", skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 }], observations: 126, skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 },
+        direction: "descending", count: 2, shortage_policy: "require_full", fallback_asset: "TLT",
+      },
+    }, {
+      kind: "allocate", semantic_id: "portfolio-split", method: "fixed", clock_id: "monthly-close",
+      legs: [
+        { semantic_id: "growth-leg", target: { semantic_id: "growth-target", kind: "group", ref: "growth" }, weight: .7 },
+        { semantic_id: "defensive-leg", target: { semantic_id: "defensive-target", kind: "group", ref: "defensive" }, weight: .3 },
+      ], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+    }],
+  },
 };
 
 async function clickButton(container: HTMLElement, label: string) {
@@ -80,9 +116,9 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     container.remove();
   });
 
-  function render(initialView: "overview" | "guided" | "flow" | "blocky" = "overview", apply = vi.fn()) {
+  function render(initialView: "overview" | "guided" | "flow" | "blocky" = "overview", apply = vi.fn(), canonical: CanonicalStrategyV2 = blank) {
     act(() => root.render(<SemanticProgramBuilderAdapter
-      canonical={blank} dirty={false} status="saved" message="Saved" initialView={initialView}
+      canonical={canonical} dirty={false} status="saved" message="Saved" initialView={initialView}
       onHome={() => undefined} apply={apply} save={() => undefined}
       undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
       working={() => undefined} run={() => undefined} executionCapability={null}
@@ -98,6 +134,27 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[data-testid="blocky-workspace"]')).toBe(workspace);
   });
 
+  it("keeps layout-only Blocky drag out of Canonical and supports workspace undo/redo", async () => {
+    const apply = vi.fn();
+    const onWorkingDraftChange = vi.fn();
+    act(() => root.render(<SemanticProgramBuilderAdapter
+      canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="blocky"
+      onHome={() => undefined} apply={apply} save={() => undefined}
+      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+      working={() => undefined} run={() => undefined} executionCapability={null}
+      workingDraft={emptyProgramWorkingDraft("growth-defensive")} onWorkingDraftChange={onWorkingDraftChange}
+    />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="blocky-move"]')!.click());
+    const moved = onWorkingDraftChange.mock.calls.at(-1)?.[0];
+    expect(Object.values(moved.blockPositions)).toContainEqual({ x: 420, y: 180 });
+    expect(apply).not.toHaveBeenCalled();
+    await clickButton(container, "Undo");
+    expect(onWorkingDraftChange.mock.calls.at(-1)?.[0].blockPositions).toEqual({});
+    await clickButton(container, "Redo");
+    expect(Object.values(onWorkingDraftChange.mock.calls.at(-1)?.[0].blockPositions)).toContainEqual({ x: 420, y: 180 });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it("keeps Structure and Add ownership exclusive with separated tool content", async () => {
     render();
     expect(container.textContent).not.toContain("A capital path backed by assets.");
@@ -108,14 +165,11 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.textContent).not.toContain("A capital path backed by assets.");
   });
 
-  it("opens, closes, and clears focus that has no target in the next view", async () => {
+  it("keeps Inspector focus across representation changes and closes only on intent", async () => {
     render();
     await clickButton(container, "Portfolio");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeTruthy();
     await clickButton(container, "Guide");
-    expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
-    await clickButton(container, "Summary");
-    await clickButton(container, "Portfolio");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeTruthy();
     const close = container.querySelector<HTMLButtonElement>('button[aria-label="Close Inspector"]');
     expect(close).toBeTruthy();
@@ -123,11 +177,90 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
   });
 
+  it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
+    act(() => root.render(<SemanticProgramBuilderAdapter
+      canonical={blank} dirty={false} status="saved" message="Saved" initialView="overview"
+      onHome={() => undefined} apply={() => undefined} save={() => undefined}
+      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+      working={() => undefined} run={() => undefined} executionCapability={null}
+      testPanel={<div>Runtime evidence</div>} onCloseTestPanel={() => undefined}
+    />));
+    expect(container.querySelector('[aria-label="Test results"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
+    expect(container.textContent).toContain("Runtime evidence");
+  });
+
   it("keeps Flow node drag and canvas pan as independent production interactions", () => {
     render("flow");
     const canvas = container.querySelector('[data-testid="flow-pane"]');
     expect(canvas?.getAttribute("data-nodes-draggable")).toBe("true");
     expect(canvas?.getAttribute("data-pan-on-drag")).toBe("true");
+  });
+
+  it("persists Flow drag and pan only in Working Draft without semantic operations", async () => {
+    const apply = vi.fn();
+    const onWorkingDraftChange = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("growth-defensive"));
+      return <SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="flow"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { onWorkingDraftChange(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-node-drag"]')!.click());
+    const moved = onWorkingDraftChange.mock.calls.at(-1)?.[0];
+    expect(Object.values(moved.flowPositions)).toContainEqual({ x: 510, y: 240 });
+    expect(apply).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-pan"]')!.click());
+    const panned = onWorkingDraftChange.mock.calls.at(-1)?.[0];
+    expect(panned.flowViewport).toEqual({ x: 80, y: 45, zoom: .9 });
+    expect(Object.values(panned.flowPositions)).toContainEqual({ x: 510, y: 240 });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("offers contextual Growth extensions without rebuilding the 70/30 portfolio", async () => {
+    const apply = vi.fn();
+    render("blocky", apply, growthDefensive);
+    await clickButton(container, "Growth");
+    await clickButton(container, "Add");
+    await clickButton(container, "Data");
+    const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
+    expect(score?.textContent).toContain("Ready");
+    await clickTool(container, "Value / Score");
+    expect(container.querySelector('[aria-label="Selection editor"]')).toBeTruthy();
+    expect(container.textContent).toContain("Choose 2");
+    expect(container.textContent).toContain("Growth");
+    expect(container.textContent).toContain("Defensive");
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect Defensive context to Growth selection capabilities", async () => {
+    render("blocky", vi.fn(), growthDefensive);
+    await clickButton(container, "Defensive");
+    await clickButton(container, "Add");
+    await clickButton(container, "Data");
+    const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
+    expect(score?.textContent).toContain("Needs context");
+    expect(score?.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("keeps Inspector focused on the same semantic address after reconciliation", async () => {
+    const apply = vi.fn();
+    render("blocky", apply, growthDefensive);
+    await clickButton(container, "Growth");
+    await clickButton(container, "Add");
+    await clickButton(container, "Data");
+    await clickTool(container, "Value / Score");
+    const inspector = container.querySelector('[aria-label="Semantic Inspector"]');
+    expect(inspector).toBeTruthy();
+    const updated = structuredClone(growthDefensive);
+    const selection = updated.program!.statements[0];
+    if (selection.kind === "select") selection.selection.count = 3;
+    render("blocky", apply, updated);
+    expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBe(inspector);
+    expect(container.textContent).toContain("Choose 3");
   });
 
   it("starts asset-first intent in the production Builder and preserves contribution honestly", async () => {

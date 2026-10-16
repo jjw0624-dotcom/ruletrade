@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Connection, type Edge, type Node, type NodeProps, type Viewport } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -14,7 +14,7 @@ import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain
 import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
 import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
-import { emptyProgramWorkingDraft, withBlockDisclosure, withBlockPosition, withFlowPositions, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { emptyProgramWorkingDraft, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
 import { translateDraftIntent } from "../domain/draftIntents";
 import { compileFinancialIntent, createFinancialIntentDraft, financialIntentReadiness, updateFinancialIntentDraft, type FinancialIntentDraft, type FinancialIntentRecipe, type IntentStartPath } from "../domain/intentAuthoring";
@@ -436,11 +436,13 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
   return <div className="semantic-inspector-content"><h2>{describeProgramStatement(statement)}</h2></div>;
 }
 
-export function SemanticProgramBuilderAdapter({ canonical, dirty, status, message, onHome, apply, save, undo, redo, canUndo, canRedo, working, run, executionCapability, initialView = "blocky", workingDraft: suppliedWorkingDraft, onWorkingDraftChange }: {
+export function SemanticProgramBuilderAdapter({ canonical, dirty, status, message, onHome, apply, save, undo, redo, canUndo, canRedo, working, run, executionCapability, testPanel = null, onCloseTestPanel = () => undefined, initialView = "blocky", workingDraft: suppliedWorkingDraft, onWorkingDraftChange }: {
   canonical: CanonicalStrategyV2; dirty: boolean; status: "saved" | "updating" | "invalid" | "unfinished"; message: string;
   onHome: () => void; apply: (operation: V2AuthoringOperation) => void; save: () => void;
   undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; working: (unfinished: boolean) => void;
   run: () => void; executionCapability: V2ExecutionCapability | null;
+  testPanel?: ReactNode | null;
+  onCloseTestPanel?: () => void;
   initialView?: ProgramBuilderView;
   workingDraft?: ProgramWorkingDraft;
   onWorkingDraftChange?: (draft: ProgramWorkingDraft) => void;
@@ -452,7 +454,21 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [localWorkingDraft, setLocalWorkingDraft] = useState(() => emptyProgramWorkingDraft(canonical.program?.semantic_id ?? canonical.metadata.name));
   const workingDraft = suppliedWorkingDraft ?? localWorkingDraft;
-  const updateWorkingDraft = useCallback((next: ProgramWorkingDraft) => (onWorkingDraftChange ?? setLocalWorkingDraft)(next), [onWorkingDraftChange]);
+  const workingDraftRef = useRef(workingDraft);
+  workingDraftRef.current = workingDraft;
+  const updateWorkingDraft = useCallback((next: ProgramWorkingDraft) => {
+    workingDraftRef.current = next;
+    (onWorkingDraftChange ?? setLocalWorkingDraft)(next);
+  }, [onWorkingDraftChange]);
+  const [layoutUndo, setLayoutUndo] = useState<ProgramWorkingDraft[]>([]);
+  const [layoutRedo, setLayoutRedo] = useState<ProgramWorkingDraft[]>([]);
+  const updateLayoutDraft = useCallback((next: ProgramWorkingDraft) => {
+    const current = workingDraftRef.current;
+    if (JSON.stringify(next) === JSON.stringify(current)) return;
+    setLayoutUndo((items) => [...items, current]);
+    setLayoutRedo([]);
+    updateWorkingDraft(next);
+  }, [updateWorkingDraft]);
   const draft = workingDraft.concept;
   const setDraft = useCallback((next: ProgramDraftConcept) => updateWorkingDraft(withProgramDraftConcept(workingDraft, next)), [updateWorkingDraft, workingDraft]);
   const setDraftAt = useCallback((next: Exclude<ProgramDraftConcept, null>, position?: { x: number; y: number }) => {
@@ -463,8 +479,20 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const selected = productStatements.find((item) => item.semantic_id === selectedId) ?? null;
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
   const selectedSelection = all.find((item): item is SelectionStatementV2 => item.kind === "select" && item.semantic_id === selectedSelectionId) ?? null;
-  const select = useCallback((id: string | null) => { setSelectedId(id); if (id) setDraft(null); }, []);
+  const select = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) { setDraft(null); onCloseTestPanel(); }
+  }, [setDraft, onCloseTestPanel]);
   useEffect(() => { if (draft && all.some((item) => item.semantic_id === draft.semanticId)) { setDraft(null); working(false); } }, [all, draft, working]);
+  useEffect(() => {
+    if (!selectedId) return;
+    const valid = selectedId === "portfolio" || selectedId === "split" || selectedId === "rebalance"
+      || productStatements.some((item) => item.semantic_id === selectedId)
+      || (selectedId.startsWith("investment:") && canonical.definitions.groups.some((item) => item.id === selectedId.slice("investment:".length)))
+      || (selectedId.startsWith("assets:") && canonical.definitions.asset_sets.some((item) => item.id === selectedId.slice("assets:".length)))
+      || (/^(?:qualification|fallback):/.test(selectedId) && Boolean(selectedSelection));
+    if (!valid) setSelectedId(null);
+  }, [canonical.definitions.asset_sets, canonical.definitions.groups, productStatements, selectedId, selectedSelection]);
   const clock = canonical.program?.clocks[0];
   const applyProduct = (operation: BuilderProductOperation, address: Parameters<typeof adaptV2ProductOperation>[2] = {}) => {
     const native = adaptV2ProductOperation(canonical, operation, { clockId: clock?.id, ...address });
@@ -479,7 +507,9 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const investment = canonical.definitions.groups.find((group) => group.id === selectedGroupId)
     ?? unconfiguredInvestment
     ?? canonical.definitions.groups[0];
-  const selection = selections.find((item) => item.selection.universe_id === investment?.id) ?? selectedSelection ?? selections[0];
+  const selection = selections.find((item) => item.selection.universe_id === investment?.id)
+    ?? selectedSelection
+    ?? (selectedGroupId ? undefined : selections[0]);
   const startSelectionDraft = (withQualification = false, position?: { x: number; y: number }) => {
     if (!investment) return;
     setDraftAt({ kind: "selection", semanticId: nextId(canonical, "selection"), universeId: investment.id, withQualification }, position);
@@ -506,26 +536,26 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     select(`investment:${investmentId}`);
   };
   const tools: ProductAddAction[] = [
-    { id: "investment", category: "Capital", label: "Investment", description: canonical.definitions.groups.length >= 2 ? "This Portfolio already has two Investments." : "A capital path backed by assets.", availability: canonical.definitions.groups.length >= 2 ? "unavailable" : "ready", disabled: canonical.definitions.groups.length >= 2, onAdd: addInvestment },
-    { id: "split", category: "Capital", label: "Split", description: portfolioSplit ? "This Portfolio already has a Split." : "Split capital across two investments.", availability: portfolioSplit ? "unavailable" : canonical.definitions.groups.length < 2 ? "needs_context" : "ready", disabled: canonical.definitions.groups.length < 2 || Boolean(portfolioSplit), onAdd: () => applyProduct({ kind: "setAllocation", method: "fixed", investments: canonical.definitions.groups.slice(0, 2).map((group) => ({ id: group.id, weight: .5 })) }) },
-    { id: "sleeve", category: "Destination", label: "Sleeve", description: "A named branch within a split Portfolio.", availability: "unavailable", disabled: true, onAdd: () => undefined },
+    { id: "investment", category: "Capital", label: "Investment", description: canonical.definitions.groups.length >= 2 ? "Choose an existing Investment before extending its meaning." : "A capital path backed by assets.", availability: canonical.definitions.groups.length >= 2 ? "invalid_here" : "ready", disabled: canonical.definitions.groups.length >= 2, onAdd: addInvestment },
+    { id: "split", category: "Capital", label: "Split", description: portfolioSplit ? "This Portfolio already has a Split; edit its Investments instead." : "Split capital across two investments.", availability: portfolioSplit ? "invalid_here" : canonical.definitions.groups.length < 2 ? "needs_context" : "ready", disabled: canonical.definitions.groups.length < 2 || Boolean(portfolioSplit), onAdd: () => applyProduct({ kind: "setAllocation", method: "fixed", investments: canonical.definitions.groups.slice(0, 2).map((group) => ({ id: group.id, weight: .5 })) }) },
+    { id: "sleeve", category: "Destination", label: "Sleeve", description: "Select a named Investment within the current Split.", availability: portfolioSplit ? "needs_context" : "invalid_here", disabled: true, onAdd: () => undefined },
     { id: "assets", category: "Destination", label: "Assets", description: investmentAssets ? "Edit the Investment's asset list." : "Start with an asset, then complete its Investment.", availability: "ready", disabled: false, onAdd: () => investmentAssets ? select(`assets:${investmentAssets.id}`) : startFinancialIntent("single_asset", "asset_first") },
-    { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Conditional routing is not yet available for production testing.", availability: "unavailable", disabled: true, onAdd: () => undefined },
+    { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Draft conditional capital routing here. Execution support is assessed only after the semantic branches are complete.", availability: "draftable", disabled: Boolean(draft), onAdd: () => startControlDraft() },
     { id: "qualification", category: "Routing", label: "Qualification", description: selection?.selection.universe_id === investment?.id ? "Configure which candidate assets qualify." : investment ? "Define Qualification with this Investment's Selection." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection?.selection.universe_id === investment?.id ? select(`qualification:${selection.semantic_id}`) : startSelectionDraft(true) },
     { id: "choose-assets", category: "Routing", label: "Choose assets", description: selection?.selection.universe_id === investment?.id ? "Edit this Investment's ranked Selection." : "Rank candidates and choose the strongest assets.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection?.selection.universe_id === investment?.id ? select(selection.semantic_id) : startSelectionDraft() },
     { id: "allocation", category: "Allocation", label: "Allocation", description: selection ? programAllocationToolDescription(canonical) : "Start with an allocation intent; complete assets and timing before commit.", availability: "ready", disabled: false, onAdd: () => { if (selectionAllocation) select(selectionAllocation.semantic_id); else if (selection) applyProduct({ kind: "setAllocation", method: "equal" }, { selectionId: selection.semantic_id }); else startFinancialIntent("single_asset", "allocation_first"); } },
     { id: "schedule", category: "Timing", label: "Rebalance", description: investment ? "Configure the Portfolio rebalance cadence." : "Start with timing, then choose the investment.", availability: "ready", disabled: false, onAdd: () => investment ? select("rebalance") : startFinancialIntent("single_asset", "timing_first") },
-    { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Cooldown is not yet available for this Program profile.", availability: "unavailable", disabled: true, onAdd: () => undefined },
+    { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Cooldown meaning is preserved by the semantic model but is not authorable or production-lowerable in this profile yet.", availability: "unsupported_execution", disabled: true, onAdd: () => undefined },
     { id: "fallback", category: "Behavior", label: "Fallback", description: selection ? "Choose the asset used when too few qualify." : "Choose assets first.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(`fallback:${selection.semantic_id}`) },
     { id: "logic-condition", category: "Logic", label: "Condition", description: selection ? "Edit a nested Qualification Condition." : investment ? "Create a Selection with a Qualification Condition." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(`qualification:${selection.semantic_id}`) : startSelectionDraft(true) },
-    { id: "logic-control", category: "Logic", label: "IF / OTHERWISE", description: "Create an unfinished condition, then connect complete statement blocks to its branches.", availability: "ready", disabled: Boolean(draft), onAdd: () => startControlDraft() },
+    { id: "logic-control", category: "Logic", label: "IF / OTHERWISE", description: "Create an unfinished condition, then connect complete statement blocks to its branches.", availability: "draftable", disabled: Boolean(draft), onAdd: () => startControlDraft() },
     { id: "data-score", category: "Data", label: "Value / Score", description: selection ? "Edit the Selection ranking Value or weighted Score." : "Create a Selection before adding its ranking Value.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(selection.semantic_id) },
     { id: "logic-selection", category: "Selection", label: "Rank and select", description: selection ? "Edit the committed ranking and Top N Selection." : investment ? "Create a ranked Selection." : "Add an Investment first.", availability: selection ? "ready" : investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(selection.semantic_id) : startSelectionDraft() },
-    { id: "state-event", category: "State", label: "Event → State", description: investmentAssets?.assets.length ? "Define an Event and its atomic State transition." : "Choose Investment assets first.", availability: investmentAssets?.assets.length ? "ready" : "needs_context", disabled: !investmentAssets?.assets.length, onAdd: startEventStateDraft },
+    { id: "state-event", category: "State", label: "Event → State", description: investmentAssets?.assets.length ? "Draft an Event and atomic State transition. Runtime support is assessed after commit." : "Choose Investment assets first.", availability: investmentAssets?.assets.length ? "draftable" : "needs_context", disabled: !investmentAssets?.assets.length, onAdd: startEventStateDraft },
     { id: "logic-allocation", category: "Allocation", label: "Allocation / Policy", description: all.some((item) => item.kind === "guarded_allocation") ? "Inspect the committed policy precedence." : selectionAllocation ? "Inspect selected-asset allocation." : "Add equal allocation for the current Selection.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => { const policy = all.find((item) => item.kind === "guarded_allocation") ?? selectionAllocation; if (policy) select(policy.semantic_id); else if (selection) applyProduct({ kind: "setAllocation", method: "equal" }, { selectionId: selection.semantic_id }); } },
     { id: "logic-timing", category: "Timing", label: "Clock / Rebalance", description: "Edit the semantic evaluation clock.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => select("rebalance") },
-    { id: "intent-market-regime", category: "Logic", label: "Market regime rotation", description: "Route capital by an explicit trend condition and OTHERWISE branch.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("market_regime_rotation", "logic_first") },
-    { id: "intent-split", category: "Capital", label: "Growth + Defensive", description: "Create a 70/30 parallel sleeve draft before configuring each route.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("split_portfolio", "flow_first") },
+    { id: "intent-market-regime", category: "Logic", label: "Market regime rotation", description: "Author explicit trend and OTHERWISE routes; this composition is not production-lowerable yet.", availability: "unsupported_execution", disabled: Boolean(draft), onAdd: () => startFinancialIntent("market_regime_rotation", "logic_first") },
+    { id: "intent-split", category: "Capital", label: "Growth + Defensive", description: "Author a 70/30 parallel sleeve strategy; this composition is not production-lowerable yet.", availability: "unsupported_execution", disabled: Boolean(draft), onAdd: () => startFinancialIntent("split_portfolio", "flow_first") },
     { id: "intent-score", category: "Data", label: "Weighted Score", description: "Rank a universe with explicit weighted return horizons.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("weighted_score", "logic_first") },
     { id: "intent-temporal", category: "State", label: "Breakout sequence", description: "Draft breakout, retest, confirmation, memory and expiry together.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("temporal_sequence", "logic_first") },
     { id: "intent-multiclock", category: "State", label: "Weekly context + daily signal", description: "Use completed weekly context with daily action and risk precedence.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("multi_clock_policy", "timing_first") },
@@ -552,27 +582,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const blocky = perspectives.decisionLogic.blocks;
   const rules = useMemo(() => projectProgramRules(canonical), [canonical]);
   const summary = useMemo(() => projectProgramSummary(canonical), [canonical]);
-  const structureFocusIds = useMemo(() => {
-    const ids = new Set<string>();
-    const visit = (node: ProductStructureNode) => { ids.add(node.id); node.children.forEach(visit); };
-    visit(structure);
-    return ids;
-  }, [structure]);
-  const focusByView = useMemo<Record<ProgramBuilderView, Set<string>>>(() => ({
-    overview: new Set(summary.addresses.map((item) => item.focusId)),
-    guided: new Set(all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => item.semantic_id)),
-    flow: new Set(flow.map((item) => item.focusId ?? item.id)),
-    blocky: new Set(blocky.map((item) => item.address.focusId)),
-    rules: new Set(rules.map((item) => item.address.focusId)),
-    code: new Set(),
-    ai: new Set(),
-  }), [all, blocky, flow, rules, summary]);
-  focusByView.overview.add("portfolio");
-  for (const id of structureFocusIds) focusByView.overview.add(id);
-  const switchView = (next: ProgramBuilderView) => {
-    if (!draft && selectedId && !focusByView[next].has(selectedId)) setSelectedId(null);
-    setView(next);
-  };
+  const switchView = (next: ProgramBuilderView) => setView(next);
   const selectedInvestment = selectedId?.startsWith("investment:") ? canonical.definitions.groups.find((group) => group.id === selectedId.slice("investment:".length)) : null;
   const selectedInvestmentShare = selectedInvestment && portfolioSplit?.legs.find((leg) => leg.target.kind === "group" && leg.target.ref === selectedInvestment.id)?.weight;
   const inspector = draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={draft.universeId} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
@@ -591,19 +601,20 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
     blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft}
-      onPositionChange={(id, position) => updateWorkingDraft(withBlockPosition(workingDraft, id, position))}
-      onDisclosureChange={(id, level) => updateWorkingDraft(withBlockDisclosure(workingDraft, id, level))}
-      onConnectionChange={(childId, parentId, inputName) => {
+      onBlockMove={(childId, position, parentId, inputName) => {
+        const current = workingDraftRef.current;
         const child = blocky.find((item) => item.id === childId);
         const childType = child?.role === "condition" ? "condition" : child?.role === "value" ? "value" : child?.role === "fallback" ? "fallback" : "statement";
         const expectedParent = child?.connection?.parentId ?? null;
         const expectedInput = child?.connection ? child.connection.kind === "next" ? "NEXT" : child.connection.inputName : null;
         const result = translateDraftIntent(canonical, { kind: "connect_block", childId, childType, parentId, inputName, projected: { childId, parentId: expectedParent, inputName: expectedInput } });
         const layoutOnly = result.status === "layout_only";
-        const nextStatus = result.status === "invalid" ? "invalid" : layoutOnly ? workingDraft.status : draft ? "incomplete" : "unsupported";
-        updateWorkingDraft({ ...workingDraft, status: nextStatus, diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics, blockConnections: layoutOnly ? workingDraft.blockConnections : { ...workingDraft.blockConnections, [childId]: { childId, parentId, inputName } } });
+        const nextStatus = result.status === "invalid" ? "invalid" : layoutOnly ? current.status : draft ? "incomplete" : "unsupported";
+        const moved = withBlockMove(current, childId, position, layoutOnly ? undefined : { childId, parentId, inputName });
+        updateLayoutDraft({ ...moved, status: nextStatus, diagnostics: result.diagnostic ? [...current.diagnostics, result.diagnostic] : current.diagnostics });
         if (!layoutOnly) working(true);
       }}
+      onDisclosureChange={(id, level) => updateLayoutDraft(withBlockDisclosure(workingDraftRef.current, id, level))}
       onDraftDelete={() => { setDraft(null); working(false); }}
       onToolDrop={(toolId, position) => {
         if (toolId === "logic-control") startControlDraft(position);
@@ -615,17 +626,19 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       }} /></section>,
     flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select}
       positions={workingDraft.flowPositions} viewport={workingDraft.flowViewport}
-      onPositionChange={(id, position) => updateWorkingDraft(withFlowPositions(workingDraft, { [id]: position }))}
-      onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraft, flowViewport: viewport })}
+      onPositionChange={(id, position) => updateLayoutDraft(withFlowPositions(workingDraftRef.current, { [id]: position }))}
+      onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraftRef.current, flowViewport: viewport })}
       onConnect={(connection) => {
         if (!connection.source || !connection.target) return;
         const result = translateDraftIntent(canonical, { kind: "connect_flow", sourceId: connection.source, targetId: connection.target, projectedEdges: flowGraph.edges });
         if (result.semanticEffect === "commit_operation" && result.operation) { apply(result.operation); return; }
-        updateWorkingDraft({ ...workingDraft, status: result.status === "invalid" ? "invalid" : "unsupported", diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics }); working(true);
+        const current = workingDraftRef.current;
+        updateWorkingDraft({ ...current, status: result.status === "invalid" ? "invalid" : "unsupported", diagnostics: result.diagnostic ? [...current.diagnostics, result.diagnostic] : current.diagnostics }); working(true);
       }}
       onDisconnect={(sourceId, targetId) => {
         const result = translateDraftIntent(canonical, { kind: "disconnect_flow", sourceId, targetId });
-        updateWorkingDraft({ ...workingDraft, status: "unsupported", diagnostics: result.diagnostic ? [...workingDraft.diagnostics, result.diagnostic] : workingDraft.diagnostics }); working(true);
+        const current = workingDraftRef.current;
+        updateWorkingDraft({ ...current, status: "unsupported", diagnostics: result.diagnostic ? [...current.diagnostics, result.diagnostic] : current.diagnostics }); working(true);
       }} />,
     rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <button type="button" className="program-rule-line" key={line.id} style={{ paddingLeft: `${12 + line.depth * 18}px` }} data-semantic-address={line.address.semanticId} aria-pressed={selectedId === line.address.focusId} onClick={() => select(line.address.focusId)}>{line.text}</button>)}</section>,
     guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Start with assets, timing, capital flow, logic, or allocation. Complete intent converges on one semantic strategy.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "asset_first")}>Choose QQQ first</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "timing_first")}>Start every month</button><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("split_portfolio", "flow_first")}>Split a portfolio</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
@@ -640,5 +653,19 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const discardWorkspaceDraft = draft || ["invalid", "unsupported"].includes(workingDraft.status) ? () => {
     updateWorkingDraft({ ...workingDraft, concept: null, status: "clean", selectedDraftId: null, blockConnections: {}, diagnostics: [] }); working(false);
   } : undefined;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undo, onRedo: redo, canUndo, canRedo, onDiscardDraft: discardWorkspaceDraft }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || workingDraft.status !== "clean"} testTitle={workspaceDraftMessage ?? executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
+  const undoWorkspace = () => {
+    const previous = layoutUndo.at(-1);
+    if (!previous) { undo(); return; }
+    setLayoutUndo((items) => items.slice(0, -1));
+    setLayoutRedo((items) => [...items, workingDraftRef.current]);
+    updateWorkingDraft(previous);
+  };
+  const redoWorkspace = () => {
+    const next = layoutRedo.at(-1);
+    if (!next) { redo(); return; }
+    setLayoutRedo((items) => items.slice(0, -1));
+    setLayoutUndo((items) => [...items, workingDraftRef.current]);
+    updateWorkingDraft(next);
+  };
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: layoutUndo.length > 0 || canUndo, canRedo: layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || workingDraft.status !== "clean"} testTitle={workspaceDraftMessage ?? executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
 }

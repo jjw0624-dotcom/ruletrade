@@ -9,6 +9,19 @@ import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
 import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, withProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 
+export type V2TestPanelState =
+  | { status: "running" }
+  | { status: "success"; result: V2SelectionExecution | LeanBacktestResponse }
+  | { status: "failure"; message: string; technicalDetail: string | null }
+  | null;
+
+export function V2TestResultPanel({ state }: { state: Exclude<V2TestPanelState, null> }) {
+  if (state.status === "running") return <div className="semantic-inspector-content" role="status"><h2>Testing committed strategy…</h2><p>The Builder remains available while the runtime evaluates this revision.</p></div>;
+  if (state.status === "failure") return <div className="semantic-inspector-content" role="alert"><h2>Test unavailable</h2><p>{state.message}</p>{state.technicalDetail && <details><summary>Technical diagnostics</summary><pre>{state.technicalDetail}</pre></details>}</div>;
+  if ("selected_assets" in state.result) return <div className="semantic-inspector-content"><h2>{state.result.complete ? "Selection complete" : "Selection incomplete"}</h2><p>Selected: {state.result.selected_assets.join(", ") || "none"}</p></div>;
+  return <div className="semantic-inspector-content"><h2>Backtest complete</h2><p>This result belongs to strategy hash <code>{state.result.strategy_hash}</code>.</p><dl><div><dt>Total return</dt><dd>{state.result.result.total_return}</dd></div><div><dt>Final value</dt><dd>{state.result.result.final_value}</dd></div><div><dt>Orders</dt><dd>{state.result.result.total_orders}</dd></div></dl><details><summary>Execution details</summary><pre>{JSON.stringify({ engine: state.result.engine, config: state.result.config, timings: state.result.timings }, null, 2)}</pre></details></div>;
+}
+
 export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   persisted: StrategyDetailV2;
   onHome: () => void;
@@ -22,6 +35,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [status, setStatus] = useState<"saved" | "updating" | "invalid" | "unfinished">("saved");
   const [message, setMessage] = useState("Saved");
   const [result, setResult] = useState<V2SelectionExecution | LeanBacktestResponse | null>(null);
+  const [testPanel, setTestPanel] = useState<V2TestPanelState>(null);
   const [executionCapability, setExecutionCapability] = useState<V2ExecutionCapability | null>(null);
   const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
   const [redoStack, setRedoStack] = useState<typeof initial[]>([]);
@@ -117,16 +131,19 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
     const preflight = await v2ExecutionCapability(canonical, fetch, true).catch(() => null);
     if (!preflight || preflight.execution_state !== "executable" || preflight.runtime_state === "unavailable") {
       if (preflight) setExecutionCapability(preflight);
-      setStatus("saved"); setMessage(preflight?.product_message ?? "Testing is unavailable right now.");
+      const productMessage = preflight?.product_message ?? "Testing is unavailable right now.";
+      setTestPanel({ status: "failure", message: productMessage, technicalDetail: preflight?.technical_detail ?? null });
+      setStatus("saved"); setMessage(productMessage);
       return;
     }
     setExecutionCapability(preflight);
+    setTestPanel({ status: "running" });
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
       const next = canonical.program
         ? await executeV2Lean(canonical, { ...DEFAULT_BACKTEST_CONFIG, dataset_id: "filter-synthetic" })
         : await executeV2Selection(canonical);
-      setResult(next); setStatus("saved"); setMessage("Test complete");
+      setResult(next); setTestPanel({ status: "success", result: next }); setStatus("saved"); setMessage("Test complete");
     } catch (reason) {
       const productMessage = reason instanceof V2ExecutionError && reason.code === "runtime_unavailable"
         ? "The testing runtime is unavailable. Try again when Docker is running."
@@ -136,6 +153,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       if (reason instanceof V2ExecutionError && reason.code === "market_data_unavailable") {
         setExecutionCapability({ ...preflight, provider_state: "unavailable", product_message: productMessage, technical_detail: reason.message });
       }
+      setTestPanel({ status: "failure", message: productMessage, technicalDetail: reason instanceof Error ? reason.message : null });
       setStatus("saved"); setMessage(productMessage);
     }
   };
@@ -150,7 +168,8 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       undo={() => { if (workingDraft.concept) { setWorkingDraft(withProgramDraftConcept(workingDraft, null)); working(false); return; } const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
       canUndo={Boolean(workingDraft.concept) || undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
-      run={() => void run()} executionCapability={executionCapability} />;
+      run={() => void run()} executionCapability={executionCapability}
+      testPanel={testPanel ? <V2TestResultPanel state={testPanel} /> : null} onCloseTestPanel={() => setTestPanel(null)} />;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}

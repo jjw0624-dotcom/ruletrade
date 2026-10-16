@@ -208,7 +208,7 @@ export interface ProductAddAction {
   label: string;
   description: string;
   disabled: boolean;
-  availability?: "ready" | "needs_context" | "unavailable";
+  availability?: "ready" | "draftable" | "needs_context" | "unsupported_execution" | "invalid_here" | "unavailable";
   onAdd: () => void;
 }
 
@@ -225,7 +225,12 @@ export function SemanticProgramToolbox({ tools, categories }: {
     <nav className="blocky-toolbox-categories" aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={activeCategory === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
     <section className="blocky-toolbox-library" aria-label={`${activeCategory} blocks`} data-scroll-container="bounded">{displayed.map((tool) => {
       const availability = tool.availability ?? (tool.disabled ? "unavailable" : "ready");
-      const status = availability === "ready" ? "Ready" : availability === "needs_context" ? "Needs context" : "Unavailable";
+      const status = availability === "ready" ? "Ready"
+        : availability === "draftable" ? "Draftable"
+          : availability === "needs_context" ? "Needs context"
+            : availability === "unsupported_execution" ? "Unsupported for execution"
+              : availability === "invalid_here" ? "Invalid here"
+                : "Unavailable";
       return <article className={`blocky-toolbox-entry ${availability}`} key={tool.id} role="listitem"><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} draggable={!tool.disabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("application/x-ruletrade-program-tool", tool.id); }} aria-describedby={`${tool.id}-description`} onClick={tool.onAdd}><span className="blocky-toolbox-title"><strong>{tool.label}</strong><small aria-label="Availability status">{status}</small></span></button><p id={`${tool.id}-description`}>{tool.description}</p></article>;
     })}</section>
   </div>;

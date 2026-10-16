@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { V2StrategyEditor } from "../components/V2StrategyEditor";
+import { V2StrategyEditor, V2TestResultPanel } from "../components/V2StrategyEditor";
 import { CreationPicker } from "../components/CreationPicker";
 import { v2AuthoringApi } from "../v2AuthoringApi";
 import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
@@ -77,6 +77,14 @@ const detail: StrategyDetailV2 = {
 };
 
 describe("mounted v2 production editor", () => {
+  it("presents Docker unavailability as runtime diagnostics, not a semantic error", () => {
+    const markup = renderToStaticMarkup(<V2TestResultPanel state={{ status: "failure", message: "The testing runtime is unavailable. Try again when Docker is running.", technicalDetail: "Docker daemon is unavailable." }} />);
+    expect(markup).toContain("Test unavailable");
+    expect(markup).toContain("testing runtime is unavailable");
+    expect(markup).toContain("Technical diagnostics");
+    expect(markup).toContain("Docker daemon is unavailable");
+    expect(markup).not.toContain("semantic invalid");
+  });
   it("offers a normal blank Strategy path without exposing Program internals", () => {
     const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
     expect(markup).toContain("Blank strategy");

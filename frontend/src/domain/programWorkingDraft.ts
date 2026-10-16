@@ -115,6 +115,15 @@ export function withBlockPosition(draft: ProgramWorkingDraft, id: string, positi
   return { ...draft, blockPositions: { ...draft.blockPositions, [id]: position } };
 }
 
+/** Persist one Blockly gesture atomically so connection reconciliation cannot overwrite geometry. */
+export function withBlockMove(draft: ProgramWorkingDraft, id: string, position: XYPosition, connection?: ProgramDraftConnection): ProgramWorkingDraft {
+  return {
+    ...draft,
+    blockPositions: { ...draft.blockPositions, [id]: position },
+    blockConnections: connection ? { ...draft.blockConnections, [id]: connection } : draft.blockConnections,
+  };
+}
+
 export function withFlowPositions(draft: ProgramWorkingDraft, positions: Record<string, XYPosition>): ProgramWorkingDraft {
   return { ...draft, flowPositions: { ...draft.flowPositions, ...positions } };
 }

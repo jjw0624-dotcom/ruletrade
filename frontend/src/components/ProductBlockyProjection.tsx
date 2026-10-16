@@ -125,7 +125,7 @@ function semanticBlockType(node: ProgramBlockNode) {
 }
 
 /** Program-native logic projection. It never consumes the Structure tree. */
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete, onToolDrop }: {
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, onBlockMove, onDisclosureChange, onDraftDelete, onToolDrop }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
@@ -133,8 +133,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   connections?: Record<string, { childId: string; parentId: string | null; inputName: string | null }>;
   disclosure?: Record<string, 0 | 1 | 2>;
   draft?: ProgramDraftConcept;
-  onPositionChange?: (blockId: string, position: { x: number; y: number }) => void;
-  onConnectionChange?: (childId: string, parentId: string | null, inputName: string | null) => void;
+  onBlockMove?: (blockId: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void;
   onDisclosureChange?: (blockId: string, level: 0 | 1 | 2) => void;
   onDraftDelete?: () => void;
   onToolDrop?: (toolId: string, position: { x: number; y: number }) => void;
@@ -143,11 +142,11 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const nodesRef = useRef(nodes);
   const onSelectRef = useRef(onSelect);
-  const callbacksRef = useRef({ onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete });
+  const callbacksRef = useRef({ onBlockMove, onDisclosureChange, onDraftDelete });
   const positionsRef = useRef(positions);
   nodesRef.current = nodes;
   onSelectRef.current = onSelect;
-  callbacksRef.current = { onPositionChange, onConnectionChange, onDisclosureChange, onDraftDelete };
+  callbacksRef.current = { onBlockMove, onDisclosureChange, onDraftDelete };
   positionsRef.current = positions;
 
   useEffect(() => {
@@ -178,12 +177,11 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         const address = readAddress(block);
         if (!address) return;
         const xy = block.getRelativeToSurfaceXY();
-        callbacksRef.current.onPositionChange?.(address, { x: xy.x, y: xy.y });
         const parent = block.getParent();
         const parentId = readAddress(parent);
         const inputName = parent?.inputList.find((input) => input.connection?.targetBlock() === block)?.name
           ?? (parent && parent.nextConnection?.targetBlock() === block ? "NEXT" : null);
-        callbacksRef.current.onConnectionChange?.(address, parentId, inputName);
+        callbacksRef.current.onBlockMove?.(address, { x: xy.x, y: xy.y }, parentId, inputName);
       }
       if (event.type === Blockly.Events.BLOCK_DELETE) {
         const raw = (event as Blockly.Events.Abstract & { oldJson?: { data?: string } }).oldJson?.data;
@@ -315,7 +313,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === node.id)?.select();
   }, [selectedId, nodes]);
 
-  return <div className="blocky-representation" data-blocky-contract="semantic-program-v1" data-blocky-node-count={nodes.length}
+  return <div className="blocky-representation" data-blocky-contract="semantic-program-v1" data-blocky-node-count={nodes.length} data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable"
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-program-tool")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={(event) => { const toolId = event.dataTransfer.getData("application/x-ruletrade-program-tool"); if (!toolId) return; event.preventDefault(); const rect = host.current?.getBoundingClientRect(); onToolDrop?.(toolId, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) }); }}>
     <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />
