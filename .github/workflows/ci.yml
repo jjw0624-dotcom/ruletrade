@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/intent-first-unified-authoring]
   pull_request:
     branches: [main, feature/semantic-strategy-corpus-execution-closure]
 
