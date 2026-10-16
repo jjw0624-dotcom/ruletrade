@@ -728,7 +728,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
         else if (toolId.startsWith("intent-")) tools.find((item) => item.id === toolId)?.onAdd();
         else tools.find((item) => item.id === toolId)?.onAdd();
       }} /></section>,
-    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={blank} onSelect={select}
+    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={flowGraph.edges.length === 0} onSelect={select}
       positions={workingDraft.flowPositions} viewport={workingDraft.flowViewport}
       onPositionChange={(id, position) => updateLayoutDraft(withFlowPositions(workingDraftRef.current, { [id]: position }))}
       onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraftRef.current, flowViewport: viewport })}

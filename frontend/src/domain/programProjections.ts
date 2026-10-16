@@ -86,7 +86,7 @@ export function projectProgramCapitalFlow(strategy: CanonicalStrategyV2): { node
       : leg.target.kind === "group" ? groupNames.get(leg.target.ref ?? "") ?? humanize(leg.target.ref ?? "Group")
         : leg.target.ref ?? humanize(leg.target.kind);
     const internal = allocation.method === "proportional_score" ? "Proportional to positive Score" : "Equal within target";
-    nodes.push({ id: investmentId, label: `Investment · ${target}`, detail: `${share === undefined ? "100%" : formatPortfolioShare(share)} · ${internal}`, role: "capital", address: productAddress("investment", allocation.semantic_id) });
+    nodes.push({ id: investmentId, label: `Investment · ${target}`, detail: `${share === undefined ? "100% of Portfolio" : `${formatPortfolioShare(share)} of Portfolio`} · ${internal}`, role: "capital", address: productAddress("investment", allocation.semantic_id) });
     edges.push({ source, target: investmentId, role: source === "portfolio" ? "capital" : "routing", label: branch ?? (share === undefined ? undefined : formatPortfolioShare(share)) });
     if (!selection) { endpoints.push(investmentId); return; }
     const chooseId = `choose:${selection.semantic_id}:${investmentId}`;
