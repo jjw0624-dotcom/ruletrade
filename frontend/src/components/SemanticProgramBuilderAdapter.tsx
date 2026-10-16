@@ -462,10 +462,17 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   }, [onWorkingDraftChange]);
   const [layoutUndo, setLayoutUndo] = useState<ProgramWorkingDraft[]>([]);
   const [layoutRedo, setLayoutRedo] = useState<ProgramWorkingDraft[]>([]);
+  const layoutUndoRef = useRef(layoutUndo);
+  const layoutRedoRef = useRef(layoutRedo);
+  layoutUndoRef.current = layoutUndo;
+  layoutRedoRef.current = layoutRedo;
   const updateLayoutDraft = useCallback((next: ProgramWorkingDraft) => {
     const current = workingDraftRef.current;
     if (JSON.stringify(next) === JSON.stringify(current)) return;
-    setLayoutUndo((items) => [...items, current]);
+    const nextUndo = [...layoutUndoRef.current, current];
+    layoutUndoRef.current = nextUndo;
+    layoutRedoRef.current = [];
+    setLayoutUndo(nextUndo);
     setLayoutRedo([]);
     updateWorkingDraft(next);
   }, [updateWorkingDraft]);
@@ -654,17 +661,25 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     updateWorkingDraft({ ...workingDraft, concept: null, status: "clean", selectedDraftId: null, blockConnections: {}, diagnostics: [] }); working(false);
   } : undefined;
   const undoWorkspace = () => {
-    const previous = layoutUndo.at(-1);
+    const previous = layoutUndoRef.current.at(-1);
     if (!previous) { undo(); return; }
-    setLayoutUndo((items) => items.slice(0, -1));
-    setLayoutRedo((items) => [...items, workingDraftRef.current]);
+    const nextUndo = layoutUndoRef.current.slice(0, -1);
+    const nextRedo = [...layoutRedoRef.current, workingDraftRef.current];
+    layoutUndoRef.current = nextUndo;
+    layoutRedoRef.current = nextRedo;
+    setLayoutUndo(nextUndo);
+    setLayoutRedo(nextRedo);
     updateWorkingDraft(previous);
   };
   const redoWorkspace = () => {
-    const next = layoutRedo.at(-1);
+    const next = layoutRedoRef.current.at(-1);
     if (!next) { redo(); return; }
-    setLayoutRedo((items) => items.slice(0, -1));
-    setLayoutUndo((items) => [...items, workingDraftRef.current]);
+    const nextRedo = layoutRedoRef.current.slice(0, -1);
+    const nextUndo = [...layoutUndoRef.current, workingDraftRef.current];
+    layoutRedoRef.current = nextRedo;
+    layoutUndoRef.current = nextUndo;
+    setLayoutRedo(nextRedo);
+    setLayoutUndo(nextUndo);
     updateWorkingDraft(next);
   };
   return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: layoutUndo.length > 0 || canUndo, canRedo: layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || workingDraft.status !== "clean"} testTitle={workspaceDraftMessage ?? executionCapability?.product_message ?? "Checking whether this strategy is ready to test."} />;
