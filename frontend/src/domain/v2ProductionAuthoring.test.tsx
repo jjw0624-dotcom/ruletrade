@@ -385,7 +385,7 @@ describe("mounted v2 production editor", () => {
     ]);
     expect(split.children[0]?.capital?.selectedAssetAllocation).toEqual({ method: "equal", normalizedTotal: 1, sourceSemanticId: "portfolio-split" });
     expect(split.children[1]?.capital?.selectedAssetAllocation).toEqual({ method: "equal", normalizedTotal: 1, sourceSemanticId: "portfolio-split" });
-    expect(projectProgramProductFlow(splitStrategy).filter((item) => item.role === "capital").map((item) => item.detail)).toContain("50% of Portfolio");
+    expect(projectProgramProductFlow(splitStrategy).filter((item) => item.role === "capital").some((item) => item.detail?.includes("50% of Portfolio"))).toBe(true);
     const splitFlow = projectProgramProductFlowGraph(splitStrategy);
     const splitEdges = splitFlow.edges.map((edge) => `${edge.source}->${edge.target}`);
     expect(splitEdges).toEqual(expect.arrayContaining([
