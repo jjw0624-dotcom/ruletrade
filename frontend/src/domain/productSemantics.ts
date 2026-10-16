@@ -219,9 +219,9 @@ export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): Produc
     for (const statement of selections.filter((item) => item.selection.universe_id === group.id)) {
       const selection = statement.selection;
       const subgroupChildren: ProductNode[] = [];
-      if (selection.eligibility) subgroupChildren.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Where", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
+      if (selection.eligibility) subgroupChildren.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Qualification", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
       if (selection.fallback_asset) subgroupChildren.push({ id: `fallback:${statement.semantic_id}`, concept: "fallback", label: "Shortage fallback", detail: `Use ${selection.fallback_asset}`, address: { canonical: "v2", concept: "fallback", semanticId: statement.semantic_id }, children: [] });
-      children.push({ id: statement.semantic_id, concept: "subgroup", label: `Choose · ${humanize(statement.output_id)}`, detail: `Take ${selection.count} · ${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "subgroup", semanticId: statement.semantic_id }, children: subgroupChildren });
+      children.push({ id: statement.semantic_id, concept: "subgroup", label: `Subgroup · ${humanize(statement.output_id)}`, detail: `Choose ${selection.count} · ${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "subgroup", semanticId: statement.semantic_id }, children: subgroupChildren });
     }
     return {
       id: `group:${group.id}`, concept: "group", label: `Group · ${group.name || humanize(group.id)}`,

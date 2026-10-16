@@ -168,12 +168,12 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
 
   it("keeps Structure and Add ownership exclusive with separated tool content", async () => {
     render();
-    expect(container.textContent).not.toContain("A capital path backed by assets.");
+    expect(container.textContent).not.toContain("Connect Portfolio capital to an Asset, Group, or selected Subgroup.");
     await clickButton(container, "Add");
-    expect(container.textContent).toContain("A capital path backed by assets.");
-    expect(container.querySelector('small[aria-label="Availability status"]')?.textContent).toBe("Ready");
+    expect(container.textContent).toContain("Connect Portfolio capital to an Asset, Group, or selected Subgroup.");
+    expect(container.querySelector('small[aria-label="Availability status"]')?.textContent).toBe("Draftable");
     await clickButton(container, "Structure");
-    expect(container.textContent).not.toContain("A capital path backed by assets.");
+    expect(container.textContent).not.toContain("Connect Portfolio capital to an Asset, Group, or selected Subgroup.");
   });
 
   it("keeps Inspector focus across representation changes and closes only on intent", async () => {
@@ -234,7 +234,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("offers contextual Growth extensions without rebuilding the 70/30 portfolio", async () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
-    await clickStructureItem(container, "Growth");
+    await clickStructureItem(container, "Group · Growth");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
@@ -249,7 +249,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
 
   it("does not redirect Defensive context to Growth selection capabilities", async () => {
     render("blocky", vi.fn(), growthDefensive);
-    await clickStructureItem(container, "Defensive");
+    await clickStructureItem(container, "Group · Defensive");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
@@ -260,7 +260,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
-    await clickStructureItem(container, "Growth");
+    await clickStructureItem(container, "Group · Growth");
     await clickButton(container, "Add");
     await clickButton(container, "Data");
     await clickTool(container, "Value / Score");
@@ -274,22 +274,21 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.textContent).toContain("Choose 3");
   });
 
-  it("starts asset-first intent in the production Builder and preserves contribution honestly", async () => {
-    render("flow");
+  it("starts asset-first Group authoring without fabricating Investment or timing", async () => {
+    const apply = vi.fn();
+    render("flow", apply);
     await clickButton(container, "Add");
     await clickButton(container, "Destination");
     await clickTool(container, "Assets");
-    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    expect(container.querySelector(".group-draft")).toBeTruthy();
     const manual = container.querySelector<HTMLInputElement>('input[aria-label="Manual asset symbol"]')!;
     await changeValue(manual, "QQQ");
     await clickButton(container, "Add symbol");
     await clickButton(container, "Use selected assets");
-    const timing = container.querySelector<HTMLSelectElement>('select[aria-label="Intent timing"]')!;
-    const meaning = container.querySelector<HTMLSelectElement>('select[aria-label="Timing meaning"]')!;
-    await changeValue(timing, "monthly");
-    await changeValue(meaning, "contribution");
-    expect(container.textContent).toContain("Recurring contributions are preserved as intent");
-    expect([...container.querySelectorAll("button")].find((item) => item.textContent === "Commit strategy meaning")?.hasAttribute("disabled")).toBe(true);
+    await clickButton(container, "Create Group");
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group", assets: ["QQQ"] }));
+    expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_investment" }));
+    expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_schedule" }));
   });
 
   it("commits a reviewed weighted Score recipe through one typed operation", async () => {
