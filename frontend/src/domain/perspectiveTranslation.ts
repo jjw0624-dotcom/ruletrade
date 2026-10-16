@@ -81,7 +81,10 @@ function defaultCapability(backendLowerable = false): PerspectiveCapability {
 }
 
 function blockEditOperation(role: ProgramBlockNode["role"]): V2AuthoringOperation["kind"] | null {
+  if (role === "group") return "rename_program_group";
   if (role === "selection") return "set_program_selection";
+  if (role === "investment") return "set_program_investment";
+  if (role === "split") return "set_program_split";
   if (role === "fallback") return "set_program_fallback";
   if (role === "allocation" || role === "policy") return "set_program_allocation";
   if (role === "condition" || role === "control") return "set_program_condition";
@@ -93,9 +96,9 @@ function blockEditOperation(role: ProgramBlockNode["role"]): V2AuthoringOperatio
 
 function flowEditOperation(node: ProductFlowNode): V2AuthoringOperation["kind"] | null {
   if (node.id === "split") return "set_program_split";
-  if (node.id.startsWith("investment:")) return "remove_program_investment";
+  if (node.id.startsWith("investment:")) return "set_program_investment";
   if (node.role === "timing") return "set_program_schedule";
-  if (node.id.startsWith("selection:")) return "set_program_selection";
+  if (node.address.concept === "subgroup" || node.address.concept === "selection") return "set_program_selection";
   if (node.id.startsWith("fallback:")) return "set_program_fallback";
   return null;
 }

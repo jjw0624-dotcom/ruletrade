@@ -4,6 +4,13 @@ import type { StructuralAuthoringOperation } from "../structuralAuthoringApi";
 /** The Builder's public editing grammar. Neither canonical version leaks through this boundary. */
 export type BuilderProductOperation =
   | { kind: "addInvestment"; investmentId: string; name: string; assetSetId: string; assets: string[] }
+  | { kind: "addGroup"; groupId: string; name: string; assetSetId: string; assets: string[] }
+  | { kind: "renameGroup"; groupId: string; name: string }
+  | { kind: "removeGroup"; groupId: string }
+  | { kind: "createChoose"; semanticId: string; groupId: string; outputId: string; lookback: number; direction: "highest" | "lowest"; take: number; shortage: "choose_all" | "require_full"; qualification?: { lookback: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: number } }
+  | { kind: "renameSubgroup"; semanticId: string; outputId: string }
+  | { kind: "setInvestment"; semanticId: string; targetKind: "asset" | "group" | "selection"; targetRef: string; internalAllocation: "equal" | "proportional_score" }
+  | { kind: "removeInvestment"; semanticId: string }
   | { kind: "setAssets"; assets: string[] }
   | { kind: "setQualification"; lookback: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: number }
   | { kind: "setSelection"; lookback: number; direction: "highest" | "lowest"; take: number; shortage: "choose_all" | "require_full"; qualification?: { lookback: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: number } }
@@ -19,6 +26,7 @@ export interface V1ProductAddress {
 
 export function adaptV1ProductOperation(operation: BuilderProductOperation, address: V1ProductAddress): StructuralAuthoringOperation[] {
   switch (operation.kind) {
+    case "addGroup": case "renameGroup": case "removeGroup": case "createChoose": case "renameSubgroup": case "setInvestment": case "removeInvestment": return [];
     case "setAssets": return address.assetSetId ? [{ kind: "update_asset_set", asset_set_id: address.assetSetId, assets: operation.assets }] : [];
     case "setQualification":
       if (address.qualificationComponentId) return [{ kind: "update_qualification_threshold", component_id: address.qualificationComponentId, threshold: String(operation.threshold) }];
@@ -54,6 +62,26 @@ function qualification(prefix: string, bindingId: string, operation: Extract<Bui
 export function adaptV2ProductOperation(strategy: CanonicalStrategyV2, operation: BuilderProductOperation, address: V2ProductAddress): V2AuthoringOperation[] {
   const selection = strategy.program?.statements.find((item) => item.kind === "select" && (!address.selectionId || item.semantic_id === address.selectionId));
   switch (operation.kind) {
+    case "addGroup": return [{ kind: "add_program_group", group_id: operation.groupId, name: operation.name, asset_set_id: operation.assetSetId, assets: operation.assets }];
+    case "renameGroup": return [{ kind: "rename_program_group", group_id: operation.groupId, name: operation.name }];
+    case "removeGroup": return [{ kind: "remove_program_group", group_id: operation.groupId }];
+    case "createChoose": return [{
+      kind: "create_program_choose", semantic_id: operation.semanticId, group_id: operation.groupId,
+      output_id: operation.outputId, clock_id: address.clockId ?? strategy.program?.clocks[0]?.id ?? "daily-close",
+      lookback: operation.lookback, direction: operation.direction === "highest" ? "descending" : "ascending",
+      count: operation.take, shortage_policy: operation.shortage,
+      qualification_lookback: operation.qualification?.lookback ?? null,
+      qualification_operator: operation.qualification?.operator ?? null,
+      qualification_threshold: operation.qualification?.threshold ?? null,
+    }];
+    case "renameSubgroup": return [{ kind: "rename_program_subgroup", semantic_id: operation.semanticId, output_id: operation.outputId }];
+    case "setInvestment": return [{
+      kind: "set_program_investment", semantic_id: operation.semanticId,
+      target_kind: operation.targetKind, target_ref: operation.targetRef,
+      internal_allocation: operation.internalAllocation,
+      clock_id: address.clockId ?? strategy.program?.clocks[0]?.id ?? "daily-close",
+    }];
+    case "removeInvestment": return [{ kind: "remove_program_investment_allocation", semantic_id: operation.semanticId }];
     case "addInvestment": return [{ kind: "add_program_investment", investment_id: operation.investmentId, name: operation.name, asset_set_id: operation.assetSetId, assets: operation.assets }];
     case "setAssets": return address.assetSetId ? [{ kind: "set_program_asset_set", asset_set_id: address.assetSetId, assets: operation.assets }] : [];
     case "setQualification": return selection?.kind === "select" ? [{ kind: "set_program_condition", semantic_id: selection.semantic_id, role: "selection_eligibility", condition: qualification(selection.semantic_id, selection.selection.binding.id, operation) }] : [];

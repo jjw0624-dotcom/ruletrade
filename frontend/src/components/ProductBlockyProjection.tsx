@@ -111,7 +111,10 @@ export function ProductBlockyProjection({ root, selectedId, onSelect }: {
 function semanticBlockType(node: ProgramBlockNode) {
   if (node.role === "context") return "rt_context";
   if (node.role === "trigger") return "rt_trigger";
+  if (node.role === "group") return "rt_group";
   if (node.role === "selection") return "rt_selection";
+  if (node.role === "investment") return "rt_investment";
+  if (node.role === "split") return "rt_split";
   if (node.role === "allocation") return "rt_allocation";
   if (node.role === "condition") return "rt_condition";
   if (node.role === "value") return "rt_value";

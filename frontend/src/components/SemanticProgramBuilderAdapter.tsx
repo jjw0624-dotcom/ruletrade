@@ -11,7 +11,7 @@ import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer }
 import { ProgramBlockyProjection } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
 import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
-import { formatPortfolioShare, projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
+import { projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
 import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
 import { emptyProgramWorkingDraft, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
@@ -173,6 +173,71 @@ function SelectionDraftInspector({ strategy, onComplete, initialUniverseId, with
   /><button type="button" className="primary-button" disabled={!universeId || lookback < 2 || count < 1} onClick={() => onComplete({ kind: "setSelection", lookback, direction: direction === "descending" ? "highest" : "lowest", take: count, shortage, ...(withQualification ? { qualification: { lookback: 126, operator: "gt" as const, threshold: 0 } } : {}) }, universeId)}>Create selection</button></div>;
 }
 
+function GroupDraftInspector({ draft, onChange, onCommit }: {
+  draft: Extract<ProgramDraftConcept, { kind: "group" }>;
+  onChange: (draft: Extract<ProgramDraftConcept, { kind: "group" }>) => void;
+  onCommit: (operation: Extract<BuilderProductOperation, { kind: "addGroup" }>) => void;
+}) {
+  const name = draft.name.trim();
+  return <div className="semantic-inspector-content group-draft"><h2>Group</h2>
+    <p>Define a reusable candidate universe. A Group does not receive capital until an Investment targets it.</p>
+    <label>Group name<input aria-label="Group name" value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} /></label>
+    <ProgramAssetUniverseEditor assets={draft.assets} onCommit={(assets) => onChange({ ...draft, assets })} />
+    <button type="button" className="primary-button" disabled={!name} onClick={() => onCommit({ kind: "addGroup", groupId: draft.semanticId, name, assetSetId: `${draft.semanticId}-assets`, assets: draft.assets })}>Create Group</button>
+  </div>;
+}
+
+function ChooseDraftInspector({ strategy, draft, onChange, onCommit, onNeedGroup }: {
+  strategy: CanonicalStrategyV2;
+  draft: Extract<ProgramDraftConcept, { kind: "choose" }>;
+  onChange: (draft: Extract<ProgramDraftConcept, { kind: "choose" }>) => void;
+  onCommit: (operation: Extract<BuilderProductOperation, { kind: "createChoose" }>) => void;
+  onNeedGroup?: () => void;
+}) {
+  const outputId = draft.outputId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  const valid = Boolean(draft.groupId && outputId && draft.lookback >= 2 && draft.count >= 1);
+  return <div className="semantic-inspector-content choose-draft"><h2>Choose a Subgroup</h2>
+    <p>Choose controls membership only. It does not create an Investment or move capital.</p>
+    <label>From Group<select aria-label="Choose Group" value={draft.groupId ?? ""} onChange={(event) => onChange({ ...draft, groupId: event.target.value || null })}><option value="" disabled>Choose a Group</option>{strategy.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+    <label>Selected Subgroup name<input aria-label="Subgroup name" value={draft.outputId} onChange={(event) => onChange({ ...draft, outputId: event.target.value })} /></label>
+    <SelectionComposer direction={draft.direction === "highest" ? "descending" : "ascending"} count={draft.count} shortagePolicy={draft.shortage}
+      universeEditor={<span>{strategy.definitions.groups.find((group) => group.id === draft.groupId)?.name ?? "No Group selected"}</span>}
+      eligibilitySummary={draft.withQualification ? "Candidate return (126) > 0%" : "All candidates qualify"}
+      orderSummary={`${draft.lookback}-observation return`}
+      orderEditor={<label>Return period<input aria-label="Return period" type="number" min={2} max={2000} value={draft.lookback} onChange={(event) => onChange({ ...draft, lookback: Number(event.target.value) })} /></label>}
+      onChange={(value) => onChange({ ...draft, direction: value.direction === "descending" ? "highest" : "lowest", count: value.count, shortage: value.shortagePolicy })} />
+    {!strategy.definitions.groups.length && <><p className="form-error">Create a Group before committing this Choose operation. This incomplete draft will be preserved.</p>{onNeedGroup && <button type="button" className="secondary-button" onClick={onNeedGroup}>Define the source Group</button>}</>}
+    <button type="button" className="primary-button" disabled={!valid} onClick={() => draft.groupId && onCommit({ kind: "createChoose", semanticId: draft.semanticId, groupId: draft.groupId, outputId, lookback: draft.lookback, direction: draft.direction, take: draft.count, shortage: draft.shortage, ...(draft.withQualification ? { qualification: { lookback: 126, operator: "gt" as const, threshold: 0 } } : {}) })}>Create Subgroup</button>
+  </div>;
+}
+
+function InvestmentDraftInspector({ strategy, draft, onChange, onCommit, onNeedGroup }: {
+  strategy: CanonicalStrategyV2;
+  draft: Extract<ProgramDraftConcept, { kind: "investment" }>;
+  onChange: (draft: Extract<ProgramDraftConcept, { kind: "investment" }>) => void;
+  onCommit: (operation: Extract<BuilderProductOperation, { kind: "setInvestment" }>) => void;
+  onNeedGroup?: () => void;
+}) {
+  const statements = flatten(visibleRoots(strategy));
+  const selections = statements.filter((item): item is SelectionStatementV2 => item.kind === "select");
+  const assets = [...new Set(strategy.definitions.asset_sets.flatMap((item) => item.assets))];
+  const value = draft.targetKind && draft.targetRef ? `${draft.targetKind}:${draft.targetRef}` : "";
+  const selected = selections.find((item) => item.output_id === draft.targetRef);
+  const scoreTarget = selected?.selection.ranking.kind === "score";
+  const commitReady = Boolean(draft.targetKind && draft.targetRef && (draft.internalAllocation !== "proportional_score" || scoreTarget));
+  return <div className="semantic-inspector-content investment-draft"><h2>Investment</h2>
+    <p>Connect Portfolio capital to an Asset, Group, or selected Subgroup. Membership stays owned by Group and Choose.</p>
+    <label>Capital target<select aria-label="Investment target" value={value} onChange={(event) => { const [targetKind, ...parts] = event.target.value.split(":"); onChange({ ...draft, targetKind: targetKind as "asset" | "group" | "selection", targetRef: parts.join(":") }); }}><option value="" disabled>Choose a target</option>
+      {selections.map((item) => <option key={item.semantic_id} value={`selection:${item.output_id}`}>Subgroup · {item.output_id}</option>)}
+      {strategy.definitions.groups.map((group) => <option key={group.id} value={`group:${group.id}`}>Group · {group.name}</option>)}
+      {assets.map((asset) => <option key={asset} value={`asset:${asset}`}>Asset · {asset}</option>)}
+    </select></label>
+    <label>Within target<select aria-label="Investment allocation" value={draft.internalAllocation} onChange={(event) => onChange({ ...draft, internalAllocation: event.target.value as "equal" | "proportional_score" })}><option value="equal">Equal weight</option><option value="proportional_score" disabled={!scoreTarget}>Proportional to positive Score</option></select></label>
+    {!assets.length && !strategy.definitions.groups.length && <><p className="form-error">Create a Group first, or leave this Investment draft incomplete until a target exists.</p>{onNeedGroup && <button type="button" className="secondary-button" onClick={onNeedGroup}>Define a target Group</button>}</>}
+    <button type="button" className="primary-button" disabled={!commitReady} onClick={() => draft.targetKind && draft.targetRef && onCommit({ kind: "setInvestment", semanticId: draft.semanticId, targetKind: draft.targetKind, targetRef: draft.targetRef, internalAllocation: draft.internalAllocation })}>Create Investment</button>
+  </div>;
+}
+
 function EventStateDraftInspector({ strategy, semanticId, onComplete }: {
   strategy: CanonicalStrategyV2;
   semanticId: string;
@@ -247,7 +312,7 @@ function ProgramScheduleInspector({ timeframe, onChange }: { timeframe: "session
 
 function ProgramAssetsInspector({ strategy, assetSetId, onAssets }: { strategy: CanonicalStrategyV2; assetSetId: string; onAssets: (assets: string[]) => void }) {
   const assetSet = strategy.definitions.asset_sets.find((item) => item.id === assetSetId);
-  if (!assetSet) return <div className="semantic-inspector-content"><h2>Assets</h2><p>This investment's asset list is unavailable.</p></div>;
+  if (!assetSet) return <div className="semantic-inspector-content"><h2>Assets</h2><p>This Group's asset list is unavailable.</p></div>;
   return <div className="semantic-inspector-content"><h2>Assets</h2><ProgramAssetUniverseEditor assets={assetSet.assets} onCommit={onAssets} /></div>;
 }
 
@@ -308,13 +373,17 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   statement: Extract<ProgramStatementV2, { kind: "allocate" }>;
   onApply: (investments: Array<{ id: string; weight: number }>) => void;
 }) {
-  const initial = () => Object.fromEntries(statement.legs.flatMap((leg) => leg.target.kind === "group" && leg.target.ref ? [[leg.target.ref, Number(leg.weight ?? 0) * 100]] : []));
+  const selections = flatten(visibleRoots(strategy)).filter((item): item is SelectionStatementV2 => item.kind === "select");
+  const groupId = (leg: Extract<ProgramStatementV2, { kind: "allocate" }>["legs"][number]) => leg.target.kind === "group" ? leg.target.ref
+    : leg.target.kind === "selection" ? selections.find((item) => item.output_id === leg.target.ref)?.selection.universe_id ?? null
+      : null;
+  const initial = () => Object.fromEntries(statement.legs.flatMap((leg) => { const id = groupId(leg); return id ? [[id, Number(leg.weight ?? 0) * 100]] : []; }));
   const [weights, setWeights] = useState<Record<string, number>>(initial);
   useEffect(() => setWeights(initial()), [statement]);
-  const legs = statement.legs.filter((leg) => leg.target.kind === "group" && leg.target.ref);
-  const total = legs.reduce((sum, leg) => sum + (weights[leg.target.ref!] ?? 0), 0);
-  const valid = legs.every((leg) => { const value = weights[leg.target.ref!] ?? -1; return Number.isFinite(value) && value >= 0 && value <= 100; }) && Math.abs(total - 100) < .000001;
-  return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map((leg) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === leg.target.ref)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[leg.target.ref!] ?? 0} onChange={(event) => setWeights({ ...weights, [leg.target.ref!]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map((leg) => ({ id: leg.target.ref!, weight: weights[leg.target.ref!] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
+  const legs = statement.legs.flatMap((leg) => { const id = groupId(leg); return id ? [{ leg, id }] : []; });
+  const total = legs.reduce((sum, item) => sum + (weights[item.id] ?? 0), 0);
+  const valid = legs.length === statement.legs.length && legs.every((item) => { const value = weights[item.id] ?? -1; return Number.isFinite(value) && value >= 0 && value <= 100; }) && Math.abs(total - 100) < .000001;
+  return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map(({ leg, id }) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === id)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[id] ?? 0} onChange={(event) => setWeights({ ...weights, [id]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map(({ id }) => ({ id, weight: weights[id] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
 function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
@@ -409,7 +478,7 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
     const selection = statement.selection;
     const set = (next: typeof selection) => apply({ kind: "set_program_selection", semantic_id: statement.semantic_id, selection: next });
     const universe = strategy.definitions.groups.find((item) => item.id === selection.universe_id);
-    return <div className="semantic-inspector-content"><SelectionComposer
+    return <div className="semantic-inspector-content"><h2>Choose · selected Subgroup</h2><label>Subgroup name<input aria-label="Subgroup name" defaultValue={statement.output_id} onBlur={(event) => { const output_id = event.target.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, ""); if (output_id && output_id !== statement.output_id) apply({ kind: "rename_program_subgroup", semantic_id: statement.semantic_id, output_id }); }} /></label><SelectionComposer
       direction={selection.direction} count={selection.count} shortagePolicy={selection.shortage_policy}
       universeEditor={<select aria-label="Selection universe" value={selection.universe_id} onChange={(event) => { const universe_id = event.target.value; set({ ...selection, universe_id, binding: { ...selection.binding, domain_id: universe_id } }); }}>{strategy.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}{strategy.definitions.asset_sets.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select>}
       eligibilitySummary={selection.eligibility ? describeConditionV2(selection.eligibility) : "All candidates qualify"}
@@ -483,7 +552,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     if (position) value = withBlockPosition(value, `draft:${next.semanticId}`, position);
     updateWorkingDraft(value);
   }, [updateWorkingDraft, workingDraft]);
-  const selected = productStatements.find((item) => item.semantic_id === selectedId) ?? null;
+  const selectedStatementId = selectedId?.match(/^investment:([^:]+)/)?.[1] ?? selectedId;
+  const selected = productStatements.find((item) => item.semantic_id === selectedStatementId) ?? null;
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
   const selectedSelection = all.find((item): item is SelectionStatementV2 => item.kind === "select" && item.semantic_id === selectedSelectionId) ?? null;
   const select = useCallback((id: string | null) => {
@@ -495,7 +565,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     if (!selectedId) return;
     const valid = selectedId === "portfolio" || selectedId === "split" || selectedId === "rebalance"
       || productStatements.some((item) => item.semantic_id === selectedId)
-      || (selectedId.startsWith("investment:") && canonical.definitions.groups.some((item) => item.id === selectedId.slice("investment:".length)))
+      || (selectedId.startsWith("group:") && canonical.definitions.groups.some((item) => item.id === selectedId.slice("group:".length)))
+      || (selectedId.startsWith("investment:") && productStatements.some((item) => item.kind === "allocate" && item.semantic_id === selectedId.match(/^investment:([^:]+)/)?.[1]))
       || (selectedId.startsWith("assets:") && canonical.definitions.asset_sets.some((item) => item.id === selectedId.slice("assets:".length)))
       || (/^(?:qualification|fallback):/.test(selectedId) && Boolean(selectedSelection));
     if (!valid) setSelectedId(null);
@@ -506,61 +577,72 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     if (native[0]) apply(native[0]);
   };
   const selections = all.filter((item): item is SelectionStatementV2 => item.kind === "select");
-  const selectedGroupId = selectedId?.startsWith("investment:") ? selectedId.slice("investment:".length)
+  const selectedGroupId = selectedId?.startsWith("group:") ? selectedId.slice("group:".length)
     : selectedId?.startsWith("assets:") ? canonical.definitions.groups.find((group) => group.asset_set_ref === selectedId.slice("assets:".length))?.id
       : selectedSelection?.selection.universe_id
         ?? (selected?.kind === "select" ? selected.selection.universe_id : undefined);
-  const unconfiguredInvestment = canonical.definitions.groups.find((group) => !selections.some((item) => item.selection.universe_id === group.id));
-  const investment = canonical.definitions.groups.find((group) => group.id === selectedGroupId)
-    ?? unconfiguredInvestment
+  const unconfiguredGroup = canonical.definitions.groups.find((group) => !selections.some((item) => item.selection.universe_id === group.id));
+  const group = canonical.definitions.groups.find((item) => item.id === selectedGroupId)
+    ?? unconfiguredGroup
     ?? canonical.definitions.groups[0];
-  const selection = selections.find((item) => item.selection.universe_id === investment?.id)
+  const selection = selections.find((item) => item.selection.universe_id === group?.id)
     ?? selectedSelection
     ?? (selectedGroupId ? undefined : selections[0]);
   const startSelectionDraft = (withQualification = false, position?: { x: number; y: number }) => {
-    if (!investment) return;
-    setDraftAt({ kind: "selection", semanticId: nextId(canonical, "selection"), universeId: investment.id, withQualification }, position);
+    if (!group) return;
+    setDraftAt({ kind: "selection", semanticId: nextId(canonical, "selection"), universeId: group.id, withQualification }, position);
+    setSelectedId(null); working(true); setView("blocky");
+  };
+  const startGroupDraft = (position?: { x: number; y: number }) => {
+    const number = canonical.definitions.groups.length + 1;
+    setDraftAt({ kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [] }, position);
+    setSelectedId(null); working(true); setView("blocky");
+  };
+  const startChooseDraft = (withQualification = false, position?: { x: number; y: number }) => {
+    const semanticId = nextId(canonical, "choose");
+    setDraftAt({ kind: "choose", semanticId, groupId: group?.id ?? null, outputId: `${semanticId}-subgroup`, lookback: 126, direction: "highest", count: 2, shortage: "require_full", withQualification }, position);
+    setSelectedId(null); working(true); setView("blocky");
+  };
+  const startInvestmentDraft = (position?: { x: number; y: number }) => {
+    const candidate = selection ? { kind: "selection" as const, ref: selection.output_id } : group ? { kind: "group" as const, ref: group.id } : null;
+    setDraftAt({ kind: "investment", semanticId: nextId(canonical, "investment"), targetKind: candidate?.kind ?? null, targetRef: candidate?.ref ?? null, internalAllocation: "equal" }, position);
     setSelectedId(null); working(true); setView("blocky");
   };
   const startEventStateDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "event_state", semanticId: nextId(canonical, "event-state") }, position); setSelectedId(null); working(true); setView("blocky"); };
   const startControlDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "control", semanticId: nextId(canonical, "control"), condition: null }, position); setSelectedId(null); working(true); setView("blocky"); };
   const selectionAllocation = selection ? all.find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === selection.output_id)) : undefined;
-  const portfolioSplit = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
-  const investmentAssets = canonical.definitions.asset_sets.find((item) => item.id === investment?.asset_set_ref);
+  const portfolioSplit = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.length > 1);
+  const groupAssets = canonical.definitions.asset_sets.find((item) => item.id === group?.asset_set_ref);
   const startFinancialIntent = (recipe: FinancialIntentRecipe, startPath: IntentStartPath, position?: { x: number; y: number }) => {
     let intent = createFinancialIntentDraft(recipe, startPath, nextId(canonical, `intent-${recipe}`));
     if (recipe === "single_asset") intent = updateFinancialIntentDraft(intent, {
-      asset: investmentAssets?.assets.length === 1 ? investmentAssets.assets[0]! : null,
+      asset: groupAssets?.assets.length === 1 ? groupAssets.assets[0]! : null,
       timeframe: clock?.timeframe === "monthly" ? "monthly" : clock?.timeframe === "daily" ? "daily" : null,
       timingMeaning: startPath === "timing_first" ? "rebalance" : null,
     });
     setDraftAt(intent, position); setSelectedId(null); working(true); setView(startPath === "flow_first" ? "flow" : "blocky");
   };
-  const nextInvestmentNumber = canonical.definitions.groups.length + 1;
-  const addInvestment = () => {
-    const investmentId = `investment-${nextInvestmentNumber}`;
-    applyProduct({ kind: "addInvestment", investmentId, name: canonical.definitions.groups.length ? `Investment ${nextInvestmentNumber}` : "Investment", assetSetId: `${investmentId}-assets`, assets: [] });
-    select(`investment:${investmentId}`);
-  };
+  const addInvestment = () => startInvestmentDraft();
   const tools: ProductAddAction[] = [
-    { id: "investment", category: "Capital", label: "Investment", description: canonical.definitions.groups.length >= 2 ? "Choose an existing Investment before extending its meaning." : "A capital path backed by assets.", availability: canonical.definitions.groups.length >= 2 ? "invalid_here" : "ready", disabled: canonical.definitions.groups.length >= 2, onAdd: addInvestment },
+    { id: "investment", category: "Capital", label: "Investment", description: "Connect Portfolio capital to an Asset, Group, or selected Subgroup.", availability: "draftable", disabled: Boolean(draft), onAdd: addInvestment },
     { id: "split", category: "Capital", label: "Split", description: portfolioSplit ? "This Portfolio already has a Split; edit its Investments instead." : "Split capital across two investments.", availability: portfolioSplit ? "invalid_here" : canonical.definitions.groups.length < 2 ? "needs_context" : "ready", disabled: canonical.definitions.groups.length < 2 || Boolean(portfolioSplit), onAdd: () => applyProduct({ kind: "setAllocation", method: "fixed", investments: canonical.definitions.groups.slice(0, 2).map((group) => ({ id: group.id, weight: .5 })) }) },
-    { id: "sleeve", category: "Destination", label: "Sleeve", description: "Select a named Investment within the current Split.", availability: portfolioSplit ? "needs_context" : "invalid_here", disabled: true, onAdd: () => undefined },
-    { id: "assets", category: "Destination", label: "Assets", description: investmentAssets ? "Edit the Investment's asset list." : "Start with an asset, then complete its Investment.", availability: "ready", disabled: false, onAdd: () => investmentAssets ? select(`assets:${investmentAssets.id}`) : startFinancialIntent("single_asset", "asset_first") },
+    { id: "group", category: "Destination", label: "Group", description: "Create a reusable candidate universe without allocating capital.", availability: "draftable", disabled: Boolean(draft), onAdd: () => startGroupDraft() },
+    { id: "sleeve", category: "Destination", label: "Sleeve", description: "Legacy compatibility label. New Strategies use explicit Group, Subgroup, and Investment objects.", availability: "invalid_here", disabled: true, onAdd: () => undefined },
+    { id: "assets", category: "Destination", label: "Assets", description: groupAssets ? "Edit this Group's members." : "Create a Group and define its members.", availability: groupAssets ? "ready" : "draftable", disabled: Boolean(draft), onAdd: () => groupAssets ? select(`assets:${groupAssets.id}`) : startGroupDraft() },
     { id: "if", category: "Routing", label: "IF / OTHERWISE", description: "Draft conditional capital routing here. Execution support is assessed only after the semantic branches are complete.", availability: "draftable", disabled: Boolean(draft), onAdd: () => startControlDraft() },
-    { id: "qualification", category: "Routing", label: "Qualification", description: selection?.selection.universe_id === investment?.id ? "Configure which candidate assets qualify." : investment ? "Define Qualification with this Investment's Selection." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection?.selection.universe_id === investment?.id ? select(`qualification:${selection.semantic_id}`) : startSelectionDraft(true) },
-    { id: "choose-assets", category: "Routing", label: "Choose assets", description: selection?.selection.universe_id === investment?.id ? "Edit this Investment's ranked Selection." : "Rank candidates and choose the strongest assets.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection?.selection.universe_id === investment?.id ? select(selection.semantic_id) : startSelectionDraft() },
+    { id: "qualification", category: "Routing", label: "Qualification", description: selection?.selection.universe_id === group?.id ? "Configure which Group members qualify." : group ? "Create a selected Subgroup with Qualification." : "Draft Choose now and attach a Group later.", availability: group ? "ready" : "draftable", disabled: Boolean(draft), onAdd: () => selection?.selection.universe_id === group?.id ? select(`qualification:${selection.semantic_id}`) : startChooseDraft(true) },
+    { id: "choose-assets", category: "Routing", label: "Choose", description: selection?.selection.universe_id === group?.id ? "Edit this Group's selected Subgroup." : "Rank Group members and produce a named Subgroup.", availability: group ? "ready" : "draftable", disabled: Boolean(draft), onAdd: () => selection?.selection.universe_id === group?.id ? select(selection.semantic_id) : startChooseDraft() },
     { id: "allocation", category: "Allocation", label: "Allocation", description: selection ? programAllocationToolDescription(canonical) : "Start with an allocation intent; complete assets and timing before commit.", availability: "ready", disabled: false, onAdd: () => { if (selectionAllocation) select(selectionAllocation.semantic_id); else if (selection) applyProduct({ kind: "setAllocation", method: "equal" }, { selectionId: selection.semantic_id }); else startFinancialIntent("single_asset", "allocation_first"); } },
-    { id: "schedule", category: "Timing", label: "Rebalance", description: investment ? "Configure the Portfolio rebalance cadence." : "Start with timing, then choose the investment.", availability: "ready", disabled: false, onAdd: () => investment ? select("rebalance") : startFinancialIntent("single_asset", "timing_first") },
+    { id: "schedule", category: "Timing", label: "Rebalance", description: roots.some((item) => item.kind === "allocate") ? "Configure the Portfolio rebalance cadence." : "Start with timing, then complete an Investment.", availability: "ready", disabled: false, onAdd: () => roots.some((item) => item.kind === "allocate") ? select("rebalance") : startFinancialIntent("single_asset", "timing_first") },
     { id: "cooldown", category: "Behavior", label: "Cooldown", description: "Cooldown meaning is preserved by the semantic model but is not authorable or production-lowerable in this profile yet.", availability: "unsupported_execution", disabled: true, onAdd: () => undefined },
     { id: "fallback", category: "Behavior", label: "Fallback", description: selection ? "Choose the asset used when too few qualify." : "Choose assets first.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(`fallback:${selection.semantic_id}`) },
-    { id: "logic-condition", category: "Logic", label: "Condition", description: selection ? "Edit a nested Qualification Condition." : investment ? "Create a Selection with a Qualification Condition." : "Add an Investment first.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(`qualification:${selection.semantic_id}`) : startSelectionDraft(true) },
+    { id: "logic-condition", category: "Logic", label: "Condition", description: selection ? "Edit a nested Qualification Condition." : "Create a Subgroup with a Qualification Condition.", availability: group ? "ready" : "draftable", disabled: Boolean(draft), onAdd: () => selection ? select(`qualification:${selection.semantic_id}`) : startChooseDraft(true) },
     { id: "logic-control", category: "Logic", label: "IF / OTHERWISE", description: "Create an unfinished condition, then connect complete statement blocks to its branches.", availability: "draftable", disabled: Boolean(draft), onAdd: () => startControlDraft() },
     { id: "data-score", category: "Data", label: "Value / Score", description: selection ? "Edit the Selection ranking Value or weighted Score." : "Create a Selection before adding its ranking Value.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => selection && select(selection.semantic_id) },
-    { id: "logic-selection", category: "Selection", label: "Rank and select", description: selection ? "Edit the committed ranking and Top N Selection." : investment ? "Create a ranked Selection." : "Add an Investment first.", availability: selection ? "ready" : investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => selection ? select(selection.semantic_id) : startSelectionDraft() },
-    { id: "state-event", category: "State", label: "Event → State", description: investmentAssets?.assets.length ? "Draft an Event and atomic State transition. Runtime support is assessed after commit." : "Choose Investment assets first.", availability: investmentAssets?.assets.length ? "draftable" : "needs_context", disabled: !investmentAssets?.assets.length, onAdd: startEventStateDraft },
+    { id: "logic-selection", category: "Selection", label: "Rank and select", description: selection ? "Edit the committed ranking and Top N Subgroup." : "Create a ranked Subgroup from a Group.", availability: group ? "ready" : "draftable", disabled: Boolean(draft), onAdd: () => selection ? select(selection.semantic_id) : startChooseDraft() },
+    { id: "state-event", category: "State", label: "Event → State", description: groupAssets?.assets.length ? "Draft an Event and atomic State transition. Runtime support is assessed after commit." : "Choose Group assets first.", availability: groupAssets?.assets.length ? "draftable" : "needs_context", disabled: !groupAssets?.assets.length, onAdd: startEventStateDraft },
     { id: "logic-allocation", category: "Allocation", label: "Allocation / Policy", description: all.some((item) => item.kind === "guarded_allocation") ? "Inspect the committed policy precedence." : selectionAllocation ? "Inspect selected-asset allocation." : "Add equal allocation for the current Selection.", availability: selection ? "ready" : "needs_context", disabled: !selection, onAdd: () => { const policy = all.find((item) => item.kind === "guarded_allocation") ?? selectionAllocation; if (policy) select(policy.semantic_id); else if (selection) applyProduct({ kind: "setAllocation", method: "equal" }, { selectionId: selection.semantic_id }); } },
-    { id: "logic-timing", category: "Timing", label: "Clock / Rebalance", description: "Edit the semantic evaluation clock.", availability: investment ? "ready" : "needs_context", disabled: !investment, onAdd: () => select("rebalance") },
+    { id: "logic-timing", category: "Timing", label: "Clock / Rebalance", description: "Edit the semantic evaluation clock.", availability: roots.some((item) => item.kind === "allocate") ? "ready" : "needs_context", disabled: !roots.some((item) => item.kind === "allocate"), onAdd: () => select("rebalance") },
     { id: "intent-market-regime", category: "Logic", label: "Market regime rotation", description: "Author explicit trend and OTHERWISE routes; this composition is not production-lowerable yet.", availability: "unsupported_execution", disabled: Boolean(draft), onAdd: () => startFinancialIntent("market_regime_rotation", "logic_first") },
     { id: "intent-split", category: "Capital", label: "Growth + Defensive", description: "Author a 70/30 parallel sleeve strategy; this composition is not production-lowerable yet.", availability: "unsupported_execution", disabled: Boolean(draft), onAdd: () => startFinancialIntent("split_portfolio", "flow_first") },
     { id: "intent-score", category: "Data", label: "Weighted Score", description: "Rank a universe with explicit weighted return horizons.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("weighted_score", "logic_first") },
@@ -572,7 +654,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     { id: "intent-breakout-asset", category: "Destination", label: "Breakout asset", description: "Choose the observed asset before defining the temporal sequence.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("temporal_sequence", "asset_first") },
     { id: "intent-risk-first", category: "Behavior", label: "Risk policy first", description: "Define Unknown risk behavior before clocks and signals.", availability: "ready", disabled: Boolean(draft), onAdd: () => startFinancialIntent("multi_clock_policy", "logic_first") },
   ];
-  const blank = canonical.definitions.groups.length === 0 && draft === null;
+  const blank = canonical.definitions.groups.length === 0 && roots.length === 0 && draft === null;
   const structure = projectProgramProductStructure(canonical);
   const perspectiveCapability: PerspectiveCapability = {
     representable: true,
@@ -590,20 +672,35 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const rules = useMemo(() => projectProgramRules(canonical), [canonical]);
   const summary = useMemo(() => projectProgramSummary(canonical), [canonical]);
   const switchView = (next: ProgramBuilderView) => setView(next);
-  const selectedInvestment = selectedId?.startsWith("investment:") ? canonical.definitions.groups.find((group) => group.id === selectedId.slice("investment:".length)) : null;
-  const selectedInvestmentShare = selectedInvestment && portfolioSplit?.legs.find((leg) => leg.target.kind === "group" && leg.target.ref === selectedInvestment.id)?.weight;
-  const inspector = draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={draft.universeId} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
+  const selectedGroup = selectedId?.startsWith("group:") ? canonical.definitions.groups.find((item) => item.id === selectedId.slice("group:".length)) : null;
+  const finishDraftOperation = (operation: BuilderProductOperation) => { setDraft(null); working(false); applyProduct(operation); };
+  const groupDraftFor = (resume: Extract<ProgramDraftConcept, { kind: "choose" | "investment" }>) => {
+    const number = canonical.definitions.groups.length + 1;
+    setDraft({ kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [], resume });
+  };
+  const inspector = draft?.kind === "group" ? <GroupDraftInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => {
+    const resume = draft.resume;
+    if (resume?.kind === "choose") setDraft({ ...resume, groupId: draft.semanticId });
+    else if (resume?.kind === "investment") setDraft({ ...resume, targetKind: "group", targetRef: draft.semanticId });
+    else { setDraft(null); working(false); }
+    applyProduct(operation);
+  }} />
+    : draft?.kind === "choose" ? <ChooseDraftInspector strategy={canonical} draft={draft} onChange={(next) => setDraft(next)} onCommit={finishDraftOperation} onNeedGroup={() => groupDraftFor(draft)} />
+    : draft?.kind === "investment" ? <InvestmentDraftInspector strategy={canonical} draft={draft} onChange={(next) => setDraft(next)} onCommit={finishDraftOperation} onNeedGroup={() => groupDraftFor(draft)} />
+    : draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={draft.universeId} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
     : draft?.kind === "event_state" ? <EventStateDraftInspector strategy={canonical} semanticId={draft.semanticId} onComplete={apply} />
     : draft?.kind === "control" ? <ControlDraftInspector strategy={canonical} draft={draft} connections={workingDraft.blockConnections} onChange={(next) => setDraft(next)} onCommit={apply} />
     : draft?.kind === "financial_intent" ? <FinancialIntentInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => { setDraft(null); working(false); apply(operation); }} />
     : selectedId?.startsWith("assets:") ? <ProgramAssetsInspector strategy={canonical} assetSetId={selectedId.slice("assets:".length)} onAssets={(assets) => applyProduct({ kind: "setAssets", assets }, { assetSetId: selectedId.slice("assets:".length) })} />
         : selectedId?.startsWith("qualification:") && selectedSelection ? <ProgramQualificationInspector strategy={canonical} statement={selectedSelection} apply={apply} working={working} onDefault={() => applyProduct({ kind: "setQualification", lookback: 126, operator: "gt", threshold: 0 }, { selectionId: selectedSelection.semantic_id })} />
           : selectedId?.startsWith("fallback:") && selectedSelection ? <ProgramFallbackInspector statement={selectedSelection} onFallback={(asset) => applyProduct({ kind: "setFallback", asset }, { selectionId: selectedSelection.semantic_id })} />
-            : selected ? <Inspector strategy={canonical} statement={selected} apply={apply} working={working} />
+            : selectedId?.startsWith("investment:") && selected?.kind === "allocate" && selected.legs.length > 1 ? <ProgramSplitInspector strategy={canonical} statement={selected} onApply={(investments) => applyProduct({ kind: "setAllocation", method: "fixed", investments })} />
+              : selectedId?.startsWith("investment:") && selected?.kind === "allocate" ? <div className="semantic-inspector-content"><h2>Investment</h2><p className="fixed-setting">Capital target · {selected.legs.map((leg) => leg.target.ref ?? leg.target.kind).join(" · ")}</p><p>Within the target, capital is {selected.method === "proportional_score" ? "proportional to positive Score" : "equally weighted"}.</p><button type="button" className="secondary-button" onClick={() => { const leg = selected.legs[0]; setDraft({ kind: "investment", semanticId: selected.semantic_id, targetKind: leg?.target.kind === "asset" || leg?.target.kind === "group" || leg?.target.kind === "selection" ? leg.target.kind : null, targetRef: leg?.target.ref ?? null, internalAllocation: selected.method === "proportional_score" ? "proportional_score" : "equal" }); working(true); }}>Change target or weighting</button><button type="button" className="text-button" onClick={() => applyProduct({ kind: "removeInvestment", semanticId: selected.semantic_id })}>Disconnect capital</button></div>
+              : selected ? <Inspector strategy={canonical} statement={selected} apply={apply} working={working} />
               : selectedId === "rebalance" && clock ? <ProgramScheduleInspector timeframe={clock.timeframe} onChange={(timeframe) => applyProduct({ kind: "setRebalance", cadence: timeframe })} />
-                : selectedInvestment ? <div className="semantic-inspector-content"><h2>{selectedInvestment.name || "Investment"}</h2><p className="fixed-setting">{selectedInvestmentShare === undefined ? "Receives the Portfolio's capital." : `Portfolio share · ${formatPortfolioShare(Number(selectedInvestmentShare))}`}</p>{selectionAllocation && selection?.selection.universe_id === selectedInvestment.id && <p>Selected assets divide this Investment's share equally.</p>}<button type="button" className="secondary-button" onClick={() => select(`assets:${selectedInvestment.asset_set_ref}`)}>Edit Assets</button></div>
+                : selectedGroup ? <div className="semantic-inspector-content"><h2>Group</h2><p>A reusable candidate universe. It does not imply capital exposure.</p><label>Group name<input aria-label="Group name" defaultValue={selectedGroup.name} onBlur={(event) => { const name = event.target.value.trim(); if (name && name !== selectedGroup.name) applyProduct({ kind: "renameGroup", groupId: selectedGroup.id, name }); }} /></label><button type="button" className="secondary-button" onClick={() => select(`assets:${selectedGroup.asset_set_ref}`)}>Edit Assets</button><button type="button" className="text-button" onClick={() => applyProduct({ kind: "removeGroup", groupId: selectedGroup.id })}>Delete Group</button></div>
                   : selectedId === "split" && portfolioSplit ? <ProgramSplitInspector strategy={canonical} statement={portfolioSplit} onApply={(investments) => applyProduct({ kind: "setAllocation", method: "fixed", investments })} />
-                    : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select an investment object in Structure or add one from Add.</p></div>;
+                    : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select a Group, Subgroup, or Investment in Structure, or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
     blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
@@ -625,8 +722,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       onDraftDelete={() => { setDraft(null); working(false); }}
       onToolDrop={(toolId, position) => {
         if (toolId === "logic-control") startControlDraft(position);
-        else if (["logic-selection", "choose-assets"].includes(toolId)) startSelectionDraft(false, position);
-        else if (["logic-condition", "qualification"].includes(toolId)) startSelectionDraft(true, position);
+        else if (["logic-selection", "choose-assets"].includes(toolId)) startChooseDraft(false, position);
+        else if (["logic-condition", "qualification"].includes(toolId)) startChooseDraft(true, position);
         else if (toolId === "state-event") startEventStateDraft(position);
         else if (toolId.startsWith("intent-")) tools.find((item) => item.id === toolId)?.onAdd();
         else tools.find((item) => item.id === toolId)?.onAdd();

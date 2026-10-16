@@ -146,6 +146,27 @@ class AddProgramInvestment(FrozenModel):
     assets: tuple[Symbol, ...] = Field(default=(), max_length=500)
 
 
+class AddProgramGroup(FrozenModel):
+    """Create a reusable Candidate Group without implying capital exposure."""
+
+    kind: Literal["add_program_group"]
+    group_id: Identifier
+    name: str = Field(min_length=1, max_length=100)
+    asset_set_id: Identifier
+    assets: tuple[Symbol, ...] = Field(default=(), max_length=500)
+
+
+class RenameProgramGroup(FrozenModel):
+    kind: Literal["rename_program_group"]
+    group_id: Identifier
+    name: str = Field(min_length=1, max_length=100)
+
+
+class RemoveProgramGroup(FrozenModel):
+    kind: Literal["remove_program_group"]
+    group_id: Identifier
+
+
 class RemoveProgramInvestment(FrozenModel):
     kind: Literal["remove_program_investment"]
     investment_id: Identifier
@@ -169,6 +190,45 @@ class CreateProgramSelection(FrozenModel):
     qualification_lookback: Annotated[int, Field(ge=2, le=2000)] | None = None
     qualification_operator: Literal["gt", "gte", "lt", "lte"] | None = None
     qualification_threshold: Decimal | None = None
+
+
+class CreateProgramChoose(FrozenModel):
+    """Create only dynamic membership; Allocation is a separate Investment operation."""
+
+    kind: Literal["create_program_choose"]
+    semantic_id: Identifier
+    group_id: Identifier
+    output_id: Identifier
+    clock_id: Identifier
+    lookback: Annotated[int, Field(ge=2, le=2000)]
+    direction: Literal["ascending", "descending"]
+    count: Annotated[int, Field(ge=1, le=100)]
+    shortage_policy: Literal["choose_all", "require_full"]
+    qualification_lookback: Annotated[int, Field(ge=2, le=2000)] | None = None
+    qualification_operator: Literal["gt", "gte", "lt", "lte"] | None = None
+    qualification_threshold: Decimal | None = None
+
+
+class RenameProgramSubgroup(FrozenModel):
+    kind: Literal["rename_program_subgroup"]
+    semantic_id: Identifier
+    output_id: Identifier
+
+
+class SetProgramInvestment(FrozenModel):
+    """Commit capital exposure to an Asset, Group, or selected Subgroup."""
+
+    kind: Literal["set_program_investment"]
+    semantic_id: Identifier
+    target_kind: Literal["asset", "group", "selection"]
+    target_ref: str = Field(min_length=1, max_length=100)
+    internal_allocation: Literal["equal", "proportional_score"] = "equal"
+    clock_id: Identifier
+
+
+class RemoveProgramInvestmentAllocation(FrozenModel):
+    kind: Literal["remove_program_investment_allocation"]
+    semantic_id: Identifier
 
 
 class CreateProgramEventState(FrozenModel):
@@ -342,9 +402,16 @@ V2AuthoringOperation = Annotated[
     | SetProgramSelection
     | SetProgramAssetSet
     | AddProgramInvestment
+    | AddProgramGroup
+    | RenameProgramGroup
+    | RemoveProgramGroup
     | RemoveProgramInvestment
     | SetProgramSchedule
     | CreateProgramSelection
+    | CreateProgramChoose
+    | RenameProgramSubgroup
+    | SetProgramInvestment
+    | RemoveProgramInvestmentAllocation
     | CreateProgramEventState
     | SetProgramFallback
     | SetProgramSplit
@@ -633,6 +700,25 @@ def _rewrite_program_statements(
             item for statement in program.statements if (item := visit(statement)) is not None
         ),
     }))
+
+
+def _all_program_statements(statements: tuple[ProgramStatementV2, ...]) -> tuple[ProgramStatementV2, ...]:
+    """Traverse every executable statement, including policy-owned Allocations."""
+
+    values: list[ProgramStatementV2] = []
+    for statement in statements:
+        values.append(statement)
+        if isinstance(statement, ConditionalStatementV2):
+            values.extend(_all_program_statements(statement.then_statements))
+            values.extend(_all_program_statements(statement.otherwise_statements))
+        elif isinstance(statement, EventStatementV2):
+            values.extend(_all_program_statements(statement.statements))
+        elif isinstance(statement, GuardedAllocationStatementV2):
+            values.append(statement.primary)
+            values.extend(item.action for item in statement.overrides)
+            if statement.fallback is not None:
+                values.append(statement.fallback)
+    return tuple(values)
 
 
 def _edit_program_statement(
@@ -996,8 +1082,11 @@ def _apply_program_operation(
     if not isinstance(operation, (
         ReplaceProgramStatement, InsertProgramStatement, RemoveProgramStatement,
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
-        SetProgramAssetSet, AddProgramInvestment, RemoveProgramInvestment, SetProgramSchedule,
-        CreateProgramSelection, SetProgramFallback, SetProgramSplit,
+        SetProgramAssetSet, AddProgramInvestment, AddProgramGroup, RenameProgramGroup,
+        RemoveProgramGroup, RemoveProgramInvestment, SetProgramSchedule,
+        CreateProgramSelection, CreateProgramChoose, RenameProgramSubgroup,
+        SetProgramInvestment, RemoveProgramInvestmentAllocation,
+        SetProgramFallback, SetProgramSplit,
         CreateProgramEventState,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
@@ -1015,7 +1104,7 @@ def _apply_program_operation(
         return _compile_program_intent(strategy, operation)
     if isinstance(operation, SetProgramAssetSet):
         if len(set(operation.assets)) != len(operation.assets):
-            raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in this investment.")
+            raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in a Group.")
         found = False
         asset_sets = []
         for asset_set in strategy.definitions.asset_sets:
@@ -1024,9 +1113,68 @@ def _apply_program_operation(
                 asset_set = asset_set.model_copy(update={"assets": list(operation.assets)})
             asset_sets.append(asset_set)
         if not found:
-            raise V2AuthoringError("asset_set_not_found", "This investment's asset list no longer exists.")
+            raise V2AuthoringError("asset_set_not_found", "This Group's asset list no longer exists.")
         definitions = strategy.definitions.model_copy(update={"asset_sets": tuple(asset_sets)})
         return strategy.model_copy(update={"definitions": definitions})
+    if isinstance(operation, AddProgramGroup):
+        if any(group.id == operation.group_id for group in strategy.definitions.groups):
+            raise V2AuthoringError("group_exists", "This Group already exists.")
+        if any(asset_set.id == operation.asset_set_id for asset_set in strategy.definitions.asset_sets):
+            raise V2AuthoringError("asset_set_exists", "This Group asset list already exists.")
+        if len(set(operation.assets)) != len(operation.assets):
+            raise V2AuthoringError("duplicate_asset", "Each asset can appear only once in a Group.")
+        asset_set = AssetSetDefinitionV2(id=operation.asset_set_id, assets=list(operation.assets))
+        group = GroupDefinition(id=operation.group_id, name=operation.name, asset_set_ref=operation.asset_set_id)
+        definitions = strategy.definitions.model_copy(update={
+            "asset_sets": strategy.definitions.asset_sets + (asset_set,),
+            "groups": strategy.definitions.groups + (group,),
+            "asset_axis": Axis(name="asset", domain_id=operation.group_id, coordinate_policy="member_identity"),
+        })
+        return strategy.model_copy(update={"definitions": definitions})
+    if isinstance(operation, RenameProgramGroup):
+        found = False
+        groups = []
+        for group in strategy.definitions.groups:
+            if group.id == operation.group_id:
+                found = True
+                group = group.model_copy(update={"name": operation.name})
+            groups.append(group)
+        if not found:
+            raise V2AuthoringError("group_not_found", "This Group no longer exists.")
+        return strategy.model_copy(update={
+            "definitions": strategy.definitions.model_copy(update={"groups": tuple(groups)}),
+        })
+    if isinstance(operation, RemoveProgramGroup):
+        program = _program_for_operation(strategy, operation)
+        group = next((item for item in strategy.definitions.groups if item.id == operation.group_id), None)
+        if group is None:
+            raise V2AuthoringError("group_not_found", "This Group no longer exists.")
+        if any(
+            isinstance(item, SelectionStatementV2) and item.selection.universe_id == group.id
+            for item in _all_program_statements(program.statements)
+        ):
+            raise V2AuthoringError("group_in_use_by_choose", "Disconnect this Group's Choose operation before deleting the Group.")
+        if any(
+            isinstance(item, AllocationStatementV2)
+            and any(leg.target.kind == "group" and leg.target.ref == group.id for leg in item.legs)
+            for item in _all_program_statements(program.statements)
+        ):
+            raise V2AuthoringError("group_in_use_by_investment", "Disconnect Investments that target this Group before deleting it.")
+        groups = tuple(item for item in strategy.definitions.groups if item.id != group.id)
+        asset_set_is_shared = any(
+            item.id != group.id and item.asset_set_ref == group.asset_set_ref
+            for item in strategy.definitions.groups
+        )
+        asset_sets = strategy.definitions.asset_sets if asset_set_is_shared else tuple(
+            item for item in strategy.definitions.asset_sets if item.id != group.asset_set_ref
+        )
+        if not asset_sets:
+            raise V2AuthoringError("last_asset_set", "The Builder must retain one asset list.")
+        domain_id = groups[0].id if groups else asset_sets[0].id
+        return strategy.model_copy(update={"definitions": strategy.definitions.model_copy(update={
+            "asset_sets": asset_sets, "groups": groups,
+            "asset_axis": Axis(name="asset", domain_id=domain_id, coordinate_policy="member_identity"),
+        })})
     if isinstance(operation, AddProgramInvestment):
         if any(group.id == operation.investment_id for group in strategy.definitions.groups):
             raise V2AuthoringError("investment_exists", "This investment already exists.")
@@ -1153,6 +1301,152 @@ def _apply_program_operation(
         additions = (statement,) if split_resolved else (statement, allocation)
         program = current_program.model_copy(update={"statements": tuple(resolved_statements) + additions})
         return strategy.model_copy(update={"program": program})
+    if isinstance(operation, CreateProgramChoose):
+        current_program = _program_for_operation(strategy, operation)
+        if not any(group.id == operation.group_id for group in strategy.definitions.groups):
+            raise V2AuthoringError("group_not_found", "The addressed Group does not exist.")
+        if any(
+            isinstance(item, SelectionStatementV2) and item.semantic_id == operation.semantic_id
+            for item in _all_program_statements(current_program.statements)
+        ):
+            raise V2AuthoringError("choose_exists", "This Choose operation already exists.")
+        if any(
+            isinstance(item, SelectionStatementV2) and item.output_id == operation.output_id
+            for item in _all_program_statements(current_program.statements)
+        ):
+            raise V2AuthoringError("subgroup_exists", "This selected Subgroup name is already in use.")
+        if not any(clock.id == operation.clock_id for clock in current_program.clocks):
+            raise V2AuthoringError("program_clock_not_found", "The addressed evaluation clock does not exist.")
+        binding_id = f"{operation.semantic_id}-candidate"
+
+        def candidate_return(prefix: str, lookback: int) -> DailyValueNode:
+            source = DailyValueNode(
+                semantic_id=f"{prefix}-close", kind="observe", subject_kind=SubjectKind.CANDIDATE,
+                binding_id=binding_id, field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+            )
+            return DailyValueNode(
+                semantic_id=f"{prefix}-return", kind="trailing_return",
+                operands=(source,), observations=lookback,
+            )
+
+        eligibility = None
+        qualification_fields = (
+            operation.qualification_lookback,
+            operation.qualification_operator,
+            operation.qualification_threshold,
+        )
+        if any(value is not None for value in qualification_fields):
+            if any(value is None for value in qualification_fields):
+                raise V2AuthoringError("incomplete_qualification", "Qualification requires lookback, operator, and threshold together.")
+            eligibility = ComparisonV2(
+                semantic_id=f"{operation.semantic_id}-qualification",
+                operator=operation.qualification_operator,
+                left=candidate_return(f"{operation.semantic_id}-qualification", operation.qualification_lookback),
+                right=DailyValueNode(
+                    semantic_id=f"{operation.semantic_id}-threshold", kind="literal",
+                    quantity=Quantity.RETURN, unit=Unit.RATIO,
+                    refinement="trailing_return:adjusted_close", value=operation.qualification_threshold,
+                ),
+            )
+        statement = SelectionStatementV2(
+            semantic_id=operation.semantic_id,
+            output_id=operation.output_id,
+            clock_id=operation.clock_id,
+            selection=SelectionV2(
+                semantic_id=f"{operation.semantic_id}-definition",
+                universe_id=operation.group_id,
+                binding={"id": binding_id, "domain_id": operation.group_id},
+                eligibility=eligibility,
+                ranking=candidate_return(operation.semantic_id, operation.lookback),
+                direction=operation.direction,
+                count=operation.count,
+                shortage_policy=operation.shortage_policy,
+            ),
+        )
+        return strategy.model_copy(update={"program": current_program.model_copy(update={
+            "statements": current_program.statements + (statement,),
+        })})
+    if isinstance(operation, RenameProgramSubgroup):
+        program = _program_for_operation(strategy, operation)
+        selections = tuple(
+            item for item in _all_program_statements(program.statements)
+            if isinstance(item, SelectionStatementV2)
+        )
+        selected = next((item for item in selections if item.semantic_id == operation.semantic_id), None)
+        if selected is None:
+            raise V2AuthoringError("choose_not_found", "This Choose operation no longer exists.")
+        if any(item.semantic_id != selected.semantic_id and item.output_id == operation.output_id for item in selections):
+            raise V2AuthoringError("subgroup_exists", "This selected Subgroup name is already in use.")
+        old_output = selected.output_id
+
+        def allocation_refs(item: AllocationStatementV2) -> AllocationStatementV2:
+            return item.model_copy(update={"legs": tuple(
+                leg.model_copy(update={"target": leg.target.model_copy(update={"ref": operation.output_id})})
+                if leg.target.kind == "selection" and leg.target.ref == old_output else leg
+                for leg in item.legs
+            )})
+
+        def rename(statement: ProgramStatementV2) -> ProgramStatementV2:
+            if isinstance(statement, SelectionStatementV2) and statement.semantic_id == selected.semantic_id:
+                return statement.model_copy(update={"output_id": operation.output_id})
+            if isinstance(statement, AllocationStatementV2):
+                return allocation_refs(statement)
+            if isinstance(statement, GuardedAllocationStatementV2):
+                return statement.model_copy(update={
+                    "primary": allocation_refs(statement.primary),
+                    "overrides": tuple(override.model_copy(update={"action": allocation_refs(override.action)}) for override in statement.overrides),
+                    "fallback": None if statement.fallback is None else allocation_refs(statement.fallback),
+                })
+            return statement
+
+        return strategy.model_copy(update={"program": _rewrite_program_statements(program, rename)})
+    if isinstance(operation, SetProgramInvestment):
+        program = _program_for_operation(strategy, operation)
+        if not any(clock.id == operation.clock_id for clock in program.clocks):
+            raise V2AuthoringError("program_clock_not_found", "The addressed rebalance clock does not exist.")
+        all_statements = _all_program_statements(program.statements)
+        selections = tuple(item for item in all_statements if isinstance(item, SelectionStatementV2))
+        known_assets = {asset for asset_set in strategy.definitions.asset_sets for asset in asset_set.assets}
+        known_groups = {group.id for group in strategy.definitions.groups}
+        if operation.target_kind == "asset" and operation.target_ref not in known_assets:
+            raise V2AuthoringError("investment_asset_not_found", "The Investment asset must belong to a Group in this Strategy.")
+        if operation.target_kind == "group" and operation.target_ref not in known_groups:
+            raise V2AuthoringError("investment_group_not_found", "The Investment target Group does not exist.")
+        selected = next((item for item in selections if item.output_id == operation.target_ref), None)
+        if operation.target_kind == "selection" and selected is None:
+            raise V2AuthoringError("investment_subgroup_not_found", "The selected Subgroup no longer exists.")
+        if operation.internal_allocation == "proportional_score" and (
+            operation.target_kind != "selection" or selected is None or not isinstance(selected.selection.ranking, ScoreValueV2)
+        ):
+            raise V2AuthoringError("score_allocation_requires_score_subgroup", "Proportional Score allocation requires a Score-ranked selected Subgroup.")
+        allocation = AllocationStatementV2(
+            semantic_id=operation.semantic_id,
+            method=operation.internal_allocation,
+            clock_id=operation.clock_id,
+            legs=(AllocationLegV2(
+                semantic_id=f"{operation.semantic_id}-leg",
+                target=AllocationTargetV2(
+                    semantic_id=f"{operation.semantic_id}-target",
+                    kind=operation.target_kind,
+                    ref=operation.target_ref,
+                ),
+            ),),
+        )
+        existing = next((item for item in all_statements if item.semantic_id == operation.semantic_id), None)
+        if existing is not None:
+            if not isinstance(existing, AllocationStatementV2):
+                raise V2AuthoringError("program_role_mismatch", "This semantic address is not an Investment allocation.")
+            return strategy.model_copy(update={"program": _replace_program_statement(program, operation.semantic_id, allocation)})
+        return strategy.model_copy(update={"program": program.model_copy(update={
+            "statements": program.statements + (allocation,),
+        })})
+    if isinstance(operation, RemoveProgramInvestmentAllocation):
+        program = _program_for_operation(strategy, operation)
+        existing = next((item for item in program.statements if item.semantic_id == operation.semantic_id), None)
+        if not isinstance(existing, AllocationStatementV2):
+            raise V2AuthoringError("investment_not_found", "This Investment allocation no longer exists or is policy-owned.")
+        changed, _removed = _remove_program_statement(program, operation.semantic_id)
+        return strategy.model_copy(update={"program": changed})
     if isinstance(operation, CreateProgramEventState):
         current_program = _program_for_operation(strategy, operation)
         if not any(clock.id == operation.clock_id for clock in current_program.clocks):
