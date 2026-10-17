@@ -874,6 +874,14 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     clock_ids: list[str] = []
     allocations = tuple(item for item in top_level if isinstance(item, AllocationStatementV2))
     controls = tuple(item for item in top_level if isinstance(item, ConditionalStatementV2))
+    if (
+        len(allocations) == 1 and not controls
+        and allocations[0].semantic_id in {"allocate-selection", "allocate-by-score"}
+    ):
+        # These addresses belong to the established compatibility/corpus
+        # contracts. Preserve their exact v1-derived evidence identities while
+        # new separated Investment operations use the Program-native path.
+        return None
     if allocations and controls:
         raise V2LoweringError("top-level Allocation and conditional routing cannot be mixed")
     if len(allocations) > 1 or len(controls) > 1:
