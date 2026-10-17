@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from ruletrade.backtests.normalization import normalize_lean_result
+from ruletrade.compiler.lean.codegen import LeanGenerationSettings
 from ruletrade.compiler.lean.e2e import (
     DIVISION_DERIVED_SCORE_TOLERANCE,
     load_aligned_daily_closes,
@@ -64,6 +65,17 @@ def verify_static_program_e2e(
     dates, closes = load_aligned_daily_closes(
         fixture, symbols, fixture_name=f"Static Program {profile}",
     )
+    settings = LeanGenerationSettings()
+    retained_indices = [
+        index for index, compact_date in enumerate(dates)
+        if settings.start_date.isoformat().replace("-", "") <= compact_date
+        <= settings.end_date.isoformat().replace("-", "")
+    ]
+    dates = [dates[index] for index in retained_indices]
+    closes = {
+        symbol: [values[index] for index in retained_indices]
+        for symbol, values in closes.items()
+    }
     target_by_date = {
         target.event_identity.replace("-", ""): target
         for target in targets
