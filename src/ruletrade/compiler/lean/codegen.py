@@ -1571,11 +1571,13 @@ def generate_csharp(
                                 f"selection{event_index}_{rebalance_index}_{sleeve_index}Condition",
                             ))
                             ranking_input = scores_variable
-                            if selection.filter_threshold is not None:
+                            if selection.filter_threshold is not None or selection.eligibility:
                                 eligible_variable = (
                                     f"eligibleScores{event_index}_{rebalance_index}_{sleeve_index}"
                                 )
-                                threshold = _decimal_literal(selection.filter_threshold)
+                                threshold = _decimal_literal(
+                                    selection.filter_threshold or Decimal(0)
+                                )
                                 eligibility_expression = (
                                     " && ".join(
                                         _eligibility_condition(selection, item)
