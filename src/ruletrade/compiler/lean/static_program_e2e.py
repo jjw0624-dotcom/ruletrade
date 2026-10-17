@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from ruletrade.backtests.normalization import normalize_lean_result
-from ruletrade.compiler.lean.codegen import LeanGenerationSettings
+from ruletrade.compiler.lean.codegen import CSharpGenerationSettings
 from ruletrade.compiler.lean.e2e import (
     DIVISION_DERIVED_SCORE_TOLERANCE,
     load_aligned_daily_closes,
@@ -65,7 +65,7 @@ def verify_static_program_e2e(
     dates, closes = load_aligned_daily_closes(
         fixture, symbols, fixture_name=f"Static Program {profile}",
     )
-    settings = LeanGenerationSettings()
+    settings = CSharpGenerationSettings()
     retained_indices = [
         index for index, compact_date in enumerate(dates)
         if settings.start_date.isoformat().replace("-", "") <= compact_date
@@ -96,14 +96,13 @@ def verify_static_program_e2e(
         series={symbol: {"close:adjusted": tuple(values)} for symbol, values in closes.items()},
     )
     expected_decisions = 0
-    for index, compact_date in enumerate(dates):
+    date_indices = {compact_date: index for index, compact_date in enumerate(dates)}
+    for compact_date, target in sorted(target_by_date.items()):
+        index = date_indices[compact_date]
         reference = execute_program_v2(reference_program, snapshot, cutoff_index=index)
         if not reference.target_weights:
-            continue
+            raise ValueError(f"{profile} produced no reference target for {compact_date}")
         expected_decisions += 1
-        target = target_by_date.get(compact_date)
-        if target is None:
-            raise ValueError(f"{profile} omitted target evidence for {compact_date}")
         if not _weights_match(target.weights, reference.target_weights):
             raise ValueError(
                 f"{profile} target mismatch at {target.event_identity}: "
