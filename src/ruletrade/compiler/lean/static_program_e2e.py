@@ -45,8 +45,6 @@ def verify_static_program_e2e(
     validate_lean_completion(log_text)
     validate_zero_failed_data_requests(log_text)
     targets = parse_target_records(log_text)
-    if len(targets) != 12:
-        raise ValueError(f"{profile} must produce 12 monthly target decisions, got {len(targets)}")
     strategy = production_execution_profile(profile)
     assert strategy.program is not None
     reference_program = strategy.program.model_copy(update={
@@ -66,6 +64,11 @@ def verify_static_program_e2e(
     dates, closes = load_aligned_daily_closes(
         fixture, symbols, fixture_name=f"Static Program {profile}",
     )
+    target_by_date = {
+        target.event_identity.replace("-", ""): target
+        for target in targets
+        if target.event_identity.replace("-", "") in dates
+    }
     domains = {
         group.id: tuple(next(
             item.assets for item in strategy.definitions.asset_sets
@@ -80,17 +83,28 @@ def verify_static_program_e2e(
         domains=domains,
         series={symbol: {"close:adjusted": tuple(values)} for symbol, values in closes.items()},
     )
-    for target in targets:
-        index = dates.index(target.event_identity.replace("-", ""))
+    expected_decisions = 0
+    for index, compact_date in enumerate(dates):
         reference = execute_program_v2(reference_program, snapshot, cutoff_index=index)
+        if not reference.target_weights:
+            continue
+        expected_decisions += 1
+        target = target_by_date.get(compact_date)
+        if target is None:
+            raise ValueError(f"{profile} omitted target evidence for {compact_date}")
         if not _weights_match(target.weights, reference.target_weights):
             raise ValueError(
                 f"{profile} target mismatch at {target.event_identity}: "
                 f"LEAN={target.weights} reference={reference.target_weights}"
             )
+    if expected_decisions != 12 or len(target_by_date) != expected_decisions:
+        raise ValueError(
+            f"{profile} must match 12 in-fixture monthly decisions: "
+            f"reference={expected_decisions} LEAN={len(target_by_date)} raw={len(targets)}"
+        )
     normalized = normalize_lean_result(result_payload)
     if normalized.total_orders <= 0:
         raise ValueError(f"{profile} submitted no actual orders")
     return StaticProgramDifferentialResult(
-        profile=profile, decisions=len(targets), orders=normalized.total_orders,
+        profile=profile, decisions=expected_decisions, orders=normalized.total_orders,
     )
