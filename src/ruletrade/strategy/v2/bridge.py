@@ -865,6 +865,16 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     clock_ids: list[str] = []
     allocations = tuple(item for item in top_level if isinstance(item, AllocationStatementV2))
     controls = tuple(item for item in top_level if isinstance(item, ConditionalStatementV2))
+    if (
+        len(selection_statements) == 1 and len(allocations) == 1 and not controls
+        and len(allocations[0].legs) == 1
+        and allocations[0].legs[0].target.kind == "selection"
+        and allocations[0].method in {"equal", "proportional_score"}
+    ):
+        # Preserve the established single-Selection bridge and its exact
+        # provenance/evidence identities. The static compiler closes only the
+        # shapes that bridge cannot express.
+        return None
     if allocations and controls:
         raise V2LoweringError("top-level Allocation and conditional routing cannot be mixed")
     if len(allocations) > 1 or len(controls) > 1:
@@ -883,6 +893,7 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
             id=control.semantic_id,
             sleeve_ids=allocation_sleeves(then_allocations[0]),
             condition=_program_comparisons(control.condition),
+            condition_three_valued=True,
             condition_unknown_policy=control.unknown_policy,
             otherwise_sleeve_ids=allocation_sleeves(otherwise_allocations[0]),
         ))
