@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from ruletrade.hashing import semantic_payload, strategy_hash
 from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.daily_values import DailyMarketSnapshot
 from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
 from ruletrade.strategy.v2.execution_profiles import production_execution_profile
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.program_execution import execute_program_v2
+from ruletrade.strategy.v2.semantic_types import Clock
 
 
 def test_a_through_d_authoring_profiles_are_executable_and_round_trip() -> None:
@@ -37,3 +42,18 @@ def test_conditional_unknown_policy_is_preserved_in_typed_plan() -> None:
     assert plan.rebalances[0].condition_unknown_policy == "otherwise"
     assert plan.rebalances[0].condition
     assert plan.rebalances[0].otherwise_sleeve_ids
+
+
+def test_month_close_uses_next_observed_session_across_exchange_holiday() -> None:
+    strategy = production_execution_profile("direct")
+    assert strategy.program is not None
+    snapshot = DailyMarketSnapshot(
+        snapshot_id="good-friday-boundary",
+        clock=Clock(id="daily-close"),
+        dates=("2024-03-28", "2024-04-01"),
+        domains={"qqq": ("QQQ",)},
+        series={"QQQ": {"close:adjusted": (Decimal("100"), Decimal("101"))}},
+    )
+    assert execute_program_v2(
+        strategy.program, snapshot, cutoff_index=0,
+    ).target_weights == {"QQQ": Decimal(1)}

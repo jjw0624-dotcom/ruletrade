@@ -537,9 +537,15 @@ class _Runtime:
             return current.weekday() == 4 or (
                 allow_terminal and clock.terminal_boundary_policy == "fixture_end_is_boundary"
             )
-        following = current + timedelta(days=1)
-        while following.weekday() >= 5:
-            following += timedelta(days=1)
+        if index + 1 < len(self.snapshot.dates):
+            # The next observed session is the authoritative completed-period
+            # boundary, including exchange holidays that a weekday-only guess
+            # cannot represent (for example Good Friday).
+            following = date.fromisoformat(self.snapshot.dates[index + 1])
+        else:
+            following = current + timedelta(days=1)
+            while following.weekday() >= 5:
+                following += timedelta(days=1)
         return (current.year, current.month) != (following.year, following.month) or (
             allow_terminal and clock.terminal_boundary_policy == "fixture_end_is_boundary"
         )

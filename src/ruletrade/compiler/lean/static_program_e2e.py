@@ -49,6 +49,11 @@ def verify_static_program_e2e(
         raise ValueError(f"{profile} must produce 12 monthly target decisions, got {len(targets)}")
     strategy = production_execution_profile(profile)
     assert strategy.program is not None
+    reference_program = strategy.program.model_copy(update={
+        "clocks": tuple(clock.model_copy(update={
+            "terminal_boundary_policy": "fixture_end_is_boundary",
+        }) for clock in strategy.program.clocks),
+    })
     symbols = tuple(sorted({
         symbol
         for asset_set in strategy.definitions.asset_sets
@@ -77,7 +82,7 @@ def verify_static_program_e2e(
     )
     for target in targets:
         index = dates.index(target.event_identity.replace("-", ""))
-        reference = execute_program_v2(strategy.program, snapshot, cutoff_index=index)
+        reference = execute_program_v2(reference_program, snapshot, cutoff_index=index)
         if not _weights_match(target.weights, reference.target_weights):
             raise ValueError(
                 f"{profile} target mismatch at {target.event_identity}: "
