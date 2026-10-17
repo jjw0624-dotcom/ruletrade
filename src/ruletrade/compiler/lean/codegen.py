@@ -1910,7 +1910,6 @@ def generate_csharp(
                             "item.Value.ToString(CultureInfo.InvariantCulture))));"
                         ),
                         '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",',
-                        f'            "strategy_identity", {_csharp_string(plan.strategy_identity)}, "evaluation_cutoff", eventIdentity,',
                         f'            "rebalance_component", {_csharp_string(rebalance.id)},',
                         f'            "selected", string.Join(",", {final_selected_expression}.OrderBy(item => item, StringComparer.Ordinal)),',
                         f'            "targets", string.Join(",", {targets_variable}.OrderBy(item => item.Key.Value).Select(item => item.Key.Value + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
