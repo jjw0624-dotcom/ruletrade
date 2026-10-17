@@ -11,6 +11,7 @@ from ruletrade.strategy.v2.authoring import (
     CreateProgramChoose,
     ProgramStrategyTemplateRequest,
     RemoveProgramGroup,
+    RemoveProgramChoose,
     RemoveProgramInvestmentAllocation,
     RenameProgramSubgroup,
     SetProgramAssetSet,
@@ -89,6 +90,23 @@ def test_investment_connect_disconnect_preserves_group_and_subgroup() -> None:
     ))
     assert any(isinstance(item, SelectionStatementV2) for item in disconnected.program.statements)
     assert disconnected.definitions.groups == chosen.definitions.groups
+    removed = authored(disconnected, RemoveProgramChoose(
+        kind="remove_program_choose", semantic_id="choose-growth",
+    ))
+    assert not any(isinstance(item, SelectionStatementV2) for item in removed.program.statements)
+
+
+def test_subgroup_delete_reports_dependent_investment() -> None:
+    invested = authored(chosen_strategy(), SetProgramInvestment(
+        kind="set_program_investment", semantic_id="growth-investment",
+        target_kind="selection", target_ref="strongest-growth",
+        internal_allocation="equal", clock_id="daily-close",
+    ))
+    with pytest.raises(V2AuthoringError) as in_use:
+        authored(invested, RemoveProgramChoose(
+            kind="remove_program_choose", semantic_id="choose-growth",
+        ))
+    assert in_use.value.code == "subgroup_in_use_by_investment"
 
 
 def test_membership_allocation_and_capital_target_mutate_independently() -> None:

@@ -215,6 +215,11 @@ class RenameProgramSubgroup(FrozenModel):
     output_id: Identifier
 
 
+class RemoveProgramChoose(FrozenModel):
+    kind: Literal["remove_program_choose"]
+    semantic_id: Identifier
+
+
 class SetProgramInvestment(FrozenModel):
     """Commit capital exposure to an Asset, Group, or selected Subgroup."""
 
@@ -410,6 +415,7 @@ V2AuthoringOperation = Annotated[
     | CreateProgramSelection
     | CreateProgramChoose
     | RenameProgramSubgroup
+    | RemoveProgramChoose
     | SetProgramInvestment
     | RemoveProgramInvestmentAllocation
     | CreateProgramEventState
@@ -1084,7 +1090,7 @@ def _apply_program_operation(
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
         SetProgramAssetSet, AddProgramInvestment, AddProgramGroup, RenameProgramGroup,
         RemoveProgramGroup, RemoveProgramInvestment, SetProgramSchedule,
-        CreateProgramSelection, CreateProgramChoose, RenameProgramSubgroup,
+        CreateProgramSelection, CreateProgramChoose, RenameProgramSubgroup, RemoveProgramChoose,
         SetProgramInvestment, RemoveProgramInvestmentAllocation,
         SetProgramFallback, SetProgramSplit,
         CreateProgramEventState,
@@ -1400,6 +1406,25 @@ def _apply_program_operation(
             return statement
 
         return strategy.model_copy(update={"program": _rewrite_program_statements(program, rename)})
+    if isinstance(operation, RemoveProgramChoose):
+        program = _program_for_operation(strategy, operation)
+        selected = next((
+            item for item in _all_program_statements(program.statements)
+            if isinstance(item, SelectionStatementV2) and item.semantic_id == operation.semantic_id
+        ), None)
+        if selected is None:
+            raise V2AuthoringError("choose_not_found", "This Choose operation no longer exists.")
+        if any(
+            isinstance(item, AllocationStatementV2)
+            and any(leg.target.kind == "selection" and leg.target.ref == selected.output_id for leg in item.legs)
+            for item in _all_program_statements(program.statements)
+        ):
+            raise V2AuthoringError(
+                "subgroup_in_use_by_investment",
+                "Disconnect Investments that target this selected Subgroup before deleting Choose.",
+            )
+        changed, _removed = _remove_program_statement(program, operation.semantic_id)
+        return strategy.model_copy(update={"program": changed})
     if isinstance(operation, SetProgramInvestment):
         program = _program_for_operation(strategy, operation)
         if not any(clock.id == operation.clock_id for clock in program.clocks):

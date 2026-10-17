@@ -9,6 +9,7 @@ export type BuilderProductOperation =
   | { kind: "removeGroup"; groupId: string }
   | { kind: "createChoose"; semanticId: string; groupId: string; outputId: string; lookback: number; direction: "highest" | "lowest"; take: number; shortage: "choose_all" | "require_full"; qualification?: { lookback: number; operator: "gt" | "gte" | "lt" | "lte"; threshold: number } }
   | { kind: "renameSubgroup"; semanticId: string; outputId: string }
+  | { kind: "removeChoose"; semanticId: string }
   | { kind: "setInvestment"; semanticId: string; targetKind: "asset" | "group" | "selection"; targetRef: string; internalAllocation: "equal" | "proportional_score" }
   | { kind: "removeInvestment"; semanticId: string }
   | { kind: "setAssets"; assets: string[] }
@@ -26,7 +27,7 @@ export interface V1ProductAddress {
 
 export function adaptV1ProductOperation(operation: BuilderProductOperation, address: V1ProductAddress): StructuralAuthoringOperation[] {
   switch (operation.kind) {
-    case "addGroup": case "renameGroup": case "removeGroup": case "createChoose": case "renameSubgroup": case "setInvestment": case "removeInvestment": return [];
+    case "addGroup": case "renameGroup": case "removeGroup": case "createChoose": case "renameSubgroup": case "removeChoose": case "setInvestment": case "removeInvestment": return [];
     case "setAssets": return address.assetSetId ? [{ kind: "update_asset_set", asset_set_id: address.assetSetId, assets: operation.assets }] : [];
     case "setQualification":
       if (address.qualificationComponentId) return [{ kind: "update_qualification_threshold", component_id: address.qualificationComponentId, threshold: String(operation.threshold) }];
@@ -75,6 +76,7 @@ export function adaptV2ProductOperation(strategy: CanonicalStrategyV2, operation
       qualification_threshold: operation.qualification?.threshold ?? null,
     }];
     case "renameSubgroup": return [{ kind: "rename_program_subgroup", semantic_id: operation.semanticId, output_id: operation.outputId }];
+    case "removeChoose": return [{ kind: "remove_program_choose", semantic_id: operation.semanticId }];
     case "setInvestment": return [{
       kind: "set_program_investment", semantic_id: operation.semanticId,
       target_kind: operation.targetKind, target_ref: operation.targetRef,

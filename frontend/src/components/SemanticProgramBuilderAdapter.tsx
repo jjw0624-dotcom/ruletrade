@@ -478,6 +478,7 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
     const selection = statement.selection;
     const set = (next: typeof selection) => apply({ kind: "set_program_selection", semantic_id: statement.semantic_id, selection: next });
     const universe = strategy.definitions.groups.find((item) => item.id === selection.universe_id);
+    const dependentInvestments = flatten(visibleRoots(strategy)).filter((item) => item.kind === "allocate" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === statement.output_id));
     return <div className="semantic-inspector-content"><h2>Choose · selected Subgroup</h2><label>Subgroup name<input aria-label="Subgroup name" defaultValue={statement.output_id} onBlur={(event) => { const output_id = event.target.value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, ""); if (output_id && output_id !== statement.output_id) apply({ kind: "rename_program_subgroup", semantic_id: statement.semantic_id, output_id }); }} /></label><SelectionComposer
       direction={selection.direction} count={selection.count} shortagePolicy={selection.shortage_policy}
       universeEditor={<select aria-label="Selection universe" value={selection.universe_id} onChange={(event) => { const universe_id = event.target.value; set({ ...selection, universe_id, binding: { ...selection.binding, domain_id: universe_id } }); }}>{strategy.definitions.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}{strategy.definitions.asset_sets.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select>}
@@ -488,7 +489,10 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
       fallbackSummary={selection.fallback_asset ?? "None"}
       fallbackEditor={<input aria-label="Fallback asset" defaultValue={selection.fallback_asset ?? ""} placeholder="None" onBlur={(event) => set({ ...selection, fallback_asset: event.target.value.trim().toUpperCase() || null })} />}
       onChange={(value) => set({ ...selection, direction: value.direction, count: value.count, shortage_policy: value.shortagePolicy })}
-    /><p className="value-capability-note">FROM uses {universe?.name ?? selection.universe_id}. Fallback is distinct from shortage policy and IF / OTHERWISE.</p></div>;
+    /><p className="value-capability-note">FROM uses {universe?.name ?? selection.universe_id}. Fallback is distinct from shortage policy and IF / OTHERWISE.</p>
+      <p>{dependentInvestments.length ? `Used by ${dependentInvestments.length} Investment${dependentInvestments.length === 1 ? "" : "s"}. Disconnect capital before deleting this Subgroup.` : "This Subgroup is not currently used by an Investment."}</p>
+      <button type="button" className="text-button" disabled={dependentInvestments.length > 0} onClick={() => apply({ kind: "remove_program_choose", semantic_id: statement.semantic_id })}>Delete Choose and Subgroup</button>
+    </div>;
   }
   if (statement.kind === "control") return <div className="semantic-inspector-content"><h2>Condition routing</h2><V2ConditionComposer condition={statement.condition} strategy={strategy} role="predicate" onWorking={working} onChange={(condition) => apply({ kind: "set_program_condition", semantic_id: statement.semantic_id, role: "control", condition })} /></div>;
   if (statement.kind === "on_event") return <EventInspector strategy={strategy} statement={statement} apply={apply} working={working} />;
@@ -681,7 +685,11 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const inspector = draft?.kind === "group" ? <GroupDraftInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => {
     const resume = draft.resume;
     if (resume?.kind === "choose") setDraft({ ...resume, groupId: draft.semanticId });
-    else if (resume?.kind === "investment") setDraft({ ...resume, targetKind: "group", targetRef: draft.semanticId });
+    else if (resume?.kind === "investment") setDraft({
+      ...resume,
+      targetKind: draft.assets.length === 1 ? "asset" : "group",
+      targetRef: draft.assets.length === 1 ? draft.assets[0]! : draft.semanticId,
+    });
     else { setDraft(null); working(false); }
     applyProduct(operation);
   }} />

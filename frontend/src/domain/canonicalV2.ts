@@ -103,6 +103,7 @@ export type V2AuthoringOperation =
   | { kind: "create_program_selection"; semantic_id: string; investment_id: string; clock_id: string; lookback: number; direction: "ascending" | "descending"; count: number; shortage_policy: "choose_all" | "require_full"; qualification_lookback?: number | null; qualification_operator?: "gt" | "gte" | "lt" | "lte" | null; qualification_threshold?: number | null }
   | { kind: "create_program_choose"; semantic_id: string; group_id: string; output_id: string; clock_id: string; lookback: number; direction: "ascending" | "descending"; count: number; shortage_policy: "choose_all" | "require_full"; qualification_lookback?: number | null; qualification_operator?: "gt" | "gte" | "lt" | "lte" | null; qualification_threshold?: number | null }
   | { kind: "rename_program_subgroup"; semantic_id: string; output_id: string }
+  | { kind: "remove_program_choose"; semantic_id: string }
   | { kind: "set_program_investment"; semantic_id: string; target_kind: "asset" | "group" | "selection"; target_ref: string; internal_allocation: "equal" | "proportional_score"; clock_id: string }
   | { kind: "remove_program_investment_allocation"; semantic_id: string }
   | { kind: "create_program_event_state"; semantic_id: string; clock_id: string; asset: string; threshold: number; state_key: string; from_value: string; to_value: string }

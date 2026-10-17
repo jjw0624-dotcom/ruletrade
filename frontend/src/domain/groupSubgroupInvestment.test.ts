@@ -64,6 +64,7 @@ describe("Group / Subgroup / Investment authoring grammar", () => {
   it("adapts each product action to one distinct typed semantic operation", () => {
     expect(adaptV2ProductOperation(blank, { kind: "addGroup", groupId: "growth", name: "Growth", assetSetId: "growth-assets", assets: ["QQQ"] }, {})).toEqual([expect.objectContaining({ kind: "add_program_group" })]);
     expect(adaptV2ProductOperation(grouped(), { kind: "createChoose", semanticId: "choose-growth", groupId: "growth", outputId: "leaders", lookback: 126, direction: "highest", take: 2, shortage: "require_full" }, {})).toEqual([expect.objectContaining({ kind: "create_program_choose", group_id: "growth", output_id: "leaders" })]);
+    expect(adaptV2ProductOperation(grouped([choose]), { kind: "removeChoose", semanticId: "choose-growth" }, {})).toEqual([{ kind: "remove_program_choose", semantic_id: "choose-growth" }]);
     expect(adaptV2ProductOperation(grouped([choose]), { kind: "setInvestment", semanticId: "growth-investment", targetKind: "selection", targetRef: "leaders", internalAllocation: "equal" }, {})).toEqual([expect.objectContaining({ kind: "set_program_investment", target_kind: "selection", target_ref: "leaders" })]);
   });
 
