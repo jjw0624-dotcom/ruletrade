@@ -66,20 +66,12 @@ def verify_static_program_e2e(
         fixture, symbols, fixture_name=f"Static Program {profile}",
     )
     settings = CSharpGenerationSettings()
-    retained_indices = [
-        index for index, compact_date in enumerate(dates)
-        if settings.start_date.isoformat().replace("-", "") <= compact_date
-        <= settings.end_date.isoformat().replace("-", "")
-    ]
-    dates = [dates[index] for index in retained_indices]
-    closes = {
-        symbol: [values[index] for index in retained_indices]
-        for symbol, values in closes.items()
-    }
+    start_date = settings.start_date.isoformat().replace("-", "")
+    end_date = settings.end_date.isoformat().replace("-", "")
     target_by_date = {
         target.event_identity.replace("-", ""): target
         for target in targets
-        if target.event_identity.replace("-", "") in dates
+        if start_date <= target.event_identity.replace("-", "") <= end_date
     }
     domains = {
         group.id: tuple(next(
