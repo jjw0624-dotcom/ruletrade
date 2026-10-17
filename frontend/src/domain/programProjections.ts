@@ -18,7 +18,7 @@ export interface ProgramProjectionAddress {
 
 export interface ProgramBlockNode {
   id: string;
-  role: "context" | "trigger" | "condition" | "value" | "selection" | "fallback" | "allocation" | "control" | "event" | "state" | "memory" | "policy" | "unresolved";
+  role: "context" | "trigger" | "group" | "selection" | "investment" | "split" | "condition" | "value" | "fallback" | "allocation" | "control" | "event" | "state" | "memory" | "policy" | "unresolved";
   label: string;
   detail?: string;
   depth: number;
@@ -59,60 +59,64 @@ function productAddress(concept: ProductAddress["concept"], semanticId: string):
   return { canonical: "v2", concept, semanticId };
 }
 
-function allocationCandidates(strategy: CanonicalStrategyV2): AllocationStatementV2[] {
-  return flattenProgramStatements((strategy.program?.statements ?? []).filter((item) => !isProgramBootstrap(item)))
-    .filter((item): item is AllocationStatementV2 => item.kind === "allocate");
-}
-
 /** Capital-only projection. Event/State internals deliberately stay out of Flow. */
 export function projectProgramCapitalFlow(strategy: CanonicalStrategyV2): { nodes: ProductFlowNode[]; edges: ProductFlowEdge[] } {
   const roots = (strategy.program?.statements ?? []).filter((item) => !isProgramBootstrap(item));
   const all = flattenProgramStatements(roots);
   const selections = all.filter((item): item is SelectionStatementV2 => item.kind === "select");
   const selectionsByOutput = new Map(selections.map((item) => [item.output_id, item]));
-  const allocations = allocationCandidates(strategy);
-  const directSplit = allocations.find((item) => item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
-  const selectionSplit = allocations.find((item) => item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "selection" && selectionsByOutput.has(leg.target.ref ?? "")).length > 1);
-  const shares = new Map<string, number>();
-  for (const leg of directSplit?.legs ?? []) if (leg.target.kind === "group" && leg.target.ref) shares.set(leg.target.ref, Number(leg.weight ?? 0));
-  for (const leg of selectionSplit?.legs ?? []) {
-    const selected = leg.target.kind === "selection" ? selectionsByOutput.get(leg.target.ref ?? "") : undefined;
-    if (selected) shares.set(selected.selection.universe_id, Number(leg.weight ?? 0));
-  }
-  const hasSplit = shares.size > 1;
+  const rootAllocations = roots.filter((item): item is AllocationStatementV2 => item.kind === "allocate");
+  const split = rootAllocations.find((item) => item.method === "fixed" && item.legs.length > 1);
+  const groupNames = new Map(strategy.definitions.groups.map((group) => [group.id, group.name]));
+  const humanize = (value: string) => value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const nodes: ProductFlowNode[] = [{ id: "portfolio", label: "Portfolio", role: "portfolio", address: productAddress("portfolio", strategy.program?.semantic_id ?? "program") }];
   const edges: ProductFlowEdge[] = [];
-  const capitalSource = hasSplit ? "split" : "portfolio";
-  if (hasSplit) {
-    nodes.push({ id: "split", label: "Split", detail: [...shares.values()].map(formatPortfolioShare).join(" / "), role: "routing", address: productAddress("split", directSplit?.semantic_id ?? selectionSplit?.semantic_id ?? "split") });
+  const endpoints: string[] = [];
+  const capitalSource = split ? "split" : "portfolio";
+  if (split) {
+    nodes.push({ id: "split", label: "Split", detail: split.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / "), role: "routing", address: productAddress("split", split.semantic_id) });
     edges.push({ source: "portfolio", target: "split", role: "capital" });
   }
-  const endpoints: string[] = [];
-  for (const group of strategy.definitions.groups) {
-    const investmentId = `investment:${group.id}`;
-    const share = shares.get(group.id);
-    nodes.push({ id: investmentId, label: group.name || "Investment", detail: share === undefined ? undefined : `${formatPortfolioShare(share)} of Portfolio`, role: "capital", address: productAddress("investment", group.id) });
-    edges.push({ source: capitalSource, target: investmentId, role: hasSplit ? "routing" : "capital", label: share === undefined ? undefined : formatPortfolioShare(share) });
-    const selection = selections.find((item) => item.selection.universe_id === group.id);
-    if (!selection) { endpoints.push(investmentId); continue; }
-    nodes.push({ id: selection.semantic_id, label: `Choose ${selection.selection.count} assets`, detail: `${selection.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.selection.ranking)}`, role: "routing", address: productAddress("selection", selection.semantic_id) });
-    edges.push({ source: investmentId, target: selection.semantic_id, role: "capital" });
+
+  const addInvestment = (allocation: AllocationStatementV2, leg: AllocationStatementV2["legs"][number], source: string, share?: number, branch?: string) => {
+    const suffix = allocation.legs.length === 1 ? allocation.semantic_id : leg.semantic_id;
+    const investmentId = `investment:${allocation.semantic_id}:${suffix}`;
+    const selection = leg.target.kind === "selection" ? selectionsByOutput.get(leg.target.ref ?? "") : undefined;
+    const target = selection ? humanize(selection.output_id)
+      : leg.target.kind === "group" ? groupNames.get(leg.target.ref ?? "") ?? humanize(leg.target.ref ?? "Group")
+        : leg.target.ref ?? humanize(leg.target.kind);
+    const internal = allocation.method === "proportional_score" ? "Proportional to positive Score" : "Equal within target";
+    nodes.push({ id: investmentId, label: `Investment · ${target}`, detail: `${share === undefined ? "100% of Portfolio" : `${formatPortfolioShare(share)} of Portfolio`} · ${internal}`, role: "capital", address: productAddress("investment", allocation.semantic_id) });
+    edges.push({ source, target: investmentId, role: source === "portfolio" ? "capital" : "routing", label: branch ?? (share === undefined ? undefined : formatPortfolioShare(share)) });
+    if (!selection) { endpoints.push(investmentId); return; }
+    const chooseId = `choose:${selection.semantic_id}:${investmentId}`;
+    nodes.push({ id: chooseId, focusId: selection.semantic_id, label: `Choose · ${humanize(selection.output_id)}`, detail: `Take ${selection.selection.count} ${selection.selection.direction === "descending" ? "highest" : "lowest"}`, role: "routing", address: productAddress("subgroup", selection.semantic_id) });
+    edges.push({ source: investmentId, target: chooseId, role: "capital" });
+    const selectedId = `selected:${selection.semantic_id}:${investmentId}`;
+    nodes.push({ id: selectedId, focusId: selection.semantic_id, label: humanize(selection.output_id), detail: "Selected Subgroup exposure", role: "capital", address: productAddress("subgroup", selection.semantic_id) });
+    edges.push({ source: chooseId, target: selectedId, role: "routing", label: "selected" });
+    endpoints.push(selectedId);
     if (selection.selection.fallback_asset) {
-      const selectedId = `selected:${selection.semantic_id}`;
-      const fallbackId = `fallback:${selection.semantic_id}`;
-      nodes.push({ id: selectedId, focusId: selection.semantic_id, label: "Selected assets", detail: "Target exposure", role: "capital", address: productAddress("selection", selection.semantic_id) });
-      nodes.push({ id: fallbackId, focusId: fallbackId, label: selection.selection.fallback_asset, detail: "Fallback exposure", role: "capital", address: productAddress("fallback", selection.semantic_id) });
-      edges.push(
-        { source: selection.semantic_id, target: selectedId, role: "routing", label: "selected" },
-        { source: selection.semantic_id, target: fallbackId, role: "routing", label: "if incomplete" },
-      );
-      endpoints.push(selectedId, fallbackId);
-    } else endpoints.push(selection.semantic_id);
+      const fallbackId = `fallback:${selection.semantic_id}:${investmentId}`;
+      nodes.push({ id: fallbackId, focusId: `fallback:${selection.semantic_id}`, label: selection.selection.fallback_asset, detail: "Shortage fallback exposure", role: "capital", address: productAddress("fallback", selection.semantic_id) });
+      edges.push({ source: chooseId, target: fallbackId, role: "routing", label: "if incomplete" });
+      endpoints.push(fallbackId);
+    }
+  };
+
+  if (split) split.legs.forEach((leg) => addInvestment(split, leg, capitalSource, Number(leg.weight ?? 0)));
+  else rootAllocations.forEach((allocation) => allocation.legs.forEach((leg) => addInvestment(allocation, leg, "portfolio")));
+  for (const control of roots.filter((item): item is Extract<ProgramStatementV2, { kind: "control" }> => item.kind === "control")) {
+    const controlId = `control:${control.semantic_id}`;
+    nodes.push({ id: controlId, focusId: control.semantic_id, label: "IF / OTHERWISE", detail: describeConditionV2(control.condition), role: "routing", address: productAddress("control", control.semantic_id) });
+    edges.push({ source: "portfolio", target: controlId, role: "routing" });
+    control.then_statements.filter((item): item is AllocationStatementV2 => item.kind === "allocate").forEach((allocation) => allocation.legs.forEach((leg) => addInvestment(allocation, leg, controlId, undefined, "IF")));
+    control.otherwise_statements.filter((item): item is AllocationStatementV2 => item.kind === "allocate").forEach((allocation) => allocation.legs.forEach((leg) => addInvestment(allocation, leg, controlId, undefined, "OTHERWISE")));
   }
-  const activeClock = strategy.program?.clocks.find((clock) => selections.some((item) => item.clock_id === clock.id)) ?? strategy.program?.clocks[0];
-  if (activeClock && selections.length) {
+  const activeClock = strategy.program?.clocks.find((clock) => rootAllocations.some((item) => item.clock_id === clock.id)) ?? strategy.program?.clocks[0];
+  if (activeClock && endpoints.length) {
     nodes.push({ id: "rebalance", label: "Rebalance", detail: `${activeClock.timeframe[0]!.toUpperCase()}${activeClock.timeframe.slice(1)} close`, role: "timing", address: productAddress("rebalance", activeClock.id) });
-    for (const source of endpoints.length ? endpoints : ["portfolio"]) edges.push({ source, target: "rebalance", role: "action" });
+    for (const source of endpoints) edges.push({ source, target: "rebalance", role: "action" });
   }
   return { nodes, edges };
 }
@@ -135,12 +139,14 @@ function valueBlocks(value: ValueExpressionV2, path: string, depth: number, focu
 
 function statementBlocks(statement: ProgramStatementV2, path: string, depth: number, connection?: ProgramBlockNode["connection"], relation?: string): ProgramBlockNode[] {
   const role: ProgramBlockNode["role"] = ({ select: "selection", allocate: "allocation", control: "control", on_event: "event", transition: "state", remember_value: "memory", guarded_allocation: "policy", unresolved: "unresolved" } as const)[statement.kind];
+  const humanize = (value: string) => value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const allocationLabel = statement.kind === "allocate"
-    ? statement.method === "fixed" && statement.legs.length > 1 ? "Split Portfolio capital" : "Allocate capital"
+    ? statement.method === "fixed" && statement.legs.length > 1 ? "Split Portfolio capital" : `Investment · ${humanize(statement.legs[0]?.target.ref ?? statement.legs[0]?.target.kind ?? "Target")}`
     : null;
-  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role, label: allocationLabel ?? describeProgramStatement(statement), detail: statement.kind === "allocate" ? statement.method.replaceAll("_", " ") : relation, depth, address: address("statement", statement.semantic_id, path), connection };
+  const projectedRole = statement.kind === "allocate" ? (statement.method === "fixed" && statement.legs.length > 1 ? "split" : "investment") : role;
+  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role: projectedRole, label: allocationLabel ?? describeProgramStatement(statement), detail: statement.kind === "allocate" ? statement.method.replaceAll("_", " ") : relation, depth, address: address("statement", statement.semantic_id, path), connection };
   if (statement.kind === "select") return [
-    { ...root, detail: `${statement.selection.direction === "descending" ? "highest" : "lowest"}; ${statement.selection.shortage_policy.replaceAll("_", " ")}` },
+    { ...root, label: `Choose · ${humanize(statement.output_id)}`, detail: `From ${humanize(statement.selection.universe_id)} · Take ${statement.selection.count} · ${statement.selection.direction === "descending" ? "highest" : "lowest"}; ${statement.selection.shortage_policy.replaceAll("_", " ")}` },
     ...(statement.selection.eligibility ? conditionBlocks(statement.selection.eligibility, `${path}.selection.eligibility`, depth + 1, `qualification:${statement.semantic_id}`, { kind: "input", parentId: root.id, inputName: "ELIGIBILITY" }) : []),
     ...valueBlocks(statement.selection.ranking, `${path}.selection.ranking`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "RANKING" }),
     ...(statement.selection.fallback_asset ? [{
@@ -149,6 +155,18 @@ function statementBlocks(statement: ProgramStatementV2, path: string, depth: num
       address: address("statement", statement.semantic_id, `${path}.selection.fallback_asset`, `fallback:${statement.semantic_id}`),
       connection: { kind: "input" as const, parentId: root.id, inputName: "FALLBACK" },
     }] : []),
+  ];
+  if (statement.kind === "allocate" && statement.method === "fixed" && statement.legs.length > 1) return [
+    root,
+    ...statement.legs.map((leg, index) => ({
+      id: `investment-leg:${leg.semantic_id}`,
+      role: "investment" as const,
+      label: `Investment · ${humanize(leg.target.ref ?? leg.target.kind)}`,
+      detail: `${formatPortfolioShare(Number(leg.weight ?? 0))} of Portfolio · Equal within target`,
+      depth: depth + 1,
+      address: address("statement", statement.semantic_id, `${path}.legs[${index}]`, statement.semantic_id),
+      connection: { kind: "input" as const, parentId: root.id, inputName: `LEG_${index + 1}` },
+    })),
   ];
   if (statement.kind === "control") return [root, ...conditionBlocks(statement.condition, `${path}.condition`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" }), ...statement.then_statements.flatMap((item, index) => statementBlocks(item, `${path}.then_statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.then_statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "THEN" }, "THEN")), ...statement.otherwise_statements.flatMap((item, index) => statementBlocks(item, `${path}.otherwise_statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.otherwise_statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "ELSE" }, "OTHERWISE"))];
   if (statement.kind === "on_event") return [root, ...(statement.event.condition ? conditionBlocks(statement.event.condition, `${path}.event.condition`, depth + 1, statement.semantic_id, { kind: "input", parentId: root.id, inputName: "CONDITION" }) : []), ...statement.statements.flatMap((item, index) => statementBlocks(item, `${path}.statements[${index}]`, depth + 1, index ? { kind: "next", parentId: `statement:${statement.statements[index - 1]!.semantic_id}` } : { kind: "input", parentId: root.id, inputName: "DO" }, "ON EVENT"))];
@@ -163,6 +181,14 @@ export function projectProgramBlocky(strategy: CanonicalStrategyV2): ProgramBloc
   const program = strategy.program;
   const nodes: ProgramBlockNode[] = [{ id: "context:portfolio", role: "context", label: "Portfolio", depth: 0, address: address("strategy", program?.semantic_id ?? "program", "program", "portfolio") }];
   for (const [index, clock] of (program?.clocks ?? []).entries()) nodes.push({ id: `clock:${clock.id}`, role: "trigger", label: `${clock.timeframe[0]!.toUpperCase()}${clock.timeframe.slice(1)} close`, depth: 1, address: address("clock", clock.id, `program.clocks[${index}]`, "rebalance") });
+  for (const [index, group] of strategy.definitions.groups.entries()) {
+    const assets = strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
+    nodes.push({
+      id: `group:${group.id}`, role: "group", label: `Group · ${group.name}`,
+      detail: assets?.assets.length ? assets.assets.join(", ") : "Choose assets",
+      depth: 1, address: address("definition", group.id, `definitions.groups[${index}]`, `group:${group.id}`),
+    });
+  }
   const lastByClock = new Map<string, string>();
   for (const [index, statement] of (program?.statements ?? []).entries()) if (!isProgramBootstrap(statement)) {
     const clockId = statement.kind === "on_event" ? statement.event.clock_id
@@ -187,13 +213,13 @@ export function programBlockConnectionManifest(nodes: ProgramBlockNode[]): strin
 function ruleLines(statement: ProgramStatementV2, path: string, depth: number): ProgramRuleLine[] {
   const base = { id: `rule:${statement.semantic_id}`, depth, address: address("statement", statement.semantic_id, path) };
   if (statement.kind === "control") return [{ ...base, text: `IF ${describeConditionV2(statement.condition)}; when Unknown, ${statement.unknown_policy === "retain" ? "retain current holdings" : "use OTHERWISE"}.` }, ...statement.then_statements.flatMap((item, index) => ruleLines(item, `${path}.then_statements[${index}]`, depth + 1)), ...statement.otherwise_statements.flatMap((item, index) => ruleLines(item, `${path}.otherwise_statements[${index}]`, depth + 1))];
-  if (statement.kind === "select") return [{ ...base, text: `From ${statement.selection.universe_id}, choose ${statement.selection.count} assets by ${statement.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(statement.selection.ranking)}${statement.selection.eligibility ? ` after requiring ${describeConditionV2(statement.selection.eligibility)}` : ""}${statement.selection.fallback_asset ? `; if incomplete, use ${statement.selection.fallback_asset}` : ""}.` }];
+  if (statement.kind === "select") return [{ ...base, text: `From Group ${statement.selection.universe_id}, Choose ${statement.selection.count} members for Subgroup ${statement.output_id} by ${statement.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(statement.selection.ranking)}${statement.selection.eligibility ? ` after requiring ${describeConditionV2(statement.selection.eligibility)}` : ""}${statement.selection.fallback_asset ? `; if incomplete, use ${statement.selection.fallback_asset}` : ""}.` }];
   if (statement.kind === "on_event") return [{ ...base, text: `On ${statement.event.trigger.replaceAll("_", " ")}${statement.event.condition ? ` when ${describeConditionV2(statement.event.condition)}` : ""}.` }, ...statement.statements.flatMap((item, index) => ruleLines(item, `${path}.statements[${index}]`, depth + 1))];
   if (statement.kind === "transition") return [{ ...base, text: `Set ${statement.transition.state_key} from ${statement.transition.from_value ?? "any state"} to ${statement.transition.to_value} when ${describeConditionV2(statement.transition.when)}.` }];
   if (statement.kind === "remember_value") return [{ ...base, text: `Remember ${describeValueV2(statement.value)} as ${statement.memory_id}.` }];
   if (statement.kind === "allocate") return [{ ...base, text: statement.method === "fixed"
-    ? `Allocate ${statement.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} to ${leg.target.ref ?? leg.target.kind}`).join(" and ")}.`
-    : `Allocate capital using ${statement.method.replaceAll("_", " ")}.` }];
+    ? `Split Portfolio capital: ${statement.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} to Investment ${leg.target.ref ?? leg.target.kind}`).join(" and ")}.`
+    : `Investment targets ${statement.legs.map((leg) => leg.target.ref ?? leg.target.kind).join(" and ")} using ${statement.method.replaceAll("_", " ")} within the target.` }];
   if (statement.kind === "guarded_allocation") return [
     { ...base, text: `Apply allocation policy in guard, priority override, primary, fallback order${statement.guard ? ` when ${describeConditionV2(statement.guard)}` : ""}.` },
     ...ruleLines(statement.primary, `${path}.primary`, depth + 1),
@@ -214,12 +240,13 @@ export function projectProgramSummary(strategy: CanonicalStrategyV2): ProgramSum
   const statements = flattenProgramStatements((strategy.program?.statements ?? []).filter((item) => !isProgramBootstrap(item)));
   const selections = statements.filter((item): item is SelectionStatementV2 => item.kind === "select");
   const groups = strategy.definitions.groups;
+  const investments = statements.filter((item): item is AllocationStatementV2 => item.kind === "allocate");
   const split = projectProgramCapitalFlow(strategy).nodes.find((item) => item.id === "split");
   const base = groups.length === 0
     ? "A portfolio ready for its first investment."
     : selections.length === 0
-      ? `${groups.length} investment${groups.length === 1 ? "" : "s"} ready for assets and selection rules.`
-      : `${groups.length} investment${groups.length === 1 ? "" : "s"}; ${selections.map((item) => `choose ${item.selection.count} from ${item.selection.universe_id}`).join("; ")}.`;
+      ? `${groups.length} candidate Group${groups.length === 1 ? "" : "s"} ready for Choose rules${investments.length ? ` and ${investments.length} capital Investment${investments.length === 1 ? "" : "s"}` : ""}.`
+      : `${groups.length} Group${groups.length === 1 ? "" : "s"}; ${selections.map((item) => `Choose ${item.selection.count} from ${item.selection.universe_id}`).join("; ")}${investments.length ? `; ${investments.length} capital Investment${investments.length === 1 ? "" : "s"}` : ""}.`;
   const behaviors = [
     statements.some((item) => item.kind === "on_event") ? "Event-driven state changes" : null,
     statements.some((item) => item.kind === "guarded_allocation") ? "policy precedence" : null,

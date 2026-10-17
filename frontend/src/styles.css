@@ -253,7 +253,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .blocky-toolbox-entry p{margin:0 2px;color:var(--muted);font-size:10px;line-height:1.3}
 .blocky-toolbox-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;width:100%}
 .blocky-toolbox-title small{color:var(--muted);font-size:9px;font-weight:650;white-space:nowrap}
-.blocky-toolbox-entry.needs_context .blocky-toolbox-block,.blocky-toolbox-entry.unavailable .blocky-toolbox-block{opacity:.62}
+.blocky-toolbox-entry.needs_context .blocky-toolbox-block,.blocky-toolbox-entry.unavailable .blocky-toolbox-block,.blocky-toolbox-entry.unsupported_execution .blocky-toolbox-block,.blocky-toolbox-entry.invalid_here .blocky-toolbox-block{opacity:.62}
 .blocky-toolbox-entry-label{display:flex;align-items:baseline;justify-content:space-between;gap:5px}
 .blocky-toolbox-entry-label strong{font-size:11px}.blocky-toolbox-entry-label small{overflow:hidden;color:var(--muted);font-size:9px;text-align:right;text-overflow:ellipsis;white-space:nowrap}
 .blocky-toolbox-block{width:100%;min-height:34px;padding:7px 9px;border:1px solid #9aaea1;border-left:5px solid #82639a;border-radius:6px;text-align:left;color:#24352c;background:#fff;box-shadow:0 1px 2px rgba(20,45,32,.08);font-size:11px;font-weight:700;cursor:grab}
@@ -288,6 +288,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .research-resize-handle span { position: absolute; inset: 1px 46%; border-radius: 4px; background: #aebbb3; }
 .research-resize-handle[data-resize-handle-active] { background: #dce9e0; }
 .workspace-research-surface { container-type: inline-size; height: 100%; min-width: 0; display: grid; grid-template-rows: 45px minmax(0,1fr); border-top: 1px solid var(--border); background: #fff; box-shadow: 0 -10px 30px rgba(20,40,30,.1); }
+.builder-workbench[data-research-layout="side-by-side"] .research-resize-handle{width:6px;height:100%}
+.builder-workbench[data-research-layout="side-by-side"] .research-resize-handle span{inset:46% 1px}
+.builder-workbench[data-research-layout="side-by-side"] .workspace-research-surface{border-top:0;border-left:1px solid var(--border);box-shadow:-10px 0 30px rgba(20,40,30,.1)}
+.blocklyMainBackground{cursor:grab}.blocklyWorkspace:active .blocklyMainBackground{cursor:grabbing}
 .research-surface-chrome { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--border); background: #f7f9f7; }
 .research-surface-chrome strong { overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .research-surface-content { min-width: 0; min-height: 0; overflow: auto; overflow-x: hidden; }

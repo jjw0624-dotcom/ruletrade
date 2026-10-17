@@ -1,13 +1,21 @@
 import type { Viewport, XYPosition } from "@xyflow/react";
 import type { ConditionV2 } from "./canonicalV2";
+import type { FinancialIntentDraft } from "./intentAuthoring";
 
 export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v2" as const;
 
 export type ProgramDraftStatus = "clean" | "incomplete" | "invalid" | "ready" | "unsupported";
+export type ChooseProgramDraft = { kind: "choose"; semanticId: string; groupId: string | null; outputId: string; lookback: number; direction: "highest" | "lowest"; count: number; shortage: "choose_all" | "require_full"; withQualification?: boolean };
+export type InvestmentProgramDraft = { kind: "investment"; semanticId: string; targetKind: "asset" | "group" | "selection" | null; targetRef: string | null; internalAllocation: "equal" | "proportional_score" };
+export type GroupProgramDraft = { kind: "group"; semanticId: string; name: string; assets: string[]; resume?: ChooseProgramDraft | InvestmentProgramDraft };
 export type ProgramDraftConcept =
   | { kind: "selection"; semanticId: string; universeId: string; withQualification?: boolean }
+  | GroupProgramDraft
+  | ChooseProgramDraft
+  | InvestmentProgramDraft
   | { kind: "event_state"; semanticId: string }
   | { kind: "control"; semanticId: string; condition: ConditionV2 | null }
+  | FinancialIntentDraft
   | null;
 
 export interface ProgramDraftConnection {
@@ -113,6 +121,15 @@ export function withBlockPosition(draft: ProgramWorkingDraft, id: string, positi
   return { ...draft, blockPositions: { ...draft.blockPositions, [id]: position } };
 }
 
+/** Persist one Blockly gesture atomically so connection reconciliation cannot overwrite geometry. */
+export function withBlockMove(draft: ProgramWorkingDraft, id: string, position: XYPosition, connection?: ProgramDraftConnection): ProgramWorkingDraft {
+  return {
+    ...draft,
+    blockPositions: { ...draft.blockPositions, [id]: position },
+    blockConnections: connection ? { ...draft.blockConnections, [id]: connection } : draft.blockConnections,
+  };
+}
+
 export function withFlowPositions(draft: ProgramWorkingDraft, positions: Record<string, XYPosition>): ProgramWorkingDraft {
   return { ...draft, flowPositions: { ...draft.flowPositions, ...positions } };
 }
@@ -128,7 +145,7 @@ export function validProgramBlockConnection(parentType: string, inputName: strin
   if (["CONDITION", "ELIGIBILITY"].includes(inputName)) return childType === "condition";
   if (["RANKING", "VALUE"].includes(inputName) || inputName.startsWith("ARG_")) return childType === "value" || childType === "condition";
   if (inputName === "FALLBACK") return childType === "fallback";
-  if (["THEN", "ELSE", "DO"].includes(inputName)) return childType === "statement";
+  if (["THEN", "ELSE", "DO"].includes(inputName) || inputName.startsWith("LEG_")) return childType === "statement";
   return false;
 }
 

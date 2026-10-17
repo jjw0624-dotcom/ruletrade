@@ -9,7 +9,7 @@ fi
 
 cd "$(dirname "$0")/.."
 
-names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values daily-value-probe semantic-corpus weighted-score temporal-stateful temporal-multiclock composable-semantic)
+names=(golden momentum filter fallback sleeves independent-schedules cooldown candidate one-investment strategy-values daily-value-probe semantic-corpus weighted-score temporal-stateful temporal-multiclock composable-semantic static-program)
 generators=(
   generate_golden_lean.py
   generate_momentum_lean.py
@@ -27,6 +27,7 @@ generators=(
   generate_temporal_stateful_lean.py
   generate_temporal_multiclock_lean.py
   generate_composable_semantic_lean.py
+  generate_static_program_lean.py
 )
 
 if [[ "${#names[@]}" -ne "${#generators[@]}" ]]; then
