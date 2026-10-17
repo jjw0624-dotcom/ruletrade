@@ -1012,6 +1012,15 @@ def generate_csharp(
             "        return left.Value <= right.Value;",
             "    }",
             "",
+            "    private static bool? CompareValuesThreeValued(decimal? left, decimal? right, string operation)",
+            "    {",
+            "        if (!left.HasValue || !right.HasValue) return null;",
+            '        if (operation == ">") return left.Value > right.Value;',
+            '        if (operation == ">=") return left.Value >= right.Value;',
+            '        if (operation == "<") return left.Value < right.Value;',
+            "        return left.Value <= right.Value;",
+            "    }",
+            "",
         )
     )
 
@@ -1368,7 +1377,7 @@ def generate_csharp(
                     lines.extend((
                         f"        var {left_name} = {_value_csharp(comparison.left, _csharp_string(''))};",
                         f"        var {right_name} = {_value_csharp(comparison.right, _csharp_string(''))};",
-                        f"        var {outcome_name} = CompareValues({left_name}, {right_name}, {_csharp_string({'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}[comparison.operator])});",
+                        f"        var {outcome_name} = CompareValuesThreeValued({left_name}, {right_name}, {_csharp_string({'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}[comparison.operator])});",
                         '        EmitDecisionEvidence(eventIdentity, "evaluation", "value_condition",',
                         f'            "predicate_component", {_csharp_string(rebalance.predicate.component_id if rebalance.predicate else rebalance.id)}, "predicate_field", "condition",',
                         f'            "subject", {_csharp_string(comparison.left.asset or comparison.right.asset or "")}, "operator", {_csharp_string(comparison.operator)},',
@@ -1376,11 +1385,21 @@ def generate_csharp(
                         f'            "left_observed", {left_name}.HasValue ? {left_name}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
                         f'            "right_definition", {_csharp_string(_value_json(comparison.right))}, "right_type", {_csharp_string(comparison.right.value_type)},',
                         f'            "right_observed", {right_name}.HasValue ? {right_name}.Value.ToString("G29", CultureInfo.InvariantCulture) : "",',
-                        f'            "outcome", {outcome_name} ? "true" : "false", "scope", "predicate");',
+                        f'            "outcome", !{outcome_name}.HasValue ? "unknown" : ({outcome_name}.Value ? "true" : "false"), "scope", "predicate");',
                     ))
-                lines.append(f"        var {predicate_outcome} = {' && '.join(clause_outcomes)};")
+                false_clauses = " || ".join(f"{item} == false" for item in clause_outcomes)
+                true_clauses = " && ".join(f"{item} == true" for item in clause_outcomes)
+                lines.append(f"        bool? {predicate_outcome} = ({false_clauses}) ? false : (({true_clauses}) ? true : (bool?)null);")
+                if rebalance.condition_unknown_policy == "retain":
+                    lines.extend((
+                        f"        if (!{predicate_outcome}.HasValue)",
+                        "        {",
+                        '            EmitDecisionEvidence(eventIdentity, "portfolio_execution", "conditional_route", "outcome", "unknown", "policy", "retain", "executed", "false");',
+                        "            return;",
+                        "        }",
+                    ))
                 if not rebalance.otherwise_sleeve_ids and not rebalance.otherwise_snapshot_allocations:
-                    lines.append(f"        if (!{predicate_outcome}) return;")
+                    lines.append(f"        if ({predicate_outcome} != true) return;")
             elif rebalance.predicate is not None:
                 predicate = rebalance.predicate
                 predicate_window = f"predicateWindow{event_index}_{rebalance_index}"
@@ -1880,6 +1899,7 @@ def generate_csharp(
                             "item.Value.ToString(CultureInfo.InvariantCulture))));"
                         ),
                         '        EmitDecisionEvidence(eventIdentity, "portfolio_execution", "final_targets",',
+                        f'            "strategy_identity", {_csharp_string(plan.strategy_identity)}, "evaluation_cutoff", eventIdentity,',
                         f'            "rebalance_component", {_csharp_string(rebalance.id)},',
                         f'            "selected", string.Join(",", {final_selected_expression}.OrderBy(item => item, StringComparer.Ordinal)),',
                         f'            "targets", string.Join(",", {targets_variable}.OrderBy(item => item.Key.Value).Select(item => item.Key.Value + "=" + item.Value.ToString("G29", CultureInfo.InvariantCulture))));',
@@ -1890,7 +1910,7 @@ def generate_csharp(
                 rebalance.otherwise_sleeve_ids or rebalance.otherwise_snapshot_allocations
             )
             if predicate_outcome is not None and has_otherwise_branch:
-                lines.extend((f"        if ({predicate_outcome})", "        {"))
+                lines.extend((f"        if ({predicate_outcome} == true)", "        {"))
                 emit_branch(
                     rebalance.sleeve_ids,
                     rebalance.snapshot_allocations,

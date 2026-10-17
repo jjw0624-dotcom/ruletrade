@@ -10,7 +10,9 @@ from decimal import Decimal
 
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.plan import (
-    LeanPlan, LeanScoreTerm, LeanSubscription, LeanTemporalAction,
+    LeanDailyEvent, LeanComparison, LeanMomentumSelection, LeanMonthlyEvent,
+    LeanOnDataExecution, LeanPlan, LeanRebalance, LeanScoreTerm, LeanSubscription,
+    LeanTargetSleeve, LeanTemporalAction,
     LeanTemporalAllocationLeg,
     LeanTemporalCondition, LeanTemporalEvent, LeanTemporalPolicyTarget,
     LeanTemporalProgram, LeanTemporalValue, LeanValue, normalize_lean_plan,
@@ -45,6 +47,7 @@ from ruletrade.strategy.v2.models import (
     BooleanGroupV2,
     BarsSinceEventValueV2,
     ComparisonV2,
+    ConditionalStatementV2,
     ConditionV2,
     EventStatementV2,
     EventWindowConditionV2,
@@ -678,6 +681,253 @@ def lower_v2_to_v1(strategy: CanonicalStrategyV2) -> CanonicalStrategyV1:
     return v1
 
 
+def _program_value(value: ValueExpressionV2) -> LeanValue:
+    """Lower scalar Program Values without routing through the legacy graph."""
+    if isinstance(value, DailyValueNode):
+        if value.kind == "literal":
+            value_type = {
+                ("return", "ratio"): "percentage",
+                ("price", "USD/share"): "money_per_share",
+            }.get((value.quantity.value, value.unit.value), "decimal")
+            return LeanValue(kind="literal", value_type=value_type, literal=value.value)
+        subject = "candidate" if value.subject_kind == SubjectKind.CANDIDATE else "asset"
+        asset = value.subject_id if subject == "asset" else None
+        if value.kind == "observe" and value.field == MarketField.CLOSE and value.basis == PriceBasis.ADJUSTED:
+            return LeanValue(kind="current_price", value_type="money_per_share", subject=subject, asset=asset)
+        if value.kind == "trailing_return" and value.operands:
+            source = value.operands[0]
+            source_subject = "candidate" if source.subject_kind == SubjectKind.CANDIDATE else "asset"
+            return LeanValue(
+                kind="trailing_return", value_type="percentage", subject=source_subject,
+                asset=source.subject_id if source_subject == "asset" else None,
+                observations=value.observations,
+            )
+        if value.kind == "sma" and value.operands:
+            source = value.operands[0]
+            source_subject = "candidate" if source.subject_kind == SubjectKind.CANDIDATE else "asset"
+            return LeanValue(
+                kind="rolling_price", value_type="money_per_share", subject=source_subject,
+                asset=source.subject_id if source_subject == "asset" else None,
+                observations=value.observations, aggregate="mean",
+            )
+    if isinstance(value, CandidateTrailingReturnValue):
+        return LeanValue(
+            kind="trailing_return", value_type="percentage", subject="candidate",
+            observations=value.lookback_observations,
+        )
+    if isinstance(value, CandidateCurrentPriceValue):
+        return LeanValue(kind="current_price", value_type="money_per_share", subject="candidate")
+    if isinstance(value, LiteralValue):
+        value_type = {
+            ("return", "ratio"): "percentage",
+            ("price", "USD/share"): "money_per_share",
+        }.get((value.quantity.value, value.unit.value), "decimal")
+        return LeanValue(kind="literal", value_type=value_type, literal=value.value)
+    if isinstance(value, ScoreValueV2):
+        return _lean_score_value(value)
+    raise V2LoweringError(f"Program Value {getattr(value, 'kind', type(value).__name__)!r} has no maintained LEAN lowering")
+
+
+def _program_comparisons(condition: ConditionV2) -> tuple[LeanComparison, ...]:
+    if isinstance(condition, ComparisonV2):
+        return (LeanComparison(
+            operator=condition.operator,
+            left=_program_value(condition.left), right=_program_value(condition.right),
+        ),)
+    if isinstance(condition, BooleanGroupV2) and condition.kind == "all":
+        return tuple(
+            comparison
+            for child in condition.children
+            for comparison in _program_comparisons(child)
+        )
+    raise V2LoweringError(
+        f"Program Condition {condition.kind!r} is valid but has no maintained conditional LEAN lowering"
+    )
+
+
+def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
+    """Compile allocation-driven, non-temporal Program semantics to the shared plan.
+
+    This covers direct targets, selected Subgroups, fixed Portfolio splits and
+    explicit IF/OTHERWISE routing.  It deliberately rejects rather than drops
+    statements outside that bounded grammar.
+    """
+    if strategy.program is None:
+        return None
+    top_level = tuple(
+        item for item in strategy.program.statements
+        if not (
+            isinstance(item, AllocationStatementV2)
+            and item.semantic_id == "initial-retain-allocation"
+            and len(item.legs) == 1 and item.legs[0].target.kind == "retain"
+        )
+    )
+    if not top_level:
+        return None
+    allowed = (SelectionStatementV2, AllocationStatementV2, ConditionalStatementV2)
+    if any(not isinstance(item, allowed) for item in top_level):
+        return None
+
+    flattened = _program_statements(top_level)
+    if any(not isinstance(item, (SelectionStatementV2, AllocationStatementV2, ConditionalStatementV2)) for item in flattened):
+        return None
+    selection_statements = tuple(item for item in flattened if isinstance(item, SelectionStatementV2))
+    selection_by_output = {item.output_id: item for item in selection_statements}
+    if len(selection_by_output) != len(selection_statements):
+        raise V2LoweringError("Program Selection outputs must be unique")
+
+    groups = {item.id: item for item in strategy.definitions.groups}
+    asset_sets = {item.id: tuple(item.assets) for item in strategy.definitions.asset_sets}
+    selections: dict[str, LeanMomentumSelection] = {}
+    symbols: set[str] = set()
+    for statement in selection_statements:
+        selection = statement.selection
+        group = groups.get(selection.universe_id)
+        universe = asset_sets.get(group.asset_set_ref, ()) if group is not None else ()
+        if not universe:
+            raise V2LoweringError(f"Selection {statement.semantic_id!r} requires a non-empty Group")
+        ranking = _program_value(selection.ranking)
+        eligibility = (
+            _program_comparisons(selection.eligibility)
+            if selection.eligibility is not None else ()
+        )
+        selections[selection.semantic_id] = LeanMomentumSelection(
+            id=selection.semantic_id,
+            score_component_id=f"{statement.semantic_id}-score",
+            rank_component_id=f"{statement.semantic_id}-rank",
+            selection_component_id=statement.semantic_id,
+            symbols=universe,
+            lookback_bars=max(1, _lean_value_observations(ranking) - 1),
+            count=selection.count,
+            direction=selection.direction,
+            shortage_policy=selection.shortage_policy,
+            ranking_value=ranking,
+            eligibility=eligibility,
+            filter_component_id=(f"{statement.semantic_id}-eligibility" if eligibility else None),
+        )
+        symbols.update(universe)
+        if selection.fallback_asset:
+            symbols.add(selection.fallback_asset)
+
+    sleeves: dict[str, LeanTargetSleeve] = {}
+
+    def allocation_sleeves(allocation: AllocationStatementV2) -> tuple[str, ...]:
+        if allocation.minimum_weight is not None or allocation.maximum_weight is not None or allocation.cash_remainder_asset is not None:
+            raise V2LoweringError("bounded Program allocation has no maintained LEAN lowering")
+        if allocation.method not in {"equal", "fixed", "proportional_score"}:
+            raise V2LoweringError(f"unsupported Program allocation: {allocation.method}")
+        result: list[str] = []
+        for leg in allocation.legs:
+            target = leg.target
+            selection_id: str | None = None
+            fallback: tuple[str, ...] = ()
+            if target.kind == "asset" and target.ref:
+                local_symbols = (target.ref,)
+            elif target.kind == "group" and target.ref:
+                group = groups.get(target.ref)
+                local_symbols = asset_sets.get(group.asset_set_ref, ()) if group is not None else ()
+            elif target.kind == "selection" and target.ref:
+                statement = selection_by_output.get(target.ref)
+                if statement is None:
+                    raise V2LoweringError(f"Investment references unknown Subgroup {target.ref!r}")
+                selection_id = statement.selection.semantic_id
+                local_symbols = selections[selection_id].symbols
+                if statement.selection.fallback_asset:
+                    fallback = (statement.selection.fallback_asset,)
+            else:
+                raise V2LoweringError(f"Program target {target.kind!r} has no maintained static lowering")
+            if not local_symbols:
+                raise V2LoweringError(f"Investment target {target.ref!r} has no assets")
+            total = leg.weight if allocation.method == "fixed" else Decimal(1)
+            assert total is not None
+            sleeve = LeanTargetSleeve(
+                id=leg.semantic_id,
+                symbols=tuple(local_symbols), total_weight=total,
+                selection_id=selection_id,
+                fallback_component_id=(f"{statement.semantic_id}-fallback" if selection_id and fallback else None),
+                fallback_symbols=fallback,
+                source_sleeve_component_id=(leg.semantic_id if len(allocation.legs) > 1 else None),
+                local_total_weight=(Decimal(1) if len(allocation.legs) > 1 else None),
+                source_allocation=(total if len(allocation.legs) > 1 else None),
+                weighting_method=("proportional_score" if allocation.method == "proportional_score" else "equal"),
+                allocation_component_id=allocation.semantic_id,
+            )
+            sleeves[sleeve.id] = sleeve
+            symbols.update(local_symbols)
+            symbols.update(fallback)
+            result.append(sleeve.id)
+        total_weight = sum((sleeves[item].total_weight for item in result), Decimal(0))
+        if total_weight != Decimal(1):
+            raise V2LoweringError("Portfolio Investment weights must sum exactly to 1")
+        return tuple(result)
+
+    rebalances: list[LeanRebalance] = []
+    clock_ids: list[str] = []
+    allocations = tuple(item for item in top_level if isinstance(item, AllocationStatementV2))
+    controls = tuple(item for item in top_level if isinstance(item, ConditionalStatementV2))
+    if allocations and controls:
+        raise V2LoweringError("top-level Allocation and conditional routing cannot be mixed")
+    if len(allocations) > 1 or len(controls) > 1:
+        raise V2LoweringError("static Program lowering requires one Portfolio routing statement")
+    if allocations:
+        allocation = allocations[0]
+        rebalances.append(LeanRebalance(id=allocation.semantic_id, sleeve_ids=allocation_sleeves(allocation)))
+        clock_ids.append(allocation.clock_id or strategy.program.clocks[0].id)
+    elif controls:
+        control = controls[0]
+        then_allocations = tuple(item for item in control.then_statements if isinstance(item, AllocationStatementV2))
+        otherwise_allocations = tuple(item for item in control.otherwise_statements if isinstance(item, AllocationStatementV2))
+        if len(then_allocations) != 1 or len(otherwise_allocations) != 1:
+            raise V2LoweringError("conditional Investment requires one Allocation in THEN and OTHERWISE")
+        rebalances.append(LeanRebalance(
+            id=control.semantic_id,
+            sleeve_ids=allocation_sleeves(then_allocations[0]),
+            condition=_program_comparisons(control.condition),
+            condition_unknown_policy=control.unknown_policy,
+            otherwise_sleeve_ids=allocation_sleeves(otherwise_allocations[0]),
+        ))
+        clock_ids.append(control.clock_id or strategy.program.clocks[0].id)
+    else:
+        return None
+
+    referenced = {
+        sleeves[sleeve_id].selection_id
+        for rebalance in rebalances
+        for sleeve_id in rebalance.sleeve_ids + rebalance.otherwise_sleeve_ids
+        if sleeves[sleeve_id].selection_id is not None
+    }
+    declared = set(selections)
+    if referenced != declared:
+        missing = sorted(declared - referenced)
+        raise V2LoweringError(f"Selection outputs have no Investment: {', '.join(missing)}")
+    clocks = {item.id: item for item in strategy.program.clocks}
+    selected_clocks = [clocks[item] for item in clock_ids]
+    if len({(item.timeframe, item.boundary) for item in selected_clocks}) != 1:
+        raise V2LoweringError("static Portfolio routing requires one shared execution clock")
+    clock = selected_clocks[0]
+    if clock.timeframe not in {"daily", "monthly"}:
+        raise V2LoweringError(f"{clock.timeframe} Program timing has no maintained static LEAN lowering")
+    if not symbols:
+        raise V2LoweringError("static Program execution requires at least one asset")
+    anchor = sorted(symbols)[0]
+    execution = LeanOnDataExecution(required_symbols=tuple(sorted(symbols)))
+    event_id = f"{clock.id}-event"
+    event_kwargs = {
+        "id": event_id, "anchor_symbol": anchor,
+        "rebalance_ids": tuple(item.id for item in rebalances),
+        "execution": execution,
+    }
+    return normalize_lean_plan(LeanPlan(
+        strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
+        subscriptions=tuple(LeanSubscription(symbol=item) for item in sorted(symbols)),
+        random_selections=(), target_sleeves=tuple(sleeves.values()),
+        rebalances=tuple(rebalances),
+        monthly_events=(LeanMonthlyEvent(day=1, **event_kwargs),) if clock.timeframe == "monthly" else (),
+        daily_events=(LeanDailyEvent(**event_kwargs),) if clock.timeframe == "daily" else (),
+        momentum_selections=tuple(selections.values()),
+    ))
+
+
 def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
     """Lower the maintained Program subset to the typed LEAN plan.
 
@@ -697,6 +947,10 @@ def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
     temporal_plan = _compile_temporal_program(strategy)
     if temporal_plan is not None:
         return temporal_plan
+
+    static_plan = _compile_static_program(strategy)
+    if static_plan is not None:
+        return static_plan
 
     statement, allocation, _timeframe = _program_selection(strategy)
     if allocation.method == "equal":

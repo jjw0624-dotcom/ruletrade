@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from ruletrade.hashing import semantic_payload, strategy_hash
+from ruletrade.compiler.lean.codegen import generate_csharp
 from ruletrade.strategy.v2.authoring import (
     ApplyV2AuthoringRequest,
     CommitMarketRegimeRotationIntent,
@@ -28,6 +29,8 @@ from ruletrade.strategy.v2.models import (
     SelectionStatementV2,
 )
 from ruletrade.strategy.v2.validation import validate_strategy_v2
+from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
 
 
 def blank():
@@ -56,6 +59,15 @@ def test_single_asset_intent_is_direct_honest_monthly_rebalance() -> None:
     assert allocation.legs[0].target.kind == "asset"
     assert allocation.legs[0].target.ref == "QQQ"
     assert not any(isinstance(item, SelectionStatementV2) for item in strategy.program.statements)
+    plan = compile_v2_strategy_to_lean_plan(strategy)
+    assert plan.momentum_selections == ()
+    assert [(item.symbol) for item in plan.subscriptions] == ["QQQ"]
+    assert [(item.symbols, item.total_weight) for item in plan.target_sleeves] == [(("QQQ",), Decimal(1))]
+    assert len(plan.monthly_events) == 1
+    assert assess_v2_execution_capability(strategy).execution_state == "executable"
+    source = generate_csharp(plan)
+    assert 'SetHoldings(target.Key, target.Value)' in source
+    assert '"final_targets"' in source
 
 
 def test_market_regime_uses_explicit_otherwise_not_shortage_fallback() -> None:
@@ -74,6 +86,15 @@ def test_market_regime_uses_explicit_otherwise_not_shortage_fallback() -> None:
     defensive = control.otherwise_statements[0]
     assert isinstance(defensive, AllocationStatementV2)
     assert defensive.legs[0].target.ref == "TLT"
+    plan = compile_v2_strategy_to_lean_plan(strategy)
+    assert len(plan.rebalances) == 1
+    assert plan.rebalances[0].condition_unknown_policy == "otherwise"
+    assert plan.rebalances[0].otherwise_sleeve_ids
+    assert {item.symbol for item in plan.subscriptions} == {"QQQ", "VGT", "SOXX", "SCHG", "TLT"}
+    source = generate_csharp(plan)
+    assert "CompareValuesThreeValued" in source
+    assert '"unknown"' in source
+    assert assess_v2_execution_capability(strategy).execution_state == "executable"
 
 
 def test_split_intent_preserves_parallel_70_30_and_scoped_shortage() -> None:
@@ -91,6 +112,17 @@ def test_split_intent_preserves_parallel_70_30_and_scoped_shortage() -> None:
     assert [leg.weight for leg in split.legs] == [Decimal("0.70"), Decimal("0.30")]
     assert [leg.target.kind for leg in split.legs] == ["selection", "asset"]
     assert split.legs[1].target.ref == "IEF"
+    plan = compile_v2_strategy_to_lean_plan(strategy)
+    assert [item.total_weight for item in plan.target_sleeves] == [Decimal("0.30"), Decimal("0.70")]
+    growth = next(item for item in plan.target_sleeves if item.selection_id is not None)
+    defensive = next(item for item in plan.target_sleeves if item.selection_id is None)
+    assert growth.source_allocation == Decimal("0.70")
+    assert growth.fallback_symbols == ("TLT",)
+    assert defensive.symbols == ("IEF",)
+    assert defensive.source_allocation == Decimal("0.30")
+    assert assess_v2_execution_capability(strategy).execution_state == "executable"
+    source = generate_csharp(plan)
+    assert source.count('"sleeve_contribution"') >= 2
 
 
 def test_weighted_score_intent_builds_top_three_and_proportional_allocation() -> None:

@@ -25,6 +25,8 @@ from ruletrade.strategy.v2.models import (
     CanonicalStrategyV2,
     SelectionStatementV2,
 )
+from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.execution_capability import assess_v2_execution_capability
 
 
 def authored(strategy: CanonicalStrategyV2, operation):
@@ -84,6 +86,12 @@ def test_investment_connect_disconnect_preserves_group_and_subgroup() -> None:
     assert isinstance(allocation, AllocationStatementV2)
     assert allocation.legs[0].target.kind == "selection"
     assert allocation.legs[0].target.ref == "strongest-growth"
+    plan = compile_v2_strategy_to_lean_plan(invested)
+    assert len(plan.momentum_selections) == 1
+    assert plan.momentum_selections[0].symbols == ("QQQ", "VGT", "SOXX", "SCHG")
+    assert plan.momentum_selections[0].count == 2
+    assert plan.target_sleeves[0].selection_id == plan.momentum_selections[0].id
+    assert assess_v2_execution_capability(invested).execution_state == "executable"
 
     disconnected = authored(invested, RemoveProgramInvestmentAllocation(
         kind="remove_program_investment_allocation", semantic_id="growth-investment",

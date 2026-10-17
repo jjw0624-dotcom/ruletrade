@@ -98,6 +98,8 @@ jobs:
         run: make check-lean-composable-semantic
       - name: Run composable fresh-process restart differential
         run: make check-lean-composable-restart
+      - name: Run Group Choose Investment LEAN differentials
+        run: make check-lean-static-program
       - name: Upload LEAN compile diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.1
