@@ -793,7 +793,11 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         )
         selections[selection.semantic_id] = LeanMomentumSelection(
             id=selection.semantic_id,
-            score_component_id=f"{statement.semantic_id}-score",
+            score_component_id=(
+                selection.ranking.semantic_id
+                if isinstance(selection.ranking, ScoreValueV2)
+                else f"{statement.semantic_id}-score"
+            ),
             rank_component_id=f"{statement.semantic_id}-rank",
             selection_component_id=statement.semantic_id,
             symbols=universe,
@@ -804,6 +808,11 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
             ranking_value=ranking,
             eligibility=eligibility,
             filter_component_id=(f"{statement.semantic_id}-eligibility" if eligibility else None),
+            score_field=(
+                "selection.ranking"
+                if isinstance(selection.ranking, ScoreValueV2)
+                else "config.lookback_bars"
+            ),
         )
         symbols.update(universe)
         if selection.fallback_asset:
@@ -865,16 +874,6 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     clock_ids: list[str] = []
     allocations = tuple(item for item in top_level if isinstance(item, AllocationStatementV2))
     controls = tuple(item for item in top_level if isinstance(item, ConditionalStatementV2))
-    if (
-        len(selection_statements) == 1 and len(allocations) == 1 and not controls
-        and len(allocations[0].legs) == 1
-        and allocations[0].legs[0].target.kind == "selection"
-        and allocations[0].method in {"equal", "proportional_score"}
-    ):
-        # Preserve the established single-Selection bridge and its exact
-        # provenance/evidence identities. The static compiler closes only the
-        # shapes that bridge cannot express.
-        return None
     if allocations and controls:
         raise V2LoweringError("top-level Allocation and conditional routing cannot be mixed")
     if len(allocations) > 1 or len(controls) > 1:
@@ -933,7 +932,7 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         subscriptions=tuple(LeanSubscription(symbol=item) for item in sorted(symbols)),
         random_selections=(), target_sleeves=tuple(sleeves.values()),
         rebalances=tuple(rebalances),
-        monthly_events=(LeanMonthlyEvent(day=1, **event_kwargs),) if clock.timeframe == "monthly" else (),
+        monthly_events=(LeanMonthlyEvent(day=1, boundary="end", **event_kwargs),) if clock.timeframe == "monthly" else (),
         daily_events=(LeanDailyEvent(**event_kwargs),) if clock.timeframe == "daily" else (),
         momentum_selections=tuple(selections.values()),
     ))

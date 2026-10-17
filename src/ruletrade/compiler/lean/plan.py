@@ -298,6 +298,7 @@ class LeanMonthlyEvent:
     rebalance_ids: tuple[str, ...]
     execution: LeanOnDataExecution
     refresh_ids: tuple[str, ...] = ()
+    boundary: Literal["start", "end"] = "start"
 
 
 @dataclass(frozen=True)

@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from ruletrade.compiler.lean.plan import (
     LeanDailyEvent,
+    LeanMonthlyEvent,
     LeanMomentumSelection,
     LeanPlan,
     LeanQuarterlyEvent,
@@ -904,7 +905,11 @@ def generate_csharp(
         date_rule = (
             f"DateRules.EveryDay(_symbols[{anchor}])"
             if isinstance(event, LeanDailyEvent)
-            else f"DateRules.MonthStart(_symbols[{anchor}], {event.day - 1})"
+            else (
+                f"DateRules.MonthEnd(_symbols[{anchor}], {event.day - 1})"
+                if isinstance(event, LeanMonthlyEvent) and event.boundary == "end"
+                else f"DateRules.MonthStart(_symbols[{anchor}], {event.day - 1})"
+            )
         )
         lines.append(
             f"        Schedule.On({date_rule}, "

@@ -170,7 +170,7 @@ def test_v2_executable_corpus_profile_reaches_the_strict_lean_plan() -> None:
     assert plan.momentum_selections[0].lookback_bars == 126
     assert plan.momentum_selections[0].count == 2
     assert plan.target_sleeves[0].fallback_symbols == ("TLT",)
-    assert '"filter_field", "condition"' in generate_csharp(plan)
+    assert '"eligibility_field", "condition"' in generate_csharp(plan)
 
 
 def test_weighted_score_and_proportional_allocation_reach_typed_lean_plan() -> None:
