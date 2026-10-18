@@ -24,7 +24,7 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
-  ProgramBlockyProjection: ({ nodes = [], onBlockMove }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void }) => <div data-testid="blocky-workspace">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button></div>,
+  ProgramBlockyProjection: ({ nodes = [], onBlockMove, onWorkspaceChange, onCreateGroup }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void; onWorkspaceChange?: (snapshot: unknown) => void; onCreateGroup?: (request?: { parentId: string; inputName: string }) => void }) => <div data-testid="blocky-workspace">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button><button type="button" data-testid="native-invest" onClick={() => onWorkspaceChange?.({ workspace: { blocks: {} }, viewport: null, canvasBlocks: { "draft:invest-native": { id: "draft:invest-native", definitionId: "invest", label: "Invest [A] by [B]", active: false, createdAt: "2026-10-18T00:00:00Z" } }, positions: { "draft:invest-native": { x: 200, y: 100 } }, connections: { "draft:invest-native": { childId: "draft:invest-native", parentId: null, inputName: null } }, disclosure: { "draft:invest-native": 1 }, selectedDraftId: "draft:invest-native", nativeObjects: [] })}>Native Invest block</button><button type="button" data-testid="native-create-group-for-slot" onClick={() => onCreateGroup?.({ parentId: "draft:invest-native", inputName: "TARGET" })}>Create Group for target slot</button></div>,
 }));
 
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
@@ -231,15 +231,11 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
-  it("uses the Entry-style category taxonomy in Blocky", async () => {
+  it("delegates the Blocky palette to the native shaped category flyout", async () => {
     render("blocky", vi.fn(), growthDefensive);
     await clickButton(container, "Add");
-    expect([...container.querySelectorAll(".blocky-toolbox-categories button")].map((item) => item.textContent)).toEqual([
-      "Start", "Control", "Logic", "Calculate", "Action", "Assets", "Data", "Functions",
-    ]);
-    await clickButton(container, "Action");
-    expect(container.textContent).toContain("Invest [A] by [B]");
-    expect(container.textContent).toContain("Rebalance to target weights");
+    expect(container.textContent).toContain("Use the native colored categories and shaped flyout attached to the Blocky canvas.");
+    expect(container.querySelectorAll(".blocky-toolbox-entry")).toHaveLength(0);
   });
 
   it("starts Investment as Investment and never substitutes an IF draft", async () => {
@@ -252,14 +248,33 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
         workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
     }
     act(() => root.render(<Harness />));
-    await clickButton(container, "Add");
-    await clickButton(container, "Action");
-    await clickTool(container, "Invest [A] by [B]");
-    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "investment" });
-    expect(changes.mock.calls.at(-1)?.[0].concept.kind).not.toBe("control");
-    expect(container.textContent).toContain("Investment");
-    expect(container.querySelector('select[aria-label="Investment amount type"]')).toBeTruthy();
-    expect(container.querySelector<HTMLButtonElement>(".investment-draft .primary-button")?.disabled).toBe(true);
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.canvasBlocks["draft:invest-native"]).toMatchObject({ definitionId: "invest" });
+    expect(Object.values(latest.canvasBlocks).some((item: { definitionId: string }) => item.definitionId === "if-otherwise")).toBe(false);
+    expect(latest.concept).toBeNull();
+  });
+
+  it("creates a Group for an empty typed target slot and connects only the explicit reference", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("group-slot"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
+    expect(container.querySelector(".group-draft")).toBeTruthy();
+    await clickButton(container, "Create Group");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    const reference = Object.values(latest.canvasBlocks).find((item: { definitionId: string }) => item.definitionId === "group-reference") as { id: string; objectRef: string };
+    expect(reference.objectRef).toBe("group-1");
+    expect(latest.blockConnections[reference.id]).toMatchObject({ parentId: "draft:invest-native", inputName: "TARGET" });
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
   });
 
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {
@@ -279,9 +294,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   it("starts asset-first Group authoring without fabricating Investment or timing", async () => {
     const apply = vi.fn();
     render("flow", apply);
-    await clickButton(container, "Add");
-    await clickButton(container, "Destination");
-    await clickTool(container, "Assets");
+    await clickButton(container, "Objects");
+    await clickButton(container, "Create Group");
     expect(container.querySelector(".group-draft")).toBeTruthy();
     const manual = container.querySelector<HTMLInputElement>('input[aria-label="Manual asset symbol"]')!;
     await changeValue(manual, "QQQ");
@@ -302,21 +316,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[aria-label="Selected assets"]')?.textContent).toContain("QQQ");
   });
 
-  it("commits a reviewed weighted Score recipe through one typed operation", async () => {
-    const apply = vi.fn();
-    render("blocky", apply);
-    await clickButton(container, "Add");
-    await clickButton(container, "Calculate");
-    await clickTool(container, "Weighted Score");
-    expect(container.querySelector('[data-intent-recipe="weighted_score"]')).toBeTruthy();
-    expect(container.textContent).toContain("Allocate proportionally to positive Score");
-    await clickButton(container, "Commit strategy meaning");
-    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_weighted_score_intent", count: 3 }));
-  });
-
   it.each([
     ["flow", "Capital", "Growth + Defensive", "commit_split_portfolio_intent"],
-    ["blocky", "Calculate", "Weighted Score", "commit_weighted_score_intent"],
   ] as const)("commits %s/%s intent through production controls", async (view, category, tool, kind) => {
     const apply = vi.fn();
     render(view, apply);
