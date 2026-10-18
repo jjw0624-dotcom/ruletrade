@@ -55,6 +55,9 @@ export interface ProgramWorkingDraft {
   canvasBlocks: Record<string, ProgramCanvasBlock>;
   reusableObjects: Record<string, ProgramReusableObject>;
   activeGraphRootIds: string[];
+  /** Native Blockly JSON is the sole persisted authority for Blocky geometry and connections. */
+  blocklyWorkspace: Record<string, unknown> | null;
+  blocklyViewport: { x: number; y: number; scale: number } | null;
   blockPositions: Record<string, XYPosition>;
   flowPositions: Record<string, XYPosition>;
   blockConnections: Record<string, ProgramDraftConnection>;
@@ -74,6 +77,8 @@ export function emptyProgramWorkingDraft(strategyKey: string): ProgramWorkingDra
     canvasBlocks: {},
     reusableObjects: {},
     activeGraphRootIds: [],
+    blocklyWorkspace: null,
+    blocklyViewport: null,
     blockPositions: {},
     flowPositions: {},
     blockConnections: {},
@@ -110,6 +115,8 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
       canvasBlocks: value.canvasBlocks ?? {},
       reusableObjects: value.reusableObjects ?? {},
       activeGraphRootIds: value.activeGraphRootIds ?? [],
+      blocklyWorkspace: value.blocklyWorkspace ?? null,
+      blocklyViewport: value.blocklyViewport ?? null,
       flowPositions: value.flowPositions ?? {},
       blockConnections: value.blockConnections ?? {},
       blockDisclosure: value.blockDisclosure ?? {},
@@ -127,7 +134,7 @@ export function persistProgramWorkingDraft(draft: ProgramWorkingDraft, storage: 
     if (draft.status === "clean" && !draft.concept && Object.keys(draft.canvasBlocks).length === 0 && Object.keys(draft.reusableObjects).length === 0
       && draft.activeGraphRootIds.length === 0 && Object.keys(draft.blockPositions).length === 0
       && Object.keys(draft.flowPositions).length === 0 && Object.keys(draft.blockConnections).length === 0
-      && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport) {
+      && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport && !draft.blocklyWorkspace) {
       storage.removeItem(programDraftStorageKey(draft.strategyKey));
       return;
     }
@@ -135,6 +142,37 @@ export function persistProgramWorkingDraft(draft: ProgramWorkingDraft, storage: 
   } catch {
     // Storage may be disabled. The in-memory draft remains authoritative for this session.
   }
+}
+
+export function withNativeBlocklyState(draft: ProgramWorkingDraft, update: {
+  workspace: Record<string, unknown>;
+  viewport: { x: number; y: number; scale: number } | null;
+  canvasBlocks: Record<string, ProgramCanvasBlock>;
+  positions: Record<string, XYPosition>;
+  connections: Record<string, ProgramDraftConnection>;
+  disclosure: Record<string, 0 | 1 | 2>;
+  selectedDraftId: string | null;
+  nativeObjects?: ProgramReusableObject[];
+}): ProgramWorkingDraft {
+  const roots = draft.activeGraphRootIds.filter((id) => update.canvasBlocks[id]);
+  const canvasBlocks = Object.fromEntries(Object.entries(update.canvasBlocks).map(([id, block]) => [id, { ...block, active: roots.includes(id) }]));
+  const reusableObjects = update.nativeObjects ? {
+    ...Object.fromEntries(Object.entries(draft.reusableObjects).filter(([id]) => !id.startsWith("blockly:"))),
+    ...Object.fromEntries(update.nativeObjects.map((object) => [object.id, object])),
+  } : draft.reusableObjects;
+  return {
+    ...draft,
+    status: Object.keys(canvasBlocks).length || draft.concept ? "incomplete" : "clean",
+    blocklyWorkspace: update.workspace,
+    blocklyViewport: update.viewport,
+    canvasBlocks,
+    reusableObjects,
+    blockPositions: update.positions,
+    blockConnections: update.connections,
+    blockDisclosure: update.disclosure,
+    activeGraphRootIds: roots,
+    selectedDraftId: update.selectedDraftId,
+  };
 }
 
 export function addCanvasBlock(draft: ProgramWorkingDraft, block: ProgramCanvasBlock, position: XYPosition): ProgramWorkingDraft {

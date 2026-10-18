@@ -18,6 +18,7 @@ import {
   removeReusableObject,
   renameReusableObject,
   upsertReusableObject,
+  withNativeBlocklyState,
 } from "./programWorkingDraft";
 import { createFinancialIntentDraft, updateFinancialIntentDraft } from "./intentAuthoring";
 
@@ -110,6 +111,23 @@ describe("SemanticProgramV2 Working Draft", () => {
     expect(source.blockPositions).toEqual({});
     expect(source.blockConnections).toEqual({});
     expect(canonicalSentinel).toEqual({ semantic_id: "unchanged-canonical" });
+  });
+
+  it("persists native Blockly JSON as the geometry and connection authority", () => {
+    const source = emptyProgramWorkingDraft("native-workspace");
+    const next = withNativeBlocklyState(source, {
+      workspace: { blocks: { languageVersion: 0, blocks: [{ type: "math_number", id: "number-a", x: 90, y: 120 }] } },
+      viewport: { x: -20, y: -30, scale: .9 },
+      canvasBlocks: { "draft:number-a": { id: "draft:number-a", definitionId: "number", label: "Number", createdAt: "2026-10-18T00:00:00Z", active: false } },
+      positions: { "draft:number-a": { x: 90, y: 120 } },
+      connections: { "draft:number-a": { childId: "draft:number-a", parentId: null, inputName: null } },
+      disclosure: { "draft:number-a": 1 },
+      selectedDraftId: "draft:number-a",
+    });
+    expect(next.blocklyWorkspace).toMatchObject({ blocks: { languageVersion: 0 } });
+    expect(next.blocklyViewport).toEqual({ x: -20, y: -30, scale: .9 });
+    expect(next.blockPositions["draft:number-a"]).toEqual({ x: 90, y: 120 });
+    expect(next.status).toBe("incomplete");
   });
 
   it("recovers an incomplete financial intent without committing fabricated meaning", () => {

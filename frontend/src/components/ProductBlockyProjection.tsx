@@ -4,9 +4,9 @@ import * as Blockly from "blockly";
 import type { ProductNode } from "../domain/productSemantics";
 import type { ProgramBlockNode } from "../domain/programProjections";
 import type { ProgramDraftConcept } from "../domain/programWorkingDraft";
-import type { ProgramCanvasBlock } from "../domain/programWorkingDraft";
+import type { ProgramCanvasBlock, ProgramDraftConnection, ProgramReusableObject } from "../domain/programWorkingDraft";
 import { entryBlockDefinition } from "../domain/entryStyleGrammar";
-import { entryBlocklyType, registerBlockyProgramBlocks } from "./blockyProgramBlocks";
+import { entryBlocklyExtraState, entryBlocklyFields, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks, type EntryToolboxObject } from "./blockyProgramBlocks";
 
 function blockType(node: ProductNode) {
   if (node.concept === "selection") return "rt_selection";
@@ -20,7 +20,15 @@ export function productBlockLabel(node: ProductNode) {
 }
 
 function setAddress(block: Blockly.Block, id: string) {
-  block.data = JSON.stringify({ productId: id });
+  let existing: Record<string, unknown> = {};
+  try { existing = block.data ? JSON.parse(block.data) as Record<string, unknown> : {}; } catch { /* Replace malformed third-party data. */ }
+  block.data = JSON.stringify({ ...existing, productId: id });
+}
+
+function readMetadata(block: Blockly.Block | null): { productId?: string; definitionId?: string; objectRef?: string | null } {
+  if (!block?.data) return {};
+  try { return JSON.parse(block.data) as { productId?: string; definitionId?: string; objectRef?: string | null }; }
+  catch { return {}; }
 }
 
 function readAddress(block: Blockly.Block | null): string | null {
@@ -130,7 +138,25 @@ function semanticBlockType(node: ProgramBlockNode) {
 }
 
 /** Program-native logic projection. It never consumes the Structure tree. */
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, onBlockMove, onDisclosureChange, onDraftDelete, onToolDrop }: {
+export interface NativeBlockySnapshot {
+  workspace: Record<string, unknown>;
+  viewport: { x: number; y: number; scale: number } | null;
+  canvasBlocks: Record<string, ProgramCanvasBlock>;
+  positions: Record<string, { x: number; y: number }>;
+  connections: Record<string, ProgramDraftConnection>;
+  disclosure: Record<string, 0 | 1 | 2>;
+  selectedDraftId: string | null;
+  nativeObjects: ProgramReusableObject[];
+}
+
+export interface NativeBlockyHistory {
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+}
+
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, objects = [], workspaceState = null, viewport = null, onWorkspaceChange, onWorkspaceApi, onCreateGroup, onBlockMove, onDisclosureChange, onDraftDelete, onToolDrop }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
@@ -139,6 +165,12 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   disclosure?: Record<string, 0 | 1 | 2>;
   draft?: ProgramDraftConcept;
   canvasBlocks?: Record<string, ProgramCanvasBlock>;
+  objects?: EntryToolboxObject[];
+  workspaceState?: Record<string, unknown> | null;
+  viewport?: { x: number; y: number; scale: number } | null;
+  onWorkspaceChange?: (snapshot: NativeBlockySnapshot) => void;
+  onWorkspaceApi?: (api: NativeBlockyHistory | null) => void;
+  onCreateGroup?: (request?: { parentId: string; inputName: string }) => void;
   onBlockMove?: (blockId: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void;
   onDisclosureChange?: (blockId: string, level: 0 | 1 | 2) => void;
   onDraftDelete?: (id?: string) => void;
@@ -150,20 +182,78 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   const onSelectRef = useRef(onSelect);
   const callbacksRef = useRef({ onBlockMove, onDisclosureChange, onDraftDelete });
   const positionsRef = useRef(positions);
+  const canvasBlocksRef = useRef(canvasBlocks);
+  const onWorkspaceChangeRef = useRef(onWorkspaceChange);
+  const onCreateGroupRef = useRef(onCreateGroup);
   nodesRef.current = nodes;
   onSelectRef.current = onSelect;
   callbacksRef.current = { onBlockMove, onDisclosureChange, onDraftDelete };
   positionsRef.current = positions;
+  canvasBlocksRef.current = canvasBlocks;
+  onWorkspaceChangeRef.current = onWorkspaceChange;
+  onCreateGroupRef.current = onCreateGroup;
 
   useEffect(() => {
     if (!host.current) return;
     registerBlockyProgramBlocks();
     const canvas = Blockly.inject(host.current, {
-      trashcan: false, sounds: false,
+      toolbox: entryBlocklyToolbox(objects), renderer: "zelos", trashcan: true, sounds: false,
+      grid: { spacing: 24, length: 3, colour: "#d8dfd9", snap: false },
       move: { scrollbars: true, drag: true, wheel: true },
       zoom: { controls: true, wheel: true, startScale: .9, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
     });
     workspace.current = canvas;
+    canvas.registerButtonCallback("RULETRADE_CREATE_GROUP", () => {
+      const selected = Blockly.getSelected();
+      const block = selected instanceof Blockly.Block ? selected : null;
+      const parentId = readAddress(block);
+      const target = block?.inputList.find((input) => !input.connection?.isConnected() && input.connection?.getCheck()?.some((check) => ["RuleTradeAsset", "RuleTradeGroup", "RuleTradeSubgroup"].includes(check)));
+      onCreateGroupRef.current?.(parentId && target?.name ? { parentId, inputName: target.name } : undefined);
+    });
+    canvas.registerButtonCallback("CREATE_VARIABLE", (button) => Blockly.Variables.createVariableButtonHandler(button.getTargetWorkspace()));
+    if (workspaceState) {
+      Blockly.Events.disable();
+      try { Blockly.serialization.workspaces.load(workspaceState, canvas); }
+      finally { Blockly.Events.enable(); }
+    }
+    if (viewport) canvas.scroll(viewport.x, viewport.y);
+    onWorkspaceApi?.({ undo: () => canvas.undo(false), redo: () => canvas.undo(true), canUndo: () => canvas.getUndoStack().length > 0, canRedo: () => canvas.getRedoStack().length > 0 });
+
+    const emitSnapshot = () => {
+      const nextBlocks: Record<string, ProgramCanvasBlock> = {};
+      const nextPositions: Record<string, { x: number; y: number }> = {};
+      const nextConnections: Record<string, ProgramDraftConnection> = {};
+      const nextDisclosure: Record<string, 0 | 1 | 2> = {};
+      for (const block of canvas.getAllBlocks(false)) {
+        const metadata = readMetadata(block);
+        const definitionId = metadata.definitionId ?? entryDefinitionIdForBlock(block);
+        if (!definitionId || (metadata.productId && !metadata.productId.startsWith("draft:"))) continue;
+        const id = metadata.productId?.startsWith("draft:") ? metadata.productId : `draft:${block.id}`;
+        if (metadata.productId !== id) {
+          block.data = JSON.stringify({ ...metadata, productId: id, definitionId });
+        }
+        const definition = entryBlockDefinition(definitionId);
+        const old = canvasBlocksRef.current[id];
+        nextBlocks[id] = { id, definitionId, label: definition?.label ?? definitionId, createdAt: old?.createdAt ?? new Date().toISOString(), active: old?.active ?? false, objectRef: metadata.objectRef ?? old?.objectRef ?? null };
+        const xy = block.getRelativeToSurfaceXY(); nextPositions[id] = { x: xy.x, y: xy.y };
+        nextDisclosure[id] = block.isCollapsed() ? 0 : 1;
+        const parent = block.getParent();
+        const parentId = readAddress(parent);
+        const inputName = parent?.inputList.find((input) => input.connection?.targetBlock() === block)?.name ?? (parent && parent.nextConnection?.targetBlock() === block ? "NEXT" : null);
+        nextConnections[id] = { childId: id, parentId, inputName };
+      }
+      const metrics = canvas.getMetrics();
+      const nativeObjects: ProgramReusableObject[] = canvas.getVariableMap().getAllVariables().map((variable) => ({ id: `blockly:variable:${variable.getId()}`, kind: "variable", name: variable.getName(), version: 1, dependencies: [], capability: "draft_only" }));
+      for (const block of canvas.getAllBlocks(false)) if (["procedures_defreturn", "procedures_defnoreturn"].includes(block.type)) nativeObjects.push({ id: `blockly:function:${block.id}`, kind: "function", name: String(block.getFieldValue("NAME") ?? "function"), version: 1, dependencies: [], capability: "draft_only" });
+      const selected = Blockly.getSelected();
+      onWorkspaceChangeRef.current?.({
+        workspace: Blockly.serialization.workspaces.save(canvas) as Record<string, unknown>,
+        viewport: metrics ? { x: metrics.viewLeft, y: metrics.viewTop, scale: canvas.scale } : null,
+        canvasBlocks: nextBlocks, positions: nextPositions, connections: nextConnections, disclosure: nextDisclosure,
+        selectedDraftId: readAddress(selected instanceof Blockly.Block ? selected : null),
+        nativeObjects,
+      });
+    };
     const listener = (event: Blockly.Events.Abstract) => {
       if (event.type !== Blockly.Events.CLICK) return;
       const click = event as Blockly.Events.Abstract & { targetType?: string; blockId?: string };
@@ -177,7 +267,19 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     };
     const editListener = (event: Blockly.Events.Abstract) => {
       const blockId = (event as Blockly.Events.Abstract & { blockId?: string }).blockId;
-      if (!blockId) return;
+      if (!blockId) {
+        if (event.type === Blockly.Events.VIEWPORT_CHANGE || !event.isUiEvent) queueMicrotask(emitSnapshot);
+        return;
+      }
+      if (event.type === Blockly.Events.BLOCK_CREATE) {
+        const block = canvas.getBlockById(blockId);
+        const definitionId = block && entryDefinitionIdForBlock(block);
+        if (block && definitionId) {
+          const id = `draft:${block.id}`;
+          setAddress(block, id);
+          onSelectRef.current(id);
+        }
+      }
       if (event.type === Blockly.Events.BLOCK_MOVE) {
         const block = canvas.getBlockById(blockId);
         if (!block) return;
@@ -192,7 +294,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       }
       if (event.type === Blockly.Events.BLOCK_DELETE) {
         const raw = (event as Blockly.Events.Abstract & { oldJson?: { data?: string } }).oldJson?.data;
-        try { const id = raw && (JSON.parse(raw) as { productId?: string }).productId; if (id?.startsWith("draft:")) callbacksRef.current.onDraftDelete?.(id); }
+        try { const id = raw && (JSON.parse(raw) as { productId?: string }).productId; if (id?.startsWith("draft:") && !canvasBlocksRef.current[id]) callbacksRef.current.onDraftDelete?.(id); }
         catch { /* Ignore malformed third-party Blockly data. */ }
       }
       if (event.type === Blockly.Events.BLOCK_CHANGE) {
@@ -203,12 +305,15 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
           if (address) callbacksRef.current.onDisclosureChange?.(address, change.newValue ? 0 : 1);
         }
       }
+      if (!event.isUiEvent) queueMicrotask(emitSnapshot);
     };
     canvas.addChangeListener(listener); canvas.addChangeListener(editListener);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
     resizeObserver?.observe(host.current);
-    return () => { resizeObserver?.disconnect(); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
+    return () => { resizeObserver?.disconnect(); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
   }, []);
+
+  useEffect(() => { workspace.current?.updateToolbox(entryBlocklyToolbox(objects)); }, [objects]);
 
   useEffect(() => {
     const canvas = workspace.current;
@@ -299,10 +404,18 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         if (!block) {
           block = canvas.newBlock(wantedType) as Blockly.BlockSvg;
           setAddress(block, canvasBlock.id);
+          const extraState = entryBlocklyExtraState(definition.id);
+          if (extraState) block.loadExtraState?.(extraState);
+          const fields = entryBlocklyFields(definition.id);
+          if (fields) for (const [name, value] of Object.entries(fields)) if (block.getField(name)) block.setFieldValue(String(value), name);
           block.setDeletable(true); block.setMovable(true); block.contextMenu = true;
           block.initSvg(); block.render();
           const saved = positionsRef.current[canvasBlock.id]; block.moveBy(saved?.x ?? 360, saved?.y ?? 80);
           existing.set(canvasBlock.id, block);
+        }
+        if (canvasBlock.objectRef && block.getField("REFERENCE")) {
+          const object = objects.find((item) => item.id === canvasBlock.objectRef);
+          if (object) block.setFieldValue(object.name, "REFERENCE");
         }
         block.setWarningText(definition.execution === "verified" ? null : definition.execution === "draft_only" ? "Working Draft only — not executable." : "Complete the required context before execution.");
         block.setCollapsed((disclosure[canvasBlock.id] ?? 1) === 0);
@@ -334,7 +447,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       for (const block of existing.values()) block.render();
       Blockly.svgResize(canvas);
     } finally { Blockly.Events.enable(); }
-  }, [nodes, draft, connections, disclosure, canvasBlocks]);
+  }, [nodes, draft, connections, disclosure, canvasBlocks, objects]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -344,7 +457,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === id)?.select();
   }, [selectedId, nodes, canvasBlocks]);
 
-  return <div className="blocky-representation" data-blocky-contract="entry-style-v1" data-blocky-node-count={nodes.length + Object.keys(canvasBlocks).length} data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable"
+  return <div className="blocky-representation" data-blocky-contract="entry-style-v2-native" data-native-toolbox="category-flyout" data-native-serialization="json" data-blocky-node-count={nodes.length + Object.keys(canvasBlocks).length} data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable"
     onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-ruletrade-program-tool")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
     onDrop={(event) => { const toolId = event.dataTransfer.getData("application/x-ruletrade-program-tool"); if (!toolId) return; event.preventDefault(); const rect = host.current?.getBoundingClientRect(); onToolDrop?.(toolId, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) }); }}>
     <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />

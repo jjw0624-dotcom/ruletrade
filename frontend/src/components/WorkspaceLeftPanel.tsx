@@ -263,7 +263,9 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger><Tabs.Trigger value="objects">Objects</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
-        <Tabs.Content value="blocks" className="blocks-panel"><SemanticProgramToolbox tools={tools} categories={categories} /></Tabs.Content>
+        <Tabs.Content value="blocks" className="blocks-panel">{perspective === "blocky"
+          ? <section className="native-blockly-toolbox-note"><strong>Block library</strong><p>Use the native colored categories and shaped flyout attached to the Blocky canvas. Blocks can be dragged out in any order.</p></section>
+          : <SemanticProgramToolbox tools={tools} categories={categories} />}</Tabs.Content>
         <Tabs.Content value="objects" className="blocks-panel object-library" data-object-library="entry-style-v1">
           <header><strong>Reusable objects</strong><p>Groups and Subgroups define membership; they do not receive capital by themselves.</p></header>
           {objects.length ? <ul>{objects.map((object) => <li key={object.id}><button type="button" onClick={() => onSelect(`${object.kind}:${object.id}`)}><strong>{object.name}</strong><small>{object.kind}{object.draft ? " · Draft" : ""} · {object.dependencyCount} references</small></button></li>)}</ul> : <p>No reusable objects yet.</p>}
