@@ -301,7 +301,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await changeValue(manual, "QQQ");
     await clickButton(container, "Add symbol");
     await clickButton(container, "Use selected assets");
-    await clickButton(container, "Create Group");
+    await act(async () => container.querySelector<HTMLButtonElement>(".group-draft .primary-button")!.click());
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group", assets: ["QQQ"] }));
     expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_investment" }));
     expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_schedule" }));
