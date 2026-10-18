@@ -243,7 +243,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         nextConnections[id] = { childId: id, parentId, inputName };
       }
       const metrics = canvas.getMetrics();
-      const nativeObjects: ProgramReusableObject[] = canvas.getVariableMap().getAllVariables().map((variable) => ({ id: `blockly:variable:${variable.getId()}`, kind: "variable", name: variable.name, version: 1, dependencies: [], capability: "draft_only" }));
+      const nativeObjects: ProgramReusableObject[] = canvas.getVariableMap().getAllVariables().map((variable) => ({ id: `blockly:variable:${variable.getId()}`, kind: "variable", name: variable.getName(), version: 1, dependencies: [], capability: "draft_only" }));
       for (const block of canvas.getAllBlocks(false)) if (["procedures_defreturn", "procedures_defnoreturn"].includes(block.type)) nativeObjects.push({ id: `blockly:function:${block.id}`, kind: "function", name: String(block.getFieldValue("NAME") ?? "function"), version: 1, dependencies: [], capability: "draft_only" });
       const selected = Blockly.getSelected();
       onWorkspaceChangeRef.current?.({
