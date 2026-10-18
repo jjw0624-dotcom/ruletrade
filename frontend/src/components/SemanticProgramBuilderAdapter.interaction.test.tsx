@@ -293,6 +293,15 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_schedule" }));
   });
 
+  it("opens the large Group Workspace from an existing Group", async () => {
+    render("blocky", vi.fn(), growthDefensive);
+    await clickStructureItem(container, "Group · Growth");
+    await clickButton(container, "Edit Assets");
+    expect(container.querySelector('[aria-label="Group Workspace"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Search assets by ticker or name"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Selected assets"]')?.textContent).toContain("QQQ");
+  });
+
   it("commits a reviewed weighted Score recipe through one typed operation", async () => {
     const apply = vi.fn();
     render("blocky", apply);
