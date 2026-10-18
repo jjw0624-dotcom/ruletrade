@@ -10,6 +10,14 @@ import {
   withBlockMove,
   withBlockDisclosure,
   withProgramDraftConcept,
+  addCanvasBlock,
+  duplicateCanvasBlock,
+  removeCanvasBlock,
+  setCanvasBlockActive,
+  duplicateReusableObject,
+  removeReusableObject,
+  renameReusableObject,
+  upsertReusableObject,
 } from "./programWorkingDraft";
 import { createFinancialIntentDraft, updateFinancialIntentDraft } from "./intentAuthoring";
 
@@ -33,7 +41,7 @@ describe("SemanticProgramV2 Working Draft", () => {
     persistProgramWorkingDraft(draft, storage);
     expect(storage.values.has(programDraftStorageKey("strategy-1"))).toBe(true);
     expect(loadProgramWorkingDraft("strategy-1", storage)).toMatchObject({
-      schema: "ruletrade.dev/program-working-draft/v2",
+      schema: "ruletrade.dev/program-working-draft/v3",
       status: "incomplete",
       concept: { kind: "control", condition: null },
       blockPositions: { "draft:if-1": { x: 420, y: 180 } },
@@ -51,7 +59,7 @@ describe("SemanticProgramV2 Working Draft", () => {
       flowPositions: { portfolio: { x: 12, y: 34 } },
     }));
     expect(loadProgramWorkingDraft("strategy-legacy", storage)).toMatchObject({
-      schema: "ruletrade.dev/program-working-draft/v2",
+      schema: "ruletrade.dev/program-working-draft/v3",
       status: "incomplete",
       concept: { semanticId: "legacy-if" },
       flowPositions: { portfolio: { x: 12, y: 34 } },
@@ -60,12 +68,37 @@ describe("SemanticProgramV2 Working Draft", () => {
     });
   });
 
+  it("preserves multiple disconnected alternatives, identity, layout, duplication, and active roots", () => {
+    let draft = emptyProgramWorkingDraft("free-canvas");
+    draft = addCanvasBlock(draft, { id: "draft:invest-1", definitionId: "invest", label: "Invest [A] by [B]", active: false, createdAt: "2026-10-18T00:00:00Z" }, { x: 100, y: 120 });
+    draft = addCanvasBlock(draft, { id: "draft:if-1", definitionId: "if-otherwise", label: "IF / OTHERWISE", active: false, createdAt: "2026-10-18T00:00:01Z" }, { x: 480, y: 120 });
+    draft = duplicateCanvasBlock(draft, "draft:invest-1", "draft:invest-2");
+    draft = setCanvasBlockActive(draft, "draft:invest-2", true);
+    expect(Object.keys(draft.canvasBlocks)).toEqual(["draft:invest-1", "draft:if-1", "draft:invest-2"]);
+    expect(draft.blockPositions["draft:invest-2"]).toEqual({ x: 132, y: 152 });
+    expect(draft.activeGraphRootIds).toEqual(["draft:invest-2"]);
+    draft = removeCanvasBlock(draft, "draft:if-1");
+    expect(draft.canvasBlocks["draft:invest-1"]).toBeTruthy();
+    expect(draft.canvasBlocks["draft:if-1"]).toBeUndefined();
+  });
+
   it("keeps connection typing and cycle detection outside Canonical", () => {
     expect(validProgramBlockConnection("statement", "CONDITION", "condition")).toBe(true);
     expect(validProgramBlockConnection("statement", "CONDITION", "statement")).toBe(false);
     expect(validProgramBlockConnection("statement", "NEXT", "statement")).toBe(true);
     expect(hasFlowCycle([{ source: "portfolio", target: "growth" }], { source: "growth", target: "portfolio" })).toBe(true);
     expect(hasFlowCycle([{ source: "portfolio", target: "growth" }], { source: "portfolio", target: "defensive" })).toBe(false);
+  });
+
+  it("protects referenced reusable objects and versions names and duplicates", () => {
+    let draft = emptyProgramWorkingDraft("objects");
+    draft = upsertReusableObject(draft, { id: "group-a", kind: "group", name: "Growth", version: 1, dependencies: [], capability: "verified" });
+    draft = upsertReusableObject(draft, { id: "function-a", kind: "function", name: "Pick", version: 1, dependencies: ["group-a"], capability: "draft_only" });
+    expect(removeReusableObject(draft, "group-a")).toMatchObject({ removed: false, dependants: ["function-a"] });
+    draft = renameReusableObject(draft, "function-a", "Pick strongest");
+    draft = duplicateReusableObject(draft, "function-a", "function-b", "Pick strongest copy");
+    expect(draft.reusableObjects["function-a"]).toMatchObject({ name: "Pick strongest", version: 2 });
+    expect(draft.reusableObjects["function-b"]).toMatchObject({ name: "Pick strongest copy", version: 1 });
   });
 
   it("stores Blocky geometry and a tentative connection in one draft transition", () => {

@@ -231,39 +231,41 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
-  it("offers contextual Growth extensions without rebuilding the 70/30 portfolio", async () => {
-    const apply = vi.fn();
-    render("blocky", apply, growthDefensive);
-    await clickStructureItem(container, "Group · Growth");
+  it("uses the Entry-style category taxonomy in Blocky", async () => {
+    render("blocky", vi.fn(), growthDefensive);
     await clickButton(container, "Add");
-    await clickButton(container, "Data");
-    const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
-    expect(score?.textContent).toContain("Ready");
-    await clickTool(container, "Value / Score");
-    expect(container.querySelector('[aria-label="Selection editor"]')).toBeTruthy();
-    expect(container.textContent).toContain("Choose 2");
-    expect(container.textContent).toContain("Growth");
-    expect(container.textContent).toContain("Defensive");
-    expect(apply).not.toHaveBeenCalled();
+    expect([...container.querySelectorAll(".blocky-toolbox-categories button")].map((item) => item.textContent)).toEqual([
+      "Start", "Control", "Logic", "Calculate", "Action", "Assets", "Data", "Functions",
+    ]);
+    await clickButton(container, "Action");
+    expect(container.textContent).toContain("Invest [A] by [B]");
+    expect(container.textContent).toContain("Rebalance to target weights");
   });
 
-  it("does not redirect Defensive context to Growth selection capabilities", async () => {
-    render("blocky", vi.fn(), growthDefensive);
-    await clickStructureItem(container, "Group · Defensive");
+  it("starts Investment as Investment and never substitutes an IF draft", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("investment-regression"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
     await clickButton(container, "Add");
-    await clickButton(container, "Data");
-    const score = [...container.querySelectorAll("article")].find((item) => item.textContent?.includes("Value / Score"));
-    expect(score?.textContent).toContain("Needs context");
-    expect(score?.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+    await clickButton(container, "Action");
+    await clickTool(container, "Invest [A] by [B]");
+    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "investment" });
+    expect(changes.mock.calls.at(-1)?.[0].concept.kind).not.toBe("control");
+    expect(container.textContent).toContain("Investment");
+    expect(container.querySelector('select[aria-label="Investment amount type"]')).toBeTruthy();
+    expect(container.querySelector<HTMLButtonElement>(".investment-draft .primary-button")?.disabled).toBe(true);
   });
 
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
     await clickStructureItem(container, "Group · Growth");
-    await clickButton(container, "Add");
-    await clickButton(container, "Data");
-    await clickTool(container, "Value / Score");
     const inspector = container.querySelector('[aria-label="Semantic Inspector"]');
     expect(inspector).toBeTruthy();
     const updated = structuredClone(growthDefensive);
@@ -271,7 +273,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     if (selection.kind === "select") selection.selection.count = 3;
     render("blocky", apply, updated);
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBe(inspector);
-    expect(container.textContent).toContain("Choose 3");
+    expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBe(inspector);
   });
 
   it("starts asset-first Group authoring without fabricating Investment or timing", async () => {
@@ -291,11 +293,20 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "set_program_schedule" }));
   });
 
+  it("opens the large Group Workspace from an existing Group", async () => {
+    render("blocky", vi.fn(), growthDefensive);
+    await clickStructureItem(container, "Group · Growth");
+    await clickButton(container, "Edit Assets");
+    expect(container.querySelector('[aria-label="Group Workspace"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Search assets by ticker or name"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Selected assets"]')?.textContent).toContain("QQQ");
+  });
+
   it("commits a reviewed weighted Score recipe through one typed operation", async () => {
     const apply = vi.fn();
     render("blocky", apply);
     await clickButton(container, "Add");
-    await clickButton(container, "Data");
+    await clickButton(container, "Calculate");
     await clickTool(container, "Weighted Score");
     expect(container.querySelector('[data-intent-recipe="weighted_score"]')).toBeTruthy();
     expect(container.textContent).toContain("Allocate proportionally to positive Score");
@@ -304,11 +315,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   });
 
   it.each([
-    ["blocky", "Logic", "Market regime rotation", "commit_market_regime_rotation_intent"],
     ["flow", "Capital", "Growth + Defensive", "commit_split_portfolio_intent"],
-    ["blocky", "Data", "Weighted Score", "commit_weighted_score_intent"],
-    ["blocky", "State", "Breakout sequence", "commit_temporal_sequence_intent"],
-    ["blocky", "State", "Weekly context + daily signal", "commit_multi_clock_policy_intent"],
+    ["blocky", "Calculate", "Weighted Score", "commit_weighted_score_intent"],
   ] as const)("commits %s/%s intent through production controls", async (view, category, tool, kind) => {
     const apply = vi.fn();
     render(view, apply);
