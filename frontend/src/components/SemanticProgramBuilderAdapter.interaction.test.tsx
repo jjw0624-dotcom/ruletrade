@@ -264,9 +264,6 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const apply = vi.fn();
     render("blocky", apply, growthDefensive);
     await clickStructureItem(container, "Group · Growth");
-    await clickButton(container, "Add");
-    await clickButton(container, "Assets");
-    await clickTool(container, "Choose from Group");
     const inspector = container.querySelector('[aria-label="Semantic Inspector"]');
     expect(inspector).toBeTruthy();
     const updated = structuredClone(growthDefensive);
