@@ -197,7 +197,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     if (!host.current) return;
     registerBlockyProgramBlocks();
     const canvas = Blockly.inject(host.current, {
-      toolbox: entryBlocklyToolbox(objects), renderer: "zelos", trashcan: true, sounds: false, maxUndo: 100,
+      toolbox: entryBlocklyToolbox(objects), renderer: "zelos", trashcan: true, sounds: false,
       grid: { spacing: 24, length: 3, colour: "#d8dfd9", snap: false },
       move: { scrollbars: true, drag: true, wheel: true },
       zoom: { controls: true, wheel: true, startScale: .9, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
@@ -243,13 +243,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         nextConnections[id] = { childId: id, parentId, inputName };
       }
       const metrics = canvas.getMetrics();
-      const nativeObjects: ProgramReusableObject[] = canvas.getAllVariables().map((variable) => ({ id: `blockly:variable:${variable.getId()}`, kind: "variable", name: variable.name, version: 1, dependencies: [], capability: "draft_only" }));
+      const nativeObjects: ProgramReusableObject[] = canvas.getVariableMap().getAllVariables().map((variable) => ({ id: `blockly:variable:${variable.getId()}`, kind: "variable", name: variable.name, version: 1, dependencies: [], capability: "draft_only" }));
       for (const block of canvas.getAllBlocks(false)) if (["procedures_defreturn", "procedures_defnoreturn"].includes(block.type)) nativeObjects.push({ id: `blockly:function:${block.id}`, kind: "function", name: String(block.getFieldValue("NAME") ?? "function"), version: 1, dependencies: [], capability: "draft_only" });
+      const selected = Blockly.getSelected();
       onWorkspaceChangeRef.current?.({
         workspace: Blockly.serialization.workspaces.save(canvas) as Record<string, unknown>,
         viewport: metrics ? { x: metrics.viewLeft, y: metrics.viewTop, scale: canvas.scale } : null,
         canvasBlocks: nextBlocks, positions: nextPositions, connections: nextConnections, disclosure: nextDisclosure,
-        selectedDraftId: readAddress(Blockly.getSelected() instanceof Blockly.Block ? Blockly.getSelected() : null),
+        selectedDraftId: readAddress(selected instanceof Blockly.Block ? selected : null),
         nativeObjects,
       });
     };
@@ -404,7 +405,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
           block = canvas.newBlock(wantedType) as Blockly.BlockSvg;
           setAddress(block, canvasBlock.id);
           const extraState = entryBlocklyExtraState(definition.id);
-          if (extraState) block.loadExtraState(extraState);
+          if (extraState) block.loadExtraState?.(extraState);
           const fields = entryBlocklyFields(definition.id);
           if (fields) for (const [name, value] of Object.entries(fields)) if (block.getField(name)) block.setFieldValue(String(value), name);
           block.setDeletable(true); block.setMovable(true); block.contextMenu = true;

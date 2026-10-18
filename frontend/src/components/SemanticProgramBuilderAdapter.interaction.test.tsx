@@ -251,7 +251,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.canvasBlocks["draft:invest-native"]).toMatchObject({ definitionId: "invest" });
-    expect(Object.values(latest.canvasBlocks).some((item: { definitionId: string }) => item.definitionId === "if-otherwise")).toBe(false);
+    expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "if-otherwise")).toBe(false);
     expect(latest.concept).toBeNull();
   });
 
@@ -271,7 +271,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector(".group-draft")).toBeTruthy();
     await clickButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
-    const reference = Object.values(latest.canvasBlocks).find((item: { definitionId: string }) => item.definitionId === "group-reference") as { id: string; objectRef: string };
+    const reference = Object.values(latest.canvasBlocks as Record<string, { id: string; definitionId: string; objectRef: string }>).find((item) => item.definitionId === "group-reference")!;
     expect(reference.objectRef).toBe("group-1");
     expect(latest.blockConnections[reference.id]).toMatchObject({ parentId: "draft:invest-native", inputName: "TARGET" });
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
