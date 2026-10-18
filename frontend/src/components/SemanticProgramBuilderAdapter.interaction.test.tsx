@@ -258,6 +258,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "investment" });
     expect(changes.mock.calls.at(-1)?.[0].concept.kind).not.toBe("control");
     expect(container.textContent).toContain("Investment");
+    expect(container.querySelector('select[aria-label="Investment amount type"]')).toBeTruthy();
+    expect(container.querySelector<HTMLButtonElement>(".investment-draft .primary-button")?.disabled).toBe(true);
   });
 
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {

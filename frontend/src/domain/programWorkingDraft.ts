@@ -6,7 +6,7 @@ export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft
 
 export type ProgramDraftStatus = "clean" | "incomplete" | "invalid" | "ready" | "unsupported";
 export type ChooseProgramDraft = { kind: "choose"; semanticId: string; groupId: string | null; outputId: string; lookback: number; direction: "highest" | "lowest"; count: number; shortage: "choose_all" | "require_full"; withQualification?: boolean };
-export type InvestmentProgramDraft = { kind: "investment"; semanticId: string; targetKind: "asset" | "group" | "selection" | null; targetRef: string | null; internalAllocation: "equal" | "proportional_score" };
+export type InvestmentProgramDraft = { kind: "investment"; semanticId: string; targetKind: "asset" | "group" | "selection" | null; targetRef: string | null; internalAllocation: "equal" | "proportional_score"; amountKind?: "money" | "cash_fraction" | "quantity" | null; amountValue?: string };
 export type GroupProgramDraft = { kind: "group"; semanticId: string; name: string; assets: string[]; resume?: ChooseProgramDraft | InvestmentProgramDraft };
 export type ProgramDraftConcept =
   | { kind: "selection"; semanticId: string; universeId: string; withQualification?: boolean }
