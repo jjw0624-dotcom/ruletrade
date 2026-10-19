@@ -52,6 +52,39 @@ describe("native Blockly product grammar", () => {
     expect(entryBlockJson(entryBlockDefinition("invest")!)).not.toHaveProperty("message1");
   });
 
+  it("uses typed native connections for nested AssetSet and candidate-predicate composition", () => {
+    registerBlockyProgramBlocks();
+    const workspace = new Blockly.Workspace();
+    const filter = workspace.newBlock(entryBlocklyType("filter-assets"));
+    const group = workspace.newBlock(entryBlocklyType("group-reference"));
+    const predicate = workspace.newBlock(entryBlocklyType("candidate-compare"));
+    const candidateRsi = workspace.newBlock(entryBlocklyType("candidate-rsi"));
+    const top = workspace.newBlock(entryBlocklyType("top-n-assets"));
+    filter.getInput("ASSETS")!.connection!.connect(group.outputConnection!);
+    predicate.getInput("A")!.connection!.connect(candidateRsi.outputConnection!);
+    filter.getInput("PREDICATE")!.connection!.connect(predicate.outputConnection!);
+    top.getInput("ASSETS")!.connection!.connect(filter.outputConnection!);
+    expect(filter.getInputTargetBlock("ASSETS")).toBe(group);
+    expect(filter.getInputTargetBlock("PREDICATE")).toBe(predicate);
+    expect(top.getInputTargetBlock("ASSETS")).toBe(filter);
+    workspace.dispose();
+  });
+
+  it("serializes deterministic random draft metadata without claiming execution", () => {
+    registerBlockyProgramBlocks();
+    const first = new Blockly.Workspace();
+    const random = first.newBlock(entryBlocklyType("random-filter-assets"));
+    random.setFieldValue("42", "SEED");
+    random.setFieldValue("PER_SCHEDULE", "REDRAW");
+    const state = Blockly.serialization.workspaces.save(first);
+    const second = new Blockly.Workspace();
+    Blockly.serialization.workspaces.load(state, second);
+    const restored = second.getBlockById(random.id)!;
+    expect(restored.getFieldValue("SEED")).toBe("42");
+    expect(restored.getFieldValue("REDRAW")).toBe("PER_SCHEDULE");
+    first.dispose(); second.dispose();
+  });
+
   it("lets Builder Add select one category while Blockly renders its shaped flyout", () => {
     const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as { kind: string; contents: Array<{ type?: string }> };
     expect(flyout.kind).toBe("flyoutToolbox");

@@ -246,7 +246,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .blocks-panel[data-perspective="blocky"]{height:auto;min-height:0;overflow:hidden}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
 .blocky-add-categories{display:grid;gap:4px;padding:10px}.blocky-add-categories header{margin:0 0 6px;padding:2px 3px 8px}.blocky-add-categories header p{margin:5px 0 0;line-height:1.4}.blocky-add-categories>button{padding:8px 9px;border:0;border-radius:6px;text-align:left;color:var(--muted);background:transparent;font-size:11px;font-weight:750}.blocky-add-categories>button[aria-pressed="true"]{color:var(--text);background:#fff;box-shadow:0 1px 4px rgba(20,45,32,.12)}
-.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyout{border-right:1px solid var(--border)}
+.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyout{max-width:min(300px,34%);overflow:hidden;border-right:1px solid var(--border)}
+.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}
+.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyoutLabelText{font-size:11px}
 .blocky-toolbox-categories{min-height:0;overflow-y:auto;padding:8px 5px;border-right:1px solid var(--border);background:#edf1ed}
 .blocky-toolbox-categories button{width:100%;margin:0 0 4px;padding:8px 5px;border:0;border-radius:6px;text-align:left;color:var(--muted);background:transparent;font-size:10px;font-weight:750;line-height:1.15}
 .blocky-toolbox-categories button[aria-pressed="true"]{color:var(--text);background:#fff;box-shadow:0 1px 3px rgba(20,45,32,.12)}

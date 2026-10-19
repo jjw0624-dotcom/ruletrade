@@ -19,6 +19,7 @@ export function entryBlocklyFields(definitionId: string): Record<string, string 
     "logic-and": { OP: "AND" }, "logic-or": { OP: "OR" },
     "calculate-add": { OP: "ADD" }, "calculate-subtract": { OP: "MINUS" }, "calculate-multiply": { OP: "MULTIPLY" }, "calculate-divide": { OP: "DIVIDE" }, "calculate-power": { OP: "POWER" },
     "repeat-while": { MODE: "WHILE" }, "stop-repeat": { FLOW: "BREAK" }, number: { NUM: 0 }, "choose-group": { SHORTAGE: "REQUIRE_FULL" },
+    "random-select-assets": { SEED: 0, REDRAW: "PER_EVALUATION" }, "random-filter-assets": { SEED: 0, REDRAW: "PER_EVALUATION" },
   };
   return fields[definitionId];
 }
@@ -76,6 +77,7 @@ const checkNames = (type: EntryValueType): string[] => {
   if (type === "Truth") return ["RuleTradeTruth", "RuleTradeCondition", "Boolean"];
   if (type === "Number") return ["RuleTradeNumber", "Number"];
   if (type === "Value") return ["RuleTradeValue", "RuleTradeNumber", "RuleTradePercentage", "RuleTradeMoney", "RuleTradeQuantity", "Number"];
+  if (type === "AssetSet") return ["RuleTradeAssetSet", "RuleTradeGroup", "RuleTradeSubgroup"];
   return [`RuleTrade${type}`];
 };
 
@@ -93,11 +95,30 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     sma: { message0: "SMA(%2) of %1", args0: [input("VALUE"), input("DURATION")] },
     ema: { message0: "EMA(%2) of %1", args0: [input("VALUE"), input("DURATION")] },
     "weighted-score": { message0: "Weighted Score %1", args0: [input("VALUE")] },
+    "candidate-close": { message0: "Candidate close" },
+    "candidate-return": { message0: "Candidate return over %1 days", args0: [input("DURATION")] },
+    "candidate-rsi": { message0: "Candidate RSI(%1)", args0: [input("DURATION")] },
+    "asset-set-count": { message0: "Count %1", args0: [input("ASSETS")] },
     invest: { message0: "Buy %1 with %2", args0: [input("TARGET"), input("AMOUNT")] },
     sell: { message0: "Sell %1 by %2", args0: [input("TARGET"), input("AMOUNT")] },
     rebalance: { message0: "Rebalance %1 to %2 portfolio weight", args0: [input("TARGET"), input("WEIGHT")] },
     "send-signal": { message0: "Send signal %1", args0: [input("SIGNAL")] },
     "choose-group": { message0: "From %1 choose top %4 by %3 where %2", args0: [input("GROUP"), input("CONDITION"), input("SCORE"), input("COUNT")] },
+    "asset-predicate-and": { message0: "%1 AND %2 for each candidate", args0: [input("A"), input("B")] },
+    "asset-predicate-or": { message0: "%1 OR %2 for each candidate", args0: [input("A"), input("B")] },
+    "asset-predicate-not": { message0: "NOT %1 for each candidate", args0: [input("A")] },
+    "candidate-compare": { message0: "Candidate %1 > %2", args0: [input("A"), input("B")] },
+    "asset-set-any": { message0: "Any asset in %1 matches %2", args0: [input("ASSETS"), input("PREDICATE")] },
+    "asset-set-all": { message0: "All assets in %1 match %2", args0: [input("ASSETS"), input("PREDICATE")] },
+    "asset-set-n-of-m": { message0: "At least %3 assets in %1 match %2", args0: [input("ASSETS"), input("PREDICATE"), input("COUNT")] },
+    "filter-assets": { message0: "Filter %1 where %2", args0: [input("ASSETS"), input("PREDICATE")] },
+    "top-n-assets": { message0: "Top %3 from %1 by %2", args0: [input("ASSETS"), input("SCORE"), input("COUNT")] },
+    "bottom-n-assets": { message0: "Bottom %3 from %1 by %2", args0: [input("ASSETS"), input("SCORE"), input("COUNT")] },
+    "random-select-assets": { message0: "Random %2 from %1", args0: [input("ASSETS"), input("COUNT")] },
+    "random-filter-assets": { message0: "Randomly retain %2 of %1", args0: [input("ASSETS"), input("PROBABILITY")] },
+    "asset-set-union": { message0: "%1 union %2", args0: [input("A"), input("B")] },
+    "asset-set-intersection": { message0: "%1 intersect %2", args0: [input("A"), input("B")] },
+    "asset-set-difference": { message0: "%1 except %2", args0: [input("A"), input("B")] },
   };
   const layout = horizontal[definition.id];
   const json: Record<string, unknown> = {
@@ -127,6 +148,13 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
   if (definition.id === "choose-group") {
     json.message1 = "If too few qualify %1";
     json.args1 = [{ type: "field_dropdown", name: "SHORTAGE", options: [["require full count", "REQUIRE_FULL"], ["choose all available", "CHOOSE_ALL"]] }];
+  }
+  if (["random-select-assets", "random-filter-assets"].includes(definition.id)) {
+    json.message1 = "seed %1 redraw %2";
+    json.args1 = [
+      { type: "field_number", name: "SEED", value: 0, precision: 1 },
+      { type: "field_dropdown", name: "REDRAW", options: [["each evaluation", "PER_EVALUATION"], ["once per schedule", "PER_SCHEDULE"], ["once per strategy", "PER_STRATEGY"]] },
+    ];
   }
   if (definition.id === "if-otherwise") {
     json.message1 = "DO %1"; json.args1 = [{ type: "input_statement", name: "THEN", check: "RuleTradeStatement" }];
