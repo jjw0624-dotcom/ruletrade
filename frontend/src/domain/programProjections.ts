@@ -143,8 +143,13 @@ function statementBlocks(statement: ProgramStatementV2, path: string, depth: num
   const allocationLabel = statement.kind === "allocate"
     ? statement.method === "fixed" && statement.legs.length > 1 ? "Split Portfolio capital" : `Investment · ${humanize(statement.legs[0]?.target.ref ?? statement.legs[0]?.target.kind ?? "Target")}`
     : null;
+  const allocationDetail = statement.kind === "allocate"
+    ? statement.method === "fixed"
+      ? statement.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} portfolio weight`).join(" · ")
+      : `100% of available Portfolio route · ${statement.method.replaceAll("_", " ")} within target`
+    : null;
   const projectedRole = statement.kind === "allocate" ? (statement.method === "fixed" && statement.legs.length > 1 ? "split" : "investment") : role;
-  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role: projectedRole, label: allocationLabel ?? describeProgramStatement(statement), detail: statement.kind === "allocate" ? statement.method.replaceAll("_", " ") : relation, depth, address: address("statement", statement.semantic_id, path), connection };
+  const root: ProgramBlockNode = { id: `statement:${statement.semantic_id}`, role: projectedRole, label: allocationLabel ?? describeProgramStatement(statement), detail: allocationDetail ?? relation, depth, address: address("statement", statement.semantic_id, path), connection };
   if (statement.kind === "select") return [
     { ...root, label: `Choose · ${humanize(statement.output_id)}`, detail: `From ${humanize(statement.selection.universe_id)} · Take ${statement.selection.count} · ${statement.selection.direction === "descending" ? "highest" : "lowest"}; ${statement.selection.shortage_policy.replaceAll("_", " ")}` },
     ...(statement.selection.eligibility ? conditionBlocks(statement.selection.eligibility, `${path}.selection.eligibility`, depth + 1, `qualification:${statement.semantic_id}`, { kind: "input", parentId: root.id, inputName: "ELIGIBILITY" }) : []),

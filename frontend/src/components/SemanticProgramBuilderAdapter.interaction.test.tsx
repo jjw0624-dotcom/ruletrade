@@ -24,7 +24,7 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
-  ProgramBlockyProjection: ({ nodes = [], onBlockMove, onWorkspaceChange, onCreateGroup }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void; onWorkspaceChange?: (snapshot: unknown) => void; onCreateGroup?: (request?: { parentId: string; inputName: string }) => void }) => <div data-testid="blocky-workspace">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button><button type="button" data-testid="native-invest" onClick={() => onWorkspaceChange?.({ workspace: { blocks: {} }, viewport: null, canvasBlocks: { "draft:invest-native": { id: "draft:invest-native", definitionId: "invest", label: "Invest [A] by [B]", active: false, createdAt: "2026-10-18T00:00:00Z" } }, positions: { "draft:invest-native": { x: 200, y: 100 } }, connections: { "draft:invest-native": { childId: "draft:invest-native", parentId: null, inputName: null } }, disclosure: { "draft:invest-native": 1 }, selectedDraftId: "draft:invest-native", nativeObjects: [] })}>Native Invest block</button><button type="button" data-testid="native-create-group-for-slot" onClick={() => onCreateGroup?.({ parentId: "draft:invest-native", inputName: "TARGET" })}>Create Group for target slot</button></div>,
+  ProgramBlockyProjection: ({ nodes = [], toolboxCategory, onBlockMove, onWorkspaceChange, onCreateGroup }: { nodes?: Array<{ id: string }>; toolboxCategory?: string; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void; onWorkspaceChange?: (snapshot: unknown) => void; onCreateGroup?: (request?: { parentId: string; inputName: string }) => void }) => <div data-testid="blocky-workspace" data-toolbox-category={toolboxCategory}>Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button><button type="button" data-testid="native-invest" onClick={() => onWorkspaceChange?.({ workspace: { blocks: {} }, viewport: null, canvasBlocks: { "draft:invest-native": { id: "draft:invest-native", definitionId: "invest", label: "Invest [A] by [B]", active: false, createdAt: "2026-10-18T00:00:00Z" } }, positions: { "draft:invest-native": { x: 200, y: 100 } }, connections: { "draft:invest-native": { childId: "draft:invest-native", parentId: null, inputName: null } }, disclosure: { "draft:invest-native": 1 }, selectedDraftId: "draft:invest-native", nativeObjects: [] })}>Native Invest block</button><button type="button" data-testid="native-create-group-for-slot" onClick={() => onCreateGroup?.({ parentId: "draft:invest-native", inputName: "TARGET" })}>Create Group for target slot</button></div>,
 }));
 
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
@@ -231,10 +231,13 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
-  it("delegates the Blocky palette to the native shaped category flyout", async () => {
+  it("uses Add as the only category navigation while Blockly owns shaped previews", async () => {
     render("blocky", vi.fn(), growthDefensive);
     await clickButton(container, "Add");
-    expect(container.textContent).toContain("Use the native colored categories and shaped flyout attached to the Blocky canvas.");
+    expect(container.querySelectorAll('[aria-label="Block categories"] button')).toHaveLength(8);
+    expect(container.querySelector('[data-testid="blocky-workspace"]')?.getAttribute("data-toolbox-category")).toBe("Start");
+    await clickButton(container, "Action");
+    expect(container.querySelector('[data-testid="blocky-workspace"]')?.getAttribute("data-toolbox-category")).toBe("Action");
     expect(container.querySelectorAll(".blocky-toolbox-entry")).toHaveLength(0);
   });
 

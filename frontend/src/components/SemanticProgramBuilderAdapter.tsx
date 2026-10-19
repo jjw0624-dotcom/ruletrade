@@ -15,7 +15,8 @@ import { projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEd
 import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
 import { addCanvasBlock, duplicateCanvasBlock, emptyProgramWorkingDraft, removeCanvasBlock, setCanvasBlockActive, upsertReusableObject, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withNativeBlocklyState, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
-import { entryBlockDefinition } from "../domain/entryStyleGrammar";
+import { entryBlockDefinition, type EntryBlockCategory } from "../domain/entryStyleGrammar";
+import { blockUiContract } from "../domain/blockUiContract";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
 import { translateDraftIntent } from "../domain/draftIntents";
 import { validateActiveVisualGraphs } from "../domain/activeVisualGraph";
@@ -523,6 +524,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   onWorkingDraftChange?: (draft: ProgramWorkingDraft) => void;
 }) {
   const [view, setView] = useState<ProgramBuilderView>(initialView);
+  const [blockyCategory, setBlockyCategory] = useState<EntryBlockCategory>("Start");
   const roots = useMemo(() => visibleRoots(canonical), [canonical]);
   const all = useMemo(() => flatten(roots), [roots]);
   const productStatements = useMemo(() => all.filter((item) => item.kind !== "unresolved"), [all]);
@@ -573,13 +575,14 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   useEffect(() => {
     if (!selectedId) return;
     const valid = selectedId === "portfolio" || selectedId === "split" || selectedId === "rebalance"
+      || Boolean(workingDraft.canvasBlocks[selectedId])
       || productStatements.some((item) => item.semantic_id === selectedId)
       || (selectedId.startsWith("group:") && canonical.definitions.groups.some((item) => item.id === selectedId.slice("group:".length)))
       || (selectedId.startsWith("investment:") && productStatements.some((item) => item.kind === "allocate" && item.semantic_id === selectedId.match(/^investment:([^:]+)/)?.[1]))
       || (selectedId.startsWith("assets:") && canonical.definitions.asset_sets.some((item) => item.id === selectedId.slice("assets:".length)))
       || (/^(?:qualification|fallback):/.test(selectedId) && Boolean(selectedSelection));
     if (!valid) setSelectedId(null);
-  }, [canonical.definitions.asset_sets, canonical.definitions.groups, productStatements, selectedId, selectedSelection]);
+  }, [canonical.definitions.asset_sets, canonical.definitions.groups, productStatements, selectedId, selectedSelection, workingDraft.canvasBlocks]);
   const clock = canonical.program?.clocks[0];
   const applyProduct = (operation: BuilderProductOperation, address: Parameters<typeof adaptV2ProductOperation>[2] = {}) => {
     const native = adaptV2ProductOperation(canonical, operation, { clockId: clock?.id, ...address });
@@ -711,9 +714,12 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const selectedCanvasBlock = selectedId ? workingDraft.canvasBlocks[selectedId] : undefined;
   const visualGraphValidation = useMemo(() => validateActiveVisualGraphs(workingDraft), [workingDraft]);
   const selectedActiveGraph = selectedCanvasBlock ? visualGraphValidation.graphs.find((graph) => graph.rootId === selectedCanvasBlock.id || graph.blockIds.includes(selectedCanvasBlock.id)) : null;
+  const selectedBlockContract = selectedCanvasBlock ? blockUiContract(selectedCanvasBlock.definitionId) : null;
   const inspector = selectedCanvasBlock ? <div className="semantic-inspector-content entry-block-inspector" data-entry-block={selectedCanvasBlock.definitionId}>
-    <h2>{selectedCanvasBlock.label}</h2>
-    <p>{entryBlockDefinition(selectedCanvasBlock.definitionId)?.description}</p>
+    <h2>{selectedBlockContract?.summaryLabel ?? selectedCanvasBlock.label}</h2>
+    <p>{selectedBlockContract?.semanticRole ?? entryBlockDefinition(selectedCanvasBlock.definitionId)?.description}</p>
+    {selectedBlockContract && <><section className="entry-inspector-section"><h3>Advanced details</h3><ul>{selectedBlockContract.advancedInspectorFields.map((field) => <li key={field}>{field}</li>)}</ul></section>{selectedBlockContract.dedicatedWorkspaceFields.length > 0 && <section className="entry-inspector-section"><h3>Dedicated workspace</h3><p>{selectedBlockContract.dedicatedWorkspaceFields.join(" · ")}</p></section>}</>}
+    {selectedCanvasBlock.definitionId === "choose-group" && <label>When too few qualify<select aria-label="Selection shortage policy" value={String(selectedCanvasBlock.fieldValues?.SHORTAGE ?? "REQUIRE_FULL")} onChange={(event) => nativeBlockyApi.current?.setFieldValue(selectedCanvasBlock.id, "SHORTAGE", event.target.value)}><option value="REQUIRE_FULL">Require full count</option><option value="CHOOSE_ALL">Choose all available</option></select></label>}
     <p className="value-capability-note">{selectedActiveGraph ? `Active graph · ${selectedActiveGraph.capability.replaceAll("_", " ")}` : entryBlockDefinition(selectedCanvasBlock.definitionId)?.execution === "verified" ? "This block has verified runtime semantics when connected into a complete active graph." : "This block is preserved in Working Draft and is not sent to execution."}</p>
     <label><input type="checkbox" checked={selectedCanvasBlock.active} onChange={(event) => updateLayoutDraft(setCanvasBlockActive(workingDraftRef.current, selectedCanvasBlock.id, event.target.checked))} /> Active graph root</label>
     <div className="entry-block-actions"><button type="button" className="secondary-button" onClick={() => {
@@ -761,7 +767,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
     blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft} canvasBlocks={workingDraft.canvasBlocks}
-      objects={libraryObjects.map(({ id, kind, name }) => ({ id, kind, name }))} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
+      objects={libraryObjects.map(({ id, kind, name }) => ({ id, kind, name }))} toolboxCategory={blockyCategory} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
       onWorkspaceApi={(api) => { nativeBlockyApi.current = api; setNativeHistoryVersion((value) => value + 1); }}
       onWorkspaceChange={(snapshot) => { updateWorkingDraft(withNativeBlocklyState(workingDraftRef.current, snapshot)); working(Object.keys(snapshot.canvasBlocks).length > 0 || Boolean(draft)); setNativeHistoryVersion((value) => value + 1); }}
       onCreateGroup={(request) => startGroupDraft(undefined, request)}
@@ -849,5 +855,5 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     updateWorkingDraft(next);
   };
   void nativeHistoryVersion;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || Boolean(draft) || activeVisualGraphBlocksExecution} testTitle={workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft, blockyCategory, onBlockyCategoryChange: setBlockyCategory }} />, representations, inspector, inspectorOpen: Boolean(selectedId || draft), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || Boolean(draft) || activeVisualGraphBlocksExecution} testTitle={workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
 }

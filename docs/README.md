@@ -52,6 +52,7 @@ architecture when they conflict with code or the living architecture.
 | `perspective-translation-v2.md` | CURRENT | Reconciled Internal/Capital Flow/Decision Logic translation, DraftIntent, equivalence, and capability contracts |
 | `intent-first-unified-authoring.md` | CURRENT | Multi-start Working Draft, composite financial operations, QQQ and complex A–E acceptance contracts |
 | `entry-style-builder-architecture.md` | CURRENT | Native Blockly grammar, Working Draft ownership, object model, reuse audit and execution boundary |
+| `semantic-first-block-inspector-audit.md` | CURRENT | KEEP/ADAPT/REPLACE/REMOVE audit and compact block/Inspector responsibility boundary |
 | `builder-semantic-migration-plan.md` | CURRENT / DESIGN ONLY | KEEP/ADAPT/REPLACE/REMOVE handoff; no UI implementation |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |

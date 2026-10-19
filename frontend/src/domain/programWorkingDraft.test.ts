@@ -19,6 +19,7 @@ import {
   renameReusableObject,
   upsertReusableObject,
   withNativeBlocklyState,
+  withoutPortfolioBlockyScaffolding,
 } from "./programWorkingDraft";
 import { createFinancialIntentDraft, updateFinancialIntentDraft } from "./intentAuthoring";
 
@@ -67,6 +68,14 @@ describe("SemanticProgramV2 Working Draft", () => {
       blockDisclosure: {},
       diagnostics: [],
     });
+  });
+
+  it("removes only legacy Portfolio Blocky scaffolding during restore", () => {
+    const workspace = { blocks: { languageVersion: 0, blocks: [
+      { type: "rt_context", id: "portfolio-block", fields: { LABEL: "Portfolio" }, data: JSON.stringify({ productId: "context:portfolio" }) },
+      { type: "rt_entry_invest", id: "investment-block", data: JSON.stringify({ productId: "draft:invest-1", definitionId: "invest" }) },
+    ] } };
+    expect(withoutPortfolioBlockyScaffolding(workspace)).toEqual({ blocks: { languageVersion: 0, blocks: [expect.objectContaining({ id: "investment-block" })] } });
   });
 
   it("preserves multiple disconnected alternatives, identity, layout, duplication, and active roots", () => {
