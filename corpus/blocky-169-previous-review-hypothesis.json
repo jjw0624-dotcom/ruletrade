@@ -1,0 +1,1717 @@
+{
+  "source_file": "ruletrade_natural_language_cases_v3(4)(1).jsonl",
+  "classification_status": "provisional design assessment; not verified against repository",
+  "feature_packages": {
+    "C": "조건·수치 정의/조건 목록/시간축 파라미터",
+    "S": "시간·사건·상태·순서·재사용 모듈",
+    "A": "집합 연산/동적 랭킹/배분·포지션 입력",
+    "F": "특수 금융상품/모델/외부 데이터 타입",
+    "H": "사용자 재량/외부 판단 입력"
+  },
+  "counts": {
+    "공통 문법 확장 필요": 46,
+    "파라미터 정의로 가능": 32,
+    "금융 전용 타입 필요": 63,
+    "외부 판단 필요": 11,
+    "현재 표현 가능": 17
+  },
+  "stage_counts": [
+    17,
+    23,
+    95,
+    158,
+    169
+  ],
+  "cases": [
+    {
+      "id": "NL001",
+      "category": "공통 문법 확장 필요",
+      "source": "Mark the first 5-minute candle high/low, wait for a strong break, then a retest with strong buyers/sellers before entering.",
+      "interpretation": "Opening-range breakout -> retest -> candle/pressure confirmation -> entry; stop outside wick/range; target 2R.",
+      "fuzzy": "strong breakthrough; strong buyers/sellers; big wick",
+      "required": "S,C",
+      "reason": "event sequence; structural level; candlestick confirmation; risk-reward target",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL002",
+      "category": "공통 문법 확장 필요",
+      "source": "Use the first 5-minute candle because it has the most volume and represents opening support/resistance liquidity.",
+      "interpretation": "Session-defined range derived from first bar, treated as support/resistance context.",
+      "fuzzy": "opening liquidity; support/resistance",
+      "required": "S,C",
+      "reason": "session event; derived level; semantic annotation",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL003",
+      "category": "파라미터 정의로 가능",
+      "source": "Stop placement depends on whether the retest produced a strong wick; otherwise use the original breakout candle boundary.",
+      "interpretation": "Conditional stop rule: wick-based stop if rejection wick exists, else range-candle stop.",
+      "fuzzy": "strong wick",
+      "required": "C",
+      "reason": "conditional risk rule; fallback",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL004",
+      "category": "공통 문법 확장 필요",
+      "source": "Build value-area high/low from the first 15-minute New York session, require a full 5-minute close outside, then a specific retest candle that closes outside with pressure.",
+      "interpretation": "Session volume-profile range -> close-confirmed breakout -> retest of VAH/VAL -> pressure confirmation -> enter at close.",
+      "fuzzy": "strong selling/buying pressure; retest",
+      "required": "S,C",
+      "reason": "volume profile levels; close confirmation; stateful sequence",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL005",
+      "category": "공통 문법 확장 필요",
+      "source": "Entry is exactly at the confirming retest candle close; stop is that candle low; take profit fixed at 2R.",
+      "interpretation": "Event-relative entry/stop/target anchored to the confirming candle.",
+      "fuzzy": "confirmation candle",
+      "required": "S,C",
+      "reason": "event object references; R-multiple",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL006",
+      "category": "공통 문법 확장 필요",
+      "source": "Do not buy the breakout; wait for the first orderly pullback, less than 50% retracement on light relative volume, then enter if it holds.",
+      "interpretation": "Breakout -> first pullback only -> retracement <50% -> relative volume low -> hold confirmation -> entry.",
+      "fuzzy": "orderly; light relative volume; holds",
+      "required": "S,C",
+      "reason": "ordinal event; retracement; relative volume; confirmation",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL007",
+      "category": "파라미터 정의로 가능",
+      "source": "Only treat support/resistance as valid after at least two touches, then wait for break and retest.",
+      "interpretation": "Level validity requires touch_count >=2; then breakout event; then retest entry.",
+      "fuzzy": "touch; break; retest",
+      "required": "C,S",
+      "reason": "pattern memory; touch counting; event sequence",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL008",
+      "category": "공통 문법 확장 필요",
+      "source": "Alternative idea: use a swing point or change-of-character/break-of-structure instead of requiring two touches.",
+      "interpretation": "Interchangeable structural-level definitions feeding same breakout/retest workflow.",
+      "fuzzy": "swing point; change of character; break of structure",
+      "required": "S,C",
+      "reason": "pluggable structural detector",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL009",
+      "category": "공통 문법 확장 필요",
+      "source": "Identify recent swing/consolidation/session levels, require a clean breakout with momentum, then rejection wick/engulfing/volume confirmation on retest.",
+      "interpretation": "Level detector -> decisive break -> retest -> one-of several confirmations -> entry.",
+      "fuzzy": "clean/decisive breakout; strong momentum; rejection",
+      "required": "S,C",
+      "reason": "role-changing level; OR confirmation set; multi-horizon presets",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL010",
+      "category": "파라미터 정의로 가능",
+      "source": "Retest must touch or get close to the broken level, close in breakout direction, and show weak volume; entry waits one more bar.",
+      "interpretation": "Breakout -> retest proximity -> directional close + low-volume pullback -> one-bar delayed entry.",
+      "fuzzy": "get close; weak volume",
+      "required": "C,S",
+      "reason": "proximity tolerance; delayed event; volume relative test",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL011",
+      "category": "파라미터 정의로 가능",
+      "source": "Optionally only take trades aligned with a higher-timeframe EMA trend.",
+      "interpretation": "Lower-timeframe setup gated by higher-timeframe trend state.",
+      "fuzzy": "aligned",
+      "required": "C,S",
+      "reason": "multi-timeframe dependency; optional capability",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL012",
+      "category": "파라미터 정의로 가능",
+      "source": "Enter only when four independently configured RSI timeframes all reach/cross the same extreme.",
+      "interpretation": "N-of-N multi-timeframe oscillator confirmation.",
+      "fuzzy": "aligned; extremely stretched",
+      "required": "C,S",
+      "reason": "multi-timeframe array; all-of aggregation",
+      "flags": "sequence; multi_timeframe"
+    },
+    {
+      "id": "NL013",
+      "category": "공통 문법 확장 필요",
+      "source": "Use higher timeframe for context, then wait for a lower-timeframe trend shift before taking the reversal.",
+      "interpretation": "HTF oversold/context state -> LTF reversal/shift event -> entry.",
+      "fuzzy": "trend shift; oversold context",
+      "required": "S,C",
+      "reason": "cross-timeframe causal hierarchy; exception context",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL014",
+      "category": "금융 전용 타입 필요",
+      "source": "Sell cash-secured puts until assignment; after assignment, switch to covered calls; after shares are called away, return to puts.",
+      "interpretation": "Finite-state loop: CASH -> SHORT_PUT -> ASSIGNED_SHARES -> SHORT_CALL -> CASH.",
+      "fuzzy": "comfortable owning long-term",
+      "required": "F,S,C",
+      "reason": "state machine; assignment event; looping strategy",
+      "flags": "sequence; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL015",
+      "category": "공통 문법 확장 필요",
+      "source": "After put assignment, maybe wait for a rebound before selling a covered call instead of immediately capping recovery.",
+      "interpretation": "ASSIGNED state with optional WAIT_FOR_RECOVERY before call-writing.",
+      "fuzzy": "good dip; rebound",
+      "required": "S,C",
+      "reason": "stateful waiting; user-defined recovery condition",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL016",
+      "category": "금융 전용 타입 필요",
+      "source": "Alternative: sell the call immediately but choose a farther OTM, shorter-DTE contract so the stock has room to recover.",
+      "interpretation": "After assignment, contract selection depends on recovery allowance and DTE.",
+      "fuzzy": "room to recover",
+      "required": "F,A,S,C",
+      "reason": "option contract search; branch strategy",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL017",
+      "category": "금융 전용 타입 필요",
+      "source": "Do not sell a call below effective breakeven; strike should be above cost basis net of premiums, ideally above target exit.",
+      "interpretation": "Dynamic strike constraint derived from path-dependent effective basis and desired exit.",
+      "fuzzy": "acceptable exit",
+      "required": "F,C",
+      "reason": "path-dependent cost basis; contract constraint",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL018",
+      "category": "금융 전용 타입 필요",
+      "source": "One rationale to wait is not price recovery but depressed implied volatility; wait for volatility to rebuild.",
+      "interpretation": "WAIT state can terminate on IV condition rather than price condition.",
+      "fuzzy": "vol rebuild; structurally crushed",
+      "required": "F,S,C",
+      "reason": "state transition driven by option IV",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL019",
+      "category": "금융 전용 타입 필요",
+      "source": "If premium income is the goal, use lower-delta puts; if owning shares is the goal, use higher-delta puts.",
+      "interpretation": "Contract-selection policy parameterized by user objective.",
+      "fuzzy": "nice IV stocks; want to own",
+      "required": "F,A,C",
+      "reason": "goal/context -> selector policy",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL020",
+      "category": "금융 전용 타입 필요",
+      "source": "For covered calls, use lower delta if you want to keep shares; if you want to unload them, prioritize an acceptable sale price over delta.",
+      "interpretation": "CALL selector changes semantics based on KEEP vs EXIT objective.",
+      "fuzzy": "good price",
+      "required": "F,A,C",
+      "reason": "objective-aware rule override",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL021",
+      "category": "금융 전용 타입 필요",
+      "source": "First decide whether the goal is to get rid of shares profitably or lower basis/keep shares; the management rule changes after that.",
+      "interpretation": "Position-management policy branches on goal and net stock cost relative to spot.",
+      "fuzzy": "get rid of stock; lower cost",
+      "required": "F,S,C",
+      "reason": "goal-dependent control flow; basis state",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL022",
+      "category": "금융 전용 타입 필요",
+      "source": "If net stock cost is below spot and exit is desired, sell near-ATM/ITM calls to increase call-away probability and repeat if not assigned.",
+      "interpretation": "EXIT state -> aggressive call strike -> repeat until called away.",
+      "fuzzy": "odds of called away",
+      "required": "F,A,S,C",
+      "reason": "loop; probability-oriented contract selection",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL023",
+      "category": "금융 전용 타입 필요",
+      "source": "After assignment and a further drop, choose among selling calls below basis, waiting for rebound, or selling far OTM for little premium.",
+      "interpretation": "ASSIGNED_LOSS state with mutually competing recovery policies.",
+      "fuzzy": "decent enough premium; give up",
+      "required": "F,S,C",
+      "reason": "policy branch; instrument-type context",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL024",
+      "category": "금융 전용 타입 필요",
+      "source": "Sell 30-45 DTE calls around 0.2-0.3 delta; if underlying approaches strike, roll; otherwise let expire.",
+      "interpretation": "Short-call lifecycle with delta/DTE selector and proximity-triggered roll.",
+      "fuzzy": "approaches strike",
+      "required": "F,A,S,C",
+      "reason": "contract lifecycle; proximity event; roll operation",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL025",
+      "category": "외부 판단 필요",
+      "source": "One view: rolling should only occur if it was part of the strategy before entry, rather than improvising after price moves against you.",
+      "interpretation": "Precommitted management policy vs discretionary override after adverse event.",
+      "fuzzy": "went against you",
+      "required": "H,S,C",
+      "reason": "policy commitment metadata",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL026",
+      "category": "금융 전용 타입 필요",
+      "source": "When assigned shares are far below basis, either keep selling calls above basis or sell nearer spot and roll if breached.",
+      "interpretation": "Two competing stateful recovery policies for underwater assigned stock.",
+      "fuzzy": "good roll opportunity",
+      "required": "F,S,C",
+      "reason": "strategy branch; path-dependent basis; repeated roll",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL027",
+      "category": "금융 전용 타입 필요",
+      "source": "Buy near-term ATM option after earnings date and sell much longer-dated slightly OTM same-side option; keep total position near delta neutral; close after earnings.",
+      "interpretation": "Multi-leg option structure selected around event calendar with neutrality constraint and event-relative exit.",
+      "fuzzy": "as delta neutral as possible",
+      "required": "F,A,S,C",
+      "reason": "multi-leg contract graph; Greek constraint; event schedule",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL028",
+      "category": "금융 전용 타입 필요",
+      "source": "Enter roughly 30 days before earnings using longer-dated options to benefit from IV expansion, then exit immediately before IV crush.",
+      "interpretation": "Event-relative entry/exit around earnings; thesis targets volatility rather than direction.",
+      "fuzzy": "capture entirety of volatility surge",
+      "required": "F,S,C",
+      "reason": "event-relative time; IV observation; pre-event exit",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL029",
+      "category": "금융 전용 타입 필요",
+      "source": "Target post-event IV collapse while reducing directional delta; continually consider delta drift, gamma, charm, liquidity and timing.",
+      "interpretation": "Volatility-target strategy with approximate neutrality that changes over time and may require adjustment.",
+      "fuzzy": "as close to zero as possible; liquid stocks",
+      "required": "F,S,C",
+      "reason": "dynamic Greek state; liquidity constraint; adjustment loop",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL030",
+      "category": "금융 전용 타입 필요",
+      "source": "Use historical post-earnings move distribution and current ATM straddle-implied move to choose strikes for a short-volatility setup while being willing to own shares at selected strike.",
+      "interpretation": "Contract selection combines event-history distribution, implied expected move, and assignment preference.",
+      "fuzzy": "good to own at strike",
+      "required": "F,A,S,C",
+      "reason": "distribution-aware selector; preference constraint",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL031",
+      "category": "금융 전용 타입 필요",
+      "source": "Run low-delta 0DTE spreads but avoid violent tail days with risk filters; exit if spot breaches short strike by 5 points.",
+      "interpretation": "Entry allowed only outside tail-risk regimes; active position has underlying-relative stop.",
+      "fuzzy": "violent tail days",
+      "required": "F,S,C",
+      "reason": "regime gating; option-underlying cross-reference; stop event",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL032",
+      "category": "외부 판단 필요",
+      "source": "Deliberately loosen filters and make entry more aggressive to estimate worst-case loss and stress the strategy.",
+      "interpretation": "Generate intentionally degraded variants to expose tail behavior rather than optimize best case.",
+      "fuzzy": "broken configurations; worst case",
+      "required": "H,C",
+      "reason": "adversarial experiment / perturbation semantics",
+      "flags": "sequence"
+    },
+    {
+      "id": "NL033",
+      "category": "금융 전용 타입 필요",
+      "source": "Observe SPX direction from 8:30-10:30 ET; bullish morning -> sell put vertical, bearish -> sell call vertical; short strike distance based on 1.25x ATM straddle.",
+      "interpretation": "Time-window regime observation -> directional option structure -> strike derived from implied move proxy.",
+      "fuzzy": "moving higher/lower",
+      "required": "F,S,C",
+      "reason": "time-window classifier; option template; formula-derived strike",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL034",
+      "category": "금융 전용 타입 필요",
+      "source": "Alternative variant only runs 30-delta condors when SPX is above 10SMA and VIX below 24.",
+      "interpretation": "Option strategy gated by underlying trend and external volatility index.",
+      "fuzzy": "none",
+      "required": "F,A,C",
+      "reason": "cross-asset/external observation; option contract selector",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL035",
+      "category": "현재 표현 가능",
+      "source": "For a 70/30 target, rebalance only when allocation reaches a band such as 65/35; question is whether to return fully to target or only halfway.",
+      "interpretation": "State-triggered rebalance with configurable destination: target vs midpoint.",
+      "fuzzy": "close to band; preferred method",
+      "required": "",
+      "reason": "portfolio state; tolerance bands; partial rebalance",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL036",
+      "category": "파라미터 정의로 가능",
+      "source": "After stocks fall ~20%, rebalance past original target toward more equity; if they fall another 10-15%, increase equity again up to a hard cap.",
+      "interpretation": "Drawdown-tiered allocation schedule with staged actions and maximum risk cap.",
+      "fuzzy": "about 20%; another 10-15%",
+      "required": "C,A,S",
+      "reason": "piecewise policy; portfolio drawdown state; cap",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL037",
+      "category": "현재 표현 가능",
+      "source": "Rebalance after a larger upside drift than downside drift, intentionally buying declines sooner while letting gains run longer.",
+      "interpretation": "Asymmetric upper/lower tolerance bands around target allocation.",
+      "fuzzy": "let them ride",
+      "required": "",
+      "reason": "asymmetric bands; rebalance event",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL038",
+      "category": "파라미터 정의로 가능",
+      "source": "S&P500 universe; only buy when index above SMA200; disqualify stocks below SMA100 or with >15% recent gap; rank by regression-slope momentum adjusted by R²; ATR risk sizing; weekly trades and semi-monthly rebalance.",
+      "interpretation": "Cross-sectional momentum pipeline with market regime gate, per-asset eligibility, composite score, risk sizing, dual schedules.",
+      "fuzzy": "fastest rising; limited volatility",
+      "required": "C,A,S",
+      "reason": "cross-sectional pipeline; multi-schedule; regime; risk sizing",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL039",
+      "category": "공통 문법 확장 필요",
+      "source": "Run trend and carry forecasts together; dynamically give more weight to whichever has outperformed over trailing year, then smooth the weight.",
+      "interpretation": "Strategy-of-strategies allocation driven by relative sub-strategy performance.",
+      "fuzzy": "outperforming",
+      "required": "S,A,C",
+      "reason": "strategy-as-block; dynamic module weighting; child-result input",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL040",
+      "category": "현재 표현 가능",
+      "source": "Use trend/carry forecasts but scale positions larger when current risk is below normal and smaller when risk is above normal.",
+      "interpretation": "Continuous regime-dependent position sizing based on relative risk level.",
+      "fuzzy": "lower/higher than normal",
+      "required": "",
+      "reason": "relative baseline; continuous sizing function",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL041",
+      "category": "공통 문법 확장 필요",
+      "source": "Daily liquid large-cap universe; choose up to 10 highest 252d annualized Sharpe names above SMA200 and minimum Sharpe; equal weight at 1.5x gross; adaptive Kijun minus 4x ATR exit.",
+      "interpretation": "Fundamental/liquidity universe -> risk-adjusted rank -> trend gate -> leverage -> volatility-adjusted structural stop.",
+      "fuzzy": "materially below support",
+      "required": "S,A,C",
+      "reason": "cross-sectional ranking; leverage; adaptive stop; schedule separation",
+      "flags": "sequence; state; multi_timeframe"
+    },
+    {
+      "id": "NL042",
+      "category": "공통 문법 확장 필요",
+      "source": "Open up to three new strong-trend names daily, but also add to existing holdings on pullbacks from 52-week highs when average price since the high is declining; max 15 holdings, 25% cash, profit exit + cooldowns.",
+      "interpretation": "Two distinct entry pathways (new momentum vs add-on pullback), shared portfolio caps, path-dependent metrics and cooldowns.",
+      "fuzzy": "strong trend; pullback",
+      "required": "S,A,C",
+      "reason": "multiple entry modes; since-event metric; cooldown; portfolio cap",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL043",
+      "category": "외부 판단 필요",
+      "source": "Use limit orders normally, but market orders for urgent exits or extreme volatility when fill certainty matters more than price.",
+      "interpretation": "Execution method branches on urgency/volatility context.",
+      "fuzzy": "exit FAST; extreme volatility",
+      "required": "H,C",
+      "reason": "execution-policy context; urgency override",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL044",
+      "category": "파라미터 정의로 가능",
+      "source": "Use stop loss but no fixed take profit; trail winners so occasional large R multiples remain possible.",
+      "interpretation": "Exit policy combines hard downside stop with open-ended trailing profit management.",
+      "fuzzy": "home run",
+      "required": "C,S",
+      "reason": "trailing state; asymmetric exit",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL045",
+      "category": "공통 문법 확장 필요",
+      "source": "Map different option structures to market/IV regimes: range -> strangles, tight range -> iron fly, trend -> verticals, panic -> tail hedges, etc.",
+      "interpretation": "Meta-strategy chooses child strategy based on regime classification.",
+      "fuzzy": "range; tight range; panic; bull",
+      "required": "S,C",
+      "reason": "strategy-as-block; regime dispatch",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL046",
+      "category": "금융 전용 타입 필요",
+      "source": "Some traders define the wheel as accepting assignment and cycling naturally; others roll positions under selected conditions.",
+      "interpretation": "Same named strategy has incompatible management semantics; rolling must be an explicit policy rather than implied by strategy name.",
+      "fuzzy": "the wheel; appropriate roll",
+      "required": "F,S,C",
+      "reason": "named-template parameterization; policy explicitness",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL047",
+      "category": "공통 문법 확장 필요",
+      "source": "Do not trade until the first 15-minute opening range is fully formed.",
+      "interpretation": "Lock the session opening range after 15 minutes; entries before formation are prohibited.",
+      "fuzzy": "first range is formed",
+      "required": "S",
+      "reason": "session event; temporal gate",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL048",
+      "category": "공통 문법 확장 필요",
+      "source": "After price breaks the opening range, do not chase; wait for price to come back to the broken boundary.",
+      "interpretation": "Breakout is only a precursor; a later retest is required before entry evaluation.",
+      "fuzzy": "break with conviction; do not chase",
+      "required": "S,C",
+      "reason": "event sequence; state flag; structural level",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL049",
+      "category": "파라미터 정의로 가능",
+      "source": "Only treat the retest as an entry when a candle holds the level and closes back in the breakout direction.",
+      "interpretation": "Retest must be followed by directional candle confirmation.",
+      "fuzzy": "holds the level; confirmation",
+      "required": "C,S",
+      "reason": "candlestick confirmation; event sequence",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL050",
+      "category": "파라미터 정의로 가능",
+      "source": "If fakeouts are a concern, wait for a second confirming candle rather than the first.",
+      "interpretation": "Optional stricter confirmation requires two consecutive confirming bars.",
+      "fuzzy": "fewer fakeouts",
+      "required": "C",
+      "reason": "N-consecutive confirmation; mode switch",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL051",
+      "category": "공통 문법 확장 필요",
+      "source": "Use premarket and weekly highs/lows as secondary context around the opening-range setup.",
+      "interpretation": "Primary opening-range event is conditioned by levels derived from other session/time horizons.",
+      "fuzzy": "secondary levels",
+      "required": "S",
+      "reason": "multi-context structural levels",
+      "flags": "multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL052",
+      "category": "파라미터 정의로 가능",
+      "source": "Place the stop just beyond the retest level rather than using an unrelated fixed percentage.",
+      "interpretation": "Risk boundary is derived from the structural retest level.",
+      "fuzzy": "just beyond",
+      "required": "C,S",
+      "reason": "structure-relative stop",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL053",
+      "category": "금융 전용 타입 필요",
+      "source": "Sell cash-secured puts only on companies you would be comfortable owning if assignment happens.",
+      "interpretation": "Underlying eligibility depends on a discretionary ownership-acceptance predicate.",
+      "fuzzy": "comfortable owning",
+      "required": "F,C",
+      "reason": "fuzzy eligibility predicate",
+      "flags": "state"
+    },
+    {
+      "id": "NL054",
+      "category": "금융 전용 타입 필요",
+      "source": "After put assignment, do not automatically sell a covered call; consider waiting for a rebound first.",
+      "interpretation": "Assignment changes strategy state; covered-call transition may be delayed by a rebound condition.",
+      "fuzzy": "good dip; rebound",
+      "required": "F,S,C",
+      "reason": "state transition; conditional wait",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL055",
+      "category": "금융 전용 타입 필요",
+      "source": "A different rule is to wait for implied volatility to rebuild rather than waiting for price itself to rebound.",
+      "interpretation": "Post-assignment transition can be gated by IV recovery instead of price recovery.",
+      "fuzzy": "IV rebuild",
+      "required": "F,S,C",
+      "reason": "state-dependent alternative trigger",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL056",
+      "category": "금융 전용 타입 필요",
+      "source": "If selling the call immediately, choose a farther-OTM and shorter-DTE contract so the stock has room to recover.",
+      "interpretation": "Contract selection changes conditionally when the call is opened immediately after assignment.",
+      "fuzzy": "room to recover",
+      "required": "F,A,S",
+      "reason": "stateful option contract selection",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL057",
+      "category": "금융 전용 타입 필요",
+      "source": "Use effective cost basis after put premium when deciding how low a covered-call strike can be.",
+      "interpretation": "Strike constraint depends on path-dependent cost basis, not just current price.",
+      "fuzzy": "effective cost basis",
+      "required": "F,S",
+      "reason": "path-dependent state; derived value",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL058",
+      "category": "금융 전용 타입 필요",
+      "source": "Avoid repeatedly capping recovery at the worst entry price after assignment.",
+      "interpretation": "Covered-call strike policy depends on recovery state and prior entry economics.",
+      "fuzzy": "worst entry price; recovery",
+      "required": "F,S,C",
+      "reason": "stateful risk policy",
+      "flags": "state"
+    },
+    {
+      "id": "NL059",
+      "category": "금융 전용 타입 필요",
+      "source": "If assigned shares fall far below cost basis, one approach is to sell a weekly call around a target delta and repeat until called away.",
+      "interpretation": "Underwater assigned state triggers repeated short-DTE call cycle using delta-based strike selection.",
+      "fuzzy": "far below; around target delta",
+      "required": "F,A,S,C",
+      "reason": "state loop; option selector",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL060",
+      "category": "금융 전용 타입 필요",
+      "source": "Another approach uses a longer-DTE call and rolls it up and out if the stock begins to recover toward the strike.",
+      "interpretation": "Recovery event can trigger a roll transition on an existing covered call.",
+      "fuzzy": "begins to recover",
+      "required": "F,S,C",
+      "reason": "state transition; event-relative option management",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL061",
+      "category": "금융 전용 타입 필요",
+      "source": "A more conservative branch uses a lower-delta call to chip away at cost basis gradually.",
+      "interpretation": "Underwater state selects lower-delta contract as a different recovery policy.",
+      "fuzzy": "chip away gradually",
+      "required": "F,A,S,C",
+      "reason": "stateful policy selection",
+      "flags": "state"
+    },
+    {
+      "id": "NL062",
+      "category": "공통 문법 확장 필요",
+      "source": "A different branch is to stop writing calls temporarily and hold shares with a trailing stop until price recovers enough to resume calls.",
+      "interpretation": "Strategy can suspend one module, switch to hold/trailing-stop mode, then reactivate it after recovery.",
+      "fuzzy": "recovers enough",
+      "required": "S,C",
+      "reason": "strategy composition; state machine; override",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL063",
+      "category": "금융 전용 타입 필요",
+      "source": "Sell cash-secured puts until assignment occurs.",
+      "interpretation": "Remain in short-put state and repeat expirations until assignment event.",
+      "fuzzy": "",
+      "required": "F,S",
+      "reason": "loop; assignment event",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL064",
+      "category": "금융 전용 타입 필요",
+      "source": "Once assigned, switch from selling puts to selling covered calls.",
+      "interpretation": "Assignment is a state transition that changes the active strategy module.",
+      "fuzzy": "",
+      "required": "F,S",
+      "reason": "state transition; strategy switch",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL065",
+      "category": "금융 전용 타입 필요",
+      "source": "Continue selling covered calls until shares are called away, then return to the put-selling state.",
+      "interpretation": "Call-away event closes the shares state and loops back to initial module.",
+      "fuzzy": "",
+      "required": "F,S",
+      "reason": "state loop; event transition",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL066",
+      "category": "금융 전용 타입 필요",
+      "source": "During a recession or large correction, consider pausing the wheel rather than applying normal rules unchanged.",
+      "interpretation": "Market-regime event can override the normal strategy loop and enter a paused mode.",
+      "fuzzy": "large correction; market forms a bottom",
+      "required": "F,S,C",
+      "reason": "regime override; strategy state",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL067",
+      "category": "금융 전용 타입 필요",
+      "source": "One discretionary restart rule is to wait until the market appears to form a bottom and show strength before wheeling again.",
+      "interpretation": "Paused mode exits only after fuzzy bottom/strength confirmation.",
+      "fuzzy": "form a bottom; show strength",
+      "required": "F,S,C",
+      "reason": "fuzzy state transition",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL068",
+      "category": "금융 전용 타입 필요",
+      "source": "After crisis assignment, delay covered calls longer so the newly acquired shares have more recovery time.",
+      "interpretation": "Crisis context modifies the normal post-assignment transition timing.",
+      "fuzzy": "wait a bit longer",
+      "required": "F,S,C",
+      "reason": "contextual override",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL069",
+      "category": "파라미터 정의로 가능",
+      "source": "Only take one high-conviction trade per day rather than every available setup.",
+      "interpretation": "Daily state enforces a maximum of one accepted trade after a subjective conviction gate.",
+      "fuzzy": "high conviction",
+      "required": "C,S",
+      "reason": "trade-count state; fuzzy gate",
+      "flags": "state"
+    },
+    {
+      "id": "NL070",
+      "category": "현재 표현 가능",
+      "source": "Avoid the first 30 minutes because volatility is more likely to stop the trade out.",
+      "interpretation": "Session-time exclusion overrides otherwise valid entries.",
+      "fuzzy": "most volatile",
+      "required": "",
+      "reason": "time exclusion; override",
+      "flags": "event_relative"
+    },
+    {
+      "id": "NL071",
+      "category": "파라미터 정의로 가능",
+      "source": "Use 9/21 EMA trend context plus support/resistance confirmation before taking the breakout.",
+      "interpretation": "Entry requires confluence of trend and structural-level context.",
+      "fuzzy": "confirm trend; confirm entry",
+      "required": "C",
+      "reason": "multi-condition confirmation",
+      "flags": "sequence"
+    },
+    {
+      "id": "NL072",
+      "category": "공통 문법 확장 필요",
+      "source": "Attach OCO orders with a large profit target and tight loss threshold immediately after entry.",
+      "interpretation": "Entry automatically creates mutually exclusive exit orders.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "OCO state machine",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL073",
+      "category": "금융 전용 타입 필요",
+      "source": "Use only long calls or puts, one strike OTM, rather than switching to complex option structures.",
+      "interpretation": "Instrument/contract policy restricts expression to directional long options.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "capability restriction; option selector",
+      "flags": ""
+    },
+    {
+      "id": "NL074",
+      "category": "파라미터 정의로 가능",
+      "source": "Enter roughly 1.5 to 2 hours after the open rather than immediately.",
+      "interpretation": "Entry window is relative to session-open event.",
+      "fuzzy": "best time",
+      "required": "C,S",
+      "reason": "event-relative time window",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL075",
+      "category": "외부 판단 필요",
+      "source": "Skip days with major scheduled news such as FOMC or CPI even when technical conditions look valid.",
+      "interpretation": "Event calendar provides a global no-trade override.",
+      "fuzzy": "big news",
+      "required": "H,S",
+      "reason": "event exclusion; override",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL076",
+      "category": "금융 전용 타입 필요",
+      "source": "Choose the short strike using a target probability-of-profit or delta range, then choose a spread width.",
+      "interpretation": "Option structure selection is a sequence of contract constraints.",
+      "fuzzy": "",
+      "required": "F,A,S",
+      "reason": "option contract query; sequential selection",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL077",
+      "category": "금융 전용 타입 필요",
+      "source": "Use a limit order near the bid/ask midpoint and explicitly avoid market orders.",
+      "interpretation": "Execution method is constrained by a price derived from current quote.",
+      "fuzzy": "near midpoint",
+      "required": "F",
+      "reason": "execution policy; override",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL078",
+      "category": "금융 전용 타입 필요",
+      "source": "Exit if loss reaches a multiple of collected premium or a percentage of max loss.",
+      "interpretation": "Stop can be expressed relative to trade-specific economics rather than price.",
+      "fuzzy": "",
+      "required": "F",
+      "reason": "derived risk threshold",
+      "flags": "state"
+    },
+    {
+      "id": "NL079",
+      "category": "금융 전용 타입 필요",
+      "source": "Observe SPX/SPY direction during a morning window before deciding which side of the spread to sell.",
+      "interpretation": "A pre-entry observation window classifies morning direction and selects put-spread vs call-spread module.",
+      "fuzzy": "moving higher or lower",
+      "required": "F,A,S,C",
+      "reason": "event window; strategy switch",
+      "flags": "sequence; state; event_relative; strategy_composition"
+    },
+    {
+      "id": "NL080",
+      "category": "금융 전용 타입 필요",
+      "source": "Place the short strike at a distance derived from a multiple of the current ATM straddle price.",
+      "interpretation": "Contract strike is calculated from another option-market observation.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "cross-instrument derived selector",
+      "flags": "sequence; event_relative"
+    },
+    {
+      "id": "NL081",
+      "category": "외부 판단 필요",
+      "source": "Avoid special high-risk geopolitical/event periods even if the mechanical setup otherwise qualifies.",
+      "interpretation": "External event context can override the core mechanical strategy.",
+      "fuzzy": "early stages of war; smart to avoid",
+      "required": "H,S,C",
+      "reason": "external-event exclusion",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL082",
+      "category": "금융 전용 타입 필요",
+      "source": "A variant only trades condors when SPX is above a moving average and VIX is below a threshold.",
+      "interpretation": "Directional/volatility regime filters gate an option-income module.",
+      "fuzzy": "",
+      "required": "F",
+      "reason": "cross-asset filter; strategy gate",
+      "flags": "state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL083",
+      "category": "금융 전용 타입 필요",
+      "source": "One management policy holds the spread through expiration because early profit-taking reduced total P/L in backtests.",
+      "interpretation": "Exit policy is explicitly chosen from prior strategy-level evidence, not a fixed generic rule.",
+      "fuzzy": "arbitrary profit percent",
+      "required": "F",
+      "reason": "policy based on research artifact",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL084",
+      "category": "금융 전용 타입 필요",
+      "source": "Only enter when price is near a dealer gamma-flip zone; otherwise skip the trade entirely.",
+      "interpretation": "Entry requires proximity to an externally derived structural zone.",
+      "fuzzy": "near; big gamma wall",
+      "required": "F,C",
+      "reason": "external-data structural gate",
+      "flags": "state"
+    },
+    {
+      "id": "NL085",
+      "category": "금융 전용 타입 필요",
+      "source": "Place the stop at the nearest major gamma wall instead of a fixed premium percentage.",
+      "interpretation": "Risk boundary is selected from external options-positioning structure.",
+      "fuzzy": "big gamma wall",
+      "required": "F,A,C",
+      "reason": "external-data derived stop",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL086",
+      "category": "파라미터 정의로 가능",
+      "source": "Check volatility risk premium before each session and skip the day when implied volatility is far above realized volatility.",
+      "interpretation": "Session-level external statistic creates a no-trade state.",
+      "fuzzy": "running way above",
+      "required": "C,S",
+      "reason": "relative-volatility gate; override",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL087",
+      "category": "공통 문법 확장 필요",
+      "source": "Do not buy merely because price touched support; wait for evidence that price is actually being rejected from the level.",
+      "interpretation": "Structural touch creates a pending setup, not an immediate entry.",
+      "fuzzy": "support; rejection",
+      "required": "S,C",
+      "reason": "structural event sequence",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL088",
+      "category": "공통 문법 확장 필요",
+      "source": "Whether a support touch matters depends on how price arrived there and what the higher timeframe is doing.",
+      "interpretation": "Same local event is interpreted differently based on path and higher-timeframe context.",
+      "fuzzy": "how price got there",
+      "required": "S,C",
+      "reason": "path-dependent context; MTF gate",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL089",
+      "category": "파라미터 정의로 가능",
+      "source": "Look for volume to appear as price turns away from the level.",
+      "interpretation": "Rejection confirmation combines structural reversal with contemporaneous volume evidence.",
+      "fuzzy": "volume come in; turn price around",
+      "required": "C",
+      "reason": "multi-observation confirmation",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL090",
+      "category": "현재 표현 가능",
+      "source": "Require multiple confirmations rather than treating support/resistance as a standalone signal.",
+      "interpretation": "A level is one feature in a configurable confluence rule.",
+      "fuzzy": "multiple signals; confirmations",
+      "required": "",
+      "reason": "N-of-M / score / confluence",
+      "flags": "state"
+    },
+    {
+      "id": "NL091",
+      "category": "공통 문법 확장 필요",
+      "source": "Use the higher timeframe to define oversold/context, then wait for a lower-timeframe trend shift to time the entry.",
+      "interpretation": "Higher timeframe supplies setup state; lower timeframe supplies transition event.",
+      "fuzzy": "oversold; actual trend shift",
+      "required": "S,C",
+      "reason": "hierarchical multi-timeframe sequence",
+      "flags": "sequence; state; multi_timeframe"
+    },
+    {
+      "id": "NL092",
+      "category": "파라미터 정의로 가능",
+      "source": "If trading a 15-minute setup, look upward to 30-minute or 1-hour context rather than downward to 5-minute noise.",
+      "interpretation": "Context timeframe is constrained to a parent horizon relative to execution timeframe.",
+      "fuzzy": "noise",
+      "required": "C,S",
+      "reason": "relative timeframe contract",
+      "flags": "multi_timeframe"
+    },
+    {
+      "id": "NL093",
+      "category": "공통 문법 확장 필요",
+      "source": "News-driven or market-open moves are exceptions because lower-timeframe reversals can become aggressive before higher-timeframe confirmation.",
+      "interpretation": "Event type overrides the normal top-down confirmation sequence.",
+      "fuzzy": "aggressive move",
+      "required": "S,C",
+      "reason": "event-sensitive MTF override",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL094",
+      "category": "공통 문법 확장 필요",
+      "source": "Run a fast-profit and slow-profit version of the strategy in parallel as proxies for choppy and trending regimes.",
+      "interpretation": "Two child strategies execute simultaneously as regime sensors.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "strategy composition; parallel simulation",
+      "flags": "state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL095",
+      "category": "공통 문법 확장 필요",
+      "source": "Record each child strategy portfolio value every minute and resample it into 5-minute OHLC as if each strategy were an asset.",
+      "interpretation": "Strategy performance itself becomes a time series input to another model.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "strategy-as-data; transform",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL096",
+      "category": "공통 문법 확장 필요",
+      "source": "Apply MACD to the two strategy-performance series to decide which strategy should be active.",
+      "interpretation": "Indicator over strategy-level performance selects active child module.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "meta-strategy switch",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL097",
+      "category": "공통 문법 확장 필요",
+      "source": "The switching logic exists because one exit policy tends to close too early in trends and another too late in chop.",
+      "interpretation": "Meta-strategy is motivated by regime-dependent failure modes of child strategies.",
+      "fuzzy": "trending; choppy",
+      "required": "S,C",
+      "reason": "conditional strategy responsibility",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL098",
+      "category": "공통 문법 확장 필요",
+      "source": "Keep separate strategies for different market types and let each activate only when its market is present.",
+      "interpretation": "Regime classifier routes control to different strategy modules.",
+      "fuzzy": "market is right",
+      "required": "S,C",
+      "reason": "strategy composition; conditional dispatch",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL099",
+      "category": "현재 표현 가능",
+      "source": "Use SPY direction or sideways chop as a market-wide regime input for otherwise separate strategies.",
+      "interpretation": "Parent market state controls child strategy eligibility.",
+      "fuzzy": "sideways chop",
+      "required": "",
+      "reason": "cross-asset regime gate",
+      "flags": "state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL100",
+      "category": "파라미터 정의로 가능",
+      "source": "Build regime classification from longer timeframes and multiple sectors/markets rather than only the traded symbol.",
+      "interpretation": "Regime state aggregates multi-market and higher-timeframe features.",
+      "fuzzy": "",
+      "required": "C,S",
+      "reason": "cross-asset MTF context",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL101",
+      "category": "외부 판단 필요",
+      "source": "A more complex version lets a model choose among hundreds of technical, fundamental and options-derived regime features.",
+      "interpretation": "Regime classifier consumes heterogeneous feature families before routing strategy behavior.",
+      "fuzzy": "whichever features matter",
+      "required": "H",
+      "reason": "heterogeneous external/context model",
+      "flags": "state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL102",
+      "category": "공통 문법 확장 필요",
+      "source": "Classify 15-minute, 1-hour and 4-hour NQ independently as bull, bear or neutral before combining them.",
+      "interpretation": "Each timeframe has its own state machine; the parent view aggregates states.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "MTF state machine",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL103",
+      "category": "파라미터 정의로 가능",
+      "source": "Use DXY, multiple Treasury yields, ES, RTY, SOXX, gold, oil and USDJPY as macro context rather than trading inputs themselves.",
+      "interpretation": "Cross-asset observations are grouped into macro pressure dimensions.",
+      "fuzzy": "",
+      "required": "C",
+      "reason": "cross-asset context composition",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL104",
+      "category": "현재 표현 가능",
+      "source": "Combine timeframe state and macro pressure into a weighted danger score and named regime.",
+      "interpretation": "Multiple semantic modules feed a composite score and discrete state.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "weighted composite; classifier",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL105",
+      "category": "현재 표현 가능",
+      "source": "When danger rises above one threshold reduce risk; above a higher threshold stop opening new positions.",
+      "interpretation": "Different score thresholds trigger graded actions rather than one Boolean entry.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "multi-threshold state policy",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL106",
+      "category": "공통 문법 확장 필요",
+      "source": "Use the regime tool as a position-sizing/circuit-breaker layer rather than as the entry signal itself.",
+      "interpretation": "Context module modifies downstream strategy without owning entries.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "strategy module contract",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL107",
+      "category": "파라미터 정의로 가능",
+      "source": "Measure trend, momentum, structure, volume flow and mean-reversion on each of nine timeframes, then normalize them before combining.",
+      "interpretation": "Factor families are evaluated per timeframe and normalized into comparable scores.",
+      "fuzzy": "",
+      "required": "C,A,S",
+      "reason": "nested MTF composite",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL108",
+      "category": "파라미터 정의로 가능",
+      "source": "Change factor weights by regime so trend matters more in trends and mean-reversion matters more in ranges.",
+      "interpretation": "The weight of a signal is conditional on another classifier state.",
+      "fuzzy": "",
+      "required": "C,S",
+      "reason": "state-dependent composite weighting",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL109",
+      "category": "공통 문법 확장 필요",
+      "source": "Also scale factor weights by how well each factor historically followed through on the current symbol.",
+      "interpretation": "Signal weight depends on symbol-specific trailing performance of that signal.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "adaptive evidence-weighted score",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL110",
+      "category": "현재 표현 가능",
+      "source": "If all signals align but the market is overextended, damp the confluence rather than treating alignment as maximum conviction.",
+      "interpretation": "Exhaustion is an exception that reduces an otherwise strong composite signal.",
+      "fuzzy": "overextended",
+      "required": "",
+      "reason": "exception layer over composite",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL111",
+      "category": "공통 문법 확장 필요",
+      "source": "Flag when fast timeframes turn against slow timeframes as a transition rather than forcing a single bullish/bearish label.",
+      "interpretation": "Cross-timeframe disagreement is represented as its own transitional state.",
+      "fuzzy": "turn against",
+      "required": "S,C",
+      "reason": "MTF relational state",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL112",
+      "category": "현재 표현 가능",
+      "source": "Build a regime score from slope difference, line distance, neutral anchor, divergence and volume expansion.",
+      "interpretation": "Several heterogeneous observations contribute weighted points/bonuses to a score.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "weighted score; bonuses",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL113",
+      "category": "파라미터 정의로 가능",
+      "source": "Do not flip regime immediately when the score crosses a threshold; require it to remain beyond the threshold for several bars.",
+      "interpretation": "Threshold crossing creates a pending state that must persist for N bars.",
+      "fuzzy": "",
+      "required": "C,S",
+      "reason": "debounce / consecutive confirmation",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL114",
+      "category": "공통 문법 확장 필요",
+      "source": "After a regime shift, enforce a minimum number of bars before another shift can occur.",
+      "interpretation": "Cooldown prevents rapid state oscillation after transition.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "state transition cooldown",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL115",
+      "category": "공통 문법 확장 필요",
+      "source": "Treat regime-shift markers as context rather than direct entries.",
+      "interpretation": "State-change event informs downstream strategy but does not itself trade.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "module contract",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL116",
+      "category": "공통 문법 확장 필요",
+      "source": "Separate market-regime classification, directional evidence score and actual entry trigger instead of treating them as the same output.",
+      "interpretation": "Three semantic layers produce context, bias and event trigger separately.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "separation of concerns; strategy composition",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL117",
+      "category": "파라미터 정의로 가능",
+      "source": "A bullish dashboard verdict does not automatically mean a long entry exists.",
+      "interpretation": "Context state must pass an additional trigger contract before action.",
+      "fuzzy": "",
+      "required": "C,S",
+      "reason": "context/action separation",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL118",
+      "category": "현재 표현 가능",
+      "source": "Use confirmed divergence, volume evidence, macro relationships and momentum changes as separate evidence families in the directional score.",
+      "interpretation": "Composite score accepts heterogeneous evidence families.",
+      "fuzzy": "confirmed divergence",
+      "required": "",
+      "reason": "composite evidence model",
+      "flags": "state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL119",
+      "category": "공통 문법 확장 필요",
+      "source": "Classify the market into trend bull, trend bear, volatile bull, volatile bear, high-vol range, low-vol range or flat rather than only bull/bear.",
+      "interpretation": "Regime is a multi-state categorical variable.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "multi-state classifier",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL120",
+      "category": "공통 문법 확장 필요",
+      "source": "Warn about regime transitions before treating the new state as fully established.",
+      "interpretation": "Transition is represented as a distinct intermediate state.",
+      "fuzzy": "likely changing character",
+      "required": "S,C",
+      "reason": "state transition model",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL121",
+      "category": "파라미터 정의로 가능",
+      "source": "Use multi-timeframe alignment as part of confidence in the regime classification.",
+      "interpretation": "Confidence is a derived value from agreement across horizons.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "MTF agreement score",
+      "flags": "state; multi_timeframe"
+    },
+    {
+      "id": "NL122",
+      "category": "공통 문법 확장 필요",
+      "source": "Use a volatility-aware Chandelier-style stop after regime/entry logic rather than a fixed stop.",
+      "interpretation": "Risk module consumes current volatility and position state after upstream context.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "downstream adaptive risk module",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL123",
+      "category": "공통 문법 확장 필요",
+      "source": "Run trend and carry as separate forecast strategies and give more weight to whichever has outperformed over the trailing year.",
+      "interpretation": "Child-strategy relative performance controls their parent allocation weights.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "strategy composition; meta-allocation",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL124",
+      "category": "공통 문법 확장 필요",
+      "source": "When trend and carry have performed equally, give them equal weight; positive relative performance tilts toward trend and negative tilts toward carry.",
+      "interpretation": "Signed relative-performance state maps continuously to module weights.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "continuous strategy mixer",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL125",
+      "category": "공통 문법 확장 필요",
+      "source": "Smooth the changing strategy weights so the allocation does not jump abruptly day to day.",
+      "interpretation": "Meta-allocation is passed through a temporal smoother before execution.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "stateful transform over strategy weights",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL126",
+      "category": "공통 문법 확장 필요",
+      "source": "Track theoretical holdings/performance for both child strategies even while only the combined parent portfolio is traded.",
+      "interpretation": "Counterfactual child states are maintained for meta-decision making.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "parallel shadow strategies",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL127",
+      "category": "현재 표현 가능",
+      "source": "Increase position size when current risk is below normal and reduce it when risk is above normal.",
+      "interpretation": "Risk regime multiplicatively modifies downstream forecast sizing.",
+      "fuzzy": "below normal; above normal",
+      "required": "",
+      "reason": "regime-conditioned sizing",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL128",
+      "category": "공통 문법 확장 필요",
+      "source": "Aggregate several trend forecasts and several carry forecasts before mixing the two families.",
+      "interpretation": "Nested aggregation first combines variants within each factor family, then combines families.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "hierarchical composition",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL129",
+      "category": "현재 표현 가능",
+      "source": "Apply a diversification multiplier and cap the final forecast after factor aggregation.",
+      "interpretation": "Post-composition transform rescales and clips the parent signal.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "post-processing pipeline; clamp",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL130",
+      "category": "외부 판단 필요",
+      "source": "At the beginning of each month, compute unexpected earnings using current quarterly EPS versus EPS four quarters earlier.",
+      "interpretation": "Monthly event computes a feature relative to an event-aligned historical quarter.",
+      "fuzzy": "",
+      "required": "H,S",
+      "reason": "event-relative fundamental transform",
+      "flags": "sequence; state; multi_timeframe; event_relative"
+    },
+    {
+      "id": "NL131",
+      "category": "외부 판단 필요",
+      "source": "Standardize the earnings surprise by the historical variability of the same year-over-year EPS changes.",
+      "interpretation": "Current event surprise is normalized by a rolling distribution of prior comparable events.",
+      "fuzzy": "",
+      "required": "H,S",
+      "reason": "event-relative statistic",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL132",
+      "category": "파라미터 정의로 가능",
+      "source": "Rank the liquid universe by standardized surprise and hold the top five percent.",
+      "interpretation": "Event-derived cross-sectional score feeds percentile selection.",
+      "fuzzy": "",
+      "required": "C,A,S",
+      "reason": "cross-sectional rank; event feature",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL133",
+      "category": "파라미터 정의로 가능",
+      "source": "Rank every stock separately on value, quality and momentum before combining those ranks.",
+      "interpretation": "Multiple cross-sectional ranks are first-class intermediate results.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "cross-sectional composite",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL134",
+      "category": "파라미터 정의로 가능",
+      "source": "Use operating margin as quality, book value per share as value and recent return as momentum, then apply factor weights.",
+      "interpretation": "Heterogeneous factor semantics are normalized through rank before weighted combination.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "weighted factor composition",
+      "flags": "sequence; state; multi_timeframe; strategy_composition"
+    },
+    {
+      "id": "NL135",
+      "category": "파라미터 정의로 가능",
+      "source": "Go long the top-ranked stocks and short the bottom-ranked stocks at the same rebalance.",
+      "interpretation": "One ranking drives symmetric selection branches.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "dual-tail selection",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL136",
+      "category": "현재 표현 가능",
+      "source": "Drop stocks with missing or zero factor values before ranking them.",
+      "interpretation": "Data-quality condition is a prerequisite to cross-sectional ranking.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "data-quality gate",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL137",
+      "category": "파라미터 정의로 가능",
+      "source": "For each factor, place stocks into quintiles and convert quintile membership into a score.",
+      "interpretation": "Cross-sectional bucket membership is transformed into ordinal points.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "quantile transform",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL138",
+      "category": "공통 문법 확장 필요",
+      "source": "Average or equally combine factor scores, rerank the composite, then select the top 20.",
+      "interpretation": "Nested rank-score-rank pipeline constructs the final selection.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "nested cross-sectional pipeline",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL139",
+      "category": "공통 문법 확장 필요",
+      "source": "Repeat the whole ranking process each month rather than keeping membership static.",
+      "interpretation": "Dynamic group membership is recomputed on schedule.",
+      "fuzzy": "",
+      "required": "S,A",
+      "reason": "scheduled dynamic universe",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL140",
+      "category": "금융 전용 타입 필요",
+      "source": "First select liquid stocks above a minimum price, then run PCA only on that reduced universe.",
+      "interpretation": "Model stage depends on an upstream liquidity/price universe filter.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "staged model pipeline",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL141",
+      "category": "금융 전용 타입 필요",
+      "source": "Use principal components as common factors, regress each stock on them, then trade residual deviations rather than raw price deviations.",
+      "interpretation": "Derived latent factors feed per-asset residual models before signal generation.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "model composition; residual signal",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL142",
+      "category": "금융 전용 타입 필요",
+      "source": "Only select stocks whose residual z-score is sufficiently negative for the mean-reversion long basket.",
+      "interpretation": "Model residual state is filtered by a standardized threshold.",
+      "fuzzy": "",
+      "required": "F,S",
+      "reason": "model-derived filter",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL143",
+      "category": "파라미터 정의로 가능",
+      "source": "Weight selected positions using the magnitude of residual deviations rather than equal weight.",
+      "interpretation": "Portfolio sizing is a function of signal magnitude.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "signal-proportional allocation",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL144",
+      "category": "금융 전용 타입 필요",
+      "source": "Use a one-year formation period to decide which stocks historically moved together before any pair trade exists.",
+      "interpretation": "Pair identity itself is dynamically learned from a historical formation window.",
+      "fuzzy": "",
+      "required": "F,A,S",
+      "reason": "dynamic relationship selection",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL145",
+      "category": "금융 전용 타입 필요",
+      "source": "Normalize price series before measuring which partner minimizes squared divergence.",
+      "interpretation": "Relationship selection uses transformed relative price paths rather than raw prices.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "pair metric transform",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL146",
+      "category": "금융 전용 타입 필요",
+      "source": "Only after a selected pair diverges sufficiently do you open opposite long/short positions expecting convergence.",
+      "interpretation": "Pair selection and trade trigger are separate stages.",
+      "fuzzy": "",
+      "required": "F,A,S",
+      "reason": "relationship event sequence",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL147",
+      "category": "파라미터 정의로 가능",
+      "source": "Rank country ETFs by trailing 36-month return, buy the worst four and short the best four.",
+      "interpretation": "Long-horizon cross-sectional contrarian ranking creates both portfolio tails.",
+      "fuzzy": "",
+      "required": "C,A",
+      "reason": "long-horizon cross-sectional reversal",
+      "flags": "sequence; state; multi_timeframe"
+    },
+    {
+      "id": "NL148",
+      "category": "공통 문법 확장 필요",
+      "source": "Rebalance only every three years even though a monthly scheduled event checks whether it is time.",
+      "interpretation": "Frequent scheduler contains a state counter that suppresses action until a long interval has elapsed.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "stateful schedule gate",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL149",
+      "category": "현재 표현 가능",
+      "source": "Treat stocks more than one standard deviation below their 30-day mean as candidates for mean reversion.",
+      "interpretation": "Current price is standardized against its own rolling distribution.",
+      "fuzzy": "due to revert",
+      "required": "",
+      "reason": "rolling statistical condition",
+      "flags": "state"
+    },
+    {
+      "id": "NL150",
+      "category": "외부 판단 필요",
+      "source": "Apply the rule only to a preselected basket rather than the whole market.",
+      "interpretation": "Mean-reversion logic consumes an externally defined target set.",
+      "fuzzy": "",
+      "required": "H",
+      "reason": "strategy input contract",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL151",
+      "category": "현재 표현 가능",
+      "source": "Compute the average daily high-low range over 25 days before deriving the entry band.",
+      "interpretation": "A rolling volatility-like statistic is an upstream dependency of the band.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "derived dependency chain",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL152",
+      "category": "현재 표현 가능",
+      "source": "Define the lower band from the 10-day rolling high minus 2.5 times the average high-low range.",
+      "interpretation": "Entry boundary composes two differently windowed statistics.",
+      "fuzzy": "",
+      "required": "",
+      "reason": "multi-window expression",
+      "flags": "sequence; state; multi_timeframe"
+    },
+    {
+      "id": "NL153",
+      "category": "파라미터 정의로 가능",
+      "source": "Go long only when price closes below that band and IBS is below 0.3.",
+      "interpretation": "Entry requires both structural deviation and intrabar-position confirmation.",
+      "fuzzy": "",
+      "required": "C",
+      "reason": "AND condition over derived features",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL154",
+      "category": "공통 문법 확장 필요",
+      "source": "Exit when the close rises above the previous day high.",
+      "interpretation": "Exit is relative to a prior-event structural level rather than entry price.",
+      "fuzzy": "",
+      "required": "S",
+      "reason": "stateful event-relative exit",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL155",
+      "category": "금융 전용 타입 필요",
+      "source": "At each monthly rebalance, predict next-month returns for a set of risk-on and risk-off assets.",
+      "interpretation": "Scheduled model inference produces per-asset forward scores.",
+      "fuzzy": "",
+      "required": "F,A,S",
+      "reason": "scheduled model output",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL156",
+      "category": "금융 전용 타입 필요",
+      "source": "Allocate only to assets with positive predicted returns.",
+      "interpretation": "Prediction sign gates portfolio eligibility.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "model-derived filter",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL157",
+      "category": "금융 전용 타입 필요",
+      "source": "Scale each selected position by the magnitude of its predicted return.",
+      "interpretation": "Model score controls allocation size, not only selection.",
+      "fuzzy": "",
+      "required": "F,A",
+      "reason": "score-proportional allocation",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL158",
+      "category": "금융 전용 타입 필요",
+      "source": "When one side of an iron condor is challenged, roll the untested spread inward to collect more premium.",
+      "interpretation": "Which leg group to adjust depends on current tested/untested state.",
+      "fuzzy": "challenged; untested",
+      "required": "F,S,C",
+      "reason": "stateful multi-leg adjustment",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL159",
+      "category": "금융 전용 타입 필요",
+      "source": "Move the entire untested vertical spread together rather than changing a single leg in isolation.",
+      "interpretation": "Adjustment operation preserves the internal relation of a multi-leg module.",
+      "fuzzy": "",
+      "required": "F",
+      "reason": "atomic module mutation",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL160",
+      "category": "금융 전용 타입 필요",
+      "source": "If the market outlook changes enough that the iron condor no longer expresses the thesis, close it and choose a new structure rather than endlessly adjusting it.",
+      "interpretation": "A thesis-state change can terminate the current strategy module and replace it.",
+      "fuzzy": "more upside; better reflects outlook",
+      "required": "F,S,C",
+      "reason": "strategy replacement; stateful exception",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL161",
+      "category": "금융 전용 타입 필요",
+      "source": "A lighter adjustment is to roll the untested side up or up-and-out while leaving the tested side in place.",
+      "interpretation": "Adjustment targets one submodule based on tested-state classification.",
+      "fuzzy": "tested side; untested side",
+      "required": "F,S,C",
+      "reason": "conditional submodule mutation",
+      "flags": "sequence; state; strategy_composition"
+    },
+    {
+      "id": "NL162",
+      "category": "외부 판단 필요",
+      "source": "If the goal is to harvest earnings IV crush, open the short-volatility structure close to the earnings event rather than too early.",
+      "interpretation": "Trade timing is defined relative to a scheduled corporate event.",
+      "fuzzy": "close to earnings; too early",
+      "required": "H,S,C",
+      "reason": "event-relative timing",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL163",
+      "category": "금융 전용 타입 필요",
+      "source": "Opening too early can expose the position to the pre-earnings volatility run-up before the intended crush occurs.",
+      "interpretation": "Pre-event phase is a distinct risk state that can invalidate an otherwise correct thesis.",
+      "fuzzy": "run-up",
+      "required": "F,S,C",
+      "reason": "event phase model",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL164",
+      "category": "금융 전용 타입 필요",
+      "source": "If strongly bullish on the underlying, consider fewer calls, farther strikes or longer expiries so premium income does not cap too much upside.",
+      "interpretation": "Covered-call contract selection depends on the investor thesis and desired assignment probability.",
+      "fuzzy": "strongly bullish; low risk of assignment",
+      "required": "F,A,S,C",
+      "reason": "objective-conditioned option selection",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL165",
+      "category": "금융 전용 타입 필요",
+      "source": "The choice between more contracts farther out and fewer contracts closer in is a tradeoff between premium and assignment risk.",
+      "interpretation": "Coverage ratio, strike distance and DTE are jointly constrained variables rather than independent knobs.",
+      "fuzzy": "small but consistent premium; low risk",
+      "required": "F,C",
+      "reason": "multi-parameter objective tradeoff",
+      "flags": "state; strategy_composition"
+    },
+    {
+      "id": "NL166",
+      "category": "금융 전용 타입 필요",
+      "source": "Screen for cheap stocks with very high volume and high implied volatility before selling cash-secured puts.",
+      "interpretation": "Option strategy starts with a multi-factor underlying eligibility screen.",
+      "fuzzy": "volume jumped exponentially; something big happened",
+      "required": "F,A,S,C",
+      "reason": "underlying filter; fuzzy event inference",
+      "flags": "sequence; state"
+    },
+    {
+      "id": "NL167",
+      "category": "외부 판단 필요",
+      "source": "Prefer names where volume has increased roughly two to three times because that is interpreted as evidence of a major event.",
+      "interpretation": "Relative-volume surge is used as a fuzzy proxy for latent company event/state.",
+      "fuzzy": "something big happened or will happen",
+      "required": "H,S,C",
+      "reason": "fuzzy proxy observation",
+      "flags": "state; event_relative"
+    },
+    {
+      "id": "NL168",
+      "category": "금융 전용 타입 필요",
+      "source": "Choose roughly 40-day expiries and a strike near current price, then buy back after most of the premium has decayed.",
+      "interpretation": "Entry contract and exit profit are linked to an intended theta-decay cycle.",
+      "fuzzy": "",
+      "required": "F,S",
+      "reason": "option lifecycle sequence",
+      "flags": "sequence; state; event_relative"
+    },
+    {
+      "id": "NL169",
+      "category": "금융 전용 타입 필요",
+      "source": "If assigned early, average down using premium and switch to a covered call whose premium compensates for selling below average cost.",
+      "interpretation": "Assignment triggers a recovery branch using path-dependent cost basis and premium constraint.",
+      "fuzzy": "boring part; rather make small gain than large loss",
+      "required": "F,S,C",
+      "reason": "stateful fallback; cost-basis constraint",
+      "flags": "sequence; state; event_relative"
+    }
+  ]
+}

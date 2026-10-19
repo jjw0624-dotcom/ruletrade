@@ -255,7 +255,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         }
         const definition = entryBlockDefinition(definitionId);
         const old = canvasBlocksRef.current[id];
-        const fieldValues = Object.fromEntries(["VALUE", "NUM", "OP", "REFERENCE", "SHORTAGE", "MODE", "FLOW"].flatMap((name) => block.getField(name) ? [[name, block.getFieldValue(name) as string | number | boolean | null] as const] : []));
+        const fieldValues = Object.fromEntries(["VALUE", "NUM", "OP", "REFERENCE", "SHORTAGE", "MODE", "FLOW", "SEED", "REDRAW"].flatMap((name) => block.getField(name) ? [[name, block.getFieldValue(name) as string | number | boolean | null] as const] : []));
         nextBlocks[id] = { id, definitionId, label: definition?.label ?? definitionId, createdAt: old?.createdAt ?? new Date().toISOString(), active: old?.active ?? false, objectRef: metadata.objectRef ?? old?.objectRef ?? null, fieldValues };
         const xy = block.getRelativeToSurfaceXY(); nextPositions[id] = { x: xy.x, y: xy.y };
         nextDisclosure[id] = block.isCollapsed() ? 0 : 1;
