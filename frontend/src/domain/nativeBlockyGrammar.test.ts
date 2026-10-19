@@ -80,7 +80,7 @@ describe("native Blockly product grammar", () => {
     const second = new Blockly.Workspace();
     Blockly.serialization.workspaces.load(state, second);
     const restored = second.getBlockById(random.id)!;
-    expect(restored.getFieldValue("SEED")).toBe("42");
+    expect(restored.getFieldValue("SEED")).toBe(42);
     expect(restored.getFieldValue("REDRAW")).toBe("PER_SCHEDULE");
     first.dispose(); second.dispose();
   });

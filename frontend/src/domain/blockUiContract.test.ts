@@ -5,7 +5,7 @@ import { ENTRY_BLOCK_DEFINITIONS } from "./entryStyleGrammar";
 describe("block surface and Inspector responsibility contract", () => {
   it("covers every visible block from one machine-readable source", () => {
     expect(BLOCK_UI_CONTRACTS.map((contract) => contract.blockType)).toEqual(ENTRY_BLOCK_DEFINITIONS.map((definition) => definition.id));
-    expect(new Set(BLOCK_UI_CONTRACTS.map((contract) => contract.family))).toEqual(new Set(["start", "control", "comparison", "logic", "arithmetic", "market_value", "score", "reference", "choose", "trade", "rebalance", "signal", "data", "function"]));
+    expect(new Set(BLOCK_UI_CONTRACTS.map((contract) => contract.family))).toEqual(new Set(["start", "control", "comparison", "logic", "asset_predicate", "aggregate", "arithmetic", "market_value", "score", "reference", "asset_set", "choose", "trade", "rebalance", "signal", "data", "function"]));
   });
 
   it("keeps essential financial meaning on blocks and advanced policy in Inspector", () => {

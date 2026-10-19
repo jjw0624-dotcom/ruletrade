@@ -11,7 +11,7 @@ describe("Entry-style visual grammar", () => {
   it("uses typed target and amount slots for Investment", () => {
     const invest = entryBlockDefinition("invest")!;
     expect(invest.slots).toEqual([
-      { name: "TARGET", label: "invest", accepts: ["Asset", "Group", "Subgroup"] },
+      { name: "TARGET", label: "invest", accepts: ["Asset", "AssetSet"] },
       { name: "AMOUNT", label: "by", accepts: ["Money", "Percentage", "Quantity"] },
     ]);
     expect(validEntryBlockConnection("invest", "TARGET", "asset-reference")).toBe(true);
