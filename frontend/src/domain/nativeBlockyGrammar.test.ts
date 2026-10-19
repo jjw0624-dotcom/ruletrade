@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as Blockly from "blockly";
 
-import { entryBlocklyExtraState, entryBlocklyFields, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
+import { entryBlockJson, entryBlocklyExtraState, entryBlocklyFields, entryBlocklyFlyoutToolbox, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
+import { entryBlockDefinition } from "./entryStyleGrammar";
+import { nativeBlockFieldController, programBlockyVisibleNodes } from "../components/ProductBlockyProjection";
 
 describe("native Blockly product grammar", () => {
   it("reuses built-in logic, math, loop, variable, and procedure block types", () => {
@@ -41,6 +43,40 @@ describe("native Blockly product grammar", () => {
     expect(assets).toContainEqual(expect.objectContaining({ kind: "button", text: "Create Group…" }));
     expect(assets).not.toContainEqual(expect.objectContaining({ type: entryBlocklyType("create-group") }));
     expect(assets).toContainEqual(expect.objectContaining({ type: entryBlocklyType("group-reference"), fields: { REFERENCE: "Growth ETFs" } }));
+  });
+
+  it("renders simple financial meaning in one compact horizontal message", () => {
+    expect(entryBlockJson(entryBlockDefinition("invest")!)).toMatchObject({ message0: "Buy %1 with %2", inputsInline: true });
+    expect(entryBlockJson(entryBlockDefinition("trailing-return")!)).toMatchObject({ message0: "%1 return over %2 days", inputsInline: true });
+    expect(entryBlockJson(entryBlockDefinition("rebalance")!)).toMatchObject({ message0: "Rebalance %1 to %2 portfolio weight", inputsInline: true });
+    expect(entryBlockJson(entryBlockDefinition("invest")!)).not.toHaveProperty("message1");
+  });
+
+  it("lets Builder Add select one category while Blockly renders its shaped flyout", () => {
+    const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as { kind: string; contents: Array<{ type?: string }> };
+    expect(flyout.kind).toBe("flyoutToolbox");
+    expect(flyout.contents.map((item) => item.type)).toEqual(expect.arrayContaining([entryBlocklyType("invest"), entryBlocklyType("rebalance")]));
+  });
+
+  it("lets Inspector and the block edit the same native field instead of mirrored state", () => {
+    registerBlockyProgramBlocks();
+    const workspace = new Blockly.Workspace();
+    const choose = workspace.newBlock(entryBlocklyType("choose-group"));
+    choose.data = JSON.stringify({ productId: "draft:choose", definitionId: "choose-group" });
+    const fields = nativeBlockFieldController(workspace);
+    expect(fields.setFieldValue("draft:choose", "SHORTAGE", "CHOOSE_ALL")).toBe(true);
+    expect(choose.getFieldValue("SHORTAGE")).toBe("CHOOSE_ALL");
+    choose.setFieldValue("REQUIRE_FULL", "SHORTAGE");
+    expect(fields.fieldValue("draft:choose", "SHORTAGE")).toBe("REQUIRE_FULL");
+    workspace.dispose();
+  });
+
+  it("excludes the canonical Portfolio context only from Blocky", () => {
+    const visible = programBlockyVisibleNodes([
+      { id: "context:portfolio", role: "context", label: "Portfolio", depth: 0, address: { kind: "strategy", focusId: "portfolio", semanticId: "program", canonicalPath: "program" } },
+      { id: "action:1", role: "allocation", label: "Rebalance QQQ", depth: 1, address: { kind: "statement", focusId: "action:1", semanticId: "action:1", canonicalPath: "statements" } },
+    ]);
+    expect(visible.map((node) => node.label)).toEqual(["Rebalance QQQ"]);
   });
 
   it("round-trips native Blockly JSON with stable ids, coordinates, fields, and disconnected alternatives", () => {

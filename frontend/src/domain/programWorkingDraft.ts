@@ -31,6 +31,8 @@ export interface ProgramCanvasBlock {
   createdAt: string;
   active: boolean;
   objectRef?: string | null;
+  /** Derived from native Blockly fields; the workspace remains the single editable authority. */
+  fieldValues?: Record<string, string | number | boolean | null>;
 }
 
 export type ReusableObjectKind = "group" | "subgroup" | "variable" | "function" | "signal";
@@ -99,6 +101,26 @@ export function browserProgramDraftStorage(): Storage | null {
   catch { return null; }
 }
 
+function isPortfolioSerializedBlock(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const block = value as { type?: unknown; data?: unknown; fields?: { LABEL?: unknown } };
+  let metadata: { productId?: string; definitionId?: string } = {};
+  try { metadata = typeof block.data === "string" ? JSON.parse(block.data) as typeof metadata : {}; } catch { /* Ignore malformed third-party data. */ }
+  return metadata.productId === "context:portfolio" || metadata.productId === "portfolio" || metadata.definitionId === "portfolio"
+    || (block.type === "rt_context" && String(block.fields?.LABEL ?? "").toLowerCase() === "portfolio");
+}
+
+/** Remove only legacy visual Portfolio scaffolding; Canonical Portfolio meaning is untouched. */
+export function withoutPortfolioBlockyScaffolding(workspace: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!workspace) return null;
+  const visit = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.filter((item) => !isPortfolioSerializedBlock(item)).map(visit);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, visit(item)]));
+  };
+  return visit(workspace) as Record<string, unknown>;
+}
+
 export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Storage, "getItem"> | null): ProgramWorkingDraft {
   if (!storage) return emptyProgramWorkingDraft(strategyKey);
   try {
@@ -108,14 +130,15 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
     const value = parsed as Partial<ProgramWorkingDraft>;
     const legacy = parsed.schema === "ruletrade.dev/program-working-draft/v1" || parsed.schema === "ruletrade.dev/program-working-draft/v2";
     if ((!legacy && parsed.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
+    const canvasBlocks = Object.fromEntries(Object.entries(value.canvasBlocks ?? {}).filter(([id, block]) => id !== "context:portfolio" && id !== "portfolio" && block.definitionId !== "portfolio"));
     return {
       ...emptyProgramWorkingDraft(strategyKey),
       ...value,
       blockPositions: value.blockPositions ?? {},
-      canvasBlocks: value.canvasBlocks ?? {},
+      canvasBlocks,
       reusableObjects: value.reusableObjects ?? {},
-      activeGraphRootIds: value.activeGraphRootIds ?? [],
-      blocklyWorkspace: value.blocklyWorkspace ?? null,
+      activeGraphRootIds: (value.activeGraphRootIds ?? []).filter((id) => Boolean(canvasBlocks[id])),
+      blocklyWorkspace: withoutPortfolioBlockyScaffolding(value.blocklyWorkspace ?? null),
       blocklyViewport: value.blocklyViewport ?? null,
       flowPositions: value.flowPositions ?? {},
       blockConnections: value.blockConnections ?? {},

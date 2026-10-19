@@ -245,8 +245,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .semantic-library-entry.draftable{border-style:dashed;background:#fbf7ff}.semantic-library-entry.existing>header span{color:#24704b}
 .blocks-panel[data-perspective="blocky"]{height:auto;min-height:0;overflow:hidden}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
-.native-blockly-toolbox-note{display:grid;gap:7px;padding:12px;color:var(--muted);font-size:12px;line-height:1.45}.native-blockly-toolbox-note strong{color:var(--text)}.native-blockly-toolbox-note p{margin:0}
-.blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxDiv{border-right:1px solid var(--border);background:#edf1ed}.blocky-representation[data-native-toolbox="category-flyout"] .blocklyTreeRow{border-radius:5px;margin:2px 4px;padding:5px 4px}.blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}
+.blocky-add-categories{display:grid;gap:4px;padding:10px}.blocky-add-categories header{margin:0 0 6px;padding:2px 3px 8px}.blocky-add-categories header p{margin:5px 0 0;line-height:1.4}.blocky-add-categories>button{padding:8px 9px;border:0;border-radius:6px;text-align:left;color:var(--muted);background:transparent;font-size:11px;font-weight:750}.blocky-add-categories>button[aria-pressed="true"]{color:var(--text);background:#fff;box-shadow:0 1px 4px rgba(20,45,32,.12)}
+.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}.blocky-representation[data-native-toolbox="add-controlled-flyout"] .blocklyFlyout{border-right:1px solid var(--border)}
 .blocky-toolbox-categories{min-height:0;overflow-y:auto;padding:8px 5px;border-right:1px solid var(--border);background:#edf1ed}
 .blocky-toolbox-categories button{width:100%;margin:0 0 4px;padding:8px 5px;border:0;border-radius:6px;text-align:left;color:var(--muted);background:transparent;font-size:10px;font-weight:750;line-height:1.15}
 .blocky-toolbox-categories button[aria-pressed="true"]{color:var(--text);background:#fff;box-shadow:0 1px 3px rgba(20,45,32,.12)}
@@ -275,6 +275,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .semantic-inspector-content h2, .semantic-inspector-content p { margin: 0; }
 .semantic-inspector-content label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .semantic-inspector-content input, .semantic-inspector-content select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.entry-inspector-section{display:grid;gap:7px;padding-top:12px;border-top:1px solid var(--border)}.entry-inspector-section h3{margin:0;font-size:12px}.entry-inspector-section ul{display:grid;gap:4px;margin:0;padding-left:18px;color:var(--muted);font-size:11px}.entry-inspector-section p{color:var(--muted);font-size:11px;line-height:1.45}
 .program-builder-core > .semantic-inspector{position:relative;z-index:1;inset:auto;width:auto;height:100%;min-height:0;box-shadow:none}
 .workspace-edge-rail { position: absolute; z-index: 90; top: 66px; right: 8px; display: grid; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 14px rgba(20,40,30,.09); }
 .workspace-edge-tool { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
