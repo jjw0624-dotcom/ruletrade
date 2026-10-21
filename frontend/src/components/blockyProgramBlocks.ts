@@ -63,12 +63,12 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
     return entries;
 }
 
-/** Blockly owns rendering and drag/drop for shaped previews; Builder Add owns category selection. */
+/** Standalone flyout retained for embedded consumers and contract tests. */
 export function entryBlocklyFlyoutToolbox(category: EntryBlockCategory, objects: EntryToolboxObject[] = []): Blockly.utils.toolbox.ToolboxDefinition {
   return { kind: "flyoutToolbox", contents: entryBlocklyCategoryContents(category, objects) } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
 }
 
-/** Full native category toolbox remains available to non-Builder embeds and contract tests. */
+/** Production Builder Add surface: Blockly owns categories, previews and drag gestures. */
 export function entryBlocklyToolbox(objects: EntryToolboxObject[] = []): Blockly.utils.toolbox.ToolboxDefinition {
   return { kind: "categoryToolbox", contents: ENTRY_BLOCK_CATEGORIES.map((category) => ({ kind: "category", name: category, contents: entryBlocklyCategoryContents(category, objects) })) } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
 }

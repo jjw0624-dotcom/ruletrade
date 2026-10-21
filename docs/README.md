@@ -1,5 +1,14 @@
 # RuleTrade documentation
 
+## Builder foundation
+
+- [Foundation ownership audit](builder-foundation-audit.md)
+- [Responsibility contract](builder-responsibility-contract.md)
+- [State ownership matrix](builder-state-ownership-matrix.json)
+- [Interaction lifecycle](builder-interaction-lifecycle.md)
+- [Perspective contract](builder-perspective-contract.md)
+- [Browser acceptance](builder-browser-acceptance.md)
+
 This directory contains current subsystem contracts and historical records from
 RuleTrade's incremental vertical slices.
 
