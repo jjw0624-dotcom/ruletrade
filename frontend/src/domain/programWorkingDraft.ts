@@ -260,8 +260,8 @@ export function withProgramDraftConcept(draft: ProgramWorkingDraft, concept: Pro
   return {
     ...draft,
     concept,
-    status: concept ? "incomplete" : "clean",
-    selectedDraftId: concept?.semanticId ?? null,
+    status: concept || Object.keys(draft.canvasBlocks).length ? "incomplete" : "clean",
+    selectedDraftId: concept && concept.kind !== "group" ? concept.semanticId : draft.selectedDraftId,
   };
 }
 

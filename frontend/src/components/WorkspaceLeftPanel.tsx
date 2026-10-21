@@ -1,6 +1,6 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as Tabs from "@radix-ui/react-tabs";
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 
 import {
   projectBuilderStructure,
@@ -243,7 +243,7 @@ function ProductStructureBranch({ item, depth, selectedId, onSelect }: { item: P
 
 export interface BuilderLibraryObject { id: string; kind: "group" | "subgroup" | "variable" | "function" | "signal"; name: string; draft: boolean; dependencyCount: number }
 
-function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup, blockyCategory = "Start", onBlockyCategoryChange }: {
+function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup }: {
   tools: ProductAddAction[];
   structure: ProductStructureNode;
   selectedId: string | null;
@@ -251,23 +251,20 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
   perspective: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
   objects?: BuilderLibraryObject[];
   onCreateGroup?: () => void;
-  blockyCategory?: EntryBlockCategory;
-  onBlockyCategoryChange?: (category: EntryBlockCategory) => void;
 }) {
   const categories: ProductAddAction["category"][] = perspective === "blocky"
     ? [...ENTRY_BLOCK_CATEGORIES]
     : ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
   const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<"structure" | "blocks" | "objects">("structure");
+  useEffect(() => { if (perspective === "blocky" && tab === "blocks") setTab("structure"); }, [perspective, tab]);
   return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
     <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
     <Collapsible.Content className="workspace-left-panel" data-perspective={perspective} data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
-        <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger><Tabs.Trigger value="objects">Objects</Tabs.Trigger></Tabs.List>
+        <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger>{perspective !== "blocky" && <Tabs.Trigger value="blocks">Add</Tabs.Trigger>}<Tabs.Trigger value="objects">Objects</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
-        <Tabs.Content value="blocks" className="blocks-panel" data-perspective={perspective}>{perspective === "blocky"
-          ? <section className="blocky-add-categories" aria-label="Block categories"><header><strong>Add blocks</strong><p>Select a category here; Blockly keeps the shaped drag previews beside the canvas.</p></header>{ENTRY_BLOCK_CATEGORIES.map((category) => <button type="button" key={category} aria-pressed={blockyCategory === category} onClick={() => onBlockyCategoryChange?.(category)}>{category}</button>)}</section>
-          : <SemanticProgramToolbox tools={tools} categories={categories} />}</Tabs.Content>
+        {perspective !== "blocky" && <Tabs.Content value="blocks" className="blocks-panel" data-perspective={perspective}><SemanticProgramToolbox tools={tools} categories={categories} /></Tabs.Content>}
         <Tabs.Content value="objects" className="blocks-panel object-library" data-object-library="entry-style-v1">
           <header><strong>Reusable objects</strong><p>Groups and Subgroups define membership; they do not receive capital by themselves.</p></header>
           {objects.length ? <ul>{objects.map((object) => <li key={object.id}><button type="button" onClick={() => onSelect(`${object.kind}:${object.id}`)}><strong>{object.name}</strong><small>{object.kind}{object.draft ? " · Draft" : ""} · {object.dependencyCount} references</small></button></li>)}</ul> : <p>No reusable objects yet.</p>}
@@ -290,8 +287,6 @@ export function WorkspaceLeftPanel(props: ({
     perspective: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
     objects?: BuilderLibraryObject[];
     onCreateGroup?: () => void;
-    blockyCategory?: EntryBlockCategory;
-    onBlockyCategoryChange?: (category: EntryBlockCategory) => void;
   };
 })) {
   if ("semanticProgram" in props) return <SemanticProgramWorkspaceLeftPanel {...props.semanticProgram} />;

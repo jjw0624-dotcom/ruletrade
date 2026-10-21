@@ -139,6 +139,19 @@ describe("SemanticProgramV2 Working Draft", () => {
     expect(next.status).toBe("incomplete");
   });
 
+  it("cancels a semantic draft without erasing unrelated native fragments or selection", () => {
+    let source = addCanvasBlock(emptyProgramWorkingDraft("cancel-safe"), {
+      id: "draft:invest-1", definitionId: "invest", label: "Invest", active: false, createdAt: "2026-10-21T00:00:00Z",
+    }, { x: 120, y: 80 });
+    source = withBlockMove(source, "draft:invest-1", { x: 120, y: 80 }, { childId: "draft:invest-1", parentId: null, inputName: null });
+    source = withProgramDraftConcept(source, { kind: "group", semanticId: "group-1", name: "Growth", assets: [] });
+    const cancelled = withProgramDraftConcept(source, null);
+    expect(cancelled.status).toBe("incomplete");
+    expect(cancelled.canvasBlocks).toEqual(source.canvasBlocks);
+    expect(cancelled.blockConnections).toEqual(source.blockConnections);
+    expect(cancelled.selectedDraftId).toBe("draft:invest-1");
+  });
+
   it("recovers an incomplete financial intent without committing fabricated meaning", () => {
     const storage = memoryStorage();
     const intent = updateFinancialIntentDraft(
