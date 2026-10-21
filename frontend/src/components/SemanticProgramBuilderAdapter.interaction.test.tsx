@@ -104,6 +104,13 @@ async function clickTool(container: HTMLElement, label: string) {
   await act(async () => button!.click());
 }
 
+async function clickGroupWorkspaceButton(container: HTMLElement, label: string) {
+  const workspace = container.querySelector('[data-object-definition-workspace="group"]');
+  const button = [...(workspace?.querySelectorAll("button") ?? [])].find((item) => item.textContent?.trim() === label);
+  expect(button, `Group Workspace button ${label}`).toBeTruthy();
+  await act(async () => button!.click());
+}
+
 async function clickStructureItem(container: HTMLElement, label: string) {
   const item = [...container.querySelectorAll("button.structure-item > span")].find((candidate) => candidate.textContent?.trim() === label);
   const button = item?.closest("button");
@@ -279,7 +286,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
     expect(container.querySelector(".group-draft")).toBeTruthy();
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-object-definition-workspace="group"] button.primary-button')!.click());
+    await clickGroupWorkspaceButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
     const reference = Object.values(latest.canvasBlocks as Record<string, { id: string; definitionId: string; objectRef: string }>).find((item) => item.definitionId === "group-reference")!;
     expect(reference.objectRef).toBe("group-1");
@@ -301,7 +308,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await clickButton(container, "Objects");
     await clickButton(container, "Create Group");
     expect(container.querySelector('[data-object-definition-workspace="group"]')).toBeTruthy();
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-object-definition-workspace="group"] button.primary-button')!.click());
+    await clickGroupWorkspaceButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "group-reference" || item.definitionId === "create-group")).toBe(false);
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
@@ -342,7 +349,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
 
   it("starts asset-first Group authoring without fabricating Investment or timing", async () => {
     const apply = vi.fn();
-    render("flow", apply);
+    render("blocky", apply);
     await clickButton(container, "Objects");
     await clickButton(container, "Create Group");
     expect(container.querySelector(".group-draft")).toBeTruthy();
