@@ -268,7 +268,7 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
         <Tabs.Content value="objects" className="blocks-panel object-library" data-object-library="entry-style-v1">
           <header><strong>Reusable objects</strong><p>Groups and Subgroups define membership; they do not receive capital by themselves.</p></header>
           {objects.length ? <ul>{objects.map((object) => <li key={object.id}><button type="button" onClick={() => onSelect(`${object.kind}:${object.id}`)}><strong>{object.name}</strong><small>{object.kind}{object.draft ? " · Draft" : ""} · {object.dependencyCount} references</small></button></li>)}</ul> : <p>No reusable objects yet.</p>}
-          {onCreateGroup && <button type="button" className="secondary-button" onClick={onCreateGroup}>Create Group</button>}
+          {onCreateGroup && <button type="button" className="secondary-button" onClick={() => onCreateGroup()}>Create Group</button>}
         </Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>

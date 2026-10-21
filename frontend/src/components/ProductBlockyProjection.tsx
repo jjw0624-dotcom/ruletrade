@@ -503,7 +503,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === id)?.select();
   }, [selectedId, visualNodes, canvasBlocks]);
 
-  return <div className="blocky-representation" data-blocky-contract="entry-style-v2-native" data-native-toolbox="category-flyout" data-native-serialization="json" data-blocky-node-count={visualNodes.length + Object.keys(canvasBlocks).length} data-portfolio-block="excluded" data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable">
+  return <div className="blocky-representation" aria-label="Add blocks and compose strategy logic" data-blocky-contract="entry-style-v2-native" data-native-toolbox="category-flyout" data-native-serialization="json" data-blocky-node-count={visualNodes.length + Object.keys(canvasBlocks).length} data-portfolio-block="excluded" data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable">
     <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />
   </div>;
 }

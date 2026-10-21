@@ -24,14 +24,17 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
-  ProgramBlockyProjection: ({ nodes = [], onBlockMove, onWorkspaceChange, onWorkspaceApi, onCreateGroup }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void; onWorkspaceChange?: (snapshot: unknown) => void; onWorkspaceApi?: (api: unknown) => void; onCreateGroup?: (request?: { parentId: string; inputName: string }) => void }) => <div data-testid="blocky-workspace" data-native-toolbox="category-flyout">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button><button type="button" data-testid="native-invest" onClick={() => {
-    onWorkspaceApi?.({ undo: () => undefined, redo: () => undefined, canUndo: () => false, canRedo: () => false, fieldValue: () => null, setFieldValue: () => false, dispose: () => true, insertObjectReference: (object: { id: string; name: string }, target?: { parentId: string; inputName: string }) => {
+  ProgramBlockyProjection: ({ nodes = [], onBlockMove, onWorkspaceChange, onWorkspaceApi, onCreateGroup }: { nodes?: Array<{ id: string }>; onBlockMove?: (id: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void; onWorkspaceChange?: (snapshot: unknown) => void; onWorkspaceApi?: (api: unknown) => void; onCreateGroup?: (request?: { parentId: string; inputName: string }) => void }) => {
+    const api = { undo: () => undefined, redo: () => undefined, canUndo: () => false, canRedo: () => false, fieldValue: () => null, setFieldValue: () => false, dispose: () => true, insertObjectReference: (object: { id: string; name: string }, target?: { parentId: string; inputName: string }) => {
       const id = `draft:group-reference-${object.id}`;
       onWorkspaceChange?.({ workspace: { blocks: {} }, viewport: null, canvasBlocks: { [id]: { id, definitionId: "group-reference", label: object.name, active: false, objectRef: object.id, createdAt: "2026-10-18T00:00:00Z" } }, positions: { [id]: { x: 200, y: 100 } }, connections: { [id]: { childId: id, parentId: target?.parentId ?? null, inputName: target?.inputName ?? null } }, disclosure: { [id]: 1 }, selectedDraftId: id, nativeObjects: [] });
       return id;
-    } });
+    } };
+    return <div data-testid="blocky-workspace" data-native-toolbox="category-flyout">Blocky workspace<button type="button" data-testid="blocky-move" onClick={() => nodes[0] && onBlockMove?.(nodes[0].id, { x: 420, y: 180 }, null, null)}>Move block</button><button type="button" data-testid="native-invest" onClick={() => {
+    onWorkspaceApi?.(api);
     onWorkspaceChange?.({ workspace: { blocks: {} }, viewport: null, canvasBlocks: { "draft:invest-native": { id: "draft:invest-native", definitionId: "invest", label: "Invest [A] by [B]", active: false, createdAt: "2026-10-18T00:00:00Z" } }, positions: { "draft:invest-native": { x: 200, y: 100 } }, connections: { "draft:invest-native": { childId: "draft:invest-native", parentId: null, inputName: null } }, disclosure: { "draft:invest-native": 1 }, selectedDraftId: "draft:invest-native", nativeObjects: [] });
-  }}>Native Invest block</button><button type="button" data-testid="native-create-group-for-slot" onClick={() => onCreateGroup?.({ parentId: "draft:invest-native", inputName: "TARGET" })}>Create Group for target slot</button></div>,
+  }}>Native Invest block</button><button type="button" data-testid="native-create-group-for-slot" onClick={() => { onWorkspaceApi?.(api); onCreateGroup?.({ parentId: "draft:invest-native", inputName: "TARGET" }); }}>Create Group for target slot</button></div>;
+  },
 }));
 
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
