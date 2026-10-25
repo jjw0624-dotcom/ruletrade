@@ -1,5 +1,7 @@
 # RuleTrade documentation
 
+- [Visual Builder and Asset Workspace integration](visual-builder-asset-workspace-integration.md)
+
 ## Builder foundation
 
 - [Foundation ownership audit](builder-foundation-audit.md)

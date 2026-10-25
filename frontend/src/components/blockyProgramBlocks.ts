@@ -92,6 +92,7 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     wait: { message0: "Wait %1", args0: [input("DURATION")] },
     "asset-value": { message0: "%1 close", args0: [input("ASSET")] },
     "trailing-return": { message0: "%1 return over %2 days", args0: [input("ASSET"), input("DURATION")] },
+    indicator: { message0: "%1(%2) of %3", args0: [{ type: "field_dropdown", name: "INDICATOR", options: [["RSI", "RSI"], ["SMA", "SMA"], ["EMA", "EMA"]] }, { type: "field_number", name: "PERIOD", value: 14, min: 1, precision: 1 }, input("ASSET")] },
     sma: { message0: "SMA(%2) of %1", args0: [input("VALUE"), input("DURATION")] },
     ema: { message0: "EMA(%2) of %1", args0: [input("VALUE"), input("DURATION")] },
     "weighted-score": { message0: "Weighted Score %1", args0: [input("VALUE")] },
@@ -130,8 +131,11 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
   };
   if (layout?.args0) json.args0 = layout.args0;
   const numericLiteral = ["number", "percentage", "money", "quantity", "trading-days", "calendar-days"].includes(definition.id);
-  if (numericLiteral) {
-    const unit = ({ percentage: "%", money: "money", quantity: "units", "trading-days": "trading days", "calendar-days": "calendar days" } as Record<string, string>)[definition.id] ?? "";
+  if (definition.id === "money") {
+    json.message0 = "%1 %2";
+    json.args0 = [{ type: "field_dropdown", name: "CURRENCY", options: [["USD $", "USD"], ["KRW ₩", "KRW"]] }, { type: "field_number", name: "VALUE", value: 100, min: 0 }];
+  } else if (numericLiteral) {
+    const unit = ({ percentage: "%", quantity: "units", "trading-days": "trading days", "calendar-days": "calendar days" } as Record<string, string>)[definition.id] ?? "";
     json.message0 = `%1${unit === "%" ? "%" : ` ${unit}`}`;
     json.args0 = [{ type: "field_number", name: "VALUE", value: definition.id === "percentage" ? 100 : 1, min: 0 }];
   } else if (["asset-reference", "group-reference", "subgroup-reference", "signal-reference", "read-variable", "state", "call-function", "import-function"].includes(definition.id)) {

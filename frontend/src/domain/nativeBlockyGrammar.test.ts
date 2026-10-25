@@ -52,6 +52,15 @@ describe("native Blockly product grammar", () => {
     expect(entryBlockJson(entryBlockDefinition("invest")!)).not.toHaveProperty("message1");
   });
 
+  it("keeps indicator identity and money currency visible as typed block fields", () => {
+    const indicator = entryBlockJson(entryBlockDefinition("indicator")!);
+    expect(indicator).toMatchObject({ message0: "%1(%2) of %3", inputsInline: true });
+    expect(indicator.output).toContain("RuleTradeValue");
+    const money = entryBlockJson(entryBlockDefinition("money")!);
+    expect(money.output).toContain("RuleTradeMoney");
+    expect(money.args0).toEqual(expect.arrayContaining([expect.objectContaining({ name: "CURRENCY" })]));
+  });
+
   it("uses typed native connections for nested AssetSet and candidate-predicate composition", () => {
     registerBlockyProgramBlocks();
     const workspace = new Blockly.Workspace();
