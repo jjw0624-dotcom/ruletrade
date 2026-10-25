@@ -225,6 +225,8 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       zoom: { controls: true, wheel: true, startScale: .78, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
     });
     workspace.current = canvas;
+    const toolboxElement = (canvas.getToolbox() as unknown as { getDiv?: () => HTMLElement | null } | null)?.getDiv?.();
+    toolboxElement?.setAttribute("data-ruletrade-native-toolbox", "true");
     canvas.registerButtonCallback("RULETRADE_CREATE_GROUP", () => {
       const selected = Blockly.getSelected();
       const block = selected instanceof Blockly.Block ? selected : null;

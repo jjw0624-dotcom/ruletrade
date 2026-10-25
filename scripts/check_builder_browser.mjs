@@ -42,7 +42,7 @@ try {
   const clickText = (label) => evaluate(`(() => { const button=[...document.querySelectorAll('button')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!button) throw new Error('Missing button: '+${JSON.stringify(label)}); button.click(); return true; })()`);
   const clickBlocklyCategory = (label) => evaluate(`(() => { const row=[...document.querySelectorAll('.blocklyTreeRow')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!row) throw new Error('Missing Blockly category: '+${JSON.stringify(label)}); row.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,clientX:row.getBoundingClientRect().x+8,clientY:row.getBoundingClientRect().y+8})); row.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})); row.click(); return true; })()`);
   const screenshot = async (name) => { const result = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }); await writeFile(`${output}/${name}.png`, Buffer.from(result.data, "base64")); };
-  const waitSelector = async (selector) => { for (let i=0;i<60;i+=1) { if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)) return; await sleep(100); } throw new Error(`Missing selector ${selector}`); };
+  const waitSelector = async (selector) => { for (let i=0;i<60;i+=1) { if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)) return; await sleep(100); } const diagnostic = await evaluate(`({body:document.body.innerText.slice(0,1200),blockly:[...document.querySelectorAll('[class*=blockly]')].map((item)=>item.className?.baseVal ?? item.className).slice(0,40)})`); throw new Error(`Missing selector ${selector}: ${JSON.stringify(diagnostic)}`); };
   const drag = async (from, to) => {
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x, y: from.y });
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", clickCount: 1 });
@@ -55,8 +55,8 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
     await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html" });
     await waitSelector('.blocky-representation[data-blocky-contract="entry-style-v2-native"]');
-    await clickText("Add"); await waitSelector('.blocklyToolboxDiv'); await sleep(250);
-    const geometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const toolbox=document.querySelector('.blocklyToolboxDiv').getBoundingClientRect(); return {canvas:{x:canvas.x,width:canvas.width},toolbox:{x:toolbox.x,width:toolbox.width},visible:getComputedStyle(document.querySelector('.blocklyToolboxDiv')).display!=='none'}; })()`);
+    await clickText("Add"); await waitSelector('[data-ruletrade-native-toolbox="true"]'); await sleep(250);
+    const geometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const toolbox=document.querySelector('[data-ruletrade-native-toolbox="true"]').getBoundingClientRect(); return {canvas:{x:canvas.x,width:canvas.width},toolbox:{x:toolbox.x,width:toolbox.width},visible:getComputedStyle(document.querySelector('[data-ruletrade-native-toolbox="true"]')).display!=='none'}; })()`);
     if (!geometry.visible || Math.abs(geometry.toolbox.x) > 2 || Math.abs(geometry.toolbox.width - 268) > 3) throw new Error(`Unified Add geometry failed at ${width}: ${JSON.stringify(geometry)}`);
     await screenshot(`builder-add-${width}x${height}`);
   }
@@ -74,7 +74,7 @@ try {
   await screenshot("builder-native-drag.png");
 
   await clickText("Objects"); await clickText("Create Group"); await waitSelector('[data-object-definition-workspace="group"]'); await sleep(250);
-  const workspaceState = await evaluate(`(() => ({toolbox:getComputedStyle(document.querySelector('.blocklyToolboxDiv')).visibility, workspace:document.querySelector('[data-object-definition-workspace="group"]').getBoundingClientRect(), basket:Boolean(document.querySelector('[aria-label="Selection basket"]'))}))()`);
+  const workspaceState = await evaluate(`(() => ({toolbox:getComputedStyle(document.querySelector('[data-ruletrade-native-toolbox="true"]')).visibility, workspace:document.querySelector('[data-object-definition-workspace="group"]').getBoundingClientRect(), basket:Boolean(document.querySelector('[aria-label="Selection basket"]'))}))()`);
   if (workspaceState.toolbox !== "hidden" || !workspaceState.basket || workspaceState.workspace.x > 2) throw new Error(`Group Workspace isolation failed: ${JSON.stringify(workspaceState)}`);
   await screenshot("group-asset-workspace.png");
   await clickText("Cancel");

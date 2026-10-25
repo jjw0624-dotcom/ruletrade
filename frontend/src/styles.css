@@ -250,7 +250,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-left-panel[data-active-tab="blocks"]>.workspace-left-tabs>.blocks-panel{pointer-events:none;background:transparent}
 .blocky-layer:has(.blocky-representation[data-native-add-open="true"]){position:relative;left:-268px;width:calc(100% + 268px)}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
-.blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxDiv{width:268px!important;padding-top:58px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
+.blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{width:268px!important;padding-top:58px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyTreeRow{height:auto;min-height:32px;padding:7px 8px!important;margin:1px 4px;border-radius:6px}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyTreeLabel{font-size:11px;font-weight:750}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{width:176px!important;max-width:none;overflow:hidden;border-right:1px solid var(--border);transform:translateX(-176px);transition:width .16s ease;z-index:12}
