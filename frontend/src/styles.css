@@ -244,17 +244,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .construction-category{margin-top:18px}.construction-category>h3{margin:0 0 8px;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.semantic-library-entry{margin:0 0 10px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--surface)}.semantic-library-entry>header{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.semantic-library-entry>header span{color:var(--muted);font-size:10px;text-align:right}.semantic-library-entry>p{margin:5px 0;color:var(--muted);font-size:12px}.semantic-library-entry>small{display:block;color:var(--muted);line-height:1.35}.semantic-library-entry.needs_context,.semantic-library-entry.unavailable,.semantic-library-entry.unsupported{background:#f7f7f5}.semantic-library-entry.unsupported{opacity:.72}.semantic-toolbox-item[draggable="true"]{cursor:grab}.semantic-toolbox-item[draggable="true"]:active{cursor:grabbing}.flow-add-hint{color:var(--muted);font-size:12px}
 .semantic-library-entry.draftable{border-style:dashed;background:#fbf7ff}.semantic-library-entry.existing>header span{color:#24704b}
 .blocks-panel[data-perspective="blocky"]{height:auto;min-height:0;overflow:hidden}
-.native-add-surface-hint{margin:56px 14px 0;color:var(--muted);font-size:11px;line-height:1.45}
-.program-builder-core:has(.blocky-representation[data-native-add-open="true"])>.workspace-left-root{z-index:10;background:transparent;pointer-events:none}
+.native-add-surface-hint{display:none}
+.program-builder-core:has(.blocky-representation[data-native-add-open="true"])>.workspace-left-root{z-index:12;background:transparent;pointer-events:none}
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-panel-toggle,.program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-panel-tabs{position:relative;z-index:14;pointer-events:auto}
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-left-panel[data-active-tab="blocks"]>.workspace-left-tabs>.blocks-panel{pointer-events:none;background:transparent}
-.blocky-layer:has(.blocky-representation[data-native-add-open="true"]){position:relative;left:-268px;width:calc(100% + 268px)}
+.blocky-layer:has(.blocky-representation[data-native-add-open="true"]){position:relative;z-index:11;left:-268px;width:calc(100% + 268px)}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
 .blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{display:flex!important;flex-direction:column;width:268px!important;padding-top:58px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
 .blocky-representation[data-native-add-open="false"] [data-ruletrade-native-toolbox="true"]{visibility:hidden;pointer-events:none}
 .blocky-representation[data-native-add-open="true"] [data-ruletrade-native-toolbox="true"]{visibility:visible;pointer-events:auto}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategory{height:auto;min-height:32px;padding:7px 8px!important;margin:1px 4px;border-radius:6px}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryLabel{font-size:11px;font-weight:750}
+.blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryGroup{width:100%!important}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{width:176px!important;max-width:none;overflow:hidden;border-right:1px solid var(--border);transform:translateX(-176px);transition:width .16s ease;z-index:12}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocky-canvas[data-add-expanded="true"] .blocklyFlyout{width:min(360px,42vw)!important;filter:drop-shadow(12px 0 18px rgba(20,32,24,.16))}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}
