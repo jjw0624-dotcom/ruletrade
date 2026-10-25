@@ -217,7 +217,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   useEffect(() => {
     if (!host.current) return;
     registerBlockyProgramBlocks();
-    const compactTheme = Blockly.Theme.defineTheme("ruletrade-compact", { base: Blockly.Themes.Zelos, fontStyle: { family: "Inter, system-ui, sans-serif", weight: "600", size: 10 } });
+    const compactTheme = Blockly.Theme.defineTheme("ruletrade-compact", { name: "ruletrade-compact", base: Blockly.Themes.Zelos, fontStyle: { family: "Inter, system-ui, sans-serif", weight: "600", size: 10 } });
     const canvas = Blockly.inject(host.current, {
       toolbox: entryBlocklyToolbox(objects), renderer: "zelos", theme: compactTheme, trashcan: true, sounds: false,
       grid: { spacing: 24, length: 3, colour: "#d8dfd9", snap: false },
