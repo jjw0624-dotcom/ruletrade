@@ -250,7 +250,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-left-panel[data-active-tab="blocks"]>.workspace-left-tabs>.blocks-panel{pointer-events:none;background:transparent}
 .blocky-layer:has(.blocky-representation[data-native-add-open="true"]){position:relative;z-index:11;left:-268px;width:calc(100% + 268px)}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
-.blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{display:flex!important;flex-direction:column;width:268px!important;padding-top:58px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
+.blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{display:flex!important;flex-direction:column;width:268px!important;padding-top:112px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
 .blocky-representation[data-native-add-open="false"] [data-ruletrade-native-toolbox="true"]{visibility:hidden;pointer-events:none}
 .blocky-representation[data-native-add-open="true"] [data-ruletrade-native-toolbox="true"]{visibility:visible;pointer-events:auto}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategory{height:auto;min-height:32px;padding:7px 8px!important;margin:1px 4px;border-radius:6px}
