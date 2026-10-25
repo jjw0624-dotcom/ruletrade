@@ -376,9 +376,9 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     const toolbox = canvas?.getToolbox();
     if (!canvas || !toolbox) return;
     const visible = addSurfaceOpen && !suspended;
-    toolbox.setVisible(visible);
     if (!visible) toolbox.getFlyout()?.hide();
-    Blockly.svgResize(canvas);
+    const frame = requestAnimationFrame(() => Blockly.svgResize(canvas));
+    return () => cancelAnimationFrame(frame);
   }, [addSurfaceOpen, suspended]);
 
   useEffect(() => {
