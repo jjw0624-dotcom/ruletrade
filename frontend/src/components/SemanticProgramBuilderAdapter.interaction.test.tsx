@@ -250,7 +250,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
 
   it("uses Blockly's native category toolbox as the only Blocky Add surface", async () => {
     render("blocky", vi.fn(), growthDefensive);
-    expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(false);
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);
     expect(container.querySelector('[data-testid="blocky-workspace"]')?.getAttribute("data-native-toolbox")).toBe("category-flyout");
     expect(container.querySelectorAll(".blocky-toolbox-entry")).toHaveLength(0);
   });

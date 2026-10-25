@@ -68,6 +68,11 @@ export function ProductBlockyProjection({ root, selectedId, onSelect }: {
     });
     workspace.current = canvas;
     const listener = (event: Blockly.Events.Abstract) => {
+      if (event.type === Blockly.Events.BLOCK_DRAG && host.current) {
+        const drag = event as Blockly.Events.Abstract & { isStart?: boolean };
+        host.current.dataset.nativeDragActive = String(Boolean(drag.isStart));
+        if (!drag.isStart) host.current.dataset.addExpanded = "false";
+      }
       if (event.type !== Blockly.Events.CLICK) return;
       const click = event as Blockly.Events.Abstract & { targetType?: string; blockId?: string };
       if (click.targetType === Blockly.Events.ClickTarget.WORKSPACE) onSelect(null);
@@ -171,7 +176,7 @@ export function nativeBlockFieldController(canvas: Blockly.Workspace) {
   };
 }
 
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, objects = [], workspaceState = null, viewport = null, onWorkspaceChange, onWorkspaceApi, onCreateGroup, onBlockMove, onDisclosureChange }: {
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, objects = [], workspaceState = null, viewport = null, addSurfaceOpen = false, suspended = false, onWorkspaceChange, onWorkspaceApi, onCreateGroup, onBlockMove, onDisclosureChange }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
@@ -183,6 +188,8 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   objects?: EntryToolboxObject[];
   workspaceState?: Record<string, unknown> | null;
   viewport?: { x: number; y: number; scale: number } | null;
+  addSurfaceOpen?: boolean;
+  suspended?: boolean;
   onWorkspaceChange?: (snapshot: NativeBlockySnapshot) => void;
   onWorkspaceApi?: (api: NativeBlockyHistory | null) => void;
   onCreateGroup?: (request?: { parentId: string; inputName: string }) => void;
@@ -210,13 +217,17 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   useEffect(() => {
     if (!host.current) return;
     registerBlockyProgramBlocks();
+    const compactTheme = Blockly.Theme.defineTheme("ruletrade-compact", { name: "ruletrade-compact", base: Blockly.Themes.Zelos, fontStyle: { family: "Inter, system-ui, sans-serif", weight: "600", size: 10 } });
     const canvas = Blockly.inject(host.current, {
-      toolbox: entryBlocklyToolbox(objects), renderer: "zelos", trashcan: true, sounds: false,
+      toolbox: entryBlocklyToolbox(objects), renderer: "zelos", theme: compactTheme, trashcan: true, sounds: false,
       grid: { spacing: 24, length: 3, colour: "#d8dfd9", snap: false },
       move: { scrollbars: true, drag: true, wheel: true },
-      zoom: { controls: true, wheel: true, startScale: .9, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
+      zoom: { controls: true, wheel: true, startScale: .78, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
     });
     workspace.current = canvas;
+    const toolboxElement = (canvas.getToolbox() as unknown as { getDiv?: () => HTMLElement | null } | null)?.getDiv?.()
+      ?? host.current.querySelector<HTMLElement>(".blocklyToolbox");
+    toolboxElement?.setAttribute("data-ruletrade-native-toolbox", "true");
     canvas.registerButtonCallback("RULETRADE_CREATE_GROUP", () => {
       const selected = Blockly.getSelected();
       const block = selected instanceof Blockly.Block ? selected : null;
@@ -276,7 +287,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         }
         const definition = entryBlockDefinition(definitionId);
         const old = canvasBlocksRef.current[id];
-        const fieldValues = Object.fromEntries(["VALUE", "NUM", "OP", "REFERENCE", "SHORTAGE", "MODE", "FLOW", "SEED", "REDRAW"].flatMap((name) => block.getField(name) ? [[name, block.getFieldValue(name) as string | number | boolean | null] as const] : []));
+        const fieldValues = Object.fromEntries(["VALUE", "NUM", "OP", "REFERENCE", "SHORTAGE", "MODE", "FLOW", "SEED", "REDRAW", "CURRENCY", "INDICATOR", "PERIOD"].flatMap((name) => block.getField(name) ? [[name, block.getFieldValue(name) as string | number | boolean | null] as const] : []));
         nextBlocks[id] = { id, definitionId, label: definition?.label ?? definitionId, createdAt: old?.createdAt ?? new Date().toISOString(), active: old?.active ?? false, objectRef: metadata.objectRef ?? old?.objectRef ?? null, fieldValues };
         const xy = block.getRelativeToSurfaceXY(); nextPositions[id] = { x: xy.x, y: xy.y };
         nextDisclosure[id] = block.isCollapsed() ? 0 : 1;
@@ -346,12 +357,29 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       if (!event.isUiEvent) queueMicrotask(emitSnapshot);
     };
     canvas.addChangeListener(listener); canvas.addChangeListener(editListener);
+    const flyout = host.current.querySelector<SVGGElement>(".blocklyFlyout");
+    const expandAdd = () => { if (host.current) host.current.dataset.addExpanded = "true"; };
+    const collapseAdd = () => { if (host.current?.dataset.nativeDragActive !== "true") host.current!.dataset.addExpanded = "false"; };
+    flyout?.addEventListener("pointerenter", expandAdd);
+    flyout?.addEventListener("pointerleave", collapseAdd);
+    flyout?.addEventListener("focusin", expandAdd);
+    flyout?.addEventListener("focusout", collapseAdd);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
     resizeObserver?.observe(host.current);
-    return () => { resizeObserver?.disconnect(); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
+    return () => { resizeObserver?.disconnect(); flyout?.removeEventListener("pointerenter", expandAdd); flyout?.removeEventListener("pointerleave", collapseAdd); flyout?.removeEventListener("focusin", expandAdd); flyout?.removeEventListener("focusout", collapseAdd); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
   }, []);
 
   useEffect(() => { workspace.current?.updateToolbox(entryBlocklyToolbox(objects)); }, [objects]);
+
+  useEffect(() => {
+    const canvas = workspace.current;
+    const toolbox = canvas?.getToolbox();
+    if (!canvas || !toolbox) return;
+    const visible = addSurfaceOpen && !suspended;
+    if (!visible) toolbox.getFlyout()?.hide();
+    const frame = requestAnimationFrame(() => Blockly.svgResize(canvas));
+    return () => cancelAnimationFrame(frame);
+  }, [addSurfaceOpen, suspended]);
 
   useEffect(() => {
     const canvas = workspace.current;
@@ -503,7 +531,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     workspace.current?.getAllBlocks(false).find((block) => readAddress(block) === id)?.select();
   }, [selectedId, visualNodes, canvasBlocks]);
 
-  return <div className="blocky-representation" aria-label="Add blocks and compose strategy logic" data-blocky-contract="entry-style-v2-native" data-native-toolbox="category-flyout" data-native-serialization="json" data-blocky-node-count={visualNodes.length + Object.keys(canvasBlocks).length} data-portfolio-block="excluded" data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable">
-    <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" />
+  return <div className="blocky-representation" aria-label="Add blocks and compose strategy logic" data-blocky-contract="entry-style-v2-native" data-native-toolbox="category-flyout" data-native-add-open={addSurfaceOpen && !suspended} data-native-add-suspended={suspended} data-native-serialization="json" data-blocky-node-count={visualNodes.length + Object.keys(canvasBlocks).length} data-portfolio-block="excluded" data-workspace-pan="enabled" data-layout-updates="draft-only" data-block-identity="stable">
+    <div className="blocky-canvas" ref={host} aria-label="Strategy logic blocks" data-add-expanded="false" data-native-drag-active="false" />
   </div>;
 }

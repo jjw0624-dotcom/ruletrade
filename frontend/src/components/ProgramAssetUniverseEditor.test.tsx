@@ -45,7 +45,10 @@ describe("Program asset universe authoring", () => {
   it("searches by product identity, adds, reorders, removes, and commits explicit membership", async () => {
     const committed = vi.fn();
     await act(async () => { root.render(<ProgramAssetUniverseEditor assets={["QQQ"]} onCommit={committed} />); await Promise.resolve(); });
-    const vgt = [...host.querySelectorAll<HTMLButtonElement>('[aria-label="Asset search results"] button')].find((button) => button.textContent?.includes("VGT"));
+    expect(host.querySelector('[aria-label="Asset search and filters"]')).toBeTruthy();
+    expect(host.querySelector('[aria-label="Instrument details"]')).toBeTruthy();
+    expect(host.querySelector('[aria-label="Selection basket"]')).toBeTruthy();
+    const vgt = host.querySelector<HTMLButtonElement>('button[aria-label="Add VGT to selection"]');
     expect(vgt).toBeTruthy();
     await act(async () => { vgt!.click(); await Promise.resolve(); });
     expect([...host.querySelectorAll('[aria-label="Selected assets"] li')].map((item) => item.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("QQQ"), expect.stringContaining("VGT")]));
