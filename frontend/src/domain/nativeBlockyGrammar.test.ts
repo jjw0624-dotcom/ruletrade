@@ -88,7 +88,8 @@ describe("native Blockly product grammar", () => {
     group.setFieldValue("group-stable-17", "REFERENCE");
     expect(group.getFieldValue("REFERENCE")).toBe("group-stable-17");
     const comparison = workspace.newBlock(entryBlocklyType("compare-gt"));
-    expect(() => comparison.getInput("A")!.connection!.connect(group.outputConnection!)).toThrow();
+    comparison.getInput("A")!.connection!.connect(group.outputConnection!);
+    expect(comparison.getInputTargetBlock("A")).toBeNull();
     const count = workspace.newBlock(entryBlocklyType("asset-set-count"));
     count.getInput("ASSETS")!.connection!.connect(group.outputConnection!);
     comparison.getInput("A")!.connection!.connect(count.outputConnection!);
