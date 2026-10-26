@@ -79,6 +79,7 @@ try {
   await sleep(250);
   const hoverAfter = await evaluate(`(() => { const flyout=document.querySelector('.blocklyFlyout').getBoundingClientRect(); const canvas=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); return {flyoutWidth:flyout.width,canvas:{x:canvas.x,width:canvas.width}}; })()`);
   if (hoverAfter.flyoutWidth <= hoverBefore.flyout.width || Math.abs(hoverAfter.canvas.x-hoverBefore.canvas.x)>1 || Math.abs(hoverAfter.canvas.width-hoverBefore.canvas.width)>1) throw new Error(`Add hover expansion changed canvas geometry: ${JSON.stringify({hoverBefore,hoverAfter})}`);
+  await screenshot("builder-add-expanded");
   const points = await evaluate(`(() => { const source=document.querySelector('.blocklyFlyout .blocklyDraggable').getBoundingClientRect(); const target=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); return {from:{x:source.x+source.width/2,y:source.y+source.height/2},to:{x:target.x+Math.min(420,target.width*.45),y:target.y+240},before:document.querySelectorAll('.blocklyBlockCanvas>.blocklyDraggable').length}; })()`);
   await drag(points.from, points.to); await sleep(350);
   const after = await evaluate(`document.querySelectorAll('.blocklyBlockCanvas>.blocklyDraggable').length`);
@@ -89,8 +90,18 @@ try {
   const workspaceState = await evaluate(`(() => ({toolbox:getComputedStyle(document.querySelector('[data-ruletrade-native-toolbox="true"]')).visibility, workspace:document.querySelector('[data-object-definition-workspace="group"]').getBoundingClientRect(), basket:Boolean(document.querySelector('[aria-label="Selection basket"]'))}))()`);
   if (workspaceState.toolbox !== "hidden" || !workspaceState.basket || workspaceState.workspace.x > 2) throw new Error(`Group Workspace isolation failed: ${JSON.stringify(workspaceState)}`);
   await screenshot("group-asset-workspace.png");
-  await clickText("Cancel");
-  if (await evaluate(`Boolean(document.querySelector('[data-object-definition-workspace="group"]'))`)) throw new Error("Group cancellation did not restore Builder context.");
+  await evaluate(`(() => { const input=document.querySelector('input[aria-label="Manual asset symbol"]'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'QQQ'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+  await clickText("Add symbol"); await clickText("Use selected assets"); await clickText("Create Group");
+  await waitSelector('[data-object-library="entry-style-v1"]');
+  const definitionOnly = await evaluate(`({groupBlocks:Object.values(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).filter((block)=>block.definitionId==='group-reference'||block.definitionId==='create-group').length, inspector:Boolean(document.querySelector('[aria-label="Semantic Inspector"]')), references:[...document.querySelectorAll('.object-library-insert')].length})`);
+  if (definitionOnly.groupBlocks || definitionOnly.inspector || definitionOnly.references !== 1) throw new Error(`Group definition/reference separation failed: ${JSON.stringify(definitionOnly)}`);
+  await clickText("Add"); await clickBlocklyCategory("Action"); await sleep(250);
+  const investPoints = await evaluate(`(() => { const blocks=[...document.querySelectorAll('.blocklyFlyout .blocklyDraggable')]; const source=blocks.find((block)=>block.textContent.includes('Buy'))?.getBoundingClientRect(); const target=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); if(!source) throw new Error('Missing Invest flyout block'); return {from:{x:source.x+source.width/2,y:source.y+source.height/2},to:{x:target.x+420,y:target.y+360}}; })()`);
+  await drag(investPoints.from, investPoints.to); await sleep(300);
+  await clickText("Group 1"); await sleep(300);
+  const connectedReference = await evaluate(`(() => { const snapshot=window.__RULETRADE_BROWSER_DRAFT__; const refs=Object.values(snapshot?.canvasBlocks??{}).filter((block)=>block.definitionId==='group-reference'); const ref=refs[0]; return {count:refs.length,objectRef:ref?.objectRef,connection:ref?snapshot.blockConnections[ref.id]:null}; })()`);
+  if (connectedReference.count !== 1 || connectedReference.objectRef !== "group-1" || connectedReference.connection?.inputName !== "TARGET") throw new Error(`Connected stable Group reference failed: ${JSON.stringify(connectedReference)}`);
+  await screenshot("builder-connected-reference");
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {

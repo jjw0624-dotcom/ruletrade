@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./styles.css";
-import type { CanonicalStrategyV2 } from "./domain/canonicalV2";
+import type { CanonicalStrategyV2, V2AuthoringOperation } from "./domain/canonicalV2";
 import { emptyProgramWorkingDraft, type ProgramWorkingDraft } from "./domain/programWorkingDraft";
 import { SemanticProgramBuilderAdapter } from "./components/SemanticProgramBuilderAdapter";
 
@@ -35,11 +35,23 @@ const blank: CanonicalStrategyV2 = {
 };
 
 function Harness() {
+  const [canonical, setCanonical] = useState<CanonicalStrategyV2>(blank);
   const [draft, setDraft] = useState<ProgramWorkingDraft>(() => emptyProgramWorkingDraft("browser-acceptance"));
-  return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
-    onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+  const apply = (operation: V2AuthoringOperation) => {
+    if (operation.kind !== "add_program_group") return;
+    setCanonical((current) => ({
+      ...current,
+      definitions: {
+        ...current.definitions,
+        asset_sets: [...current.definitions.asset_sets.filter((item) => item.id !== operation.asset_set_id), { id: operation.asset_set_id, assets: operation.assets }],
+        groups: [...current.definitions.groups.filter((item) => item.id !== operation.group_id), { id: operation.group_id, name: operation.name, asset_set_ref: operation.asset_set_id, description: "" }],
+      },
+    }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="blocky"
+    onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
     canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
-    workingDraft={draft} onWorkingDraftChange={setDraft} />;
+    workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
 }
 
 createRoot(document.getElementById("root")!).render(<Harness />);
