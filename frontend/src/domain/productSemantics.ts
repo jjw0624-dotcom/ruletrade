@@ -2,7 +2,7 @@ import type { CanonicalStrategyV2, ProgramStatementV2, SelectionStatementV2 } fr
 import type { ConceptualFlowProjection } from "./conceptualFlow";
 import { describeConditionV2, describeValueV2 } from "./v2Semantics";
 
-export type ProductConcept = "portfolio" | "investment" | "sleeve" | "assets" | "qualification" | "selection" | "fallback" | "cooldown" | "split" | "allocation" | "timing" | "rebalance" | "control";
+export type ProductConcept = "portfolio" | "group" | "subgroup" | "investment" | "sleeve" | "assets" | "qualification" | "selection" | "fallback" | "cooldown" | "split" | "allocation" | "timing" | "rebalance" | "control";
 export type ProductAddress =
   | { canonical: "v1"; concept: ProductConcept; componentId: string | null; groupId?: string | null; fieldPath?: string | null }
   | { canonical: "v2"; concept: ProductConcept; semanticId: string; definitionId?: string | null };
@@ -24,7 +24,7 @@ export interface ProductCapitalSemantics {
     source: "v1_sleeve_allocation" | "v2_fixed_group_leg" | "implicit_single_investment";
   };
   selectedAssetAllocation?: {
-    method: "equal";
+    method: "equal" | "proportional_score" | "inverse_volatility";
     normalizedTotal: 1;
     sourceSemanticId: string;
   };
@@ -184,6 +184,7 @@ function flatten(items: ProgramStatementV2[]): ProgramStatementV2[] {
   return items.flatMap((item) => [item,
     ...(item.kind === "control" ? flatten([...item.then_statements, ...item.otherwise_statements]) : []),
     ...(item.kind === "on_event" ? flatten(item.statements) : []),
+    ...(item.kind === "guarded_allocation" ? [item.primary, ...item.overrides.map((override) => override.action), ...(item.fallback ? [item.fallback] : [])] : []),
   ]);
 }
 
@@ -197,34 +198,61 @@ export function visibleProgramStatements(strategy: CanonicalStrategyV2): Program
 
 export function projectV2ProductSemantics(strategy: CanonicalStrategyV2): ProductStrategyProjection {
   const roots = visibleProgramStatements(strategy);
-  const selections = flatten(roots).filter((item): item is SelectionStatementV2 => item.kind === "select");
-  const split = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.filter((leg) => leg.target.kind === "group").length > 1);
-  const splitShares = new Map(split?.legs.filter((leg) => leg.target.kind === "group" && leg.target.ref).map((leg) => [leg.target.ref!, Number(leg.weight ?? 0)]) ?? []);
-  const investments: ProductNode[] = strategy.definitions.groups.map((group) => {
-    const statement = selections.find((item) => item.selection.universe_id === group.id);
-    const selection = statement?.selection;
-    const selectedAssetAllocation = statement && flatten(roots).find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === statement.output_id));
-    const portfolioShare = splitShares.get(group.id);
+  const all = flatten(roots);
+  const selections = all.filter((item): item is SelectionStatementV2 => item.kind === "select");
+  const selectionByOutput = new Map(selections.map((item) => [item.output_id, item]));
+  const rootAllocations = roots.filter((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate");
+  const split = rootAllocations.find((item) => item.method === "fixed" && (
+    item.legs.filter((leg) => leg.target.kind === "group").length > 1
+    || item.legs.filter((leg) => leg.target.kind === "selection" && selectionByOutput.has(leg.target.ref ?? "")).length > 1
+  ));
+  const humanize = (value: string) => value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const groupById = new Map(strategy.definitions.groups.map((group) => [group.id, group]));
+  const targetName = (target: Extract<ProgramStatementV2, { kind: "allocate" }>["legs"][number]["target"]) => {
+    if (target.kind === "selection") return humanize(selectionByOutput.get(target.ref ?? "")?.output_id ?? target.ref ?? "Selected Subgroup");
+    if (target.kind === "group") return groupById.get(target.ref ?? "")?.name ?? humanize(target.ref ?? "Group");
+    return target.ref ?? humanize(target.kind);
+  };
+  const groupNodes: ProductNode[] = strategy.definitions.groups.map((group) => {
     const assets = strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
     const children: ProductNode[] = [{ id: `assets:${assets?.id ?? group.asset_set_ref}`, concept: "assets", label: "Assets", detail: assets?.assets.length ? assets.assets.join(", ") : "Choose assets", address: { canonical: "v2", concept: "assets", semanticId: group.id, definitionId: assets?.id ?? group.asset_set_ref }, children: [] }];
-    if (selection?.eligibility && statement) children.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Qualification", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
-    if (selection && statement) children.push({ id: statement.semantic_id, concept: "selection", label: `Choose ${selection.count} assets`, detail: `${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "selection", semanticId: statement.semantic_id }, children: [] });
-    if (selection?.fallback_asset && statement) children.push({ id: `fallback:${statement.semantic_id}`, concept: "fallback", label: "Fallback", detail: `Otherwise → ${selection.fallback_asset}`, address: { canonical: "v2", concept: "fallback", semanticId: statement.semantic_id }, children: [] });
+    for (const statement of selections.filter((item) => item.selection.universe_id === group.id)) {
+      const selection = statement.selection;
+      const subgroupChildren: ProductNode[] = [];
+      if (selection.eligibility) subgroupChildren.push({ id: `qualification:${statement.semantic_id}`, concept: "qualification", label: "Qualification", detail: describeConditionV2(selection.eligibility), address: { canonical: "v2", concept: "qualification", semanticId: statement.semantic_id }, children: [] });
+      if (selection.fallback_asset) subgroupChildren.push({ id: `fallback:${statement.semantic_id}`, concept: "fallback", label: "Shortage fallback", detail: `Use ${selection.fallback_asset}`, address: { canonical: "v2", concept: "fallback", semanticId: statement.semantic_id }, children: [] });
+      children.push({ id: statement.semantic_id, concept: "subgroup", label: `Subgroup · ${humanize(statement.output_id)}`, detail: `Choose ${selection.count} · ${selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(selection.ranking)}`, address: { canonical: "v2", concept: "subgroup", semanticId: statement.semantic_id }, children: subgroupChildren });
+    }
     return {
-      id: `investment:${group.id}`, concept: "investment", label: group.name || "Investment",
-      detail: portfolioShare === undefined ? undefined : `${formatPortfolioShare(portfolioShare)} of Portfolio`,
-      address: { canonical: "v2", concept: "investment", semanticId: group.id },
-      capital: {
-        portfolioShare: { value: portfolioShare ?? 1, source: portfolioShare === undefined ? "implicit_single_investment" : "v2_fixed_group_leg" },
-        ...(selectedAssetAllocation ? { selectedAssetAllocation: { method: "equal" as const, normalizedTotal: 1 as const, sourceSemanticId: selectedAssetAllocation.semantic_id } } : {}),
-      },
+      id: `group:${group.id}`, concept: "group", label: `Group · ${group.name || humanize(group.id)}`,
+      detail: `${assets?.assets.length ?? 0} asset${assets?.assets.length === 1 ? "" : "s"}`,
+      address: { canonical: "v2", concept: "group", semanticId: group.id, definitionId: assets?.id ?? group.asset_set_ref },
       children,
     };
   });
+  const investmentFromLeg = (
+    allocation: Extract<ProgramStatementV2, { kind: "allocate" }>,
+    leg: Extract<ProgramStatementV2, { kind: "allocate" }>["legs"][number],
+    share?: number,
+  ): ProductNode => ({
+    id: allocation.legs.length === 1 ? `investment:${allocation.semantic_id}` : `investment:${allocation.semantic_id}:${leg.semantic_id}`,
+    concept: "investment",
+    label: `Investment · ${targetName(leg.target)}`,
+    detail: `${share === undefined ? "100%" : formatPortfolioShare(share)} of Portfolio · ${allocation.method === "proportional_score" ? "Proportional to positive Score" : "Equal within target"}`,
+    address: { canonical: "v2", concept: "investment", semanticId: allocation.semantic_id, definitionId: leg.semantic_id },
+    capital: {
+      portfolioShare: { value: share ?? 1, source: share === undefined ? "implicit_single_investment" : "v2_fixed_group_leg" },
+      selectedAssetAllocation: { method: allocation.method === "proportional_score" ? "proportional_score" : "equal", normalizedTotal: 1, sourceSemanticId: allocation.semantic_id },
+    },
+    children: [],
+  });
+  const investments = split
+    ? split.legs.map((leg) => investmentFromLeg(split, leg, Number(leg.weight ?? 0)))
+    : rootAllocations.filter((item) => item !== split).flatMap((item) => item.legs.map((leg) => investmentFromLeg(item, leg)));
   const controls: ProductNode[] = roots.filter((item) => item.kind === "control").map((item) => ({ id: item.semantic_id, concept: "control", label: "IF / OTHERWISE", detail: describeConditionV2(item.condition), address: { canonical: "v2", concept: "control", semanticId: item.semantic_id }, children: [] }));
   const capital: ProductNode[] = split ? [{ id: "split", concept: "split", label: "Split", detail: split.legs.map((leg) => formatPortfolioShare(Number(leg.weight ?? 0))).join(" / "), address: { canonical: "v2", concept: "split", semanticId: split.semantic_id }, children: investments }] : investments;
-  if (selections.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
-  const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v2", concept: "portfolio", semanticId: strategy.program?.semantic_id ?? "program" }, children: [...capital, ...controls] };
+  if (investments.length && strategy.program?.clocks[0]) capital.push({ id: "rebalance", concept: "rebalance", label: "Rebalance", detail: `${strategy.program.clocks[0].timeframe[0]!.toUpperCase()}${strategy.program.clocks[0].timeframe.slice(1)} close`, address: { canonical: "v2", concept: "rebalance", semanticId: strategy.program.clocks[0].id }, children: [] });
+  const root: ProductNode = { id: "portfolio", concept: "portfolio", label: "Portfolio", address: { canonical: "v2", concept: "portfolio", semanticId: strategy.program?.semantic_id ?? "program" }, children: [...groupNodes, ...capital, ...controls] };
   const flow = flowFromRoot(root, true);
   return { name: strategy.metadata.name, root, flow: flow.nodes, flowEdges: flow.edges, sourceVersion: "v2" };
 }

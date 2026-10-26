@@ -1,5 +1,16 @@
 # RuleTrade documentation
 
+- [Visual Builder and Asset Workspace integration](visual-builder-asset-workspace-integration.md)
+
+## Builder foundation
+
+- [Foundation ownership audit](builder-foundation-audit.md)
+- [Responsibility contract](builder-responsibility-contract.md)
+- [State ownership matrix](builder-state-ownership-matrix.json)
+- [Interaction lifecycle](builder-interaction-lifecycle.md)
+- [Perspective contract](builder-perspective-contract.md)
+- [Browser acceptance](builder-browser-acceptance.md)
+
 This directory contains current subsystem contracts and historical records from
 RuleTrade's incremental vertical slices.
 
@@ -49,6 +60,14 @@ architecture when they conflict with code or the living architecture.
 | `semantic-strategy-corpus-audit.md` | CURRENT | Baseline 33-case semantic capability and evidence audit |
 | `expanded-semantic-corpus-execution-closure.md` | CURRENT | 169-fragment reconciliation, weighted Score execution closure, gaps, and evidence |
 | `semantic-projection-contracts.md` | CURRENT | UI-independent Structure/Flow/Blocky/Rules/Summary/Inspector manifests |
+| `perspective-translation-v2.md` | CURRENT | Reconciled Internal/Capital Flow/Decision Logic translation, DraftIntent, equivalence, and capability contracts |
+| `intent-first-unified-authoring.md` | CURRENT | Multi-start Working Draft, composite financial operations, QQQ and complex A–E acceptance contracts |
+| `entry-style-builder-architecture.md` | CURRENT | Native Blockly grammar, Working Draft ownership, object model, reuse audit and execution boundary |
+| `semantic-first-block-inspector-audit.md` | CURRENT | KEEP/ADAPT/REPLACE/REMOVE audit and compact block/Inspector responsibility boundary |
+| `blocky-169-case-review.md` | CURRENT | Source-traceable 169-fragment Blocky expressiveness reconciliation |
+| `blocky-169-architecture-audit.md` | CURRENT | Current Builder/semantic/Flow/Workspace ownership audit for the 169-case work |
+| `blocky-grammar-contract.md` | CURRENT | Typed AssetSet, predicate, aggregate, and random-draft grammar contract |
+| `blocky-implementation-gap.md` | CURRENT | Implemented scope and explicit execution/data gaps for the 169-case audit |
 | `builder-semantic-migration-plan.md` | CURRENT / DESIGN ONLY | KEEP/ADAPT/REPLACE/REMOVE handoff; no UI implementation |
 | `authoring-breadth-audit.md` | HISTORICAL | Earlier breadth audit; later authoring superseded conclusions |
 | `backend-observability-audit.md` | HISTORICAL | Pipeline measurement rationale after Comparison v0 |
@@ -68,3 +87,8 @@ architecture when they conflict with code or the living architecture.
 
 Status describes documentation authority, not whether the historical work was
 valuable. No historical record should override the current implementation.
+## Builder grammar audits
+
+- [169-case Blocky expressiveness review](blocky-169-case-review.md)
+- [Composable Blocky grammar contract](blocky-grammar-contract.md)
+- [169-case implementation gap](blocky-implementation-gap.md)

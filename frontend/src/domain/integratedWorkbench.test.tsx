@@ -74,7 +74,7 @@ describe("integrated Strategy research workbench", () => {
     expect(renderView("guided")).toContain("Guided strategy editor");
   });
 
-  it("mounts stacked Research with the same Builder representation tree", () => {
+  it("mounts right-side Research with the same Builder representation tree", () => {
     const projection = projectConceptualFlow(sleevesBootstrap.strategy, sleevesBootstrap.registry);
     const structural = { capabilities: null, status: "ready" as const, error: null, apply: async () => false, compose: async () => false };
     const markup = renderToStaticMarkup(<StrategyEditorProvider bootstrap={sleevesBootstrap}>
@@ -85,7 +85,7 @@ describe("integrated Strategy research workbench", () => {
     expect(markup).toContain("Saved test");
     expect(markup).toContain("result-workspace page");
     expect(markup).toContain('data-research-open="true"');
-    expect(markup).toContain('data-research-layout="stacked"');
+    expect(markup).toContain('data-research-layout="side-by-side"');
     expect(markup).toContain('data-workspace="research"');
     expect(markup).toContain('data-group="true"');
     expect(markup).not.toContain("builder-messages");
@@ -119,7 +119,7 @@ describe("integrated Strategy research workbench", () => {
     for (const view of ["guided", "flow", "blocky", "rules", "code", "ai"] as const) {
       const markup = renderView(view);
       expect(markup).toContain(`builder-core active-${view}`);
-      expect(markup).toContain('data-research-layout="stacked"');
+      expect(markup).toContain('data-research-layout="side-by-side"');
     }
   });
 
@@ -204,7 +204,7 @@ describe("integrated Strategy research workbench", () => {
     expect(comparison).toMatchObject({ activityOpen: false, researchOpen: true, size: RESEARCH_COMPARISON_SIZE, destination: { kind: "comparison", comparisonId: "comparison-1" } });
   });
 
-  it("keeps a user-expanded height when opening Comparison", () => {
+  it("keeps a user-expanded width when opening Comparison", () => {
     const expanded = workbenchResearchReducer(INITIAL_WORKBENCH_RESEARCH, { type: "set_size", size: 80 });
     const comparison = workbenchResearchReducer(expanded, { type: "open_comparison", comparisonId: "comparison-1" });
     expect(expanded.size).toBe(RESEARCH_MAX_SIZE);

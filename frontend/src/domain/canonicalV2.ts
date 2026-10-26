@@ -88,10 +88,25 @@ export interface CanonicalStrategyV2 {
 }
 export type ProgramBranch = "root" | "then" | "otherwise" | "event";
 export type V2AuthoringOperation =
+  | { kind: "commit_single_asset_intent"; investment_id: string; investment_name: string; asset_set_id: string; asset: string; timeframe: "daily" | "monthly"; timing_meaning: "rebalance" }
+  | { kind: "commit_market_regime_rotation_intent"; assets: string[]; trend_asset: string; trend_lookback: number; ranking_lookback: number; count: number; fallback_asset: string; timeframe: "daily" | "monthly" }
+  | { kind: "commit_split_portfolio_intent"; growth_assets: string[]; growth_weight: number; defensive_asset: string; ranking_lookback: number; fallback_asset: string; timeframe: "daily" | "monthly" }
+  | { kind: "commit_weighted_score_intent"; assets: string[]; short_observations: number; long_observations: number; short_weight: number; long_weight: number; count: number; timeframe: "daily" | "monthly"; missing_policy: "require_all" | "renormalize_available" }
+  | { kind: "commit_temporal_sequence_intent"; asset: string; breakout_threshold: number; retest_window: number; confirmation_window: number; expiry_state: string }
+  | { kind: "commit_multi_clock_policy_intent"; assets: string[]; weekly_context_asset: string; weekly_threshold: number; daily_signal_asset: string; daily_threshold: number; score_observations: [number, number]; score_weights: [number, number]; count: number; fallback_asset: string; unknown_risk_policy: "block" | "allow" }
   | { kind: "add_program_investment"; investment_id: string; name: string; asset_set_id: string; assets: string[] }
+  | { kind: "add_program_group"; group_id: string; name: string; asset_set_id: string; assets: string[] }
+  | { kind: "rename_program_group"; group_id: string; name: string }
+  | { kind: "remove_program_group"; group_id: string }
   | { kind: "remove_program_investment"; investment_id: string }
   | { kind: "set_program_schedule"; clock_id: string; timeframe: "daily" | "weekly" | "monthly" }
   | { kind: "create_program_selection"; semantic_id: string; investment_id: string; clock_id: string; lookback: number; direction: "ascending" | "descending"; count: number; shortage_policy: "choose_all" | "require_full"; qualification_lookback?: number | null; qualification_operator?: "gt" | "gte" | "lt" | "lte" | null; qualification_threshold?: number | null }
+  | { kind: "create_program_choose"; semantic_id: string; group_id: string; output_id: string; clock_id: string; lookback: number; direction: "ascending" | "descending"; count: number; shortage_policy: "choose_all" | "require_full"; qualification_lookback?: number | null; qualification_operator?: "gt" | "gte" | "lt" | "lte" | null; qualification_threshold?: number | null }
+  | { kind: "rename_program_subgroup"; semantic_id: string; output_id: string }
+  | { kind: "remove_program_choose"; semantic_id: string }
+  | { kind: "set_program_investment"; semantic_id: string; target_kind: "asset" | "group" | "selection"; target_ref: string; internal_allocation: "equal" | "proportional_score"; clock_id: string }
+  | { kind: "remove_program_investment_allocation"; semantic_id: string }
+  | { kind: "create_program_event_state"; semantic_id: string; clock_id: string; asset: string; threshold: number; state_key: string; from_value: string; to_value: string }
   | { kind: "set_program_fallback"; semantic_id: string; fallback_asset: string | null }
   | { kind: "set_program_split"; semantic_id?: string; investments: Array<[string, number]> }
   | { kind: "set_selection_universe"; universe_id: string }

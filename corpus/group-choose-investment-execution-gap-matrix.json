@@ -1,0 +1,53 @@
+{
+  "schema_version": "ruletrade.dev/group-choose-investment-execution-gap/v1",
+  "audited_path": [
+    "ProgramWorkingDraft",
+    "typed authoring operation",
+    "SemanticProgramV2",
+    "semantic validation",
+    "execution capability",
+    "LeanPlan",
+    "generated C#/LEAN",
+    "Docker LEAN",
+    "Run/Evidence"
+  ],
+  "profiles": [
+    {
+      "id": "single_direct_asset",
+      "before": "canonical_valid_but_lowering_required_exactly_one_selection",
+      "failing_boundary": 4,
+      "after": "backend_lowerable",
+      "lowering": ["direct asset exposure", "fixed 100% target", "monthly rebalance"]
+    },
+    {
+      "id": "group_choose_investment",
+      "before": "supported_only_through_legacy_single_selection_bridge",
+      "failing_boundary": 5,
+      "after": "backend_lowerable",
+      "lowering": ["Group universe", "typed eligibility", "deterministic ranking", "TAKE", "equal allocation"]
+    },
+    {
+      "id": "parallel_investment_split",
+      "before": "canonical_valid_but_split_recognized_only_as_group_targets",
+      "failing_boundary": 4,
+      "after": "backend_lowerable",
+      "lowering": ["selected Subgroup sleeve", "direct asset sleeve", "fixed portfolio shares", "target aggregation"]
+    },
+    {
+      "id": "conditional_investment",
+      "before": "canonical_valid_but_control_statement_rejected",
+      "failing_boundary": 4,
+      "after": "backend_lowerable",
+      "lowering": ["typed Value comparison", "three-valued condition", "explicit unknown policy", "THEN/OTHERWISE targets"]
+    }
+  ],
+  "unsupported": [
+    "session/intraday clocks",
+    "weekly static allocation clocks",
+    "inverse volatility allocation",
+    "bounded score allocation",
+    "OR/NOT static conditional routing",
+    "external capital contribution"
+  ],
+  "runtime_and_provider_are_assessed_separately": true
+}

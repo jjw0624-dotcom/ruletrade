@@ -4,9 +4,36 @@ import type { StrategyDetailV2 } from "../strategyApi";
 import { strategyApi } from "../strategyApi";
 import { v2AuthoringApi, v2AuthoringErrorMessage } from "../v2AuthoringApi";
 import { executeV2Lean, executeV2Selection, v2ExecutionCapability, V2ExecutionError, type V2ExecutionCapability, type V2SelectionExecution } from "../v2ExecutionApi";
-import { DEFAULT_BACKTEST_CONFIG, type LeanBacktestResponse } from "../domain/backtest";
+import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig, type LeanBacktestResponse } from "../domain/backtest";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
+import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, withProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+
+export type V2TestPanelState =
+  | { status: "setup"; config: BacktestConfig }
+  | { status: "running" }
+  | { status: "success"; result: V2SelectionExecution | LeanBacktestResponse }
+  | { status: "failure"; message: string; technicalDetail: string | null }
+  | null;
+
+export function V2TestResultPanel({ state }: { state: Exclude<V2TestPanelState, null> }) {
+  if (state.status === "setup") return null;
+  if (state.status === "running") return <div className="semantic-inspector-content" role="status"><h2>Testing committed strategy…</h2><p>The Builder remains available while the runtime evaluates this revision.</p></div>;
+  if (state.status === "failure") return <div className="semantic-inspector-content" role="alert"><h2>Test unavailable</h2><p>{state.message}</p>{state.technicalDetail && <details><summary>Technical diagnostics</summary><pre>{state.technicalDetail}</pre></details>}</div>;
+  if ("selected_assets" in state.result) return <div className="semantic-inspector-content"><h2>{state.result.complete ? "Selection complete" : "Selection incomplete"}</h2><p>Selected: {state.result.selected_assets.join(", ") || "none"}</p></div>;
+  return <div className="semantic-inspector-content"><h2>Backtest complete</h2><p>This result belongs to strategy hash <code>{state.result.strategy_hash}</code>.</p><dl><div><dt>Total return</dt><dd>{state.result.result.total_return}</dd></div><div><dt>Final value</dt><dd>{state.result.result.final_value}</dd></div><div><dt>Orders</dt><dd>{state.result.result.total_orders}</dd></div></dl><details><summary>Execution details</summary><pre>{JSON.stringify({ engine: state.result.engine, config: state.result.config, timings: state.result.timings }, null, 2)}</pre></details></div>;
+}
+
+function V2QuickTestPanel({ config, onChange, onRun }: { config: BacktestConfig; onChange: (config: BacktestConfig) => void; onRun: () => void }) {
+  const valid = config.start_date <= config.end_date && Number(config.initial_cash) > 0;
+  return <div className="semantic-inspector-content quick-test-panel"><h2>Quick Test</h2><p>Choose only the period and starting capital. Detailed fees, slippage, currency, cash-flow, and evidence settings belong to Detailed Backtest.</p>
+    <label>Start date<input aria-label="Quick Test start date" type="date" value={config.start_date} onChange={(event) => onChange({ ...config, start_date: event.target.value })} /></label>
+    <label>End date<input aria-label="Quick Test end date" type="date" value={config.end_date} onChange={(event) => onChange({ ...config, end_date: event.target.value })} /></label>
+    <label>Initial capital<input aria-label="Quick Test initial capital" type="number" min="1" step="1000" value={config.initial_cash} onChange={(event) => onChange({ ...config, initial_cash: event.target.value })} /></label>
+    <p className="value-capability-note">Recurring contributions are not enabled in this maintained execution profile, so Quick Test does not fabricate them.</p>
+    <button type="button" className="primary-button" disabled={!valid} onClick={onRun}>Run Quick Test</button>
+  </div>;
+}
 
 export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   persisted: StrategyDetailV2;
@@ -21,12 +48,17 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   const [status, setStatus] = useState<"saved" | "updating" | "invalid" | "unfinished">("saved");
   const [message, setMessage] = useState("Saved");
   const [result, setResult] = useState<V2SelectionExecution | LeanBacktestResponse | null>(null);
+  const [testPanel, setTestPanel] = useState<V2TestPanelState>(null);
+  const [quickTestConfig, setQuickTestConfig] = useState<BacktestConfig>(() => ({ ...DEFAULT_BACKTEST_CONFIG, dataset_id: "filter-synthetic" }));
   const [executionCapability, setExecutionCapability] = useState<V2ExecutionCapability | null>(null);
   const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
   const [redoStack, setRedoStack] = useState<typeof initial[]>([]);
+  const draftKey = persisted.strategy.id;
+  const [workingDraft, setWorkingDraft] = useState<ProgramWorkingDraft>(() => loadProgramWorkingDraft(draftKey, browserProgramDraftStorage()));
   const sequence = useRef(0);
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => persistProgramWorkingDraft(workingDraft, browserProgramDraftStorage()), [workingDraft]);
   useEffect(() => {
     let active = true;
     void v2ExecutionCapability(canonical).then((value) => { if (active) setExecutionCapability(value); }).catch(() => {
@@ -108,21 +140,24 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Save failed.");
     }
   };
-  const run = async () => {
+  const run = async (config = quickTestConfig) => {
     if (unavailable) return;
     const preflight = await v2ExecutionCapability(canonical, fetch, true).catch(() => null);
     if (!preflight || preflight.execution_state !== "executable" || preflight.runtime_state === "unavailable") {
       if (preflight) setExecutionCapability(preflight);
-      setStatus("saved"); setMessage(preflight?.product_message ?? "Testing is unavailable right now.");
+      const productMessage = preflight?.product_message ?? "Testing is unavailable right now.";
+      setTestPanel({ status: "failure", message: productMessage, technicalDetail: preflight?.technical_detail ?? null });
+      setStatus("saved"); setMessage(productMessage);
       return;
     }
     setExecutionCapability(preflight);
+    setTestPanel({ status: "running" });
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
       const next = canonical.program
-        ? await executeV2Lean(canonical, { ...DEFAULT_BACKTEST_CONFIG, dataset_id: "filter-synthetic" })
+        ? await executeV2Lean(canonical, config)
         : await executeV2Selection(canonical);
-      setResult(next); setStatus("saved"); setMessage("Test complete");
+      setResult(next); setTestPanel({ status: "success", result: next }); setStatus("saved"); setMessage("Test complete");
     } catch (reason) {
       const productMessage = reason instanceof V2ExecutionError && reason.code === "runtime_unavailable"
         ? "The testing runtime is unavailable. Try again when Docker is running."
@@ -132,6 +167,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       if (reason instanceof V2ExecutionError && reason.code === "market_data_unavailable") {
         setExecutionCapability({ ...preflight, provider_state: "unavailable", product_message: productMessage, technical_detail: reason.message });
       }
+      setTestPanel({ status: "failure", message: productMessage, technicalDetail: reason instanceof Error ? reason.message : null });
       setStatus("saved"); setMessage(productMessage);
     }
   };
@@ -142,10 +178,12 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
   if (canonical.selection === null && canonical.program) {
     return <SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
-      undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
+      workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
+      undo={() => { if (workingDraft.concept) { setWorkingDraft(withProgramDraftConcept(workingDraft, null)); working(false); return; } const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
-      canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
-      run={() => void run()} executionCapability={executionCapability} />;
+      canUndo={Boolean(workingDraft.concept) || undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
+      run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
+      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} /> : null} onCloseTestPanel={() => setTestPanel(null)} />;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
