@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Blockly from "blockly";
 
-import { entryBlockJson, entryBlocklyExtraState, entryBlocklyFields, entryBlocklyFlyoutToolbox, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
+import { configureEntryReferenceFields, entryBlockJson, entryBlocklyExtraState, entryBlocklyFields, entryBlocklyFlyoutToolbox, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
 import { entryBlockDefinition } from "./entryStyleGrammar";
 import { nativeBlockFieldController, programBlockyVisibleNodes } from "../components/ProductBlockyProjection";
 
@@ -42,7 +42,8 @@ describe("native Blockly product grammar", () => {
     const assets = toolbox.contents.find((category) => category.name === "Assets")!.contents;
     expect(assets).toContainEqual(expect.objectContaining({ kind: "button", text: "Create Group…" }));
     expect(assets).not.toContainEqual(expect.objectContaining({ type: entryBlocklyType("create-group") }));
-    expect(assets).toContainEqual(expect.objectContaining({ type: entryBlocklyType("group-reference"), fields: { REFERENCE: "Growth ETFs" } }));
+    expect(assets.filter((item) => item.type === entryBlocklyType("group-reference"))).toHaveLength(1);
+    expect(assets).toContainEqual(expect.objectContaining({ type: entryBlocklyType("asset-reference") }));
   });
 
   it("renders simple financial meaning in one compact horizontal message", () => {
@@ -76,6 +77,22 @@ describe("native Blockly product grammar", () => {
     expect(filter.getInputTargetBlock("ASSETS")).toBe(group);
     expect(filter.getInputTargetBlock("PREDICATE")).toBe(predicate);
     expect(top.getInputTargetBlock("ASSETS")).toBe(filter);
+    workspace.dispose();
+  });
+
+  it("stores a stable object id in one generic reference dropdown and rejects Group as a numeric value", () => {
+    registerBlockyProgramBlocks();
+    const workspace = new Blockly.Workspace();
+    const group = workspace.newBlock(entryBlocklyType("group-reference"));
+    configureEntryReferenceFields(workspace, [{ id: "group-stable-17", name: "Renamable Growth", kind: "group" }]);
+    group.setFieldValue("group-stable-17", "REFERENCE");
+    expect(group.getFieldValue("REFERENCE")).toBe("group-stable-17");
+    const comparison = workspace.newBlock(entryBlocklyType("compare-gt"));
+    expect(() => comparison.getInput("A")!.connection!.connect(group.outputConnection!)).toThrow();
+    const count = workspace.newBlock(entryBlocklyType("asset-set-count"));
+    count.getInput("ASSETS")!.connection!.connect(group.outputConnection!);
+    comparison.getInput("A")!.connection!.connect(count.outputConnection!);
+    expect(comparison.getInputTargetBlock("A")).toBe(count);
     workspace.dispose();
   });
 
@@ -113,9 +130,10 @@ describe("native Blockly product grammar", () => {
     workspace.dispose();
   });
 
-  it("excludes the canonical Portfolio context only from Blocky", () => {
+  it("excludes Portfolio context and reusable Group definitions from Blocky", () => {
     const visible = programBlockyVisibleNodes([
       { id: "context:portfolio", role: "context", label: "Portfolio", depth: 0, address: { kind: "strategy", focusId: "portfolio", semanticId: "program", canonicalPath: "program" } },
+      { id: "group:growth", role: "group", label: "Group · Growth", depth: 1, address: { kind: "definition", focusId: "group:growth", semanticId: "growth", canonicalPath: "definitions.groups[0]" } },
       { id: "action:1", role: "allocation", label: "Rebalance QQQ", depth: 1, address: { kind: "statement", focusId: "action:1", semanticId: "action:1", canonicalPath: "statements" } },
     ]);
     expect(visible.map((node) => node.label)).toEqual(["Rebalance QQQ"]);

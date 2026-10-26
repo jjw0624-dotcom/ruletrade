@@ -39,21 +39,21 @@ export function entryDefinitionIdForBlock(block: Pick<Blockly.Block, "type" | "g
   return ENTRY_BLOCK_DEFINITIONS.find((item) => entryBlocklyType(item.id) === block.type)?.id ?? null;
 }
 
-export interface EntryToolboxObject { id: string; name: string; kind: "group" | "subgroup" | "variable" | "function" | "signal" }
+export interface EntryToolboxObject { id: string; name: string; kind: "asset" | "group" | "subgroup" | "variable" | "function" | "signal" }
 
 export function entryBlocklyCategoryContents(category: EntryBlockCategory, objects: EntryToolboxObject[] = []): Array<Record<string, unknown>> {
     const entries: Array<Record<string, unknown>> = [];
     if (category === "Assets") entries.push({ kind: "button", text: "Create Group…", callbackKey: "RULETRADE_CREATE_GROUP" });
     for (const definition of ENTRY_BLOCK_DEFINITIONS.filter((item) => item.category === category && item.id !== "create-group" && item.id !== "create-variable")) {
-      const objectKind = definition.id === "group-reference" ? "group" : definition.id === "subgroup-reference" ? "subgroup" : definition.id === "signal-reference" ? "signal" : definition.id === "call-function" ? "function" : null;
-      const references = objectKind ? objects.filter((item) => item.kind === objectKind) : [];
-      if (objectKind && references.length === 0) continue;
-      const variants = references.length ? references : [null];
-      for (const reference of variants) entries.push({
+      const objectKind = definition.id === "asset-reference" ? "asset" : definition.id === "group-reference" ? "group" : definition.id === "subgroup-reference" ? "subgroup" : definition.id === "signal-reference" ? "signal" : definition.id === "call-function" ? "function" : null;
+      // A reference is one language primitive, not one toolbox block per object.
+      // The selected stable object id lives in block metadata/fields after the
+      // user chooses an object or inserts it from Objects.
+      entries.push({
         kind: "block", type: entryBlocklyType(definition.id),
-        fields: reference ? { REFERENCE: reference.name } : entryBlocklyFields(definition.id),
+        fields: entryBlocklyFields(definition.id),
         extraState: entryBlocklyExtraState(definition.id),
-        data: JSON.stringify({ definitionId: definition.id, objectRef: reference?.id ?? null }),
+        data: JSON.stringify({ definitionId: definition.id, objectKind, objectRef: null }),
       });
     }
     if (category === "Data") entries.push(
@@ -80,6 +80,29 @@ const checkNames = (type: EntryValueType): string[] => {
   if (type === "AssetSet") return ["RuleTradeAssetSet", "RuleTradeGroup", "RuleTradeSubgroup"];
   return [`RuleTrade${type}`];
 };
+
+const referenceKindForDefinition = (definitionId: string): EntryToolboxObject["kind"] | null => definitionId === "asset-reference" ? "asset"
+  : definitionId === "group-reference" ? "group"
+    : definitionId === "subgroup-reference" ? "subgroup"
+      : definitionId === "signal-reference" ? "signal"
+        : definitionId === "call-function" || definitionId === "import-function" ? "function"
+          : null;
+
+/** Refresh native reference menus while preserving the stable selected id. */
+export function configureEntryReferenceFields(workspace: Blockly.Workspace, objects: EntryToolboxObject[]) {
+  for (const block of workspace.getAllBlocks(false)) {
+    const definitionId = entryDefinitionIdForBlock(block);
+    const kind = definitionId ? referenceKindForDefinition(definitionId) : null;
+    const field = block.getField("REFERENCE") as ({ setOptions?: (options: Array<[string, string]>) => void }) | null;
+    if (!kind || !field?.setOptions) continue;
+    const matching = objects.filter((object) => object.kind === kind);
+    const current = String(block.getFieldValue("REFERENCE") ?? "");
+    const options: Array<[string, string]> = [[`Select ${kind}…`, ""]];
+    for (const object of matching) options.push([object.name, object.id]);
+    if (current && !matching.some((object) => object.id === current)) options.push([`Missing · ${current}`, current]);
+    field.setOptions(options);
+  }
+}
 
 export function entryBlockJson(definition: EntryBlockDefinition): Record<string, unknown> {
   const input = (name: string) => {
@@ -138,7 +161,10 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     const unit = ({ percentage: "%", quantity: "units", "trading-days": "trading days", "calendar-days": "calendar days" } as Record<string, string>)[definition.id] ?? "";
     json.message0 = `%1${unit === "%" ? "%" : ` ${unit}`}`;
     json.args0 = [{ type: "field_number", name: "VALUE", value: definition.id === "percentage" ? 100 : 1, min: 0 }];
-  } else if (["asset-reference", "group-reference", "subgroup-reference", "signal-reference", "read-variable", "state", "call-function", "import-function"].includes(definition.id)) {
+  } else if (["asset-reference", "group-reference", "subgroup-reference", "signal-reference", "call-function", "import-function"].includes(definition.id)) {
+    json.message0 = "%1";
+    json.args0 = [{ type: "field_dropdown", name: "REFERENCE", options: [["Select…", ""]] }];
+  } else if (["read-variable", "state"].includes(definition.id)) {
     json.message0 = "%1";
     json.args0 = [{ type: "field_input", name: "REFERENCE", text: "choose…" }];
   } else if (["create-group", "create-variable", "create-function"].includes(definition.id)) {
@@ -188,6 +214,16 @@ function argumentInputs(output: "RuleTradeCondition" | "RuleTradeValue") {
 export function registerBlockyProgramBlocks() {
   if (registered) return;
   registered = true;
+  for (const type of ["logic_compare", "math_arithmetic"]) {
+    const definition = Blockly.Blocks[type];
+    if (!definition) continue;
+    const nativeInit = definition.init;
+    definition.init = function initRuleTradeTypedBuiltin(this: Blockly.Block) {
+      nativeInit.call(this);
+      this.getInput("A")?.setCheck(checkNames("Value"));
+      this.getInput("B")?.setCheck(checkNames("Value"));
+    };
+  }
   Blockly.defineBlocksWithJsonArray([
     { type: "rt_context", message0: "%1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "Context" }], colour: 255 },
     { type: "rt_trigger", message0: "Every %1", args0: [{ type: "field_label_serializable", name: "LABEL", text: "month" }], nextStatement: null, colour: 285 },

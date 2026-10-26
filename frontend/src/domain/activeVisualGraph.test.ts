@@ -26,4 +26,13 @@ describe("active visual graph translation boundary", () => {
     draftOnly = setCanvasBlockActive(draftOnly, "draft:start", true);
     expect(validateActiveVisualGraphs(draftOnly).graphs[0]?.capability).toBe("draft_only");
   });
+
+  it("preserves an invalid legacy Group-to-number edge and reports it without reinterpretation", () => {
+    let draft = emptyProgramWorkingDraft("legacy-mismatch");
+    draft = addCanvasBlock(draft, block("draft:compare", "compare-gt"), { x: 20, y: 20 });
+    draft = addCanvasBlock(draft, { ...block("draft:group", "group-reference"), objectRef: "group-stable-17" }, { x: 20, y: 100 });
+    draft = withBlockMove(draft, "draft:group", { x: 20, y: 100 }, { childId: "draft:group", parentId: "draft:compare", inputName: "A" });
+    expect(draft.blockConnections["draft:group"]).toMatchObject({ parentId: "draft:compare", inputName: "A" });
+    expect(validateActiveVisualGraphs(draft).diagnostics).toContainEqual(expect.objectContaining({ code: "typed_connection_mismatch", blockId: "draft:group" }));
+  });
 });

@@ -6,7 +6,7 @@ import type { ProgramBlockNode } from "../domain/programProjections";
 import type { ProgramDraftConcept } from "../domain/programWorkingDraft";
 import type { ProgramCanvasBlock, ProgramDraftConnection, ProgramReusableObject } from "../domain/programWorkingDraft";
 import { entryBlockDefinition } from "../domain/entryStyleGrammar";
-import { entryBlocklyExtraState, entryBlocklyFields, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks, type EntryToolboxObject } from "./blockyProgramBlocks";
+import { configureEntryReferenceFields, entryBlocklyExtraState, entryBlocklyFields, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks, type EntryToolboxObject } from "./blockyProgramBlocks";
 
 function blockType(node: ProductNode) {
   if (node.concept === "selection") return "rt_selection";
@@ -138,7 +138,12 @@ function semanticBlockType(node: ProgramBlockNode) {
   return "rt_action";
 }
 
-export const programBlockyVisibleNodes = (nodes: ProgramBlockNode[]) => nodes.filter((node) => node.role !== "context");
+/**
+ * Blocky is an execution/logic surface. Portfolio context and reusable Group
+ * definitions belong to Structure/Objects; a Group only appears here when the
+ * user explicitly inserts a typed reference block into the working draft.
+ */
+export const programBlockyVisibleNodes = (nodes: ProgramBlockNode[]) => nodes.filter((node) => node.role !== "context" && node.role !== "group");
 
 /** Program-native logic projection. It never consumes the Structure tree. */
 export interface NativeBlockySnapshot {
@@ -241,6 +246,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       try { Blockly.serialization.workspaces.load(workspaceState, canvas); }
       finally { Blockly.Events.enable(); }
     }
+    configureEntryReferenceFields(canvas, objects);
     if (viewport) canvas.scroll(viewport.x, viewport.y);
     const fieldController = nativeBlockFieldController(canvas);
     onWorkspaceApi?.({
@@ -254,12 +260,13 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         return true;
       },
       insertObjectReference: (object, target) => {
-        const definitionId = object.kind === "group" ? "group-reference" : object.kind === "subgroup" ? "subgroup-reference" : null;
+        const definitionId = object.kind === "asset" ? "asset-reference" : object.kind === "group" ? "group-reference" : object.kind === "subgroup" ? "subgroup-reference" : null;
         if (!definitionId) return null;
         const block = canvas.newBlock(entryBlocklyType(definitionId)) as Blockly.BlockSvg;
         const id = `draft:${block.id}`;
         block.data = JSON.stringify({ productId: id, definitionId, objectRef: object.id });
-        if (block.getField("REFERENCE")) block.setFieldValue(object.name, "REFERENCE");
+        configureEntryReferenceFields(canvas, objects);
+        if (block.getField("REFERENCE")) block.setFieldValue(object.id, "REFERENCE");
         block.initSvg(); block.render();
         const parent = target ? canvas.getAllBlocks(false).find((candidate) => readAddress(candidate) === target.parentId) : null;
         const input = parent?.getInput(target?.inputName ?? "")?.connection;
@@ -329,6 +336,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         const block = canvas.getBlockById(blockId);
         const definitionId = block && entryDefinitionIdForBlock(block);
         if (block && definitionId) {
+          configureEntryReferenceFields(canvas, objects);
           const id = `draft:${block.id}`;
           setAddress(block, id);
           onSelectRef.current(id);
@@ -347,7 +355,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         if (!address.startsWith("draft:")) callbacksRef.current.onBlockMove?.(address, { x: xy.x, y: xy.y }, parentId, inputName);
       }
       if (event.type === Blockly.Events.BLOCK_CHANGE) {
-        const change = event as Blockly.Events.Abstract & { element?: string; newValue?: unknown };
+        const change = event as Blockly.Events.Abstract & { element?: string; name?: string; newValue?: unknown };
+        if (change.element === "field" && change.name === "REFERENCE") {
+          const block = canvas.getBlockById(blockId);
+          if (block) {
+            const metadata = readMetadata(block);
+            block.data = JSON.stringify({ ...metadata, objectRef: change.newValue ? String(change.newValue) : null });
+          }
+        }
         if (change.element === "collapsed") {
           const block = canvas.getBlockById(blockId);
           const address = readAddress(block);
@@ -369,7 +384,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     return () => { resizeObserver?.disconnect(); flyout?.removeEventListener("pointerenter", expandAdd); flyout?.removeEventListener("pointerleave", collapseAdd); flyout?.removeEventListener("focusin", expandAdd); flyout?.removeEventListener("focusout", collapseAdd); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
   }, []);
 
-  useEffect(() => { workspace.current?.updateToolbox(entryBlocklyToolbox(objects)); }, [objects]);
+  useEffect(() => {
+    const canvas = workspace.current;
+    if (!canvas) return;
+    canvas.updateToolbox(entryBlocklyToolbox(objects));
+    configureEntryReferenceFields(canvas, objects);
+    const flyoutWorkspace = canvas.getToolbox()?.getFlyout()?.getWorkspace();
+    if (flyoutWorkspace) configureEntryReferenceFields(flyoutWorkspace, objects);
+  }, [objects]);
 
   useEffect(() => {
     const canvas = workspace.current;
@@ -486,8 +508,8 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
           existing.set(canvasBlock.id, block);
         }
         if (canvasBlock.objectRef && block.getField("REFERENCE")) {
-          const object = objects.find((item) => item.id === canvasBlock.objectRef);
-          if (object) block.setFieldValue(object.name, "REFERENCE");
+          configureEntryReferenceFields(canvas, objects);
+          block.setFieldValue(canvasBlock.objectRef, "REFERENCE");
         }
         block.setWarningText(definition.execution === "verified" ? null : definition.execution === "draft_only" ? "Working Draft only — not executable." : "Complete the required context before execution.");
         block.setCollapsed((disclosure[canvasBlock.id] ?? 1) === 0);

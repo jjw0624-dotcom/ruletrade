@@ -218,7 +218,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .program-builder-core.left-open.inspector-open { grid-template-columns: 268px minmax(0,1fr) minmax(300px,360px); }
 .workspace-left-root { position: relative; min-width: 0; border-right: 1px solid var(--border); background: rgba(250,251,249,.97); }
 .workspace-panel-toggle { position: absolute; z-index: 5; top: 9px; right: 7px; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
-.workspace-left-panel { height: 100%; min-height:0; overflow:hidden; padding-top: 46px; box-sizing:border-box; }
+.workspace-left-panel { height: 100%; min-height:0; overflow:hidden; box-sizing:border-box; }
 .workspace-left-tabs{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}
 .workspace-left-tabs>.structure-panel,.workspace-left-tabs>.blocks-panel{min-height:0;overflow:auto}
 .workspace-left-panel[data-perspective="blocky"]{overflow:hidden}.workspace-left-panel[data-perspective="blocky"] .workspace-left-tabs{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}.workspace-left-panel[data-perspective="blocky"] .structure-panel{min-height:0;overflow:auto}
@@ -256,8 +256,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .blocky-representation[data-native-add-open="true"] [data-ruletrade-native-toolbox="true"]{visibility:visible;pointer-events:auto}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategory{height:auto;min-height:32px;padding:7px 8px!important;margin:1px 4px;border-radius:6px}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryLabel{font-size:11px;font-weight:750}
-.blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryGroup{width:100%!important}
-.blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{width:176px!important;max-width:none;overflow:hidden;border-right:1px solid var(--border);transform:translateX(-176px);transition:width .16s ease;z-index:12}
+.blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryGroup{width:88px!important}
+.blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{width:180px!important;max-width:none;overflow:hidden;border-right:1px solid var(--border);transform:translateX(-180px);transition:width .16s ease;z-index:12}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocky-canvas[data-add-expanded="true"] .blocklyFlyout{width:min(360px,42vw)!important;filter:drop-shadow(12px 0 18px rgba(20,32,24,.16))}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutLabelText{font-size:11px}

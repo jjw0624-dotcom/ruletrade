@@ -258,12 +258,10 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
   const categories: ProductAddAction["category"][] = perspective === "blocky"
     ? [...ENTRY_BLOCK_CATEGORIES]
     : ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
-  const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<"structure" | "blocks" | "objects">("structure");
   useEffect(() => { onBlockyAddOpenChange?.(perspective === "blocky" && tab === "blocks"); }, [onBlockyAddOpenChange, perspective, tab]);
-  return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
-    <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
-    <Collapsible.Content className="workspace-left-panel" data-perspective={perspective} data-active-tab={tab} data-builder-tools="contextual">
+  return <aside className="workspace-left-root" aria-label="Builder library">
+    <div className="workspace-left-panel" data-perspective={perspective} data-active-tab={tab} data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger><Tabs.Trigger value="objects">Objects</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
@@ -274,8 +272,8 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
           {onCreateGroup && <button type="button" className="secondary-button" onClick={() => onCreateGroup()}>Create Group</button>}
         </Tabs.Content>
       </Tabs.Root>
-    </Collapsible.Content>
-  </Collapsible.Root>;
+    </div>
+  </aside>;
 }
 
 export function WorkspaceLeftPanel(props: ({

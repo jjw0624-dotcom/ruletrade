@@ -308,6 +308,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await clickButton(container, "Objects");
     await clickButton(container, "Create Group");
     expect(container.querySelector('[data-object-definition-workspace="group"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Collapse construction panel"]')).toBeNull();
     await clickGroupWorkspaceButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "group-reference" || item.definitionId === "create-group")).toBe(false);
