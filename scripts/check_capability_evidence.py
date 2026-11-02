@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 """Validate that capability claims remain traceable and conservatively classified."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "corpus" / "ruletrade-capability-evidence.json"
