@@ -20,6 +20,26 @@ describe("persistent BacktestRun frontend", () => {
     expect(submitted).toEqual({ config });
   });
 
+  it("uses the persisted SemanticProgramV2 Run aliases without falling back to v1", async () => {
+    const calls: string[] = [];
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+      if (String(input).includes("/revisions/")) return response(init?.method === "POST" ? run : { items: [run] }, init?.method === "POST" ? 201 : 200);
+      return response(run);
+    }) as typeof fetch;
+
+    await backtestRunApi.createV2("revision-1", config, fetcher);
+    await backtestRunApi.listV2("revision-1", fetcher);
+    await backtestRunApi.getV2("run-1", fetcher);
+
+    expect(calls).toEqual([
+      "POST /api/v2/revisions/revision-1/backtest-runs",
+      "GET /api/v2/revisions/revision-1/backtest-runs",
+      "GET /api/v2/backtest-runs/run-1",
+    ]);
+    expect(calls.join(" ")).not.toContain("/api/v1/");
+  });
+
   it("lists independent Runs without mutating their configuration", async () => {
     const second = { ...run, id: "run-2", run_config: { ...config, start_date: "2015-01-01" } };
     const fetcher = (async () => response({ items: [second, run] })) as typeof fetch;

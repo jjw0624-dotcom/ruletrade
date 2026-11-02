@@ -46,4 +46,7 @@ export const backtestRunApi = {
   create: (revisionId: string, config: BacktestConfig, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v1/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, jsonBody("POST", { config }), fetcher),
   list: (revisionId: string, fetcher?: typeof fetch) => request<{ items: BacktestRunRecord[] }>(`/v1/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, {}, fetcher),
   get: (runId: string, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v1/backtest-runs/${encodeURIComponent(runId)}`, {}, fetcher),
+  createV2: (revisionId: string, config: BacktestConfig, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v2/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, jsonBody("POST", { config }), fetcher),
+  listV2: (revisionId: string, fetcher?: typeof fetch) => request<{ items: BacktestRunRecord[] }>(`/v2/revisions/${encodeURIComponent(revisionId)}/backtest-runs`, {}, fetcher),
+  getV2: (runId: string, fetcher?: typeof fetch) => request<BacktestRunRecord>(`/v2/backtest-runs/${encodeURIComponent(runId)}`, {}, fetcher),
 };

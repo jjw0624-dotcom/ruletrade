@@ -15,6 +15,7 @@ import { projectConceptualFlow } from "./conceptualFlow";
 import { fallbackBootstrap } from "../test/fixture";
 import { projectProductionFlowCanvas } from "../views/FlowView";
 import { programBlockConnectionManifest, projectProgramBlocky, projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "./programProjections";
+import type { BacktestRunRecord } from "../backtestRunApi";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -84,6 +85,21 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("Technical diagnostics");
     expect(markup).toContain("Docker daemon is unavailable");
     expect(markup).not.toContain("semantic invalid");
+  });
+  it("renders a persisted V2 Run with revision and execution provenance", () => {
+    const run = {
+      id: "run-v2", revision_id: "revision-v2", status: "succeeded",
+      result: { initial_value: "100000", final_value: "112500", total_return: "0.125", total_orders: 4, total_fees: "2", equity_curve: [] },
+      error: null, provenance: { source_hash: "sha256:v2", strategy_schema_version: "ruletrade.dev/strategy/v2", application_version: "0.1.0", build_commit: null, backend_id: "lean", engine_image: "lean:test", dataset_id: "filter-synthetic", dataset_version: "v1" },
+      run_config: { start_date: "2024-01-01", end_date: "2024-02-29", initial_cash: "100000", dataset_id: "filter-synthetic" },
+      timings: { source_load_ms: 1, validation_ms: 1, compiler_ms: 1, codegen_ms: 1, csharp_compile_ms: 1, lean_execution_ms: 1, result_load_ms: 1, normalization_ms: 1, total_ms: 8 },
+      created_at: "2026-10-07T00:00:00Z", started_at: "2026-10-07T00:00:01Z", completed_at: "2026-10-07T00:00:08Z",
+    } as BacktestRunRecord;
+    const markup = renderToStaticMarkup(<V2TestResultPanel state={{ status: "success", result: run }} />);
+    expect(markup).toContain("Saved Run");
+    expect(markup).toContain("revision-v2");
+    expect(markup).toContain("Execution provenance");
+    expect(markup).toContain("sha256:v2");
   });
   it("offers a normal blank Strategy path without exposing Program internals", () => {
     const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
@@ -444,6 +460,38 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
     expect(rules.some((item) => item.text.includes("On rising edge"))).toBe(true);
     expect(summary).toMatchObject({ title: "Profile A selection" });
     expect(summary.description).toContain("Choose 2");
+    expect(summary.sections.map((section) => section.label)).toEqual(expect.arrayContaining(["Universe", "Timing", "Selection and conditions", "Capital allocation", "State and behavior"]));
+    expect(summary.missingInputs).toEqual([]);
+  });
+
+  it.each(["overview", "guided", "rules", "code"] as const)("renders complete %s meaning without production lowering", (initialView) => {
+    const latestRun = {
+      id: "run-v2", revision_id: "revision-v2", status: "succeeded",
+      result: { initial_value: "100000", final_value: "112500", total_return: "0.125", total_orders: 4, total_fees: "2", equity_curve: [] },
+      error: null, provenance: { source_hash: "sha256:v2", strategy_schema_version: "ruletrade.dev/strategy/v2", application_version: "0.1.0", build_commit: null, backend_id: "lean", engine_image: "lean:test", dataset_id: "filter-synthetic", dataset_version: "v1" },
+    } as BacktestRunRecord;
+    const markup = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={programStrategy()} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined}
+      executionCapability={{ authoring_state: "committed", semantic_state: "valid", execution_state: "executable", provider_state: "available", runtime_state: "available", product_message: "Ready to test.", technical_detail: null, authorable: true, reference_valid: true, backend_lowerable: true, production_executable: true, reason: null }}
+      revisionContext={{ revisionId: "revision-v2", sourceHash: "sha256:v2", schemaVersion: "ruletrade.dev/strategy/v2", latestRun }} onOpenLatestRun={() => undefined} initialView={initialView} />);
+    expect(markup).not.toContain("production Program lowering");
+    if (initialView === "overview") {
+      expect(markup).toContain("Selection and conditions");
+      expect(markup).toContain("Latest saved test");
+      expect(markup).toContain("12.50% total return");
+      expect(markup).toContain("View saved result");
+    }
+    if (initialView === "guided") {
+      expect(markup).toContain("Reusable Group");
+      expect(markup).toContain("Completed-observation timing");
+      expect(markup).toContain('data-semantic-address="risk-event-statement"');
+    }
+    if (initialView === "rules") expect(markup).toContain("Ready to test");
+    if (initialView === "code") {
+      expect(markup).toContain("revision-v2");
+      expect(markup).toContain("sha256:v2");
+      expect(markup).toContain("canonical_strategy");
+      expect(markup).toContain("latest_run");
+    }
   });
 
   it("projects explicit connected Blocky composition without duplicated trigger copy", () => {

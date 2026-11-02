@@ -106,7 +106,8 @@
         {"path": "src/ruletrade/backtest_runs/service.py", "kind": "implementation"},
         {"path": "tests/test_backtest_runs.py", "symbol": "test_maintained_v2_families_share_persisted_run_lifecycle", "kind": "test"},
         {"path": "scripts/run_persisted_v2_api_lean_e2e.py", "kind": "docker_test"},
-        {"path": "frontend/src/domain/backtestRunPersistence.test.tsx", "symbol": "reopens an existing Run with GET", "kind": "test"}
+        {"path": "frontend/src/domain/backtestRunPersistence.test.tsx", "symbol": "uses the persisted SemanticProgramV2 Run aliases without falling back to v1", "kind": "test"},
+        {"path": "frontend/src/components/V2StrategyEditor.tsx", "symbol": "backtestRunApi.createV2", "kind": "implementation"}
       ],
       "limits": ["V2 execution is limited to the strict maintained subset; unsupported revisions persist a typed failed Run without a result."]
     },
@@ -145,17 +146,18 @@
     {
       "id": "summary-perspective",
       "kind": "perspective",
-      "summary": "Summary is a semantic projection but currently exposes only a short title/description.",
+      "summary": "Summary projects objective, universe, timing, selection, allocation, behavior, capability, missing inputs and the latest saved Run.",
       "capabilities": {
-        "representable": "PARTIAL", "authorable": "NOT_APPLICABLE", "persistable": "NOT_APPLICABLE",
+        "representable": "PASS", "authorable": "NOT_APPLICABLE", "persistable": "NOT_APPLICABLE",
         "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
         "api_executable": "NOT_APPLICABLE", "browser_verified": "PARTIAL"
       },
       "evidence": [
         {"path": "frontend/src/domain/programProjections.ts", "symbol": "projectProgramSummary", "kind": "implementation"},
-        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", "kind": "test"}
+        {"path": "frontend/src/domain/v2ProductionAuthoring.test.tsx", "symbol": "renders complete %s meaning without production lowering", "kind": "test"},
+        {"path": "scripts/check_builder_browser.mjs", "symbol": "builder-${label.toLowerCase()}-perspective", "kind": "browser_test"}
       ],
-      "limits": ["Objective, schedule, risks, capability, missing configuration, latest execution and available results are incomplete."]
+      "limits": ["Summary opens the saved result in the detail rail; dedicated Decision Evidence browsing remains in the Result/Evidence surfaces."]
     },
     {
       "id": "rules-perspective",
@@ -192,32 +194,32 @@
     {
       "id": "code-perspective",
       "kind": "perspective",
-      "summary": "Code is a read-only JSON rendering of Canonical strategy meaning.",
+      "summary": "Code is a read-only exact envelope containing Canonical strategy meaning plus revision, capability and latest-Run provenance.",
       "capabilities": {
         "representable": "PASS", "authorable": "UNSUPPORTED", "persistable": "NOT_APPLICABLE",
         "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
         "api_executable": "NOT_APPLICABLE", "browser_verified": "PARTIAL"
       },
       "evidence": [
-        {"path": "frontend/src/components/SemanticProgramBuilderAdapter.tsx", "symbol": "Read-only developer representation", "kind": "implementation"},
-        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", "kind": "test"}
+        {"path": "frontend/src/components/SemanticProgramBuilderAdapter.tsx", "symbol": "Read-only exact semantics", "kind": "implementation"},
+        {"path": "frontend/src/domain/v2ProductionAuthoring.test.tsx", "symbol": "renders complete %s meaning without production lowering", "kind": "test"}
       ],
-      "limits": ["Revision, capability, provenance, diagnostics and execution-evidence links are absent."]
+      "limits": ["Code is intentionally read-only and exposes Run metadata rather than embedding the full Decision Evidence collection."]
     },
     {
       "id": "guide-perspective",
       "kind": "perspective",
-      "summary": "Guide offers blank recipes and a shallow list of selected/control/allocation statements.",
+      "summary": "Guide offers blank recipes and walks committed Groups, clocks and all Program statements through stable semantic addresses.",
       "capabilities": {
-        "representable": "PARTIAL", "authorable": "PARTIAL", "persistable": "PASS",
+        "representable": "PASS", "authorable": "PARTIAL", "persistable": "PASS",
         "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
         "api_executable": "PARTIAL", "browser_verified": "PARTIAL"
       },
       "evidence": [
         {"path": "frontend/src/components/SemanticProgramBuilderAdapter.tsx", "symbol": "How this strategy works", "kind": "implementation"},
-        {"path": "frontend/src/domain/structuralAuthoringIntegration.test.tsx", "symbol": "keeps high-level shape recipes in Guide", "kind": "test"}
+        {"path": "frontend/src/domain/v2ProductionAuthoring.test.tsx", "symbol": "renders complete %s meaning without production lowering", "kind": "test"}
       ],
-      "limits": ["It does not yet walk the actual strategy, explain missing inputs, or navigate every blocker."]
+      "limits": ["Guide navigates committed semantic objects and statements; unsupported authoring still resolves through diagnostics and the shared Inspector."]
     },
     {
       "id": "ai-perspective",
