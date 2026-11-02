@@ -1,0 +1,45 @@
+{
+  "schema": "ruletrade.dev/blocky-169-coverage/v1",
+  "denominator": 169,
+  "primary_classification_counts": {
+    "B": 23,
+    "C": 71,
+    "D": 66,
+    "E": 9
+  },
+  "secondary_blocker_counts": {
+    "asset_set_composition": 24,
+    "event_order": 46,
+    "event_relative_time": 30,
+    "exception_policy": 39,
+    "external_judgment": 22,
+    "fragment_requires_explicit_context": 19,
+    "multi_clock_context": 34,
+    "option_contract_or_lifecycle": 52,
+    "specialized_finance_or_model_data": 22,
+    "state_or_memory": 47,
+    "undefined_user_parameter": 96
+  },
+  "composition_status_counts": {
+    "parameterized_graph_requiring_user_input": 23,
+    "proposed_graph_requiring_new_grammar": 71,
+    "unresolved_natural_language_meaning": 9,
+    "unsupported_semantic_or_data_requirement": 66
+  },
+  "current_proven_coverage": 0,
+  "parameter_dependent_coverage": 23,
+  "p0_draftable_cases": 44,
+  "post_implementation_proven_execution": 0,
+  "previous_review_hypothesis_counts": {
+    "공통 문법 확장 필요": 46,
+    "파라미터 정의로 가능": 32,
+    "금융 전용 타입 필요": 63,
+    "외부 판단 필요": 11,
+    "현재 표현 가능": 17
+  },
+  "counterexamples": {
+    "AssetSet": "Filter(SP500, RSI(14) < 10) is type-valid Working Draft composition but has no new SemanticProgramV2 lowering in this change.",
+    "Random": "Random N and independent random filtering remain non-executable until seed/cutoff/order/restart semantics have reference and LEAN evidence.",
+    "Aggregate": "Count(Filter(group, predicate)) > 5 is distinct from a candidate predicate and is not silently lowered as one."
+  }
+}

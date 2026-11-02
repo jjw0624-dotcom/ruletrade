@@ -124,7 +124,7 @@ function LegacyStrategyBuilderWorkspace({
       </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
     </header>
     {(notices || validation) && <div className="builder-messages" data-workspace-status="overlay">{notices}{validation}</div>}
-    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="stacked" orientation="vertical" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
+    {research?.researchOpen ? <Group className="builder-workbench" data-research-open data-research-layout="side-by-side" orientation="horizontal" onLayoutChanged={(layout, meta) => { if (shouldStoreResearchSize(layout.research, meta.isUserInteraction)) research.onResize(layout.research); }}>
       <Panel id="builder" defaultSize={`${100 - research.size}%`} minSize={`${RESEARCH_BUILDER_MIN_SIZE}%`}>
         {builder}
       </Panel>
@@ -158,6 +158,7 @@ export interface ProgramBuilderContract {
   canUndo: boolean;
   canRedo: boolean;
   onDiscardDraft?: () => void;
+  detailPanel?: { title: string; content: ReactNode; onClose: () => void } | null;
 }
 
 export interface ProgramWorkspaceProps {
@@ -198,12 +199,14 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
     </header>
     {program.feedback && <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>}
     <div className="builder-workbench builder-only" data-research-layout="builder-only">
-      <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`}>
+      <div className={`builder-core program-builder-core left-open${program.inspectorOpen || program.detailPanel ? " inspector-open" : ""}`}>
         {program.leftPanel}
         <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>
           {(Object.keys(labels) as ProgramBuilderView[]).filter((view) => visitedViews.has(view)).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
         </main>
-        {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
+        {program.detailPanel
+          ? <aside className="semantic-inspector test-result-panel" aria-label="Test results"><header><span className="eyebrow">{program.detailPanel.title}</span><button type="button" aria-label="Close Test results" onClick={program.detailPanel.onClose}>×</button></header>{program.detailPanel.content}</aside>
+          : program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
     </div>
   </section>;

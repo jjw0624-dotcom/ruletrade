@@ -1,0 +1,16 @@
+{
+  "schema_version": "ruletrade.dev/perspective-manifest-fixtures/v2",
+  "note": "Assertions over repository-native fixtures. Roles are minimum required sets; generated manifests remain authoritative.",
+  "cases": [
+    {"id":"single-asset-holding","internal":"explicit fixed asset target","flow_roles":["portfolio","destination","rebalance"],"blocky_roles":["allocation"],"status":"adjusted_fixture_required"},
+    {"id":"strongest-etfs","internal":"strongest_etfs_strategy","flow_roles":["portfolio","investment","selection","destination","fallback","rebalance"],"blocky_roles":["selection","condition","value","fallback","allocation"],"status":"verified"},
+    {"id":"growth-defensive","internal":"composable_split_execution_strategy","flow_roles":["portfolio","split","investment","selection","destination","rebalance"],"blocky_roles":["selection","value","policy","allocation"],"status":"verified_adjusted"},
+    {"id":"sma-conditional","internal":"price_over_sma_program","flow_roles":["portfolio"],"blocky_roles":["event","condition","value","memory"],"status":"reference_verified_execution_unproven"},
+    {"id":"weighted-score-selection","internal":"weighted_momentum_allocation_strategy","flow_roles":["portfolio","investment","selection","destination","rebalance"],"blocky_roles":["selection","value","allocation"],"status":"verified"},
+    {"id":"n-of-m","internal":"n_of_m_program","flow_roles":["portfolio"],"blocky_roles":["event","condition","value","memory"],"status":"reference_verified_execution_unproven"},
+    {"id":"breakout-retest-confirmation","internal":"temporal_breakout_strategy","flow_roles":["portfolio"],"blocky_roles":["event","transition","memory","policy","condition","value"],"status":"verified_adjusted"},
+    {"id":"weekly-context-daily-action","internal":"temporal_multiclock_strategy","flow_roles":["portfolio"],"blocky_roles":["event","transition","memory","policy","condition","value"],"status":"verified_adjusted"},
+    {"id":"guard-override-policy","internal":"composable_semantic_execution_strategy","flow_roles":["portfolio","investment","selection","destination","fallback","rebalance"],"blocky_roles":["selection","event","transition","memory","policy","condition","value"],"status":"verified_adjusted"},
+    {"id":"inverse-volatility","internal":null,"flow_roles":[],"blocky_roles":[],"status":"incomplete_reference_only"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "ruletrade.dev/semantic-first-block-readability/v1",
+  "parent_head": "73e4267e02a8ed08c71c499e95e787aded56ae8f",
+  "scenarios": [
+    { "id": "monthly-action", "surface": "Every monthly close → Buy QQQ with 100% available cash / Rebalance QQQ to 100% portfolio weight", "essential_visible": ["trigger", "target", "action", "amount_or_weight"], "semantic_boundary": "Investment cash fraction remains distinct from portfolio target weight" },
+    { "id": "conditional-regime", "surface": "Every monthly close → IF QQQ close > SMA(200) → Growth; OTHERWISE Defensive", "essential_visible": ["trigger", "predicate", "then", "otherwise"], "semantic_boundary": "T/F/U condition preserved" },
+    { "id": "group-choose", "surface": "From Growth ETFs choose top 2 by return where return > 0 → Buy selected Subgroup", "essential_visible": ["Group", "condition", "metric", "count", "action"], "semantic_boundary": "Choose produces a Subgroup and never allocates capital" },
+    { "id": "weighted-score", "surface": "Named Weighted Score → ranked Subgroup", "essential_visible": ["calculation identity", "selection"], "expanded": ["component weights", "normalization"], "semantic_boundary": "Docker-verified weighted Score/Allocation path unchanged" },
+    { "id": "stateful", "surface": "Breakout → remember value → retest → confirmation", "essential_visible": ["event order", "state", "memory", "action"], "expanded": ["expiry", "checkpoint diagnostics"], "semantic_boundary": "deterministic temporal/stateful execution unchanged" },
+    { "id": "alternatives", "surface": "Disconnected alternative blocks", "essential_visible": ["independent fragments"], "semantic_boundary": "Only explicit active roots are eligible for semantic commit" }
+  ]
+}

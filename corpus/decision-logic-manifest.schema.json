@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ruletrade.dev/decision-logic-manifest/v2",
+  "type": "object",
+  "required": ["schema_version", "strategy_id", "semantic_fingerprint", "blocks", "connections", "capability"],
+  "properties": {
+    "schema_version": {"const": "ruletrade.dev/decision-logic-manifest/v2"},
+    "strategy_id": {"type": "string", "minLength": 1},
+    "semantic_fingerprint": {"type": "string", "minLength": 1},
+    "blocks": {"type": "array", "items": {"type": "object", "required": ["id", "role", "source_semantic_addresses", "abstraction_level", "capability"]}},
+    "connections": {"type": "array", "items": {"type": "object", "required": ["id", "source_id", "target_id", "kind"]}},
+    "diagnostics": {"type": "array"},
+    "capability": {"type": "object"}
+  },
+  "additionalProperties": false
+}

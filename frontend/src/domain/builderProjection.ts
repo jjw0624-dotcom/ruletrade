@@ -74,7 +74,7 @@ export function projectBuilderStructure(projection: ConceptualFlowProjection): S
     }],
   };
   const role = (node: ProductNode): SemanticSelection["role"] => ({
-    portfolio: "portfolio", investment: "group", sleeve: "group", assets: "universe",
+    portfolio: "portfolio", group: "group", subgroup: "selection", investment: "group", sleeve: "group", assets: "universe",
     qualification: "qualification", selection: "selection", fallback: "fallback",
     cooldown: "cooldown", split: "split", allocation: "rule", timing: "schedule",
     rebalance: "schedule", control: "rule",

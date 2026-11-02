@@ -117,6 +117,8 @@ class LeanRebalance:
     exit_state_ids: tuple[str, ...] = ()
     predicate: "LeanTrailingReturnPredicate | None" = None
     condition: tuple[LeanComparison, ...] = ()
+    condition_three_valued: bool = False
+    condition_unknown_policy: Literal["retain", "otherwise"] = "retain"
     otherwise_sleeve_ids: tuple[str, ...] = ()
     otherwise_snapshot_allocations: tuple["LeanSnapshotAllocation", ...] = ()
     otherwise_exit_state_ids: tuple[str, ...] = ()
@@ -296,6 +298,7 @@ class LeanMonthlyEvent:
     rebalance_ids: tuple[str, ...]
     execution: LeanOnDataExecution
     refresh_ids: tuple[str, ...] = ()
+    boundary: Literal["start", "end"] = "start"
 
 
 @dataclass(frozen=True)

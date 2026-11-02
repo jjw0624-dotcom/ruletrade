@@ -1,0 +1,16 @@
+{
+  "schema": "ruletrade.dev/entry-style-builder-acceptance/v1",
+  "parent_head": "e299fe403a4d282877e459e83d030e8540d92db3",
+  "journeys": [
+    { "id": "monthly-qqq", "visual": "Monthly Start -> QQQ Rebalance 100%", "connections": ["Statement", "Asset", "Percentage"], "active_roots": ["monthly-start"], "semantic": "supported subset", "capability": "executable when complete", "evidence": "static profile + Docker differential" },
+    { "id": "group-reference", "visual": "Create Group in Object Library; explicitly insert Group reference", "connections": ["Group"], "active_roots": [], "semantic": "definition only", "capability": "draftable", "evidence": "native toolbox/object separation tests" },
+    { "id": "choose-invest", "visual": "Group -> Choose Top 2 -> Investment/Rebalance", "connections": ["Group", "Value", "Subgroup", "Statement"], "active_roots": ["scheduled-start"], "semantic": "Selection + Allocation", "capability": "executable when complete", "evidence": "semantic corpus + weighted Docker differential" },
+    { "id": "conditional-regime", "visual": "IF QQQ close > SMA(200), Growth, otherwise Defensive", "connections": ["Truth", "Value", "Asset", "Statement"], "active_roots": ["scheduled-start"], "semantic": "Control", "capability": "supported subset", "evidence": "conditional static profile" },
+    { "id": "parallel-70-30", "visual": "Growth/Defensive 70/30 parallel allocation", "connections": ["Statement", "Percentage"], "active_roots": ["scheduled-start"], "semantic": "fixed Allocation", "capability": "supported subset", "evidence": "split static profile" },
+    { "id": "weighted-score", "visual": "Weighted Score -> ranking -> selected Subgroup", "connections": ["Value", "Group", "Subgroup"], "active_roots": ["scheduled-start"], "semantic": "Score + Selection", "capability": "Docker verified", "evidence": "weighted Score/Allocation differential" },
+    { "id": "breakout-state", "visual": "Event/State breakout, retest, confirmation", "connections": ["Truth", "State", "Statement"], "active_roots": ["event-start"], "semantic": "Event/State/Memory", "capability": "Docker verified through canonical authoring", "evidence": "temporal/stateful differential" },
+    { "id": "weekly-daily", "visual": "Weekly context -> daily decision", "connections": ["Value", "Truth", "Statement"], "active_roots": ["daily-start"], "semantic": "multi-clock", "capability": "Docker verified through canonical authoring", "evidence": "weekly-to-daily differential" },
+    { "id": "signal-draft", "visual": "Send Signal -> When Signal received", "connections": ["Signal", "Statement"], "active_roots": ["signal-start"], "semantic": "not committed", "capability": "draft_only", "evidence": "save/reopen and active graph capability tests" },
+    { "id": "function-draft", "visual": "Typed function definition and call", "connections": ["Function", "Value"], "active_roots": [], "semantic": "not committed", "capability": "draft_only", "evidence": "Blockly native procedure serialization" }
+  ]
+}

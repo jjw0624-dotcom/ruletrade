@@ -1,0 +1,24 @@
+{
+  "schema_version": "ruletrade.dev/perspective-corpus/v2",
+  "evidence_boundary": "Repository fixtures are authoritative. Attached examples are design inputs and the 169 source records are fragments, not executable strategies.",
+  "cases": [
+    {"id":"single-asset-holding","source_case":"single-qqq","repository_fixture":null,"classification":"compatible_after_translation_adjustment","formalization":"Use an explicit fixed asset allocation; the attachment did not provide a validated Canonical fixture.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":true},
+    {"id":"strongest-etfs","source_case":"strongest-etfs","repository_fixture":"strongest-etfs","classification":"compatible","formalization":"Monthly Selection eligibility, ranking, require-full shortage, TLT fallback and equal selected allocation.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":true},
+    {"id":"growth-defensive","source_case":"growth-defensive","repository_fixture":"composable-split-execution","classification":"compatible_after_translation_adjustment","formalization":"Repository proof uses two independent Selections and guarded aggregation; the illustrative fixed IEF branch is not claimed identical.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":true},
+    {"id":"sma-conditional","source_case":"sma-filter","repository_fixture":"price-over-sma","classification":"compatible_after_translation_adjustment","formalization":"The repository fixture observes the condition and memory; it does not invent the attachment's cash branch.","representable":true,"reference_evaluable":true,"backend_lowerable":false,"docker_verified":false,"provider_supported":true,"ui_authorable":false},
+    {"id":"weighted-score-selection","source_case":"weighted-score","repository_fixture":"weighted-momentum-allocation","classification":"compatible","formalization":"Weighted 21/63 return Score, Top 2 Selection and proportional-score Allocation.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":false},
+    {"id":"n-of-m","source_case":"nofm","repository_fixture":"n-of-m","classification":"compatible_after_translation_adjustment","formalization":"Repository fixture preserves T/F/U condition evaluation and does not invent an unspecified false destination.","representable":true,"reference_evaluable":true,"backend_lowerable":false,"docker_verified":false,"provider_supported":true,"ui_authorable":false},
+    {"id":"breakout-retest-confirmation","source_case":"breakout-retest","repository_fixture":"temporal-breakout-state-machine","classification":"compatible_after_translation_adjustment","formalization":"Synthetic repository thresholds and checkpoint identities are authoritative for execution proof.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":false},
+    {"id":"weekly-context-daily-action","source_case":"weekly-daily","repository_fixture":"temporal-multiclock-state-machine","classification":"compatible_after_translation_adjustment","formalization":"Only previous completed weekly values feed daily decisions.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":false},
+    {"id":"guard-override-policy","source_case":"guard-override","repository_fixture":"composable-semantic-execution","classification":"compatible_after_translation_adjustment","formalization":"Repository fixture supplies concrete guard/override predicates and targets; the attachment was abstract.","representable":true,"reference_evaluable":true,"backend_lowerable":true,"docker_verified":true,"provider_supported":true,"ui_authorable":false},
+    {"id":"inverse-volatility","source_case":"inverse-volatility","repository_fixture":null,"classification":"incomplete_reference_only","formalization":"Lookback, clock and nonpositive/fallback policy remain unspecified. No executable strategy is fabricated.","representable":true,"reference_evaluable":false,"backend_lowerable":false,"docker_verified":false,"provider_supported":true,"ui_authorable":false}
+  ],
+  "counterexamples": [
+    "incomplete_if", "disconnected_selection", "invalid_visual_connection",
+    "selection_fallback_as_else", "split_as_sequence", "missing_history",
+    "unknown_as_false", "duplicate_exposure", "invalid_allocation",
+    "incompatible_axes", "future_weekly_data", "state_ordering",
+    "stale_cas", "draft_loss", "save_reopen_drift",
+    "layout_changes_semantics", "equivalent_labels_different_meaning"
+  ]
+}

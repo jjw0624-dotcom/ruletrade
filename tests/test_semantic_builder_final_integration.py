@@ -148,6 +148,6 @@ def test_builder_operations_resolve_two_sleeves_to_one_honest_split() -> None:
     assert [leg.target.kind for leg in split.legs] == ["selection", "selection"]
     assert not [item for item in allocations if len(item.legs) == 1 and item.semantic_id != "initial-retain-allocation"]
     capability = assess_v2_execution_capability(strategy)
-    assert capability.execution_state == "unsupported"
-    assert "exactly one Selection" in (capability.technical_detail or "")
+    assert capability.execution_state == "executable"
+    assert capability.technical_detail is None
     assert "split" in {item.role for item in projection_bundle(strategy)["structure"].items}
