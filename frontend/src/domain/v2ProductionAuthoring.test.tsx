@@ -469,7 +469,10 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
       id: "run-v2", revision_id: "revision-v2", status: "succeeded",
       result: { initial_value: "100000", final_value: "112500", total_return: "0.125", total_orders: 4, total_fees: "2", equity_curve: [] },
       error: null, provenance: { source_hash: "sha256:v2", strategy_schema_version: "ruletrade.dev/strategy/v2", application_version: "0.1.0", build_commit: null, backend_id: "lean", engine_image: "lean:test", dataset_id: "filter-synthetic", dataset_version: "v1" },
-    } as BacktestRunRecord;
+      run_config: { start_date: "2024-01-01", end_date: "2024-02-29", initial_cash: "100000", dataset_id: "filter-synthetic" },
+      timings: { source_load_ms: 1, validation_ms: 1, compiler_ms: 1, codegen_ms: 1, csharp_compile_ms: 1, lean_execution_ms: 1, result_load_ms: 1, normalization_ms: 1, total_ms: 8 },
+      created_at: "2026-10-07T00:00:00Z", started_at: "2026-10-07T00:00:01Z", completed_at: "2026-10-07T00:00:08Z",
+    } satisfies BacktestRunRecord;
     const markup = renderToStaticMarkup(<SemanticProgramBuilderAdapter canonical={programStrategy()} dirty={false} status="saved" message="Saved" onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false} working={() => undefined} run={() => undefined}
       executionCapability={{ authoring_state: "committed", semantic_state: "valid", execution_state: "executable", provider_state: "available", runtime_state: "available", product_message: "Ready to test.", technical_detail: null, authorable: true, reference_valid: true, backend_lowerable: true, production_executable: true, reason: null }}
       revisionContext={{ revisionId: "revision-v2", sourceHash: "sha256:v2", schemaVersion: "ruletrade.dev/strategy/v2", latestRun }} onOpenLatestRun={() => undefined} initialView={initialView} />);

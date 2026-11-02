@@ -92,7 +92,9 @@ try {
   if (workspaceState.toolbox !== "hidden" || !workspaceState.basket || workspaceState.workspace.x > 2) throw new Error(`Group Workspace isolation failed: ${JSON.stringify(workspaceState)}`);
   await screenshot("group-asset-workspace.png");
   await evaluate(`(() => { const input=document.querySelector('input[aria-label="Manual asset symbol"]'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'QQQ'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-  await clickText("Add symbol"); await clickText("Use selected assets"); await clickText("Create Group");
+  await clickText("Add symbol"); await sleep(200);
+  await clickText("Use selected assets"); await sleep(200);
+  await clickText("Create Group");
   await waitExpression(`document.querySelectorAll('.object-library-insert').length===1`, "committed Group object row");
   const definitionOnly = await evaluate(`({groupBlocks:Object.values(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).filter((block)=>block.definitionId==='group-reference'||block.definitionId==='create-group').length, inspector:Boolean(document.querySelector('[aria-label="Semantic Inspector"]')), references:[...document.querySelectorAll('.object-library-insert')].length})`);
   if (definitionOnly.groupBlocks || definitionOnly.inspector || definitionOnly.references !== 1) throw new Error(`Group definition/reference separation failed: ${JSON.stringify(definitionOnly)}`);
