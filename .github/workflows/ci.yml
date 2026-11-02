@@ -211,6 +211,12 @@ jobs:
           tests/test_strategy_persistence.py
           tests/test_backtest_runs.py
           tests/test_lean_backtest_service.py
+      - name: Free space for persisted V2 Docker API proof
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+      - name: Verify saved V2 Revision through Docker LEAN and persisted API
+        run: make check-lean-persisted-v2-api
 
   browser-e2e:
     name: Real Browser E2E

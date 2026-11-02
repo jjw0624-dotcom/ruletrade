@@ -44,6 +44,7 @@ uv run ruff check \
   scripts/run_candidate_comparison_lean_e2e.py \
   scripts/run_lean_backtest.py \
   scripts/run_real_market_data_smoke.py \
+  scripts/run_persisted_v2_api_lean_e2e.py \
   scripts/check_capability_evidence.py \
   scripts/verify_momentum_lean_e2e.py \
   scripts/verify_cooldown_lean_e2e.py \

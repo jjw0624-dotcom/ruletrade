@@ -2,17 +2,17 @@
 
 ## Actual pipelines
 
-### Persisted historical pipeline
+### Persisted version-aware pipeline
 
-`RevisionRecord (V1)` → semantic validation → market-data preflight → V1 compiler → typed LEAN plan → generated C# → `DockerLeanRunner` → normalized result + log evidence → evidence validation → SQLite Run/result/evidence → V1 Run API → frontend historical result.
+`RevisionRecord (V1 or V2)` → version-specific semantic validation → version-specific strict lowering → one typed LEAN plan → plan-derived market-data preflight → generated C# → `DockerLeanRunner` → normalized result + log evidence → plan-provenance validation → SQLite Run/result/evidence → versioned Run API.
 
-This is the only path that currently provides immutable Run identity, source hash, engine image, dataset/provider provenance, final status, stored result, and retrievable Decision Evidence.
+The persisted source remains the original revision. V2 is never rewritten into a hidden V1 strategy: the shared executor consumes the maintained V2 plan while provenance retains the V2 revision ID, semantic hash and schema version.
 
 ### New-strategy transient pipeline
 
-`CanonicalStrategyV2 working copy` → execution capability preflight → strict V2 bridge → V1-compatible transient request → validation/compiler/codegen → Docker LEAN → normalized response → frontend Quick Test detail rail.
+`CanonicalStrategyV2 working copy` → V2 validation → strict V2 plan → plan-derived market-data preflight → shared codegen/Docker LEAN → normalized response → frontend Quick Test detail rail.
 
-This path is real LEAN execution, but it does not create a persisted Run or preserve V2 Decision Evidence history.
+This compatibility route remains intentionally transient. Saved V2 strategies use the persisted route instead.
 
 ## Transition contracts
 
@@ -24,9 +24,9 @@ This path is real LEAN execution, but it does not create a persisted Run or pres
 | Lowering → artifact | Typed plan plus run config deterministically generate C# | codegen tests and drift generation | Lowerer/build version is not a first-class V2 response field |
 | Artifact → LEAN | Docker runner compiles/runs pinned environment | maintained Docker scripts | Image digest is not uniformly asserted in all transient evidence |
 | LEAN → normalized result | Result JSON becomes bounded `BacktestResult` | normalization tests | Positions and allocations are not part of the normalized public model |
-| LEAN logs → evidence | Structured evidence parsed and source component IDs checked | BacktestRunService tests | Persisted only on V1 Run path |
-| Result → persistence | Atomic status finalization with result/evidence | SQLite Run tests | No V2 persisted execution path |
-| Persistence → API | Run and Decision Event GETs | API/backtest tests | V2 Quick Test cannot reopen these |
+| LEAN logs → evidence | Structured evidence parsed against V1 graph IDs or exact V2 plan IDs | BacktestRunService tests | Browser evidence navigation remains unproven |
+| Result → persistence | Atomic status finalization with result/evidence for V1 and maintained V2 | SQLite Run tests | Unsupported V2 remains a failed Run without result |
+| Persistence → API | V1/V2 Run and Decision Event POST/GET routes | API/backtest tests and Docker API journey | Frontend Quick Test still uses the transient route |
 | API → frontend | Historical Run and transient V2 panels | frontend tests | One browser journey across both is unproven |
 
 ## Execution invariants
@@ -42,9 +42,9 @@ This path is real LEAN execution, but it does not create a persisted Run or pres
 - **Restart/replay:** temporal and composable profiles have fresh-process checkpoint tests; arbitrary state graphs do not.
 - **Unsupported semantics:** strict lowerer raises `V2LoweringError`; capability maps that to unsupported rather than silently simplifying.
 
-## Required engine closure
+## Implemented engine closure
 
-The next engine PR should make persisted execution version-aware without creating a second engine:
+The persisted execution boundary is version-aware without creating a second engine:
 
 1. accept the stored `CanonicalStrategy` union at the Run boundary;
 2. assess V2 capability before execution;
@@ -52,8 +52,8 @@ The next engine PR should make persisted execution version-aware without creatin
 4. preserve the original V2 revision ID and semantic fingerprint in provenance;
 5. store normalized result and structured evidence under one Run ID;
 6. return explicit validation/unsupported/provider/runtime/execution failure categories;
-7. add a real Docker-backed API integration test for create/load → execute → poll/read → evidence/read;
-8. prove zero-order success remains success.
+7. a real Docker-backed API integration test proves create/load → execute → read → evidence/read;
+8. zero-order success remains success through existing normalization tests.
 
-No hidden V1 strategy creation or semantic rewrite is acceptable.
+Strict lowering remains the support boundary. Incomplete or unsupported V2 revisions create a failed Run with a typed public error; they are never simplified or padded with hidden semantics.
 

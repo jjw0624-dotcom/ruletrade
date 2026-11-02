@@ -20,6 +20,8 @@ from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.fixtures import filter_screening_strategy
+from ruletrade.strategy.v2.bridge import compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.corpus import weighted_momentum_allocation_strategy
 from scripts.run_candidate_comparison_lean_e2e import acceptance_database
 from scripts.run_real_market_data_smoke import (
     DEFAULT_VISIBLE_OBSERVATIONS,
@@ -144,6 +146,21 @@ def test_requirement_reuses_compiler_history_and_accounts_for_warmup() -> None:
         "VGT": 126,
     }
     assert requirement.normalization_mode == "adjusted"
+
+
+def test_v2_plan_requirement_uses_exact_subscriptions_and_score_warmup() -> None:
+    strategy = weighted_momentum_allocation_strategy()
+    plan = compile_v2_strategy_to_lean_plan(strategy)
+
+    requirement = MarketDataService().derive_plan_requirement(plan, _config())
+
+    assert [item.symbol for item in requirement.symbols] == [
+        "QQQ",
+        "SCHG",
+        "SOXX",
+        "VGT",
+    ]
+    assert {item.warmup_observations for item in requirement.symbols} == {63}
 
 
 def test_local_preflight_reports_available_coverage_and_cache_hit(tmp_path: Path) -> None:

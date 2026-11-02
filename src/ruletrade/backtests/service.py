@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from time import perf_counter_ns
 
 from ruletrade.backtests.errors import (
@@ -9,7 +9,12 @@ from ruletrade.backtests.errors import (
     ValidationIssueData,
 )
 from ruletrade.backtests.lean_runner import LeanRunner
-from ruletrade.backtests.models import BacktestTimings, LeanBacktestRequest, LeanBacktestResponse
+from ruletrade.backtests.models import (
+    BacktestConfig,
+    BacktestTimings,
+    LeanBacktestRequest,
+    LeanBacktestResponse,
+)
 from ruletrade.backtests.normalization import normalize_lean_result
 from ruletrade.compiler import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean import (
@@ -17,18 +22,57 @@ from ruletrade.compiler.lean import (
     LeanLoweringError,
     generate_csharp,
 )
+from ruletrade.compiler.lean.plan import LeanPlan
 from ruletrade.decision_evidence.collector import collect_decision_evidence
 from ruletrade.decision_evidence.models import CollectedDecisionEvent
 from ruletrade.diagnostics import elapsed_ms, serialized_bytes
 from ruletrade.hashing import strategy_hash
+from ruletrade.market_data.models import MarketDataPreflight
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.strategy.v1.validation import collect_semantic_issues
+from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.v2.validation import validate_strategy_v2
 
 
 @dataclass(frozen=True)
 class BacktestExecution:
     response: LeanBacktestResponse
     decision_events: tuple[CollectedDecisionEvent, ...]
+    source_component_ids: frozenset[str]
+
+
+def _plan_source_ids(plan: LeanPlan) -> frozenset[str]:
+    """Collect stable provenance addresses exposed by a typed execution plan."""
+
+    result: set[str] = set()
+
+    def visit(value: object) -> None:
+        if is_dataclass(value):
+            for item in fields(value):
+                child = getattr(value, item.name)
+                if item.name in {
+                    "id",
+                    "component_id",
+                    "semantic_id",
+                    "statement_id",
+                    "policy_statement_id",
+                    "score_component_id",
+                    "rank_component_id",
+                    "selection_component_id",
+                    "allocation_component_id",
+                } and isinstance(child, str):
+                    result.add(child)
+                visit(child)
+        elif isinstance(value, (tuple, list, set, frozenset)):
+            for child in value:
+                visit(child)
+        elif isinstance(value, dict):
+            for child in value.values():
+                visit(child)
+
+    visit(plan)
+    return frozenset(result)
 
 
 class BacktestService:
@@ -40,6 +84,49 @@ class BacktestService:
         """Execute the compatibility path and return its established response shape."""
 
         return self.execute_with_evidence(request).response
+
+    def execute_v2(
+        self, strategy: CanonicalStrategyV2, config: BacktestConfig
+    ) -> LeanBacktestResponse:
+        return self.execute_v2_with_evidence(strategy, config).response
+
+    def execute_v2_with_evidence(
+        self, strategy: CanonicalStrategyV2, config: BacktestConfig
+    ) -> BacktestExecution:
+        """Execute the exact stored V2 source through its maintained typed plan."""
+
+        total_started = perf_counter_ns()
+        stage_started = perf_counter_ns()
+        issues = validate_strategy_v2(strategy)
+        validation_ms = elapsed_ms(stage_started)
+        if issues:
+            raise InvalidStrategyError(
+                tuple(ValidationIssueData(path=item.path, message=item.message) for item in issues)
+            )
+        try:
+            stage_started = perf_counter_ns()
+            plan = compile_v2_strategy_to_lean_plan(strategy)
+            compiler_ms = elapsed_ms(stage_started)
+        except V2LoweringError as exc:
+            raise UnsupportedStrategyError(str(exc)) from exc
+        if self.market_data is not None:
+            stage_started = perf_counter_ns()
+            preflight = self.market_data.require_available_plan(plan, config)
+            data_preflight_ms = elapsed_ms(stage_started)
+        else:
+            preflight = None
+            data_preflight_ms = 0
+        return self._execute_plan(
+            plan=plan,
+            config=config,
+            source_hash=strategy_hash(strategy),
+            source_bytes=serialized_bytes(strategy),
+            validation_ms=validation_ms,
+            compiler_ms=compiler_ms,
+            data_preflight_ms=data_preflight_ms,
+            preflight=preflight,
+            total_started=total_started,
+        )
 
     def execute_with_evidence(self, request: LeanBacktestRequest) -> BacktestExecution:
         """Execute once and collect the versioned machine evidence from that execution."""
@@ -65,15 +152,40 @@ class BacktestService:
             data_preflight_ms = elapsed_ms(stage_started)
         else:
             data_preflight_ms = 0
+        return self._execute_plan(
+            plan=plan,
+            config=request.config,
+            source_hash=strategy_hash(request.strategy),
+            source_bytes=serialized_bytes(request.strategy),
+            validation_ms=validation_ms,
+            compiler_ms=compiler_ms,
+            data_preflight_ms=data_preflight_ms,
+            preflight=preflight,
+            total_started=total_started,
+        )
+
+    def _execute_plan(
+        self,
+        *,
+        plan: LeanPlan,
+        config: BacktestConfig,
+        source_hash: str,
+        source_bytes: int,
+        validation_ms: int,
+        compiler_ms: int,
+        data_preflight_ms: int,
+        preflight: MarketDataPreflight | None,
+        total_started: int,
+    ) -> BacktestExecution:
         settings = CSharpGenerationSettings(
-            start_date=request.config.start_date,
-            end_date=request.config.end_date,
-            initial_cash=request.config.initial_cash,
+            start_date=config.start_date,
+            end_date=config.end_date,
+            initial_cash=config.initial_cash,
         )
         stage_started = perf_counter_ns()
         generated_csharp = generate_csharp(plan, settings)
         codegen_ms = elapsed_ms(stage_started)
-        artifact = self.runner.run(generated_csharp, dataset_id=request.config.dataset_id)
+        artifact = self.runner.run(generated_csharp, dataset_id=config.dataset_id)
         stage_started = perf_counter_ns()
         result = normalize_lean_result(artifact.result_payload)
         normalization_ms = elapsed_ms(stage_started)
@@ -95,8 +207,8 @@ class BacktestService:
         )
         return BacktestExecution(
             response=LeanBacktestResponse(
-                strategy_hash=strategy_hash(request.strategy),
-                config=request.config,
+                strategy_hash=source_hash,
+                config=config,
                 result=result,
                 timings=BacktestTimings(
                     validation_ms=validation_ms,
@@ -111,7 +223,7 @@ class BacktestService:
                     total_ms=max(elapsed_ms(total_started), measured_stage_total),
                 ),
                 diagnostics={
-                    "canonical_bytes": serialized_bytes(request.strategy),
+                    "canonical_bytes": source_bytes,
                     "generated_csharp_bytes": len(generated_csharp.encode("utf-8")),
                     "normalized_result_bytes": serialized_bytes(result),
                     "equity_points": len(result.equity_curve),
@@ -129,6 +241,7 @@ class BacktestService:
                 },
             ),
             decision_events=decision_events,
+            source_component_ids=_plan_source_ids(plan),
         )
 
     @property
