@@ -11,7 +11,7 @@ const day = (value?: string) => new Date(`${value ?? "1970-01-01"}T00:00:00`).to
 type ShowRule = (componentId: string, fieldPath: string | null | undefined, asset: string | null) => void;
 export interface CandidateIntent { asset: string; eventId: string; componentId: string; fieldPath: "config.threshold"; currentValue: string }
 
-export function DecisionAnalysis({ runId, events, allEventCount, listState, selected, selectedAsset, onSelect, onSelectAsset, onShowInStrategy, onViewInFlow, onComparisonReady, onViewAsset }: { runId: string; events: ResultEventPresentation[]; allEventCount: number; listState: "loading" | "loaded" | "error"; selected: ResultEventPresentation | null; selectedAsset?: string | null; onSelect: (event: ResultEventPresentation) => void; onSelectAsset?: (asset: string) => void; onShowInStrategy?: ShowRule; onViewInFlow?: ShowRule; onComparisonReady?: (comparison: ComparisonRecord, context: ResearchContext) => void; onViewAsset?: (symbol: string, eventId: string, asOf: string) => void }) {
+export function DecisionAnalysis({ runId, evidenceVersion = "v1", events, allEventCount, listState, selected, selectedAsset, onSelect, onSelectAsset, onShowInStrategy, onViewInFlow, onComparisonReady, onViewAsset }: { runId: string; evidenceVersion?: "v1" | "v2"; events: ResultEventPresentation[]; allEventCount: number; listState: "loading" | "loaded" | "error"; selected: ResultEventPresentation | null; selectedAsset?: string | null; onSelect: (event: ResultEventPresentation) => void; onSelectAsset?: (asset: string) => void; onShowInStrategy?: ShowRule; onViewInFlow?: ShowRule; onComparisonReady?: (comparison: ComparisonRecord, context: ResearchContext) => void; onViewAsset?: (symbol: string, eventId: string, asOf: string) => void }) {
   const [details, setDetails] = useState<DecisionEventDetail[]>([]);
   const [whatIf, setWhatIf] = useState<CandidateIntent | null>(null);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
@@ -23,9 +23,10 @@ export function DecisionAnalysis({ runId, events, allEventCount, listState, sele
     setWhatIf(null);
     if (!selected) { setDetails([]); setDetailState("idle"); return; }
     let cancelled = false; setDetailState("loading"); setDetails([]);
-    Promise.all(selected.decisionIds.map((id) => decisionEvidenceApi.get(runId, id))).then((items) => { if (!cancelled) { setDetails(items.sort((a, b) => a.ordinal - b.ordinal)); setDetailState("loaded"); } }).catch(() => { if (!cancelled) setDetailState("error"); });
+    const get = evidenceVersion === "v2" ? decisionEvidenceApi.getV2 : decisionEvidenceApi.get;
+    Promise.all(selected.decisionIds.map((id) => get(runId, id))).then((items) => { if (!cancelled) { setDetails(items.sort((a, b) => a.ordinal - b.ordinal)); setDetailState("loaded"); } }).catch(() => { if (!cancelled) setDetailState("error"); });
     return () => { cancelled = true; };
-  }, [runId, selected]);
+  }, [evidenceVersion, runId, selected]);
   if (listState === "loading") return <section className="analysis-workspace" aria-label="Decision analysis"><p role="status">Loading decisions…</p></section>;
   if (listState === "error") return <section className="analysis-workspace" aria-label="Decision analysis"><div className="analysis-empty" role="alert"><h2>Decision details are unavailable</h2><p>We couldn't load them for this saved test.</p></div></section>;
   if (!allEventCount) return <section className="analysis-workspace" aria-label="Decision analysis"><div className="analysis-empty"><h2>Decision details are not available for this older test</h2><p>The saved result is unchanged. RuleTrade will not invent or rerun missing evidence.</p></div></section>;

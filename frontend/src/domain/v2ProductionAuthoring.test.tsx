@@ -95,11 +95,12 @@ describe("mounted v2 production editor", () => {
       timings: { source_load_ms: 1, validation_ms: 1, compiler_ms: 1, codegen_ms: 1, csharp_compile_ms: 1, lean_execution_ms: 1, result_load_ms: 1, normalization_ms: 1, total_ms: 8 },
       created_at: "2026-10-07T00:00:00Z", started_at: "2026-10-07T00:00:01Z", completed_at: "2026-10-07T00:00:08Z",
     } as BacktestRunRecord;
-    const markup = renderToStaticMarkup(<V2TestResultPanel state={{ status: "success", result: run }} />);
+    const markup = renderToStaticMarkup(<V2TestResultPanel state={{ status: "success", result: run }} onOpenRun={() => undefined} />);
     expect(markup).toContain("Saved Run");
     expect(markup).toContain("revision-v2");
     expect(markup).toContain("Execution provenance");
     expect(markup).toContain("sha256:v2");
+    expect(markup).toContain("Open result and decision evidence");
   });
   it("offers a normal blank Strategy path without exposing Program internals", () => {
     const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);

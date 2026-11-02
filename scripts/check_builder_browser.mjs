@@ -45,6 +45,12 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
   };
+  const clickTextContaining = async (label) => {
+    const point = await evaluate(`(() => { const button=[...document.querySelectorAll('button')].reverse().find((item)=>{ if(!item.textContent.includes(${JSON.stringify(label)})||item.disabled) return false; const rect=item.getBoundingClientRect(); return Boolean(rect.width&&rect.height); }); if(!button) throw new Error('Missing enabled visible button containing: '+${JSON.stringify(label)}); const rect=button.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  };
   const clickBlocklyCategory = async (label) => {
     const point = await evaluate(`(() => { const row=[...document.querySelectorAll('.blocklyToolboxCategory')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!row) throw new Error('Missing Blockly category: '+${JSON.stringify(label)}); const rect=row.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -117,6 +123,20 @@ try {
     if (!state.body.includes(expected) || state.body.includes("production Program lowering") || (state.headingTop ?? 0) < (state.tabsBottom ?? 0)) throw new Error(`${label} perspective failed: ${JSON.stringify(state)}`);
     await screenshot(`builder-${label.toLowerCase()}-perspective`);
   }
+
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
+  await waitSelector('[data-production-builder-shell="true"]');
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled persisted V2 Test");
+  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, "persisted V2 result rail");
+  await clickText("Open result and decision evidence"); await waitSelector('.result-workspace');
+  await waitSelector('[data-decision-id="decision-v2-browser"]');
+  await clickText("Portfolio updated"); await waitExpression(`document.body.innerText.includes('Final portfolio')`, "persisted V2 decision detail");
+  const persistedJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!persistedJourney.body.includes("What happened, and why?") || !persistedJourney.body.includes("QQQ 100%") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/revisions/revision-v2-browser/backtest-runs"&&item.method==="POST") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/backtest-runs/run-v2-browser/decision-events") || persistedJourney.requests.some((item)=>item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Persisted V2 browser journey failed: ${JSON.stringify(persistedJourney)}`);
+  await screenshot("persisted-v2-result-evidence");
+  await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
+  await screenshot("persisted-v2-builder-reopened");
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {

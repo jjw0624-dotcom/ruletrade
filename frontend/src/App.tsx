@@ -104,7 +104,7 @@ export default function App() {
   useEffect(() => {
     if (route.page !== "run") return;
     let cancelled = false; const runId = route.runId; setRunStatus("loading"); setRunError(null); setHistoricalRun(null);
-    backtestRunApi.get(runId).then((run) => { if (!cancelled) { setHistoricalRun(run); setRunStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setRunError(reason instanceof Error ? reason.message : "We couldn't load this backtest."); setRunStatus("error"); } });
+    backtestRunApi.getV2(runId).then((run) => { if (!cancelled) { setHistoricalRun(run); setRunStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setRunError(reason instanceof Error ? reason.message : "We couldn't load this backtest."); setRunStatus("error"); } });
     return () => { cancelled = true; };
   }, [route]);
 
@@ -199,6 +199,7 @@ export default function App() {
       bootstrap={workspace.bootstrap} example={workspace.example} detail={workspace.detail}
       initialView={workspace.initialView ?? "overview"} confirmation={adoptionNotice}
       onDirtyChange={setDirty} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus}
+      onOpenRun={(runId) => navigate({ page: "run", runId })}
     />}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}

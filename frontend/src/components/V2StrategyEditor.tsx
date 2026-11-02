@@ -17,14 +17,14 @@ export type V2TestPanelState =
   | { status: "failure"; message: string; technicalDetail: string | null }
   | null;
 
-export function V2TestResultPanel({ state }: { state: Exclude<V2TestPanelState, null> }) {
+export function V2TestResultPanel({ state, onOpenRun }: { state: Exclude<V2TestPanelState, null>; onOpenRun?: (runId: string) => void }) {
   if (state.status === "setup") return null;
   if (state.status === "running") return <div className="semantic-inspector-content" role="status"><h2>Testing committed strategy…</h2><p>The Builder remains available while the runtime evaluates this revision.</p></div>;
   if (state.status === "failure") return <div className="semantic-inspector-content" role="alert"><h2>Test unavailable</h2><p>{state.message}</p>{state.technicalDetail && <details><summary>Technical diagnostics</summary><pre>{state.technicalDetail}</pre></details>}</div>;
   if ("revision_id" in state.result) {
     const run = state.result;
     if (run.status !== "succeeded" || !run.result) return <div className="semantic-inspector-content" role="alert"><h2>Test did not complete</h2><p>{run.error?.message ?? "The saved Run did not produce a result."}</p><p>Run <code>{run.id}</code> remains attached to revision <code>{run.revision_id}</code>.</p></div>;
-    return <div className="semantic-inspector-content"><h2>Backtest complete</h2><p>Saved Run <code>{run.id}</code> belongs to revision <code>{run.revision_id}</code>.</p><dl><div><dt>Total return</dt><dd>{run.result.total_return}</dd></div><div><dt>Final value</dt><dd>{run.result.final_value}</dd></div><div><dt>Orders</dt><dd>{run.result.total_orders}</dd></div></dl><details><summary>Execution provenance</summary><pre>{JSON.stringify({ provenance: run.provenance, config: run.run_config, timings: run.timings }, null, 2)}</pre></details></div>;
+    return <div className="semantic-inspector-content"><h2>Backtest complete</h2><p>Saved Run <code>{run.id}</code> belongs to revision <code>{run.revision_id}</code>.</p><dl><div><dt>Total return</dt><dd>{run.result.total_return}</dd></div><div><dt>Final value</dt><dd>{run.result.final_value}</dd></div><div><dt>Orders</dt><dd>{run.result.total_orders}</dd></div></dl>{onOpenRun && <button type="button" className="primary-button" onClick={() => onOpenRun(run.id)}>Open result and decision evidence</button>}<details><summary>Execution provenance</summary><pre>{JSON.stringify({ provenance: run.provenance, config: run.run_config, timings: run.timings }, null, 2)}</pre></details></div>;
   }
   if ("selected_assets" in state.result) return <div className="semantic-inspector-content"><h2>{state.result.complete ? "Selection complete" : "Selection incomplete"}</h2><p>Selected: {state.result.selected_assets.join(", ") || "none"}</p></div>;
   return <div className="semantic-inspector-content"><h2>Backtest complete</h2><p>This result belongs to strategy hash <code>{state.result.strategy_hash}</code>.</p><dl><div><dt>Total return</dt><dd>{state.result.result.total_return}</dd></div><div><dt>Final value</dt><dd>{state.result.result.final_value}</dd></div><div><dt>Orders</dt><dd>{state.result.result.total_orders}</dd></div></dl><details><summary>Execution details</summary><pre>{JSON.stringify({ engine: state.result.engine, config: state.result.config, timings: state.result.timings }, null, 2)}</pre></details></div>;
@@ -41,10 +41,11 @@ function V2QuickTestPanel({ config, onChange, onRun }: { config: BacktestConfig;
   </div>;
 }
 
-export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
+export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }: {
   persisted: StrategyDetailV2;
   onHome: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onOpenRun?: (runId: string) => void;
 }) {
   const initial = persisted.current_revision.canonical_strategy;
   const [canonical, setCanonical] = useState(initial);
@@ -203,7 +204,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange }: {
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
-      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} /> : null} onCloseTestPanel={() => setTestPanel(null)} />;
+      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} /> : null} onCloseTestPanel={() => setTestPanel(null)} />;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
