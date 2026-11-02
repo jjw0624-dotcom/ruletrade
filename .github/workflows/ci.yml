@@ -1,143 +1,255 @@
-name: CI
+name: Capability CI
 
 on:
   push:
-    branches: [main, feature/intent-first-unified-authoring]
+    branches: [main]
   pull_request:
-    branches: [main, feature/semantic-strategy-corpus-execution-closure]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: capability-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Repository validation
+  static-contract:
+    name: Static & Contract
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: "0.12.11"
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - name: Verify uv and install Python
-        run: |
-          uv --version
+      - run: |
           uv python install 3.12
           uv lock --check
-          uv run --locked python --version
-      - name: Install Python dependencies
-        run: uv sync --extra bt --extra dev --locked
-      - name: Set up Node
-        uses: actions/setup-node@v7
+          uv sync --extra bt --extra dev --locked
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Verify Node and install frontend dependencies
+      - run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Validate capability evidence
+        run: make check-capability-evidence
+      - name: Generate bootstrap contracts
+        run: npm --prefix frontend run generate:bootstrap
+      - name: TypeScript and production build
         run: |
-          node --version
-          npm --version
-          npm --prefix frontend ci --no-audit --no-fund
-      - name: Run full repository validation
-        run: make check
+          npm --prefix frontend run typecheck:raw
+          npm --prefix frontend run build:raw
+      - name: Python, shell and generated-artifact contracts
+        run: |
+          ./scripts/check_ruff.sh
+          uv run python -m compileall -q src scripts tests
+          while IFS= read -r -d '' script; do bash -n "$script"; done < <(find scripts -type f -name '*.sh' -print0)
+          git diff --check
+          git diff --exit-code -- \
+            frontend/src/test/generated-bootstrap.json \
+            frontend/src/test/generated-momentum-bootstrap.json \
+            frontend/src/test/generated-sleeves-bootstrap.json \
+            frontend/src/test/generated-cooldown-bootstrap.json
 
-  lean-compile:
-    name: Generated C# / LEAN compile
+  unit-semantic:
+    name: Unit & Semantic
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra bt --extra dev --locked
+          uv run pytest
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: |
+          npm --prefix frontend ci --no-audit --no-fund
+          npm --prefix frontend run test:raw
+
+  perspective-consistency:
+    name: Perspective Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra dev --locked
+          uv run pytest tests/test_perspective_translation.py tests/test_capability_evidence_matrix.py
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Verify shared identities, projections and save/reopen
+        run: >-
+          npm --prefix frontend run test:raw --
+          src/domain/representationSystem.test.tsx
+          src/domain/perspectiveTranslation.test.ts
+          src/domain/connectedWorkspaceContract.test.ts
+          src/domain/strategyPersistence.test.tsx
+
+  lean-compilation:
+    name: LEAN Compilation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: "0.12.11"
           enable-cache: false
-      - name: Verify uv and install Python
-        run: |
-          uv --version
+      - run: |
           uv python install 3.12
-          uv lock --check
-          uv run --locked python --version
-      - name: Install compiler dependencies
-        run: uv sync --extra dev --locked
-      - name: Generate compiler-slice C# algorithms
-        run: make check-lean-generate
-      - name: Free space for the LEAN Docker image
+          uv sync --extra dev --locked
+          make check-lean-generate
+      - name: Free space for LEAN image
         run: |
-          # Keep the Python/uv environment alive: the following real Docker
-          # differential is part of this same job, not a compile-only afterthought.
-          sudo rm -rf \
-            /usr/local/lib/android \
-            /usr/local/share/boost \
-            /usr/share/dotnet \
-            /opt/ghc
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
           docker system prune --all --force
-          df -h /
       - name: Compile generated C# against LEAN
         run: ./scripts/check_lean.sh --compile-only
-      - name: Run Profile A Work 2 DailyValue LEAN differentials
-        run: make check-lean-daily-values
-      - name: Run SemanticProgramV2 corpus LEAN differential
-        run: make check-lean-semantic-corpus
-      - name: Run weighted Score / Allocation LEAN differential
-        run: make check-lean-weighted-score
-      - name: Run temporal and stateful LEAN differential
-        run: make check-lean-temporal-stateful
-      - name: Run temporal fresh-process restart differential
-        run: make check-lean-temporal-reliability
-      - name: Run completed weekly to daily LEAN differential
-        run: make check-lean-temporal-multiclock
-      - name: Run composable semantic execution LEAN differential
-        run: make check-lean-composable-semantic
-      - name: Run composable fresh-process restart differential
-        run: make check-lean-composable-restart
-      - name: Run Group Choose Investment LEAN differentials
-        run: make check-lean-static-program
-      - name: Upload LEAN compile diagnostics on failure
+      - name: Upload compile diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: lean-compile-diagnostics-${{ github.run_id }}
+          name: lean-compile-${{ github.run_id }}
           path: build/lean/*-ci/
           if-no-files-found: ignore
           retention-days: 7
 
-  builder-browser:
-    name: Builder browser acceptance
+  docker-differential:
+    name: Docker Differential / ${{ matrix.profile }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - profile: core-selection
+            targets: |
+              make check-lean-daily-values
+              make check-lean-semantic-corpus
+              make check-lean-static-program
+          - profile: score-composable
+            targets: |
+              make check-lean-weighted-score
+              make check-lean-composable-semantic
+              make check-lean-composable-restart
+          - profile: temporal-replay
+            targets: |
+              make check-lean-temporal-stateful
+              make check-lean-temporal-reliability
+              make check-lean-temporal-multiclock
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Set up Node
-        uses: actions/setup-node@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: false
+      - run: |
+          uv python install 3.12
+          uv sync --extra dev --locked
+      - name: Free space for LEAN image
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+      - run: ${{ matrix.targets }}
+      - name: Upload differential diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: differential-${{ matrix.profile }}-${{ github.run_id }}
+          path: build/lean/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  production-api-contract:
+    name: Production API Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra bt --extra dev --locked
+      - name: Verify revision, Run, result, evidence and failure contracts
+        run: >-
+          uv run pytest
+          tests/test_api.py
+          tests/test_strategy_persistence.py
+          tests/test_backtest_runs.py
+          tests/test_lean_backtest_service.py
+
+  browser-e2e:
+    name: Real Browser E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install frontend dependencies
-        run: npm --prefix frontend ci --no-audit --no-fund
-      - name: Verify Chrome
-        run: google-chrome --version
-      - name: Run real-browser Builder acceptance
+      - run: npm --prefix frontend ci --no-audit --no-fund
+      - run: google-chrome --version
+      - name: Run production Builder in real Chrome
         run: node scripts/check_builder_browser.mjs
-      - name: Upload Builder screenshots and trace
+      - name: Upload screenshots and trace
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: builder-browser-acceptance-${{ github.run_id }}
+          name: browser-e2e-${{ github.run_id }}
           path: build/browser-acceptance/
           if-no-files-found: warn
           retention-days: 14
+
+  required:
+    name: Capability CI Required
+    if: always()
+    needs: [static-contract, unit-semantic, perspective-consistency, lean-compilation, docker-differential, production-api-contract, browser-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every capability contract
+        env:
+          STATIC: ${{ needs.static-contract.result }}
+          UNIT: ${{ needs.unit-semantic.result }}
+          PERSPECTIVES: ${{ needs.perspective-consistency.result }}
+          LEAN: ${{ needs.lean-compilation.result }}
+          DOCKER: ${{ needs.docker-differential.result }}
+          API: ${{ needs.production-api-contract.result }}
+          BROWSER: ${{ needs.browser-e2e.result }}
+        run: test "$STATIC $UNIT $PERSPECTIVES $LEAN $DOCKER $API $BROWSER" = "success success success success success success success"

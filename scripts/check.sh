@@ -10,6 +10,7 @@ fi
 cd "$(dirname "$0")/.."
 
 uv run pytest
+PYTHONPATH=src uv run python scripts/check_capability_evidence.py
 npm --prefix frontend run generate:bootstrap
 npm --prefix frontend run test:raw
 npm --prefix frontend run typecheck:raw

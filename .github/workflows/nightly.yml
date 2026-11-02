@@ -1,0 +1,66 @@
+name: Full Regression Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-regression-nightly
+  cancel-in-progress: false
+
+jobs:
+  full-regression:
+    name: Full Regression / Nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra bt --extra dev --locked
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci --no-audit --no-fund
+      - name: Full repository validation
+        run: make check
+      - name: Free space for LEAN image
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+      - name: Generated C# and all maintained Docker differentials
+        run: |
+          make check-lean-generate
+          ./scripts/check_lean.sh --compile-only
+          make check-lean-daily-values
+          make check-lean-semantic-corpus
+          make check-lean-weighted-score
+          make check-lean-temporal-stateful
+          make check-lean-temporal-reliability
+          make check-lean-temporal-multiclock
+          make check-lean-composable-semantic
+          make check-lean-composable-restart
+          make check-lean-static-program
+      - name: Real-browser regression
+        run: node scripts/check_builder_browser.mjs
+      - name: Upload full diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: full-regression-${{ github.run_id }}
+          path: |
+            build/lean/
+            build/browser-acceptance/
+          if-no-files-found: warn
+          retention-days: 21
