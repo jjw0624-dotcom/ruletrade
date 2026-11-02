@@ -11,8 +11,10 @@ from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
     CanonicalStrategyV2,
+    GuardedAllocationStatementV2,
     ProgramStatementV2,
     SelectionStatementV2,
+    UnresolvedStatementV2,
 )
 from ruletrade.strategy.v2.validation import validate_strategy_v2
 from ruletrade.strategy.v2.semantic_types import FrozenModel
@@ -90,16 +92,13 @@ def assess_v2_execution_capability(strategy: CanonicalStrategyV2) -> V2Execution
         )
 
     statements = _statements(strategy.program.statements if strategy.program else ())
-    unsupported = next((item for item in statements if item.kind in {
-        "control", "on_event", "transition", "remember_value",
-        "guarded_allocation", "unresolved",
-    }), None)
-    if unsupported is not None:
+    unresolved = next((item for item in statements if isinstance(item, UnresolvedStatementV2)), None)
+    if unresolved is not None:
         return _result(
             strategy,
             "unsupported",
-            "This strategy uses a rule that is not yet supported for testing.",
-            technical_detail=f"Program statement {unsupported.kind!r} has no maintained LEAN lowering",
+            "Finish defining the unresolved strategy rule before testing.",
+            technical_detail=f"Program statement {unresolved.semantic_id!r} contains unresolved semantics",
         )
 
     selections = tuple(item for item in statements if isinstance(item, SelectionStatementV2))
@@ -120,50 +119,55 @@ def assess_v2_execution_capability(strategy: CanonicalStrategyV2) -> V2Execution
             "Choose assets for the investment before testing.",
             technical_detail="production execution requires a non-empty investment AssetSet",
         )
-    if not selections:
+    allocations = tuple(item for item in statements if isinstance(item, AllocationStatementV2))
+    policies = tuple(item for item in statements if isinstance(item, GuardedAllocationStatementV2))
+    non_bootstrap_allocations = tuple(
+        item for item in allocations
+        if not (
+            item.semantic_id == "initial-retain-allocation"
+            and len(item.legs) == 1 and item.legs[0].target.kind == "retain"
+        )
+    )
+    if not selections and not policies and not non_bootstrap_allocations:
         return _result(
             strategy,
             "incomplete",
             "Choose assets for the investment before testing.",
             technical_detail="production Program lowering currently requires exactly one Selection",
         )
-    if len(selections) != 1:
-        return _result(
-            strategy,
-            "unsupported",
-            "Testing more than one asset selection is not supported yet.",
-            technical_detail="production Program lowering currently requires exactly one Selection",
+    referenced_outputs = {
+        leg.target.ref
+        for allocation in non_bootstrap_allocations
+        for leg in allocation.legs
+        if leg.target.kind == "selection"
+    } | {
+        leg.target.ref
+        for policy in policies
+        for allocation in (
+            policy.primary,
+            *(item.action for item in policy.overrides),
+            *((policy.fallback,) if policy.fallback is not None else ()),
         )
-
-    selection = selections[0]
-    allocations = tuple(
-        item for item in statements
-        if isinstance(item, AllocationStatementV2)
-        and any(leg.target.kind == "selection" and leg.target.ref == selection.output_id for leg in item.legs)
-    )
-    if not allocations:
+        for leg in allocation.legs
+        if leg.target.kind == "selection"
+    }
+    missing_allocations = tuple(item for item in selections if item.output_id not in referenced_outputs)
+    if missing_allocations and not policies:
         return _result(
             strategy,
             "incomplete",
             "Finish the investment selection before testing.",
-            technical_detail="production Program lowering requires one equal allocation for the Selection",
-        )
-    if len(allocations) != 1 or allocations[0].method != "equal":
-        return _result(
-            strategy,
-            "unsupported",
-            "This allocation is not yet supported for testing.",
-            technical_detail="production Program lowering requires one equal allocation for the Selection",
+            technical_detail="one or more Selection outputs have no committed Allocation",
         )
 
-    clock_id = selection.clock_id or allocations[0].clock_id
-    clock = next((clock for clock in strategy.program.clocks if clock.id == clock_id), strategy.program.clocks[0])
-    if clock.timeframe not in {"daily", "monthly"}:
+    clocks = {item.id: item for item in strategy.program.clocks}
+    unsupported_clock = next((item for item in clocks.values() if item.timeframe == "session"), None)
+    if unsupported_clock is not None:
         return _result(
             strategy,
             "unsupported",
             "This rebalance schedule is not yet supported for testing.",
-            technical_detail=f"{clock.timeframe} Program timing has no maintained LEAN lowering",
+            technical_detail="intraday/session Program timing has no maintained LEAN lowering",
         )
 
     # Complete documents are finally checked against the strict lowerer.  Any

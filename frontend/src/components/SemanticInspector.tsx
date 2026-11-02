@@ -259,10 +259,12 @@ export function SemanticInspector(props: ({
   structural: StructuralAuthoringController;
   evidence?: ReactNode;
 } | {
-  semanticProgram: { content: ReactNode; onDiscardDraft?: () => void };
+  semanticProgram: { content: ReactNode; onClose?: () => void; onDiscardDraft?: () => void };
 })) {
   if ("semanticProgram" in props) return <aside className="semantic-inspector" aria-label="Semantic Inspector">
-    <header><span className="eyebrow">Inspector</span>{props.semanticProgram.onDiscardDraft && <button type="button" className="text-button danger" onClick={props.semanticProgram.onDiscardDraft}>Discard draft</button>}</header>
+    <header><span className="eyebrow">Inspector</span>{props.semanticProgram.onDiscardDraft
+      ? <button type="button" className="text-button danger" onClick={props.semanticProgram.onDiscardDraft}>Discard draft</button>
+      : <button type="button" aria-label="Close Inspector" onClick={props.semanticProgram.onClose}>×</button>}</header>
     {props.semanticProgram.content}
   </aside>;
   return <CanonicalV1SemanticInspector {...props} />;

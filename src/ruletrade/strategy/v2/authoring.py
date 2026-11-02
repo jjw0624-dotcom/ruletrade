@@ -34,6 +34,7 @@ from ruletrade.strategy.v2.models import (
     SelectionV2,
     SelectionStatementV2,
     SemanticProgramV2,
+    StateConditionV2,
     StateTransitionStatementV2,
     StateTransitionV2,
     StrategyDefinitionsV2,
@@ -169,6 +170,23 @@ class CreateProgramSelection(FrozenModel):
     qualification_threshold: Decimal | None = None
 
 
+class CreateProgramEventState(FrozenModel):
+    """One complete Event → State authoring transaction.
+
+    The client may draft these fields independently, but no undeclared state or
+    half Event crosses the Canonical boundary.
+    """
+
+    kind: Literal["create_program_event_state"]
+    semantic_id: Identifier
+    clock_id: Identifier
+    asset: Symbol
+    threshold: Decimal
+    state_key: Identifier
+    from_value: str = Field(min_length=1, max_length=100)
+    to_value: str = Field(min_length=1, max_length=100)
+
+
 class SetProgramFallback(FrozenModel):
     kind: Literal["set_program_fallback"]
     semantic_id: Identifier
@@ -258,6 +276,7 @@ V2AuthoringOperation = Annotated[
     | RemoveProgramInvestment
     | SetProgramSchedule
     | CreateProgramSelection
+    | CreateProgramEventState
     | SetProgramFallback
     | SetProgramSplit
     | SetProgramCondition
@@ -424,15 +443,11 @@ def authoring_capabilities() -> tuple[V2AuthoringCapability, ...]:
         operation_id=operation_id,
         label=label,
         available=True,
-        reason=(
-            "Semantically defined and reference-evaluable, but not exposed in the product Builder."
-            if operation_id in {"program.event@1", "program.state@1"}
-            else "Authorable and reference-evaluable; production execution lowering is not available."
-        ),
+        reason="Authorable and reference-evaluable; production execution depends on the complete supported composition.",
         semantic_status="reference_only",
         reference_evaluable=True,
         backend_lowerable=False,
-        authoring_reachable=operation_id not in {"program.event@1", "program.state@1"},
+        authoring_reachable=True,
         production_ready=False,
     ) for operation_id, label in (
         ("program.cross_sectional@1", "Cross-sectional rank, percentile, quantile and bucket"),
@@ -647,6 +662,7 @@ def _apply_program_operation(
         MoveProgramStatement, SetProgramSelection, SetProgramCondition,
         SetProgramAssetSet, AddProgramInvestment, RemoveProgramInvestment, SetProgramSchedule,
         CreateProgramSelection, SetProgramFallback, SetProgramSplit,
+        CreateProgramEventState,
         SetProgramValue, SetProgramEvent, SetProgramTransition,
         SetProgramAllocation, SetProgramFormalizations,
         FormalizeProgramStatement, FormalizeDraftPhrase,
@@ -767,7 +783,83 @@ def _apply_program_operation(
                 ),
             ),),
         )
-        program = current_program.model_copy(update={"statements": current_program.statements + (statement, allocation)})
+        # A Split may be drafted before its sleeve Selections exist.  Resolve
+        # that stable group route to the new Selection output atomically.  This
+        # preserves the product meaning while avoiding two competing root
+        # allocations (one per Selection plus the portfolio Split).
+        split_resolved = False
+        resolved_statements: list[ProgramStatementV2] = []
+        for item in current_program.statements:
+            if (
+                isinstance(item, AllocationStatementV2)
+                and item.method == "fixed"
+                and len(item.legs) > 1
+                and any(leg.target.kind == "group" and leg.target.ref == operation.investment_id for leg in item.legs)
+            ):
+                split_resolved = True
+                item = item.model_copy(update={"legs": tuple(
+                    leg.model_copy(update={"target": leg.target.model_copy(update={
+                        "kind": "selection", "ref": output_id,
+                    })})
+                    if leg.target.kind == "group" and leg.target.ref == operation.investment_id else leg
+                    for leg in item.legs
+                )})
+            resolved_statements.append(item)
+        additions = (statement,) if split_resolved else (statement, allocation)
+        program = current_program.model_copy(update={"statements": tuple(resolved_statements) + additions})
+        return strategy.model_copy(update={"program": program})
+    if isinstance(operation, CreateProgramEventState):
+        current_program = _program_for_operation(strategy, operation)
+        if not any(clock.id == operation.clock_id for clock in current_program.clocks):
+            raise V2AuthoringError("program_clock_not_found", "The addressed Event clock does not exist.")
+        known_assets = {asset for asset_set in strategy.definitions.asset_sets for asset in asset_set.assets}
+        if operation.asset not in known_assets:
+            raise V2AuthoringError("event_asset_not_found", "The Event asset must belong to this Strategy.")
+        if operation.state_key in current_program.initial_state:
+            raise V2AuthoringError("state_already_declared", "This State name already exists; edit its existing transition instead.")
+        observed = DailyValueNode(
+            semantic_id=f"{operation.semantic_id}-price", kind="observe",
+            subject_kind=SubjectKind.ASSET, subject_id=operation.asset,
+            field=MarketField.CLOSE, basis=PriceBasis.ADJUSTED,
+        )
+        condition = ComparisonV2(
+            semantic_id=f"{operation.semantic_id}-condition", operator="gt",
+            left=observed,
+            right=DailyValueNode(
+                semantic_id=f"{operation.semantic_id}-threshold", kind="literal",
+                quantity=Quantity.PRICE, unit=Unit.USD_PER_SHARE,
+                refinement="adjusted_close", value=operation.threshold,
+            ),
+        )
+        transition_condition = StateConditionV2(
+            semantic_id=f"{operation.semantic_id}-from-state",
+            state_key=operation.state_key, expected=operation.from_value,
+        )
+        event = EventStatementV2(
+            semantic_id=operation.semantic_id,
+            event=EventDefinitionV2(
+                semantic_id=f"{operation.semantic_id}-event",
+                clock_id=operation.clock_id,
+                condition=condition,
+                trigger="rising_edge",
+                occurrence="every",
+            ),
+            statements=(StateTransitionStatementV2(
+                semantic_id=f"{operation.semantic_id}-transition-statement",
+                transition=StateTransitionV2(
+                    semantic_id=f"{operation.semantic_id}-transition",
+                    state_key=operation.state_key,
+                    from_value=operation.from_value,
+                    to_value=operation.to_value,
+                    when=transition_condition,
+                    clock_id=operation.clock_id,
+                ),
+            ),),
+        )
+        program = current_program.model_copy(update={
+            "initial_state": {**current_program.initial_state, operation.state_key: operation.from_value},
+            "statements": current_program.statements + (event,),
+        })
         return strategy.model_copy(update={"program": program})
     if isinstance(operation, SetProgramFallback):
         program = _program_for_operation(strategy, operation)
@@ -786,18 +878,36 @@ def _apply_program_operation(
             raise V2AuthoringError("investment_not_found", "Every Split target must be an existing Investment.")
         if sum((weight for _investment_id, weight in operation.investments), Decimal(0)) != Decimal(1):
             raise V2AuthoringError("invalid_split_total", "Split weights must sum exactly to 1.")
+        selections_by_group = {
+            item.selection.universe_id: item
+            for item in program.statements
+            if isinstance(item, SelectionStatementV2)
+        }
+        selected_outputs = {
+            selections_by_group[investment_id].output_id
+            for investment_id in investment_ids
+            if investment_id in selections_by_group
+        }
         split = AllocationStatementV2(
             semantic_id=operation.semantic_id, method="fixed", clock_id=program.clocks[0].id,
             legs=tuple(AllocationLegV2(
                 semantic_id=f"{operation.semantic_id}-leg-{index + 1}", weight=weight,
                 target=AllocationTargetV2(
-                    semantic_id=f"{operation.semantic_id}-target-{index + 1}", kind="group", ref=investment_id,
+                    semantic_id=f"{operation.semantic_id}-target-{index + 1}",
+                    kind="selection" if investment_id in selections_by_group else "group",
+                    ref=(selections_by_group[investment_id].output_id if investment_id in selections_by_group else investment_id),
                 ),
             ) for index, (investment_id, weight) in enumerate(operation.investments)),
         )
         statements = tuple(item for item in program.statements if not (
             isinstance(item, AllocationStatementV2) and item.method == "fixed"
-            and len(item.legs) > 1 and all(leg.target.kind == "group" for leg in item.legs)
+            and len(item.legs) > 1
+            and all(leg.target.kind in {"group", "selection"} for leg in item.legs)
+        ) and not (
+            isinstance(item, AllocationStatementV2)
+            and len(item.legs) == 1
+            and item.legs[0].target.kind == "selection"
+            and item.legs[0].target.ref in selected_outputs
         )) + (split,)
         return strategy.model_copy(update={"program": program.model_copy(update={"statements": statements})})
     program = _program_for_operation(strategy, operation)

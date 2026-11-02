@@ -214,35 +214,46 @@ export interface ProductAddAction {
 
 export type ProductStructureNode = ProductNode;
 
+export function SemanticProgramToolbox({ tools, categories }: {
+  tools: ProductAddAction[];
+  categories: ProductAddAction["category"][];
+}) {
+  const [category, setCategory] = useState<ProductAddAction["category"]>(categories[0]!);
+  const activeCategory = categories.includes(category) ? category : categories[0]!;
+  const displayed = tools.filter((tool) => tool.category === activeCategory);
+  return <div className="blocky-program-toolbox">
+    <nav className="blocky-toolbox-categories" aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={activeCategory === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
+    <section className="blocky-toolbox-library" aria-label={`${activeCategory} blocks`} data-scroll-container="bounded">{displayed.map((tool) => {
+      const availability = tool.availability ?? (tool.disabled ? "unavailable" : "ready");
+      const status = availability === "ready" ? "Ready" : availability === "needs_context" ? "Needs context" : "Unavailable";
+      return <article className={`blocky-toolbox-entry ${availability}`} key={tool.id} role="listitem"><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} aria-describedby={`${tool.id}-description`} onClick={tool.onAdd}><span className="blocky-toolbox-title"><strong>{tool.label}</strong><small aria-label="Availability status">{status}</small></span></button><p id={`${tool.id}-description`}>{tool.description}</p></article>;
+    })}</section>
+  </div>;
+}
+
 function ProductStructureBranch({ item, depth, selectedId, onSelect }: { item: ProductStructureNode; depth: number; selectedId: string | null; onSelect: (id: string) => void }) {
   return <li><button className={selectedId === item.id ? "structure-item selected" : "structure-item"} style={{ paddingLeft: `${12 + depth * 15}px` }} aria-pressed={selectedId === item.id} onClick={() => onSelect(item.id)}><span>{item.label}</span>{item.detail && <small>{item.detail}</small>}</button>{item.children.length > 0 && <ul>{item.children.map((child) => <ProductStructureBranch key={child.id} item={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} />)}</ul>}</li>;
 }
 
-function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect }: {
+function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective }: {
   tools: ProductAddAction[];
   structure: ProductStructureNode;
   selectedId: string | null;
   onSelect: (semanticId: string) => void;
+  perspective: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
 }) {
-  const categories: ProductAddAction["category"][] = ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
+  const categories: ProductAddAction["category"][] = perspective === "blocky"
+    ? ["Capital", "Logic", "Data", "Selection", "State", "Allocation", "Timing", "Behavior"]
+    : ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
   const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<"structure" | "blocks">("structure");
-  const [category, setCategory] = useState<ProductAddAction["category"]>("Capital");
-  const displayed = tools.filter((tool) => tool.category === category);
   return <Collapsible.Root className="workspace-left-root" open={open} onOpenChange={setOpen}>
     <Collapsible.Trigger className="workspace-panel-toggle" aria-label={open ? "Collapse construction panel" : "Open construction panel"}>{open ? "‹" : "›"}</Collapsible.Trigger>
-    <Collapsible.Content className="workspace-left-panel" data-perspective="blocky" data-builder-tools="contextual">
+    <Collapsible.Content className="workspace-left-panel" data-perspective={perspective} data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
         <Tabs.List className="workspace-panel-tabs" aria-label="Builder tools"><Tabs.Trigger value="structure">Structure</Tabs.Trigger><Tabs.Trigger value="blocks">Add</Tabs.Trigger></Tabs.List>
         <Tabs.Content value="structure" className="structure-panel"><ul className="structure-tree"><ProductStructureBranch item={structure} depth={0} selectedId={selectedId} onSelect={onSelect} /></ul><p className="panel-hint">Select an investment object to inspect it everywhere.</p></Tabs.Content>
-        <Tabs.Content value="blocks" forceMount className="blocks-panel"><div className="blocky-program-toolbox">
-          <nav className="blocky-toolbox-categories" aria-label="Strategy construction categories">{categories.map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</nav>
-          <section className="blocky-toolbox-library" aria-label={`${category} blocks`} data-scroll-container="bounded">{displayed.map((tool) => {
-            const availability = tool.availability ?? (tool.disabled ? "unavailable" : "ready");
-            const status = availability === "ready" ? "Ready" : availability === "needs_context" ? "Needs context" : "Unavailable";
-            return <article className={`blocky-toolbox-entry ${availability}`} key={tool.id} role="listitem"><button type="button" className="blocky-toolbox-block" disabled={tool.disabled} aria-describedby={`${tool.id}-description`} onClick={tool.onAdd}><span className="blocky-toolbox-title"><strong>{tool.label}</strong><small aria-label="Availability status">{status}</small></span></button><p id={`${tool.id}-description`}>{tool.description}</p></article>;
-          })}</section>
-        </div></Tabs.Content>
+        <Tabs.Content value="blocks" className="blocks-panel"><SemanticProgramToolbox tools={tools} categories={categories} /></Tabs.Content>
       </Tabs.Root>
     </Collapsible.Content>
   </Collapsible.Root>;
@@ -257,6 +268,7 @@ export function WorkspaceLeftPanel(props: ({
     structure: ProductStructureNode;
     selectedId: string | null;
     onSelect: (semanticId: string) => void;
+    perspective: "overview" | "guided" | "flow" | "blocky" | "rules" | "code" | "ai";
   };
 })) {
   if ("semanticProgram" in props) return <SemanticProgramWorkspaceLeftPanel {...props.semanticProgram} />;

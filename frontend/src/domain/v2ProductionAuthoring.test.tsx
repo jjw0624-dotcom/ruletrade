@@ -10,9 +10,11 @@ import { programAllocationToolDescription, programFlowGeometry, programFlowManif
 import { V2ConditionComposer } from "../components/V2SemanticComposer";
 import { adaptV1ProductOperation, adaptV2ProductOperation, type BuilderProductOperation } from "./builderProductOperations";
 import { productBlockLabel } from "../components/ProductBlockyProjection";
+import { SemanticProgramToolbox, type ProductAddAction } from "../components/WorkspaceLeftPanel";
 import { projectConceptualFlow } from "./conceptualFlow";
 import { fallbackBootstrap } from "../test/fixture";
 import { projectProductionFlowCanvas } from "../views/FlowView";
+import { programBlockConnectionManifest, projectProgramBlocky, projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "./programProjections";
 
 const close: DailyValueNode = {
   semantic_id: "candidate-close", kind: "observe", operands: [],
@@ -105,19 +107,12 @@ describe("mounted v2 production editor", () => {
     expect(JSON.parse(body)).toEqual({ name: "Blank", assets: [] });
     expect(body).not.toContain("SPY");
   });
-  it("renders one coherent semantic Selection inspector without schema-form actions", () => {
+  it("keeps the compatibility Selection Inspector explicitly closable", () => {
     const markup = renderToStaticMarkup(<V2StrategyEditor persisted={detail} onHome={() => undefined} />);
-    for (const label of ["FROM", "WHERE", "ORDER BY", "DIRECTION", "TAKE", "WHEN FEWER QUALIFY", "SELECTION FALLBACK"]) {
-      expect(markup).toContain(label);
-    }
-    expect(markup).toContain("QQQ · VGT · SOXX");
+    expect(markup).toContain('aria-label="Semantic Inspector"');
+    expect(markup).toContain('aria-label="Close Inspector"');
+    expect(markup).toContain("Choose 2 assets");
     expect(markup).toContain("126-observation return");
-    expect(markup).toContain("TLT");
-    expect(markup).not.toContain("Update condition");
-    expect(markup).not.toContain("Apply condition");
-    expect(markup).not.toContain("Return period");
-    expect(markup).not.toContain("Scale = 1");
-    expect(markup).not.toContain("canonical-version");
   });
 
   it("uses the shared semantic formatter for Value and nested Condition summaries", () => {
@@ -166,9 +161,7 @@ describe("mounted v2 production editor", () => {
     expect(markup).not.toContain("builder-adapter");
     expect(markup).toContain('data-production-builder-shell="true"');
     expect(markup).toContain("Choose 2 assets");
-    expect(markup).toContain("FROM");
-    expect(markup).toContain("WHERE");
-    expect(markup).toContain("ORDER BY");
+    expect(markup).not.toContain('aria-label="Semantic Inspector"');
     expect(markup).not.toContain("Event semantics");
     expect(markup).not.toContain("State semantics");
     expect(markup).not.toContain("program-selection-definition");
@@ -291,13 +284,7 @@ describe("mounted v2 production editor", () => {
     expect(markup).not.toContain("Allocate equally");
     expect(markup).not.toContain("Move up");
     expect(markup).not.toContain("Move down");
-    expect(markup).toContain("Investment");
-    expect(markup).toContain("Split");
-    expect(markup).toContain('aria-label="Availability status"');
-    expect(markup).toContain("Ready");
-    expect(markup).toContain("Needs context");
-    expect(markup).toContain('id="investment-description"');
-    expect(markup).toContain("A capital path backed by assets.");
+    expect(markup).not.toContain('aria-label="Availability status"');
     expect(markup).not.toContain("production Program lowering");
     expect(markup).not.toContain("exactly one Selection");
     expect(markup).not.toContain('class="builder-messages"');
@@ -434,5 +421,81 @@ describe("mounted v2 production editor", () => {
     }
     expect(programAllocationToolDescription(splitStrategy)).toBe("Selected assets are weighted equally within their Investment.");
     expect(programAllocationToolDescription(splitStrategy)).not.toBe("Equal allocation is configured.");
+  });
+});
+
+describe("perspective-specific SemanticProgramV2 projections", () => {
+  const programStrategy = (): CanonicalStrategyV2 => ({
+    ...strategy,
+    selection: null,
+    program: {
+      semantic_id: "program",
+      clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+      initial_state: { regime: "waiting" }, formalizations: [],
+      statements: [{ kind: "select", semantic_id: "program-selection", output_id: "selected-growth", clock_id: "daily-close", selection: strategy.selection! }, {
+        kind: "allocate", semantic_id: "selected-allocation", method: "equal", clock_id: "daily-close",
+        legs: [{ semantic_id: "selected-leg", target: { semantic_id: "selected-target", kind: "selection", ref: "selected-growth" }, weight: null }],
+        minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+      }, {
+        kind: "on_event", semantic_id: "risk-event-statement",
+        event: { semantic_id: "risk-event", clock_id: "daily-close", trigger: "rising_edge", occurrence: "every", ordinal: null, condition: { kind: "state_equals", semantic_id: "risk-waiting", state_key: "regime", expected: "waiting" } },
+        statements: [{ kind: "transition", semantic_id: "activate-statement", transition: { semantic_id: "activate", state_key: "regime", from_value: "waiting", to_value: "active", clock_id: "daily-close", when: { kind: "state_equals", semantic_id: "still-waiting", state_key: "regime", expected: "waiting" } } }],
+      }],
+    },
+  });
+
+  it("does not derive Blocky, Rules, or Summary from the Structure tree", () => {
+    const value = programStrategy();
+    const structure = projectProgramProductStructure(value);
+    const blocky = projectProgramBlocky(value);
+    const rules = projectProgramRules(value);
+    const summary = projectProgramSummary(value);
+    expect(structure.children[0]?.children.map((item) => item.label)).toContain("Assets");
+    expect(blocky.map((item) => item.role)).toEqual(expect.arrayContaining(["context", "trigger", "selection", "condition", "value", "event", "state"]));
+    expect(blocky.some((item) => item.label === "Assets")).toBe(false);
+    expect(rules.some((item) => item.text.includes("On rising edge"))).toBe(true);
+    expect(summary).toMatchObject({ title: "Profile A selection" });
+    expect(summary.description).toContain("choose 2");
+  });
+
+  it("projects explicit connected Blocky composition without duplicated trigger copy", () => {
+    const blocky = projectProgramBlocky(programStrategy());
+    expect(blocky.find((item) => item.role === "trigger")?.label).toBe("Daily close");
+    expect(blocky.some((item) => item.label.includes("Every Every"))).toBe(false);
+    expect(programBlockConnectionManifest(blocky)).toEqual(expect.arrayContaining([
+      "clock:daily-close:NEXT->statement:program-selection",
+      "statement:program-selection:ELIGIBILITY->condition:all",
+      "statement:program-selection:RANKING->value:candidate-return",
+      "statement:program-selection:FALLBACK->fallback:program-selection",
+      "statement:program-selection:NEXT->statement:selected-allocation",
+      "statement:selected-allocation:NEXT->statement:risk-event-statement",
+      "statement:risk-event-statement:CONDITION->condition:risk-waiting",
+      "statement:risk-event-statement:DO->statement:activate-statement",
+    ]));
+  });
+
+  it("keeps toolbox label, availability, and description as separate elements", () => {
+    const tools: ProductAddAction[] = [
+      { id: "investment", category: "Capital", label: "Investment", description: "A capital path backed by assets.", disabled: false, availability: "ready", onAdd: () => undefined },
+      { id: "split", category: "Capital", label: "Split", description: "Split capital across two investments.", disabled: true, availability: "needs_context", onAdd: () => undefined },
+    ];
+    const markup = renderToStaticMarkup(<SemanticProgramToolbox tools={tools} categories={["Capital"]} />);
+    expect(markup).toContain("<strong>Investment</strong>");
+    expect(markup).toContain('<small aria-label="Availability status">Ready</small>');
+    expect(markup).toContain('<p id="investment-description">A capital path backed by assets.</p>');
+    expect(markup).not.toContain("InvestmentReady");
+    expect(markup).not.toContain("SplitSplit capital");
+  });
+
+  it("keeps Flow capital-first and omits Event/State internals", () => {
+    const flow = projectProgramCapitalFlow(programStrategy());
+    expect(flow.nodes.map((item) => item.label)).toEqual(["Portfolio", "Growth", "Choose 2 assets", "Selected assets", "TLT", "Rebalance"]);
+    expect(flow.nodes.some((item) => item.label.includes("regime"))).toBe(false);
+    expect(flow.edges.map((item) => `${item.source}->${item.target}`)).toEqual(expect.arrayContaining([
+      "program-selection->selected:program-selection",
+      "program-selection->fallback:program-selection",
+      "selected:program-selection->rebalance",
+      "fallback:program-selection->rebalance",
+    ]));
   });
 });
