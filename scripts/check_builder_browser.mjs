@@ -110,7 +110,7 @@ try {
     ["Summary", '[data-projection-contract="summary"]', "Next inputs"],
     ["Guide", '[aria-label="Guided strategy editor"]', "How this strategy works"],
     ["Rules", '[data-projection-contract="rules"]', "Rules"],
-    ["Code", '[aria-label="Code representation"]', "canonical_strategy"],
+    ["Code", '.code-representation[aria-label="Code representation"]', "canonical_strategy"],
   ]) {
     await clickText(label); await waitSelector(selector); await sleep(150);
     const state = await evaluate(`(() => { const surface=document.querySelector(${JSON.stringify(selector)}); const heading=surface.querySelector('h1,h2'); const tabs=document.querySelector('.workspace-panel-tabs'); const body=surface.innerText; return {body,headingTop:heading?.getBoundingClientRect().top,tabsBottom:tabs?.getBoundingClientRect().bottom}; })()`);
