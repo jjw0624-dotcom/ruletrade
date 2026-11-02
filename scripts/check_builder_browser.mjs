@@ -131,7 +131,9 @@ try {
   await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, "persisted V2 result rail");
   await clickText("Open result and decision evidence"); await waitSelector('.result-workspace');
   await waitSelector('[data-decision-id="decision-v2-browser"]');
-  await clickTextContaining("Portfolio updated"); await waitExpression(`document.body.innerText.includes('Final portfolio')`, "persisted V2 decision detail");
+  await evaluate(`document.querySelector('[data-decision-id="decision-v2-browser"]').click()`);
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/backtest-runs/run-v2-browser/decision-events/decision-v2-browser')`, "persisted V2 decision detail request");
+  await waitExpression(`document.body.innerText.includes('QQQ 100%')`, "persisted V2 decision detail");
   const persistedJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!persistedJourney.body.includes("What happened, and why?") || !persistedJourney.body.includes("QQQ 100%") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/revisions/revision-v2-browser/backtest-runs"&&item.method==="POST") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/backtest-runs/run-v2-browser/decision-events") || persistedJourney.requests.some((item)=>item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Persisted V2 browser journey failed: ${JSON.stringify(persistedJourney)}`);
   await screenshot("persisted-v2-result-evidence");
