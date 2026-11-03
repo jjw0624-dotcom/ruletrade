@@ -5,7 +5,9 @@
     {"id": "v1_semantics", "classification": "v1_specific", "paths": ["src/ruletrade/strategy/v1"]},
     {"id": "v2_semantics", "classification": "v2_native", "paths": ["src/ruletrade/strategy/v2/models.py", "src/ruletrade/strategy/v2/daily_values.py", "src/ruletrade/strategy/v2/semantic_types.py"]},
     {"id": "v2_validation", "classification": "v2_native", "paths": ["src/ruletrade/strategy/v2/validation.py", "src/ruletrade/strategy/v2/program_validation.py"]},
-    {"id": "v2_authoring", "classification": "v2_native_with_shared_model_debt", "paths": ["src/ruletrade/strategy/v2/authoring.py"]},
+    {"id": "shared_values", "classification": "shared_infrastructure", "paths": ["src/ruletrade/strategy/common.py"]},
+    {"id": "version_dispatch", "classification": "compatibility_adapter", "paths": ["src/ruletrade/strategy/versioning.py"]},
+    {"id": "v2_authoring", "classification": "v2_native", "paths": ["src/ruletrade/strategy/v2/authoring.py"]},
     {"id": "v2_reference", "classification": "v2_native", "paths": ["src/ruletrade/strategy/v2/execution.py", "src/ruletrade/strategy/v2/program_execution.py"]},
     {"id": "v2_lowering", "classification": "mixed_native_and_temporary_bridge", "paths": ["src/ruletrade/strategy/v2/bridge.py"]},
     {"id": "compatibility_v1", "classification": "compatibility_adapter", "paths": ["src/ruletrade/strategy/v2/migration.py", "src/ruletrade/strategy/v2/bridge.py"]},
@@ -19,6 +21,7 @@
   ],
   "edges": [
     {"from": "v2_validation", "to": "v2_semantics", "kind": "validates"},
+    {"from": "v2_semantics", "to": "shared_values", "kind": "uses_version_neutral_values"},
     {"from": "v2_authoring", "to": "v2_validation", "kind": "commits_through"},
     {"from": "v2_reference", "to": "v2_semantics", "kind": "evaluates"},
     {"from": "v2_lowering", "to": "v2_validation", "kind": "requires"},
@@ -30,6 +33,7 @@
     {"from": "docker_lean", "to": "lean_codegen", "kind": "executes_generated_output"},
     {"from": "persistence", "to": "v2_semantics", "kind": "stores_immutable_revision"},
     {"from": "persistence", "to": "v1_semantics", "kind": "reads_historical_revision"},
+    {"from": "persistence", "to": "version_dispatch", "kind": "parses_persisted_version"},
     {"from": "api", "to": "persistence", "kind": "serves"},
     {"from": "projections", "to": "v2_semantics", "kind": "derives_read_models"}
   ]
