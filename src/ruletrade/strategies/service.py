@@ -28,8 +28,8 @@ from ruletrade.strategies.models import (
 from ruletrade.strategies.serialization import serialize_source_snapshot
 from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v1.validation import collect_semantic_issues
-from ruletrade.strategy.versioning import CanonicalStrategy, parse_canonical_strategy
 from ruletrade.strategy.v2.validation import validate_strategy_v2
+from ruletrade.strategy.versioning import CanonicalStrategy, parse_canonical_strategy
 
 
 class StrategyService:
