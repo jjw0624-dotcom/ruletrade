@@ -2,30 +2,16 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
+from ruletrade.strategy.common import (
+    FrozenModel,
+    GroupDefinition,
+    Identifier,
+    StrategyMetadata,
+    Symbol,
+)
 from ruletrade.strategy.v1.types import ValueType, normalize_typed_value, value_matches_type
-
-
-Identifier = Annotated[
-    str,
-    Field(min_length=1, max_length=100, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$"),
-]
-Symbol = Annotated[
-    str,
-    Field(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9._:-]+$"),
-]
-
-
-class FrozenModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class StrategyMetadata(FrozenModel):
-    name: Annotated[str, Field(min_length=1, max_length=100)]
-    description: Annotated[str, Field(max_length=2000)] = ""
-    tags: tuple[str, ...] = ()
-
 
 class AssetSetDefinition(FrozenModel):
     id: Identifier
@@ -42,15 +28,6 @@ class AssetSetDefinition(FrozenModel):
         if len(normalized) != len(set(normalized)):
             raise ValueError("asset set symbols must be unique")
         return normalized
-
-
-class GroupDefinition(FrozenModel):
-    """A stable, named semantic collection; never a persisted Selection result."""
-
-    id: Identifier
-    name: Annotated[str, Field(min_length=1, max_length=100)]
-    asset_set_ref: Identifier
-    description: Annotated[str, Field(max_length=1000)] = ""
 
 
 class UniverseDefinition(FrozenModel):
