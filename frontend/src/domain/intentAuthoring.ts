@@ -1,6 +1,6 @@
 import type { CanonicalStrategyV2, ProgramStatementV2, V2AuthoringOperation } from "./canonicalV2";
 
-export type IntentStartPath = "asset_first" | "timing_first" | "flow_first" | "logic_first" | "allocation_first";
+export type IntentStartPath = "asset_first" | "timing_first" | "flow_first" | "rules_first" | "logic_first" | "allocation_first";
 export type FinancialIntentRecipe = "single_asset" | "market_regime_rotation" | "split_portfolio" | "weighted_score" | "temporal_sequence" | "multi_clock_policy";
 export type IntentTimingMeaning = "rebalance" | "contribution";
 

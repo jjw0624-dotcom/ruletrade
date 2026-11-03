@@ -1,0 +1,12 @@
+{
+  "schema":"ruletrade.dev/architecture/bidirectional-perspective-contract/v1",
+  "audited_commit":"5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "forward":{"pipeline":["CanonicalStrategyV2","perspective projection","stable semantic address","UI representation"],"invariants":["projection cannot mutate Canonical","layout is excluded from semantic identity","unsupported meaning remains visible/read-only or diagnosed","Group definition creates no Flow/Blockly node"]},
+  "reverse":{"pipeline":["gesture","perspective-owned draft","typed intent","validation","V2AuthoringOperation","source-hash CAS","complete Canonical replacement","reprojection"],"failure":"retain the originating draft and Canonical; surface product diagnostic","stale":"reject source_hash_mismatch"},
+  "equivalence": [
+    {"case":"QQQ 100% monthly target","Flow":"allocation target + monthly realization","Rules":"declarative target rule","Blocky":"monthly allocation statement","classification":"exact only if clock, target, method, weight and remainder policy match"},
+    {"case":"Buy QQQ for $100 monthly vs rebalance QQQ to 100%","classification":"not_equivalent"},
+    {"case":"Group definition vs Group reference block","classification":"definition/reference separation"}
+  ],
+  "isolation": {"blocky":"native workspace owns visual graph","flow":"React Flow owns layout","rules":"never mutates Blockly JSON","objects":"definition transaction does not insert references","selection":"semantic address survives reprojection when still present","save_reopen":"revision restores Canonical; Working Draft v3 restores visual draft independently"}
+}

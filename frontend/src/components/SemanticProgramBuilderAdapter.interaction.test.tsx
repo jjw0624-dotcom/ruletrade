@@ -248,6 +248,70 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("starts an independent Flow Investment draft without changing Blocky or Canonical", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-investment"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="flow"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "Create Investment");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
+    expect(latest.canvasBlocks).toEqual({});
+    expect(apply).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    await clickButton(container, "Rules");
+    await clickButton(container, "Flow");
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("starts an independent Flow Split draft through the same typed intent boundary", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-split"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="flow"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "Create Split");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
+    expect(latest.canvasBlocks).toEqual({});
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("authors an incomplete investment intent directly inside Rules", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("rules-investment"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="rules"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "Add investment rule");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
+    expect(latest.canvasBlocks).toEqual({});
+    expect(container.querySelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Semantic Inspector"] [data-intent-recipe="single_asset"]')).toBeNull();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it("uses Blockly's native category toolbox as the only Blocky Add surface", async () => {
     render("blocky", vi.fn(), growthDefensive);
     expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);

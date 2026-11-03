@@ -45,6 +45,12 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
   };
+  const clickTextContaining = async (label) => {
+    const point = await evaluate(`(() => { const button=[...document.querySelectorAll('button')].reverse().find((item)=>{ if(!item.textContent.includes(${JSON.stringify(label)})||item.disabled) return false; const rect=item.getBoundingClientRect(); return Boolean(rect.width&&rect.height); }); if(!button) throw new Error('Missing enabled visible button containing: '+${JSON.stringify(label)}); const rect=button.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  };
   const clickBlocklyCategory = async (label) => {
     const point = await evaluate(`(() => { const row=[...document.querySelectorAll('.blocklyToolboxCategory')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!row) throw new Error('Missing Blockly category: '+${JSON.stringify(label)}); const rect=row.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -73,6 +79,19 @@ try {
     await screenshot(`builder-add-${width}x${height}`);
   }
 
+  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
+  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
+  await clickText("Rules"); await waitSelector('[data-intent-recipe="single_asset"]');
+  await clickText("Discard draft");
+  await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
+  await clickText("Add investment rule"); await waitSelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]');
+  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
+  await screenshot("builder-independent-flow-rules");
+  await clickText("Discard draft"); await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
+
   await clickBlocklyCategory("Start"); await sleep(250);
   console.log("Blockly category state:", JSON.stringify(await evaluate(`(() => ({addOpen:document.querySelector('.blocky-representation')?.dataset.nativeAddOpen,categories:[...document.querySelectorAll('.blocklyToolboxCategory')].slice(0,2).map((item)=>({text:item.textContent.trim(),selected:item.getAttribute('aria-selected'),className:item.className})),flyouts:[...document.querySelectorAll('[class*=Flyout],[class*=flyout]')].map((item)=>{const rect=item.getBoundingClientRect();return {className:item.className?.baseVal??item.className,width:rect.width,height:rect.height,display:getComputedStyle(item).display,visibility:getComputedStyle(item).visibility}})}))()`)));
   const hoverBefore = await evaluate(`(() => { const flyout=document.querySelector('.blocklyFlyout').getBoundingClientRect(); const canvas=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); return {flyout:{x:flyout.x,y:flyout.y,width:flyout.width,height:flyout.height},canvas:{x:canvas.x,width:canvas.width}}; })()`);
@@ -91,9 +110,10 @@ try {
   const workspaceState = await evaluate(`(() => ({toolbox:getComputedStyle(document.querySelector('[data-ruletrade-native-toolbox="true"]')).visibility, workspace:document.querySelector('[data-object-definition-workspace="group"]').getBoundingClientRect(), basket:Boolean(document.querySelector('[aria-label="Selection basket"]'))}))()`);
   if (workspaceState.toolbox !== "hidden" || !workspaceState.basket || workspaceState.workspace.x > 2) throw new Error(`Group Workspace isolation failed: ${JSON.stringify(workspaceState)}`);
   await screenshot("group-asset-workspace.png");
-  await evaluate(`document.querySelector('[data-object-definition-workspace="group"] summary').click()`);
-  await evaluate(`(() => { const input=document.querySelector('input[aria-label="Manual asset symbol"]'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'QQQ'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-  await clickText("Add symbol"); await clickText("Use selected assets"); await clickText("Create Group");
+  await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; const input=details.querySelector('input'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'QQQ'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+  await clickText("Add symbol"); await sleep(200);
+  await clickText("Use selected assets"); await sleep(200);
+  await clickText("Create Group");
   await waitExpression(`document.querySelectorAll('.object-library-insert').length===1`, "committed Group object row");
   const definitionOnly = await evaluate(`({groupBlocks:Object.values(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).filter((block)=>block.definitionId==='group-reference'||block.definitionId==='create-group').length, inspector:Boolean(document.querySelector('[aria-label="Semantic Inspector"]')), references:[...document.querySelectorAll('.object-library-insert')].length})`);
   if (definitionOnly.groupBlocks || definitionOnly.inspector || definitionOnly.references !== 1) throw new Error(`Group definition/reference separation failed: ${JSON.stringify(definitionOnly)}`);
@@ -104,6 +124,34 @@ try {
   const connectedReference = await evaluate(`(() => { const snapshot=window.__RULETRADE_BROWSER_DRAFT__; const refs=Object.values(snapshot?.canvasBlocks??{}).filter((block)=>block.definitionId==='group-reference'); const ref=refs[0]; return {count:refs.length,objectRef:ref?.objectRef,connection:ref?snapshot.blockConnections[ref.id]:null}; })()`);
   if (connectedReference.count !== 1 || connectedReference.objectRef !== "group-1" || connectedReference.connection?.inputName !== "TARGET") throw new Error(`Connected stable Group reference failed: ${JSON.stringify(connectedReference)}`);
   await screenshot("builder-connected-reference");
+
+  for (const [label, selector, expected] of [
+    ["Summary", '[data-projection-contract="summary"]', "Next inputs"],
+    ["Guide", '[aria-label="Guided strategy editor"]', "How this strategy works"],
+    ["Rules", '[data-projection-contract="rules"]', "Rules"],
+    ["Code", '.code-representation[aria-label="Code representation"]', "canonical_strategy"],
+  ]) {
+    await clickText(label); await waitSelector(selector); await sleep(150);
+    const state = await evaluate(`(() => { const surface=document.querySelector(${JSON.stringify(selector)}); const heading=surface.querySelector('h1,h2'); const tabs=document.querySelector('.workspace-panel-tabs'); const body=surface.innerText; return {body,headingTop:heading?.getBoundingClientRect().top,tabsBottom:tabs?.getBoundingClientRect().bottom}; })()`);
+    if (!state.body.includes(expected) || state.body.includes("production Program lowering") || (state.headingTop ?? 0) < (state.tabsBottom ?? 0)) throw new Error(`${label} perspective failed: ${JSON.stringify(state)}`);
+    await screenshot(`builder-${label.toLowerCase()}-perspective`);
+  }
+
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
+  await waitSelector('[data-production-builder-shell="true"]');
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled persisted V2 Test");
+  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, "persisted V2 result rail");
+  await clickText("Open result and decision evidence"); await waitSelector('.result-workspace');
+  await waitSelector('[data-decision-id="decision-v2-browser"]');
+  await evaluate(`document.querySelector('[data-decision-id="decision-v2-browser"]').click()`);
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/backtest-runs/run-v2-browser/decision-events/decision-v2-browser')`, "persisted V2 decision detail request");
+  await waitExpression(`document.body.innerText.includes('QQQ 100%')`, "persisted V2 decision detail");
+  const persistedJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!persistedJourney.body.includes("What happened, and why?") || !persistedJourney.body.includes("QQQ 100%") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/revisions/revision-v2-browser/backtest-runs"&&item.method==="POST") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/backtest-runs/run-v2-browser/decision-events") || persistedJourney.requests.some((item)=>item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Persisted V2 browser journey failed: ${JSON.stringify(persistedJourney)}`);
+  await screenshot("persisted-v2-result-evidence");
+  await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
+  await screenshot("persisted-v2-builder-reopened");
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {

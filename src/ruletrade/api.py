@@ -158,7 +158,6 @@ from ruletrade.strategy.v2.authoring import (
     create_program_strategy_template,
 )
 from ruletrade.strategy.v2.authoring import authoring_capabilities as v2_authoring_capabilities
-from ruletrade.strategy.v2.bridge import V2LoweringError, lower_v2_to_v1
 from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
@@ -927,16 +926,17 @@ def execute_v2_lean_backtest(
 ) -> LeanBacktestResponse:
     """Execute the closed Program subset through the maintained typed LEAN pipeline."""
     try:
-        lowered = lower_v2_to_v1(request.strategy)
-        response = service.execute_transient(LeanBacktestRequest(strategy=lowered, config=request.config))
-        return response.model_copy(update={"strategy_hash": strategy_hash(request.strategy)})
-    except V2LoweringError as exc:
-        raise HTTPException(status_code=422, detail={"code": "unsupported_v2_execution", "message": str(exc)}) from exc
+        return service.execute_transient_v2(request.strategy, request.config)
     except InvalidStrategyError as exc:
         raise HTTPException(status_code=422, detail={
             "code": exc.code, "message": str(exc),
             "issues": [{"path": issue.path, "message": issue.message} for issue in exc.issues],
         }) from exc
+    except UnsupportedStrategyError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
     except LeanRuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail={"code": exc.code, "message": str(exc)}) from exc
     except MalformedLeanResultError as exc:
@@ -990,6 +990,11 @@ def execute_lean_backtest(
 
 
 @app.post(
+    "/v2/revisions/{revision_id}/backtest-runs",
+    response_model=BacktestRunRecord,
+    status_code=201,
+)
+@app.post(
     "/v1/revisions/{revision_id}/backtest-runs",
     response_model=BacktestRunRecord,
     status_code=201,
@@ -1003,6 +1008,10 @@ def create_persisted_backtest_run(
 
 
 @app.post(
+    "/v2/revisions/{revision_id}/market-data/preflight",
+    response_model=MarketDataPreflight,
+)
+@app.post(
     "/v1/revisions/{revision_id}/market-data/preflight",
     response_model=MarketDataPreflight,
 )
@@ -1011,9 +1020,19 @@ def preflight_revision_market_data(
     request: MarketDataPreflightRequest,
     service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> MarketDataPreflight:
-    return service.preflight(revision_id, request.config)
+    try:
+        return service.preflight(revision_id, request.config)
+    except UnsupportedStrategyError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
 
 
+@app.get(
+    "/v2/revisions/{revision_id}/backtest-runs",
+    response_model=BacktestRunList,
+)
 @app.get(
     "/v1/revisions/{revision_id}/backtest-runs",
     response_model=BacktestRunList,
@@ -1025,6 +1044,7 @@ def list_persisted_backtest_runs(
     return BacktestRunList(items=list(service.list_runs(revision_id)))
 
 
+@app.get("/v2/backtest-runs/{run_id}", response_model=BacktestRunRecord)
 @app.get("/v1/backtest-runs/{run_id}", response_model=BacktestRunRecord)
 def read_persisted_backtest_run(
     run_id: str,
@@ -1033,6 +1053,10 @@ def read_persisted_backtest_run(
     return service.get_run(run_id)
 
 
+@app.get(
+    "/v2/backtest-runs/{run_id}/decision-events",
+    response_model=DecisionEventList,
+)
 @app.get(
     "/v1/backtest-runs/{run_id}/decision-events",
     response_model=DecisionEventList,
@@ -1044,6 +1068,10 @@ def list_run_decision_events(
     return DecisionEventList(items=list(service.list_decision_events(run_id)))
 
 
+@app.get(
+    "/v2/backtest-runs/{run_id}/decision-events/{event_id}",
+    response_model=DecisionEventDetail,
+)
 @app.get(
     "/v1/backtest-runs/{run_id}/decision-events/{event_id}",
     response_model=DecisionEventDetail,

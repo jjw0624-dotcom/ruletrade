@@ -19,9 +19,17 @@ import { entryBlockDefinition } from "../domain/entryStyleGrammar";
 import { blockUiContract } from "../domain/blockUiContract";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
 import { translateDraftIntent } from "../domain/draftIntents";
-import { validateActiveVisualGraphs } from "../domain/activeVisualGraph";
+import { compileActiveVisualGraph, validateActiveVisualGraphs } from "../domain/activeVisualGraph";
 import { compileFinancialIntent, createFinancialIntentDraft, financialIntentReadiness, updateFinancialIntentDraft, type FinancialIntentDraft, type FinancialIntentRecipe, type IntentStartPath } from "../domain/intentAuthoring";
+import type { BacktestRunRecord } from "../backtestRunApi";
 import "./SemanticProgramBuilderAdapter.css";
+
+export interface ProgramRevisionContext {
+  revisionId: string;
+  sourceHash: string;
+  schemaVersion: string;
+  latestRun: BacktestRunRecord | null;
+}
 
 function flatten(items: ProgramStatementV2[]): ProgramStatementV2[] {
   return items.flatMap((item) => [item,
@@ -390,7 +398,7 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map(({ leg, id }) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === id)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[id] ?? 0} onChange={(event) => setWeights({ ...weights, [id]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map(({ id }) => ({ id, weight: weights[id] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
-function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
+function ProgramFlowProjection({ flow, edges, blank, draftActive, onCreateInvestment, onCreateSplit, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; draftActive: boolean; onCreateInvestment: () => void; onCreateSplit: () => void; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
   const manifest = programFlowManifest({ nodes: flow, edges });
   const projected = projectProgramFlowCanvas({ nodes: flow, edges });
   const canvas = { ...projected, nodes: projected.nodes.map((node) => ({ ...node, position: positions[node.id] ?? node.position })) };
@@ -415,6 +423,11 @@ function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewpo
       </ReactFlow>
     </div>
     {blank && <p className="v2-flow-empty">No capital route has been defined yet.</p>}
+    <div className="flow-authoring-actions" aria-label="Flow authoring">
+      <button type="button" className="primary-button" disabled={draftActive} onClick={onCreateInvestment}>Create Investment</button>
+      <button type="button" className="secondary-button" disabled={draftActive} onClick={onCreateSplit}>Create Split</button>
+      <small>Flow drafts stay independent. Canonical and Blocky change only after a complete typed intent passes validation.</small>
+    </div>
   </section>;
 }
 
@@ -513,11 +526,13 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
   return <div className="semantic-inspector-content"><h2>{describeProgramStatement(statement)}</h2></div>;
 }
 
-export function SemanticProgramBuilderAdapter({ canonical, dirty, status, message, onHome, apply, save, undo, redo, canUndo, canRedo, working, run, executionCapability, testPanel = null, onCloseTestPanel = () => undefined, initialView = "blocky", workingDraft: suppliedWorkingDraft, onWorkingDraftChange }: {
+export function SemanticProgramBuilderAdapter({ canonical, dirty, status, message, onHome, apply, save, undo, redo, canUndo, canRedo, working, run, executionCapability, revisionContext = null, onOpenLatestRun, testPanel = null, onCloseTestPanel = () => undefined, initialView = "blocky", workingDraft: suppliedWorkingDraft, onWorkingDraftChange }: {
   canonical: CanonicalStrategyV2; dirty: boolean; status: "saved" | "updating" | "invalid" | "unfinished"; message: string;
   onHome: () => void; apply: (operation: V2AuthoringOperation) => void; save: () => void;
   undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; working: (unfinished: boolean) => void;
   run: () => void; executionCapability: V2ExecutionCapability | null;
+  revisionContext?: ProgramRevisionContext | null;
+  onOpenLatestRun?: () => void;
   testPanel?: ReactNode | null;
   onCloseTestPanel?: () => void;
   initialView?: ProgramBuilderView;
@@ -639,7 +654,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       timeframe: clock?.timeframe === "monthly" ? "monthly" : clock?.timeframe === "daily" ? "daily" : null,
       timingMeaning: startPath === "timing_first" ? "rebalance" : null,
     });
-    setDraftAt(intent, position); setSelectedId(null); working(true); setView(startPath === "flow_first" ? "flow" : "blocky");
+    setDraftAt(intent, position); setSelectedId(null); working(true); setView(startPath === "flow_first" ? "flow" : startPath === "rules_first" ? "rules" : "blocky");
   };
   const addInvestment = () => startInvestmentDraft();
   const semanticTools: ProductAddAction[] = [
@@ -700,6 +715,20 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const blocky = perspectives.decisionLogic.blocks;
   const rules = useMemo(() => projectProgramRules(canonical), [canonical]);
   const summary = useMemo(() => projectProgramSummary(canonical), [canonical]);
+  const executionLabel = executionCapability?.execution_state === "executable" ? "Ready to test"
+    : executionCapability?.execution_state === "unsupported" ? "Execution not supported"
+      : executionCapability?.execution_state === "incomplete" ? "More inputs needed"
+        : "Checking test readiness";
+  const latestRun = revisionContext?.latestRun ?? null;
+  const latestResult = latestRun?.status === "succeeded" && latestRun.result
+    ? `${(Number(latestRun.result.total_return) * 100).toFixed(2)}% total return · ${latestRun.result.total_orders} orders`
+    : latestRun ? latestRun.error?.message ?? `Run ${latestRun.status}` : "No saved test yet";
+  const codeEnvelope = {
+    revision: revisionContext ? { id: revisionContext.revisionId, source_hash: revisionContext.sourceHash, schema_version: revisionContext.schemaVersion } : null,
+    execution_capability: executionCapability,
+    latest_run: latestRun ? { id: latestRun.id, status: latestRun.status, provenance: latestRun.provenance, result: latestRun.result, error: latestRun.error } : null,
+    canonical_strategy: canonical,
+  };
   const switchView = (next: ProgramBuilderView) => setView(next);
   const selectedGroup = selectedId?.startsWith("group:") ? canonical.definitions.groups.find((item) => item.id === selectedId.slice("group:".length)) : null;
   const finishDraftOperation = (operation: BuilderProductOperation) => { setDraft(null); working(false); applyProduct(operation); };
@@ -733,6 +762,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const selectedCanvasBlock = selectedId ? workingDraft.canvasBlocks[selectedId] : undefined;
   const visualGraphValidation = useMemo(() => validateActiveVisualGraphs(workingDraft), [workingDraft]);
+  const activeGraphCompilation = useMemo(() => compileActiveVisualGraph(workingDraft), [workingDraft]);
   const selectedActiveGraph = selectedCanvasBlock ? visualGraphValidation.graphs.find((graph) => graph.rootId === selectedCanvasBlock.id || graph.blockIds.includes(selectedCanvasBlock.id)) : null;
   const selectedBlockContract = selectedCanvasBlock ? blockUiContract(selectedCanvasBlock.definitionId) : null;
   const selectedOpenAssetSlot = selectedCanvasBlock ? entryBlockDefinition(selectedCanvasBlock.definitionId)?.slots.find((slot) => slot.accepts.some((type) => ["Asset", "AssetSet", "Group", "Subgroup"].includes(type)) && !Object.values(workingDraft.blockConnections).some((connection) => connection.parentId === selectedCanvasBlock.id && connection.inputName === slot.name)) : null;
@@ -752,7 +782,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     : draft?.kind === "selection" ? <SelectionDraftInspector strategy={canonical} initialUniverseId={draft.universeId} withQualification={draft.withQualification} onComplete={(operation, investmentId) => applyProduct(operation, { investmentId, selectionId: draft.semanticId })} />
     : draft?.kind === "event_state" ? <EventStateDraftInspector strategy={canonical} semanticId={draft.semanticId} onComplete={apply} />
     : draft?.kind === "control" ? <ControlDraftInspector strategy={canonical} draft={draft} connections={workingDraft.blockConnections} onChange={(next) => setDraft(next)} onCommit={apply} />
-    : draft?.kind === "financial_intent" ? <FinancialIntentInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => { setDraft(null); working(false); apply(operation); }} />
+    : draft?.kind === "financial_intent" && !(view === "rules" && draft.startPath === "rules_first") ? <FinancialIntentInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => { setDraft(null); working(false); apply(operation); }} />
     : selectedId?.startsWith("assets:") ? <div className="semantic-inspector-content"><h2>Group Workspace</h2><p>The large Group editor is open on the canvas. Search, review provider status, reorder members, and commit the explicit Group there.</p></div>
         : selectedId?.startsWith("qualification:") && selectedSelection ? <ProgramQualificationInspector strategy={canonical} statement={selectedSelection} apply={apply} working={working} onDefault={() => applyProduct({ kind: "setQualification", lookback: 126, operator: "gt", threshold: 0 }, { selectionId: selectedSelection.semantic_id })} />
           : selectedId?.startsWith("fallback:") && selectedSelection ? <ProgramFallbackInspector statement={selectedSelection} onFallback={(asset) => applyProduct({ kind: "setFallback", asset }, { selectionId: selectedSelection.semantic_id })} />
@@ -764,8 +794,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
                   : selectedId === "split" && portfolioSplit ? <ProgramSplitInspector strategy={canonical} statement={portfolioSplit} onApply={(investments) => applyProduct({ kind: "setAllocation", method: "fixed", investments })} />
                     : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select a Group, Subgroup, or Investment in Structure, or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
-    overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p>{summary.description}</p></section>,
-    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
+    overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><header className="summary-hero"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p className="summary-objective">{summary.objective}</p><p>{summary.description}</p></header><div className="summary-status-grid"><section><span>Execution</span><strong>{executionLabel}</strong><p>{executionCapability?.product_message ?? "Checking whether the saved revision can run."}</p></section><section><span>Latest saved test</span><strong>{latestRun ? `Run ${latestRun.id}` : "Not run"}</strong><p>{latestResult}</p>{latestRun && onOpenLatestRun && <button type="button" className="text-button" onClick={onOpenLatestRun}>View saved result</button>}</section></div>{summary.sections.length > 0 && <div className="summary-section-grid">{summary.sections.map((section) => <section key={section.id}><h2>{section.label}</h2><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</div>}{summary.missingInputs.length > 0 && <section className="perspective-missing-inputs"><h2>Next inputs</h2><ul>{summary.missingInputs.map((item) => <li key={item}>{item}</li>)}</ul></section>}</section>,
+    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><div className="blocky-commit-boundary" aria-label="Blocky semantic commit"><strong>Active graph</strong><span>{activeGraphCompilation.productMessage}</span><button type="button" className="primary-button" disabled={!activeGraphCompilation.operation} onClick={() => { if (!activeGraphCompilation.operation || !activeGraphCompilation.rootId) return; apply(activeGraphCompilation.operation); updateLayoutDraft(setCanvasBlockActive(workingDraftRef.current, activeGraphCompilation.rootId, false)); }}>Commit active graph</button></div><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft} canvasBlocks={workingDraft.canvasBlocks}
       objects={blockyObjects} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
       addSurfaceOpen={blockyAddOpen} suspended={draft?.kind === "group" || Boolean(selectedId?.startsWith("assets:"))}
@@ -791,7 +821,10 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       }}
       onDisclosureChange={(id, level) => updateLayoutDraft(withBlockDisclosure(workingDraftRef.current, id, level))}
       />{draft?.kind === "group" && <section className="program-group-workspace" aria-label="Group Workspace" data-object-definition-workspace="group"><header><div><span className="eyebrow">Group Workspace</span><h2>Create reusable Group</h2></div><button type="button" aria-label="Cancel Group creation" onClick={cancelCurrentDraft}>×</button></header><GroupDraftInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={commitGroupDraft} onCancel={cancelCurrentDraft} /></section>}{selectedId?.startsWith("assets:") && <section className="program-group-workspace" aria-label="Group Workspace"><header><div><span className="eyebrow">Group Workspace</span><h2>Edit Group assets</h2></div><button type="button" aria-label="Close Group Workspace" onClick={() => select(null)}>×</button></header><ProgramAssetUniverseEditor assets={canonical.definitions.asset_sets.find((item) => item.id === selectedId.slice("assets:".length))?.assets ?? []} onCommit={(assets) => applyProduct({ kind: "setAssets", assets }, { assetSetId: selectedId.slice("assets:".length) })} /></section>}</section>,
-    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={flowGraph.edges.length === 0} onSelect={select}
+    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={flowGraph.edges.length === 0} draftActive={Boolean(draft)}
+      onCreateInvestment={() => startFinancialIntent("single_asset", "flow_first")}
+      onCreateSplit={() => startFinancialIntent("split_portfolio", "flow_first")}
+      onSelect={select}
       positions={workingDraft.flowPositions} viewport={workingDraft.flowViewport}
       onPositionChange={(id, position) => updateLayoutDraft(withFlowPositions(workingDraftRef.current, { [id]: position }))}
       onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraftRef.current, flowViewport: viewport })}
@@ -807,9 +840,9 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
         const current = workingDraftRef.current;
         updateWorkingDraft({ ...current, status: "unsupported", diagnostics: result.diagnostic ? [...current.diagnostics, result.diagnostic] : current.diagnostics }); working(true);
       }} />,
-    rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><h2>Rules</h2>{blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <button type="button" className="program-rule-line" key={line.id} style={{ paddingLeft: `${12 + line.depth * 18}px` }} data-semantic-address={line.address.semanticId} aria-pressed={selectedId === line.address.focusId} onClick={() => select(line.address.focusId)}>{line.text}</button>)}</section>,
-    guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Start with assets, timing, capital flow, logic, or allocation. Complete intent converges on one semantic strategy.</p></header>{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "asset_first")}>Choose QQQ first</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "timing_first")}>Start every month</button><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("split_portfolio", "flow_first")}>Split a portfolio</button></section> : <div className="guide-sequence">{all.filter((item) => ["select", "control", "allocate"].includes(item.kind)).map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} onClick={() => select(item.semantic_id)}><span>Strategy step</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
-    code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Canonical strategy</h1><p>Read-only developer representation. Editing remains in the shared Inspector.</p></header><pre className="code-metadata">{JSON.stringify(canonical, null, 2)}</pre></section>,
+    rules: <section className="representation-layer v2-rules" aria-label="Rules projection" data-projection-contract="rules"><header className="perspective-heading"><div><span className="eyebrow">Declarative meaning</span><h1>Rules</h1></div><span className={`perspective-capability ${executionCapability?.execution_state ?? "checking"}`}>{executionLabel}</span></header>{summary.missingInputs.length > 0 && <p className="perspective-guidance">{summary.missingInputs.join(" ")}</p>}<div className="rules-authoring-actions" aria-label="Rules authoring"><button type="button" className="primary-button" disabled={Boolean(draft)} onClick={() => startFinancialIntent("single_asset", "rules_first")}>Add investment rule</button><button type="button" className="secondary-button" disabled={Boolean(draft)} onClick={() => startFinancialIntent("split_portfolio", "rules_first")}>Add split rule</button></div>{draft?.kind === "financial_intent" && draft.startPath === "rules_first" ? <section className="rules-inline-editor" aria-label="Rules intent editor"><FinancialIntentInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={(operation) => { setDraft(null); working(false); apply(operation); }} /></section> : blank ? <p>No strategy logic has been added yet.</p> : rules.map((line) => <button type="button" className="program-rule-line" key={line.id} style={{ paddingLeft: `${12 + line.depth * 18}px` }} data-semantic-address={line.address.semanticId} aria-pressed={selectedId === line.address.focusId} onClick={() => select(line.address.focusId)}>{line.text}</button>)}</section>,
+    guided: <section className="representation-layer guide-representation" aria-label="Guided strategy editor"><header className="representation-intro"><span className="eyebrow">Guide</span><h1>How this strategy works</h1><p>Follow the committed objects and rules below. Select any step to inspect or change its meaning.</p></header>{summary.missingInputs.length > 0 && <section className="perspective-missing-inputs"><h2>Complete next</h2><ul>{summary.missingInputs.map((item) => <li key={item}>{item}</li>)}</ul></section>}{blank ? <section className="guide-recipes" aria-label="Guided Strategy recipes"><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "asset_first")}>Choose QQQ first</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("single_asset", "timing_first")}>Start every month</button><button className="secondary-button" type="button" onClick={addInvestment}>One investment</button><button className="secondary-button" type="button" onClick={() => startFinancialIntent("split_portfolio", "flow_first")}>Split a portfolio</button></section> : <div className="guide-sequence">{canonical.definitions.groups.map((item) => <button className="guide-object" type="button" key={item.id} aria-pressed={selectedId === `group:${item.id}`} onClick={() => select(`group:${item.id}`)}><span>Reusable Group</span><strong>{item.name}</strong></button>)}{canonical.program?.clocks.map((item) => <button className="guide-object" type="button" key={item.id} aria-pressed={selectedId === "rebalance"} onClick={() => select("rebalance")}><span>Completed-observation timing</span><strong>{item.timeframe.replaceAll("_", " ")} {item.boundary}</strong></button>)}{productStatements.map((item) => <button className="guide-object" type="button" key={item.semantic_id} aria-pressed={selectedId === item.semantic_id} data-semantic-address={item.semantic_id} onClick={() => select(item.semantic_id)}><span>{item.kind.replaceAll("_", " ")}</span><strong>{describeProgramStatement(item)}</strong></button>)}</div>}</section>,
+    code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Revision and canonical strategy</h1><p>Read-only exact semantics with saved-revision, execution-capability, and latest-Run provenance.</p></header><pre className="code-metadata">{JSON.stringify(codeEnvelope, null, 2)}</pre></section>,
     ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,
   };
   const authoringFeedback = status === "saved" ? null : message;
@@ -847,5 +880,5 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     updateWorkingDraft(next);
   };
   void nativeHistoryVersion;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft, onInsertObjectReference: (object) => { setView("blocky"); nativeBlockyApi.current?.insertObjectReference(object); }, blockyAddOpen, onBlockyAddOpenChange: setBlockyAddOpen }} />, representations, inspector, inspectorOpen: Boolean(selectedId || (draft && draft.kind !== "group")), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={!executionCapability?.production_executable || status !== "saved" || Boolean(draft) || activeVisualGraphBlocksExecution} testTitle={workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft, onInsertObjectReference: (object) => { setView("blocky"); nativeBlockyApi.current?.insertObjectReference(object); }, blockyAddOpen, onBlockyAddOpenChange: setBlockyAddOpen }} />, representations, inspector, inspectorOpen: Boolean(selectedId || (draft && draft.kind !== "group")), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={dirty || !executionCapability?.production_executable || status !== "saved" || Boolean(draft) || activeVisualGraphBlocksExecution} testTitle={dirty ? "Save this revision before testing it." : workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
 }

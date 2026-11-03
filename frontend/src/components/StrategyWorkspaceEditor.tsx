@@ -13,7 +13,7 @@ import { V2StrategyEditor } from "./V2StrategyEditor";
  * Canonical version selection is a compatibility concern below this boundary;
  * navigation and product identity never choose a separate Builder.
  */
-export function StrategyWorkspaceEditor({ bootstrap, example, detail, initialView = "overview", confirmation, sourceFocus, onDirtyChange, onHome }: {
+export function StrategyWorkspaceEditor({ bootstrap, example, detail, initialView = "overview", confirmation, sourceFocus, onDirtyChange, onHome, onOpenRun }: {
   bootstrap: EditorBootstrap;
   example: StrategyExample;
   detail: StrategyDetail;
@@ -22,10 +22,11 @@ export function StrategyWorkspaceEditor({ bootstrap, example, detail, initialVie
   sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null;
   onDirtyChange?: (dirty: boolean) => void;
   onHome: () => void;
+  onOpenRun?: (runId: string) => void;
 }) {
   const canonical = detail.current_revision.canonical_strategy;
   if (isCanonicalV2(canonical)) {
-    return <V2StrategyEditor key={detail.current_revision.id} persisted={detail as StrategyDetailV2} onDirtyChange={onDirtyChange} onHome={onHome} />;
+    return <V2StrategyEditor key={detail.current_revision.id} persisted={detail as StrategyDetailV2} onDirtyChange={onDirtyChange} onHome={onHome} onOpenRun={onOpenRun} />;
   }
   return <StrategyEditorProvider key={detail.current_revision.id} bootstrap={bootstrap} initialView={initialView}>
     <StrategyEditor example={example} persisted={detail as StrategyDetailV1} confirmation={confirmation} onDirtyChange={onDirtyChange} onHome={onHome} sourceFocus={sourceFocus} />

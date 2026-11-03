@@ -38,6 +38,9 @@ export interface ProgramRuleLine {
 export interface ProgramSummaryProjection {
   title: string;
   description: string;
+  objective: string;
+  sections: Array<{ id: string; label: string; items: string[] }>;
+  missingInputs: string[];
   addresses: ProgramProjectionAddress[];
 }
 
@@ -259,5 +262,35 @@ export function projectProgramSummary(strategy: CanonicalStrategyV2): ProgramSum
   ].filter((item): item is string => Boolean(item));
   const behavior = behaviors.length ? ` ${behaviors.join(", ")} shape the active allocation.` : "";
   const description = `${split?.detail ? `Split Portfolio capital ${split.detail}. ` : ""}${base}${behavior}`;
-  return { title: strategy.metadata.name, description, addresses: [address("strategy", strategy.program?.semantic_id ?? "program", "program", "portfolio"), ...selections.map((item) => address("statement", item.semantic_id, `program.statements[${item.semantic_id}]`))] };
+  const assetSets = new Map(strategy.definitions.asset_sets.map((item) => [item.id, item.assets]));
+  const universe = groups.map((group) => {
+    const assets = assetSets.get(group.asset_set_ref) ?? [];
+    return `${group.name}: ${assets.length ? assets.join(", ") : "no assets chosen"}`;
+  });
+  const timing = (strategy.program?.clocks ?? []).map((clock) => `${clock.timeframe.replaceAll("_", " ")} ${clock.boundary} · completed observations only`);
+  const selectionRules = selections.map((item) => `Choose ${item.selection.count} ${item.selection.direction === "descending" ? "highest" : "lowest"} by ${describeValueV2(item.selection.ranking)}${item.selection.eligibility ? ` after ${describeConditionV2(item.selection.eligibility)}` : ""}${item.selection.fallback_asset ? ` · shortage fallback ${item.selection.fallback_asset}` : ""}`);
+  const allocation = investments.map((item) => item.method === "fixed"
+    ? item.legs.map((leg) => `${formatPortfolioShare(Number(leg.weight ?? 0))} → ${leg.target.ref ?? leg.target.kind}`).join(" · ")
+    : `${item.method.replaceAll("_", " ")} → ${item.legs.map((leg) => leg.target.ref ?? leg.target.kind).join(", ")}`);
+  const missingInputs = [
+    groups.length === 0 ? "Add an Investment destination or reusable Group." : null,
+    ...groups.filter((group) => (assetSets.get(group.asset_set_ref) ?? []).length === 0).map((group) => `Choose assets for ${group.name}.`),
+    investments.length === 0 ? "Define how Portfolio capital should be invested." : null,
+    (strategy.program?.clocks.length ?? 0) === 0 ? "Choose an evaluation and rebalance clock." : null,
+  ].filter((item): item is string => Boolean(item));
+  const sections = [
+    { id: "universe", label: "Universe", items: universe },
+    { id: "timing", label: "Timing", items: timing },
+    { id: "selection", label: "Selection and conditions", items: selectionRules },
+    { id: "allocation", label: "Capital allocation", items: allocation },
+    { id: "behavior", label: "State and behavior", items: behaviors },
+  ].filter((section) => section.items.length > 0);
+  return {
+    title: strategy.metadata.name,
+    description,
+    objective: strategy.metadata.description?.trim() || (investments.length ? "Apply the committed rules to route Portfolio capital." : "Build the first complete capital route."),
+    sections,
+    missingInputs,
+    addresses: [address("strategy", strategy.program?.semantic_id ?? "program", "program", "portfolio"), ...selections.map((item) => address("statement", item.semantic_id, `program.statements[${item.semantic_id}]`))],
+  };
 }

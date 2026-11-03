@@ -49,7 +49,8 @@ from ruletrade.diagnostics import elapsed_ms
 from ruletrade.market_data.models import MarketDataPreflight
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
-from ruletrade.strategy.v1.models import CanonicalStrategyV1
+from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
+from ruletrade.strategy.v2.models import CanonicalStrategy, CanonicalStrategyV2
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,13 @@ class BacktestRunService:
 
         return self.executor.execute(request)
 
+    def execute_transient_v2(
+        self, strategy: CanonicalStrategyV2, config: BacktestConfig
+    ) -> LeanBacktestResponse:
+        """Execute a V2 working copy without creating a persisted Run."""
+
+        return self.executor.execute_v2(strategy, config)
+
     def preflight(
         self,
         revision_id: str,
@@ -89,7 +97,14 @@ class BacktestRunService:
         revision = self.strategies.get_revision_by_id(revision_id)
         if self.executor.market_data is None:
             raise RuntimeError("Market-data preflight is not configured.")
-        return self.executor.market_data.preflight(revision.canonical_strategy, run_config)
+        canonical = revision.canonical_strategy
+        if isinstance(canonical, CanonicalStrategyV2):
+            try:
+                plan = compile_v2_strategy_to_lean_plan(canonical)
+            except V2LoweringError as exc:
+                raise UnsupportedStrategyError(str(exc)) from exc
+            return self.executor.market_data.preflight_plan(plan, run_config)
+        return self.executor.market_data.preflight(canonical, run_config)
 
     def create_and_execute(
         self,
@@ -117,7 +132,7 @@ class BacktestRunService:
         *,
         candidate_id: str,
         base_revision_id: str,
-        canonical: CanonicalStrategyV1,
+        canonical: CanonicalStrategy,
         source_hash: str,
         schema_version: str,
         config: BacktestConfig,
@@ -141,7 +156,7 @@ class BacktestRunService:
         *,
         revision_id: str,
         candidate_id: str | None,
-        canonical: CanonicalStrategyV1,
+        canonical: CanonicalStrategy,
         source_hash: str,
         schema_version: str,
         run_config: BacktestConfig,
@@ -149,11 +164,20 @@ class BacktestRunService:
         total_started: int,
     ) -> BacktestRunRecord:
         now = self._clock()
-        preflight = (
-            self.executor.market_data.preflight(canonical, run_config)
-            if self.executor.market_data is not None
-            else None
-        )
+        preflight = None
+        if self.executor.market_data is not None:
+            try:
+                preflight = (
+                    self.executor.market_data.preflight_plan(
+                        compile_v2_strategy_to_lean_plan(canonical), run_config
+                    )
+                    if isinstance(canonical, CanonicalStrategyV2)
+                    else self.executor.market_data.preflight(canonical, run_config)
+                )
+            except V2LoweringError:
+                # The persisted Run records unsupported execution below. A
+                # lowerer exception is not a market-data fact.
+                preflight = None
         run = BacktestRunRecord(
             id=self._id_factory(),
             revision_id=revision_id,
@@ -197,15 +221,21 @@ class BacktestRunService:
         )
         running = self.repository.mark_running(run.id, self._clock())
         try:
-            execution = self.executor.execute_with_evidence(
-                LeanBacktestRequest(strategy=canonical, config=run_config)
+            execution = (
+                self.executor.execute_v2_with_evidence(canonical, run_config)
+                if isinstance(canonical, CanonicalStrategyV2)
+                else self.executor.execute_with_evidence(
+                    LeanBacktestRequest(strategy=canonical, config=run_config)
+                )
             )
             evidence_validation_started = perf_counter_ns()
             if not execution.decision_events:
                 raise DecisionEvidenceError("Successful execution emitted no Decision Evidence.")
-            source_component_ids = {
-                component.id for component in canonical.graph.components
-            }
+            source_component_ids = (
+                execution.source_component_ids
+                if isinstance(canonical, CanonicalStrategyV2)
+                else {component.id for component in canonical.graph.components}
+            )
             unknown_provenance = sorted(
                 {
                     reference.component_id

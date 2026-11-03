@@ -1,0 +1,29 @@
+{
+  "schema": "ruletrade.dev/architecture/semantic-model-map/v1",
+  "audited_commit": "5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "authority": "CanonicalStrategyV2 persisted as an immutable Strategy Revision",
+  "sources": ["src/ruletrade/strategy/v2/models.py", "src/ruletrade/strategy/v2/semantic_types.py", "src/ruletrade/strategy/v2/validation.py"],
+  "roots": [
+    {"type":"CanonicalStrategyV2","fields":["api_version","semantic_profile","metadata","definitions","operator_lock","selection","predicate","program"],"persisted":true},
+    {"type":"SemanticProgramV2","fields":["semantic_id","clocks","initial_state","formalizations","statements"],"persisted":"inside CanonicalStrategyV2"},
+    {"type":"ProgramWorkingDraft","canonical":false,"persisted":"browser localStorage","source":"frontend/src/domain/programWorkingDraft.ts"}
+  ],
+  "types": {
+    "values": ["LiteralValue","CandidateTrailingReturnValue","CandidateCurrentPriceValue","DailyValueNode","CrossSectionalValueV2","ScoreValueV2","CrossSectionalAggregateValueV2","EventRelativeValueV2","ClockedValueV2","RememberedValueV2","BarsSinceEventValueV2","BarsSinceStateValueV2","TimeSinceEventValueV2","TimeSinceStateValueV2"],
+    "conditions": ["ComparisonV2","BooleanGroupV2(all/any)","NotConditionV2","StateConditionV2","NOfMConditionV2","EventWindowConditionV2"],
+    "statements": ["AllocationStatementV2","SelectionStatementV2","StateTransitionStatementV2","RememberValueStatementV2","EventStatementV2","ConditionalStatementV2","GuardedAllocationStatementV2","UnresolvedStatementV2"],
+    "definitions": ["AssetSetDefinitionV2","GroupDefinitionV2","CandidateBinding","SelectionV2","ProgramClockV2","EventDefinitionV2","FormalizationProvenanceV2"],
+    "allocation": ["AllocationTargetV2(asset|selection|group|cash|retain)","AllocationLegV2","AllocationStatementV2(equal|fixed|proportional_score|inverse_volatility)","OverrideRuleV2"],
+    "semantic_types": ["SemanticType","SemanticDType","Quantity","Unit","Axis","Clock","TruthValue","EvaluationContext","HistoryRequirement"]
+  },
+  "distinctions": [
+    {"left":"Asset","right":"AssetSet","rule":"one symbol is not a candidate domain"},
+    {"left":"Group","right":"Subgroup/Selection output","rule":"Group is reusable static membership; Selection output is evaluated membership"},
+    {"left":"Selection","right":"Allocation","rule":"membership choice never implies capital"},
+    {"left":"Buy/Sell","right":"Rebalance","rule":"cash/quantity order semantics are not target weights; Buy/Sell is draft-only"},
+    {"left":"Condition fallback","right":"Selection shortage fallback","rule":"control branching and shortage replacement are different nodes"},
+    {"left":"Event","right":"State/Memory","rule":"occurrence, durable state and remembered typed value have separate identity"},
+    {"left":"evaluation clock","right":"execution clock","rule":"completed observation boundary does not itself schedule allocation"}
+  ],
+  "known_limits": ["fixed-money and quantity order statements are not Canonical V2 statements", "signals, loops and functions are draft-only", "Program Portfolio is implicit and must not be rendered as a Blockly statement"]
+}

@@ -1,0 +1,25 @@
+{
+  "schema":"ruletrade.dev/architecture/perspective-capability-matrix/v1",
+  "audited_commit":"5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "statuses":["supported_verified","implemented_unverified","partial","unsupported","broken","not_applicable"],
+  "perspectives": {
+    "Flow":{"role":"capital routing","projection":"projectProgramCapitalFlow","draft_owner":"React Flow layout plus flow_first FinancialIntentDraft","create":"supported_verified for Investment and Split intents","edit":"partial","round_trip":"supported_verified for the atomic intent subset"},
+    "Blocky":{"role":"logical execution and reasoning","projection":"projectProgramBlocky plus native Blockly","draft_owner":"WorkspaceSvg serialized in Working Draft v3","create":"supported_verified for registered draft blocks","edit":"partial","round_trip":"supported_verified for active daily/monthly 100% single-asset rebalance; partial otherwise"},
+    "Rules":{"role":"declarative financial meaning","projection":"RulesRepresentation","draft_owner":"rules_first FinancialIntentDraft rendered inline","create":"supported_verified for Investment and Split intents","edit":"partial","round_trip":"supported_verified for the atomic intent subset"},
+    "Structure":{"role":"ownership hierarchy","projection":"programStructure","draft_owner":null,"create":"not_applicable","edit":"navigation_only","round_trip":"read_only"},
+    "Objects":{"role":"reusable definitions","projection":"definitions plus Working Draft objects","draft_owner":"Group Workspace transaction","create":"supported_verified for Group","edit":"partial","round_trip":"partial"},
+    "Summary":{"role":"human meaning and readiness","projection":"ProgramSummaryRepresentation","draft_owner":null,"create":"not_applicable","edit":"unsupported","round_trip":"read_only"},
+    "Guide":{"role":"contextual explanation/navigation","projection":"GuidedEditorRepresentation","draft_owner":null,"create":"partial via delegated Inspector","edit":"partial","round_trip":"partial"},
+    "Code":{"role":"exact Canonical envelope","projection":"read-only JSON","draft_owner":null,"create":"unsupported","edit":"unsupported","round_trip":"lossless_read_only"},
+    "Inspector":{"role":"selected-object parameters","projection":"semantic address selection","draft_owner":"component-local incomplete inputs","create":"partial","edit":"supported_verified subset","round_trip":"partial"},
+    "AI":{"role":"external handoff/proposal","projection":"raw package","draft_owner":"proposal only","create":"unsupported","edit":"unsupported","round_trip":"read_only"}
+  },
+  "features": [
+    {"id":"group_definition","Flow":"not_applicable","Blocky":"reference_only","Rules":"visible","Structure":"visible","Objects":"supported_verified","Inspector":"partial"},
+    {"id":"selection","Flow":"capital_effect_only","Blocky":"supported_verified","Rules":"supported_verified","Structure":"visible","Objects":"visible","Inspector":"supported_verified"},
+    {"id":"allocation","Flow":"supported_verified_projection_and_atomic_intent","Blocky":"verified_single_asset_100_percent_compiler","Rules":"supported_verified_atomic_intent","Summary":"visible","Inspector":"partial"},
+    {"id":"event_state_memory","Flow":"not_applicable_unless_capital","Blocky":"supported_verified_projection","Rules":"visible","Summary":"visible","Inspector":"partial"},
+    {"id":"fixed_money_buy","Flow":"draft_only","Blocky":"draft_only","Rules":"unsupported","Code":"absent_from_canonical","execution":"unsupported"},
+    {"id":"signals_loops_functions","Blocky":"draft_only","Objects":"draft_only","execution":"unsupported"}
+  ]
+}

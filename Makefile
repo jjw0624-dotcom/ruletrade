@@ -1,4 +1,4 @@
-.PHONY: bootstrap install test check-fast check check-capability-evidence check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful check-lean-temporal-reliability check-lean-temporal-multiclock check-lean-composable-semantic check-lean-composable-restart check-lean-static-program validate backtest api frontend smoke
+.PHONY: bootstrap install test check-fast check check-capability-evidence check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful check-lean-temporal-reliability check-lean-temporal-multiclock check-lean-composable-semantic check-lean-composable-restart check-lean-static-program check-lean-persisted-v2-api validate backtest api frontend smoke
 
 bootstrap:
 	uv sync --extra bt --extra dev --locked
@@ -50,6 +50,9 @@ check-lean-composable-restart:
 
 check-lean-static-program:
 	./scripts/run_static_program_lean_e2e.sh
+
+check-lean-persisted-v2-api:
+	PYTHONPATH=src uv run python scripts/run_persisted_v2_api_lean_e2e.py
 
 validate:
 	python -m ruletrade.cli validate examples/monthly_dca.yaml

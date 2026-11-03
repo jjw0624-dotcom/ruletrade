@@ -16,11 +16,24 @@ from ruletrade.backtests.errors import LeanExecutionError
 from ruletrade.backtests.lean_runner import LeanRunArtifact, LeanRunnerTimings
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.backtests.service import BacktestService
+from ruletrade.hashing import strategy_hash
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.errors import RevisionNotFoundError
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v1.authoring import UpdateScheduleOperation, apply_structural_operation
 from ruletrade.strategy.v1.fixtures import golden_portfolio_strategy
+from ruletrade.strategy.v2.authoring import (
+    ProgramStrategyTemplateRequest,
+    create_program_strategy_template,
+)
+from ruletrade.strategy.v2.bridge import V2LoweringError, lower_v2_to_v1
+from ruletrade.strategy.v2.corpus import (
+    temporal_breakout_strategy,
+    temporal_multiclock_strategy,
+    weighted_momentum_allocation_strategy,
+)
+from ruletrade.strategy.v2.execution_profiles import production_execution_profile
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
 
 
 def _lean_payload() -> dict[str, Any]:
@@ -51,6 +64,7 @@ def _lean_payload() -> dict[str, Any]:
 class FakeRunner:
     image: str = "quantconnect/lean:test"
     error: Exception | None = None
+    evidence_component: str = "rebalance"
     calls: list[tuple[str, str]] = field(default_factory=list)
 
     def run(self, generated_csharp: str, *, dataset_id: str) -> LeanRunArtifact:
@@ -62,7 +76,8 @@ class FakeRunner:
                 "Backtest completed\n"
                 "RULETRADE_EVIDENCE_V1|sequence=1|session=2024-01-02|"
                 "phase=portfolio_execution|kind=final_targets|"
-                "rebalance_component=rebalance|selected=QQQ|targets=QQQ%3D1"
+                f"rebalance_component={self.evidence_component}|"
+                "selected=QQQ|targets=QQQ%3D1"
             ),
             result_payload=_lean_payload(),
             timings=LeanRunnerTimings(
@@ -341,5 +356,146 @@ def test_compatibility_endpoint_delegates_to_run_service(tmp_path: Path) -> None
         assert response.json()["result"]["total_orders"] == 51
         with sqlite3.connect(service.repository.path) as connection:
             assert connection.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_saved_v2_revision_persists_original_source_result_and_evidence(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(evidence_component="single-asset-allocation")
+    strategies, service = _services(tmp_path / "ruletrade.sqlite3", runner)
+    strategy = production_execution_profile("direct")
+    revision = strategies.create_strategy("V2 direct", strategy).current_revision
+
+    run = service.create_and_execute(revision.id, BacktestConfig())
+
+    assert run.status.value == "succeeded"
+    assert run.provenance.source_hash == strategy_hash(strategy)
+    assert run.provenance.source_hash == revision.source_hash
+    assert run.provenance.strategy_schema_version == "ruletrade.dev/strategy/v2"
+    assert run.result is not None
+    assert service.list_decision_events(run.id)[0].source_components[0].component_id == (
+        "single-asset-allocation"
+    )
+    assert service.get_run(run.id) == run
+
+
+@pytest.mark.parametrize(
+    ("strategy", "evidence_component"),
+    [
+        (production_execution_profile("direct"), "single-asset-allocation"),
+        (production_execution_profile("choose"), "growth-investment"),
+        (production_execution_profile("split"), "portfolio-split"),
+        (weighted_momentum_allocation_strategy(), "rebalance"),
+        (temporal_breakout_strategy(), "temporal-policy"),
+        (temporal_multiclock_strategy(), "temporal-policy"),
+    ],
+    ids=["direct", "choose", "split", "weighted-score", "temporal", "multi-clock"],
+)
+def test_maintained_v2_families_share_persisted_run_lifecycle(
+    tmp_path: Path,
+    strategy: CanonicalStrategyV2,
+    evidence_component: str,
+) -> None:
+    runner = FakeRunner(evidence_component=evidence_component)
+    strategies, service = _services(tmp_path / "ruletrade.sqlite3", runner)
+    revision = strategies.create_strategy("Maintained V2", strategy).current_revision
+
+    run = service.create_and_execute(revision.id, BacktestConfig())
+
+    assert run.status.value == "succeeded"
+    assert run.provenance.source_hash == revision.source_hash
+    assert run.provenance.strategy_schema_version == "ruletrade.dev/strategy/v2"
+    assert run.result is not None
+    assert service.get_run(run.id) == run
+    assert service.list_decision_events(run.id)
+
+
+def test_weighted_score_v2_executes_without_v1_bridge(tmp_path: Path) -> None:
+    runner = FakeRunner(evidence_component="score-allocation")
+    _strategies, service = _services(tmp_path / "ruletrade.sqlite3", runner)
+    strategy = weighted_momentum_allocation_strategy()
+
+    with pytest.raises(V2LoweringError):
+        lower_v2_to_v1(strategy)
+
+    response = service.execute_transient_v2(strategy, BacktestConfig())
+
+    assert response.strategy_hash == strategy_hash(strategy)
+    assert response.result.total_orders == 51
+    assert len(runner.calls) == 1
+
+
+def test_incomplete_v2_revision_records_unsupported_failed_run(tmp_path: Path) -> None:
+    strategies, service = _services(tmp_path / "ruletrade.sqlite3")
+    strategy = create_program_strategy_template(
+        ProgramStrategyTemplateRequest(name="Incomplete V2")
+    )
+    revision = strategies.create_strategy("Incomplete V2", strategy).current_revision
+
+    run = service.create_and_execute(revision.id, BacktestConfig())
+
+    assert run.status.value == "failed"
+    assert run.result is None
+    assert run.error is not None
+    assert run.error.code == "unsupported_strategy"
+    assert "Selection" in run.error.message
+
+
+def test_v2_persisted_run_api_create_list_and_read(tmp_path: Path) -> None:
+    runner = FakeRunner(evidence_component="single-asset-allocation")
+    strategies, service = _services(tmp_path / "ruletrade.sqlite3", runner)
+    revision = strategies.create_strategy(
+        "V2 direct", production_execution_profile("direct")
+    ).current_revision
+    app.dependency_overrides[get_lean_backtest_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            created = client.post(
+                f"/v2/revisions/{revision.id}/backtest-runs",
+                json={"config": {"dataset_id": "golden-synthetic"}},
+            )
+            assert created.status_code == 201
+            run = created.json()
+            assert run["status"] == "succeeded"
+            assert run["provenance"]["strategy_schema_version"] == (
+                "ruletrade.dev/strategy/v2"
+            )
+            assert client.get(f"/v2/backtest-runs/{run['id']}").json() == run
+            listed = client.get(f"/v2/revisions/{revision.id}/backtest-runs")
+            assert listed.json() == {"items": [run]}
+            events = client.get(
+                f"/v2/backtest-runs/{run['id']}/decision-events"
+            ).json()["items"]
+            assert len(events) == 1
+            detail = client.get(
+                f"/v2/backtest-runs/{run['id']}/decision-events/{events[0]['id']}"
+            )
+            assert detail.status_code == 200
+            assert detail.json()["source_components"][0]["component_id"] == (
+                "single-asset-allocation"
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_v2_transient_api_executes_weighted_score_directly(tmp_path: Path) -> None:
+    runner = FakeRunner(evidence_component="score-allocation")
+    _strategies, service = _services(tmp_path / "ruletrade.sqlite3", runner)
+    strategy = weighted_momentum_allocation_strategy()
+    app.dependency_overrides[get_lean_backtest_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/v2/backtests/lean",
+                json={
+                    "strategy": strategy.model_dump(mode="json"),
+                    "config": {"dataset_id": "golden-synthetic"},
+                },
+            )
+        assert response.status_code == 200
+        assert response.json()["strategy_hash"] == strategy_hash(strategy)
+        assert len(runner.calls) == 1
     finally:
         app.dependency_overrides.clear()

@@ -55,5 +55,7 @@ async function request<T>(path: string, fetcher: typeof fetch = fetch): Promise<
 export const decisionEvidenceApi = {
   list: (runId: string, fetcher?: typeof fetch) => request<{ items: DecisionEventSummary[] }>(`/v1/backtest-runs/${encodeURIComponent(runId)}/decision-events`, fetcher),
   get: (runId: string, eventId: string, fetcher?: typeof fetch) => request<DecisionEventDetail>(`/v1/backtest-runs/${encodeURIComponent(runId)}/decision-events/${encodeURIComponent(eventId)}`, fetcher),
+  listV2: (runId: string, fetcher?: typeof fetch) => request<{ items: DecisionEventSummary[] }>(`/v2/backtest-runs/${encodeURIComponent(runId)}/decision-events`, fetcher),
+  getV2: (runId: string, eventId: string, fetcher?: typeof fetch) => request<DecisionEventDetail>(`/v2/backtest-runs/${encodeURIComponent(runId)}/decision-events/${encodeURIComponent(eventId)}`, fetcher),
 };
 import { readApiErrorDetail } from "./apiError";

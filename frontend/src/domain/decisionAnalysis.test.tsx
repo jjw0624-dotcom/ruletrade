@@ -44,6 +44,21 @@ describe("Decision Timeline and Research Inspector", () => {
     expect(calls).toEqual(["/api/v1/backtest-runs/run-1/decision-events/event-000001"]);
   });
 
+  it("uses explicit V2 evidence endpoints for persisted SemanticProgramV2 Runs", async () => {
+    const calls: string[] = [];
+    const fetcher = (async (input: RequestInfo | URL) => {
+      const url = String(input); calls.push(url);
+      return new Response(JSON.stringify(url.endsWith("/decision-events") ? { items: [] } : detailV2(1, "2024-06-03", { kind: "fallback", asset: "TLT", activated: true })), { status: 200 });
+    }) as typeof fetch;
+    await decisionEvidenceApi.listV2("run-v2", fetcher);
+    await decisionEvidenceApi.getV2("run-v2", "event-v2", fetcher);
+    expect(calls).toEqual([
+      "/api/v2/backtest-runs/run-v2/decision-events",
+      "/api/v2/backtest-runs/run-v2/decision-events/event-v2",
+    ]);
+    expect(calls.join(" ")).not.toContain("/api/v1/");
+  });
+
   it("explains filter rejection and fallback without inventing the missing required count", () => {
     const markup = renderToStaticMarkup(<Inspector details={fallback} />);
     expect(markup).toContain("normal selection was incomplete"); expect(markup).toContain("TLT instead"); expect(markup).toContain("Needed &gt; 0%"); expect(markup).toContain("-6.7% · Needed &gt; 0%"); expect(markup).not.toContain("of 2 assets");

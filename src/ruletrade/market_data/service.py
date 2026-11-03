@@ -10,6 +10,7 @@ from zipfile import BadZipFile, ZipFile
 from ruletrade.backtests.errors import MarketDataUnavailableError
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.compiler import analyze_strategy_requirements
+from ruletrade.compiler.lean.plan import LeanComparison, LeanPlan, LeanValue
 from ruletrade.diagnostics import elapsed_ms
 from ruletrade.market_data.models import (
     LocalLeanDataInspection,
@@ -62,8 +63,73 @@ class MarketDataService:
     def preflight(
         self, strategy: CanonicalStrategyV1, config: BacktestConfig
     ) -> MarketDataPreflight:
+        return self._preflight_requirement(self.derive_requirement(strategy, config), config)
+
+    def derive_plan_requirement(
+        self, plan: LeanPlan, config: BacktestConfig
+    ) -> MarketDataRequirement:
+        """Derive provider needs from the exact maintained execution plan.
+
+        This keeps V2 market-data preflight downstream of strict lowering while
+        preserving the original V2 revision as the persisted source authority.
+        """
+
+        warmups = {item.symbol: 0 for item in plan.subscriptions}
+        for selection in plan.momentum_selections:
+            for symbol in selection.symbols:
+                warmups[symbol] = max(
+                    warmups.get(symbol, 0),
+                    selection.lookback_bars,
+                    self._value_warmup(selection.ranking_value),
+                    *(self._comparison_warmup(item) for item in selection.eligibility),
+                )
+        for rebalance in plan.rebalances:
+            if rebalance.predicate is not None:
+                warmups[rebalance.predicate.asset] = max(
+                    warmups.get(rebalance.predicate.asset, 0),
+                    rebalance.predicate.lookback_bars,
+                )
+            for comparison in rebalance.condition:
+                required = self._comparison_warmup(comparison)
+                for value in (comparison.left, comparison.right):
+                    if value.subject == "asset" and value.asset is not None:
+                        warmups[value.asset] = max(warmups.get(value.asset, 0), required)
+        return MarketDataRequirement(
+            dataset_id=config.dataset_id,
+            requested_start=config.start_date,
+            requested_end=config.end_date,
+            symbols=tuple(
+                MarketDataSymbolRequirement(
+                    symbol=symbol,
+                    warmup_observations=warmups[symbol],
+                )
+                for symbol in sorted(warmups)
+            ),
+        )
+
+    @classmethod
+    def _comparison_warmup(cls, comparison: LeanComparison) -> int:
+        return max(cls._value_warmup(comparison.left), cls._value_warmup(comparison.right))
+
+    @classmethod
+    def _value_warmup(cls, value: LeanValue | None) -> int:
+        if value is None:
+            return 0
+        own = value.observations or 0
+        nested = cls._value_warmup(value.operand)
+        score = max(
+            (cls._value_warmup(term.value) for term in value.score_terms),
+            default=0,
+        )
+        return max(own, nested, score)
+
+    def preflight_plan(self, plan: LeanPlan, config: BacktestConfig) -> MarketDataPreflight:
+        return self._preflight_requirement(self.derive_plan_requirement(plan, config), config)
+
+    def _preflight_requirement(
+        self, requirement: MarketDataRequirement, config: BacktestConfig
+    ) -> MarketDataPreflight:
         started = perf_counter_ns()
-        requirement = self.derive_requirement(strategy, config)
         if config.dataset_id in FIXTURE_DATASETS:
             available = tuple(
                 MarketDataSymbolAvailability(
@@ -144,6 +210,15 @@ class MarketDataService:
         self, strategy: CanonicalStrategyV1, config: BacktestConfig
     ) -> MarketDataPreflight:
         result = self.preflight(strategy, config)
+        return self._require_result(result)
+
+    def require_available_plan(
+        self, plan: LeanPlan, config: BacktestConfig
+    ) -> MarketDataPreflight:
+        return self._require_result(self.preflight_plan(plan, config))
+
+    @staticmethod
+    def _require_result(result: MarketDataPreflight) -> MarketDataPreflight:
         if result.overall != "available":
             missing = ", ".join(
                 f"{item.symbol}:{item.reason}"

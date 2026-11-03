@@ -73,6 +73,10 @@ class V2LoweringError(ValueError):
 
 
 def _temporal_value(value: ValueExpressionV2) -> LeanTemporalValue:
+    if isinstance(value, DailyValueNode) and value.kind == "literal" and value.value is not None:
+        return LeanTemporalValue(
+            kind="literal", semantic_id=value.semantic_id, literal=value.value,
+        )
     if isinstance(value, ClockedValueV2) and (
         isinstance(value.source, DailyValueNode)
         and value.source.kind == "observe"
