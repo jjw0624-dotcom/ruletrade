@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "baseline_main": "f487633abbbde067e5ef6a1a9f07914bcdbb11cf",
+  "capabilities": [
+    {"family": "direct allocation", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "core-selection", "production_api": true, "browser": true, "historical_migration": "legacy_read_only"},
+    {"family": "selection and fallback", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "core-selection", "production_api": true, "browser": true, "historical_migration": "legacy_read_only"},
+    {"family": "weighted Score and proportional allocation", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "score-composable", "production_api": true, "browser": "not individually proven", "historical_migration": "legacy_read_only"},
+    {"family": "parallel sleeves", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "score-composable", "production_api": true, "browser": "not individually proven", "historical_migration": "legacy_read_only"},
+    {"family": "conditional allocation", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "core-selection", "production_api": true, "browser": "not individually proven", "historical_migration": "legacy_read_only"},
+    {"family": "temporal/state/memory", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "temporal-replay", "production_api": true, "browser": "not individually proven", "historical_migration": "legacy_read_only"},
+    {"family": "multi-clock weekly context daily decision", "status": "v2-native", "reference": true, "direct_lowering": true, "lean_compile": true, "docker_profile": "temporal-replay", "production_api": true, "browser": "not individually proven", "historical_migration": "legacy_read_only"},
+    {"family": "legacy-shaped V2 without Program", "status": "v2-through-legacy-bridge", "reference": true, "direct_lowering": false, "lean_compile": true, "docker_profile": "legacy compatibility", "production_api": true, "browser": "compatibility", "historical_migration": "pending"},
+    {"family": "historical V1 revisions and results", "status": "legacy-read-only", "reference": "historical", "direct_lowering": false, "lean_compile": "V1 compiler", "docker_profile": "historical regressions", "production_api": "read compatible", "browser": "compatibility", "historical_migration": "legacy_read_only"},
+    {"family": "fixed-money or quantity orders", "status": "draft-only", "reference": false, "direct_lowering": false, "lean_compile": false, "docker_profile": null, "production_api": false, "browser": "draft", "historical_migration": null},
+    {"family": "unbounded loops, unrestricted signals, imported functions, arbitrary options", "status": "unsupported", "reference": false, "direct_lowering": false, "lean_compile": false, "docker_profile": null, "production_api": false, "browser": "gated", "historical_migration": null}
+  ]
+}

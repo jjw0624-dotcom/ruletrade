@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "policy": "dry-run only; historical revisions are immutable",
+  "cases": [
+    {
+      "id": "golden-random-selection-v1",
+      "source_fixture": "golden_portfolio_strategy",
+      "disposition": "legacy_read_only",
+      "blockers": ["deterministic random identity migration", "legacy parameter binding equivalence"]
+    },
+    {
+      "id": "momentum-top-n-v1",
+      "source_fixture": "momentum_top_n_strategy",
+      "disposition": "legacy_read_only",
+      "blockers": ["adjusted-price policy proof", "missing-value and tie evidence proof"]
+    },
+    {
+      "id": "fallback-momentum-v1",
+      "source_fixture": "fallback_momentum_strategy",
+      "disposition": "legacy_read_only",
+      "blockers": ["shortage/fallback decision evidence equivalence"]
+    },
+    {
+      "id": "stateful-rule-v1",
+      "source_fixture": "golden_stateful_rule_strategy",
+      "disposition": "legacy_read_only",
+      "blockers": ["no-ELSE policy", "state transition and replay equivalence"]
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-"""Narrow, explicit v2 -> maintained v1 compiler bridge.
+"""V2 production lowering with an explicit legacy compatibility adapter.
 
-This is intentionally not a silent migration.  It only lowers the demonstrated
-daily static-Universe Selection subset after v2 semantic validation succeeds.
+Program-based V2 strategies lower directly to the shared typed LEAN plan.  The
+V2-to-V1 conversion remains isolated for legacy-shaped documents and migration
+equivalence while those persisted contracts are still supported.
 """
 from __future__ import annotations
 
@@ -878,14 +879,6 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     clock_ids: list[str] = []
     allocations = tuple(item for item in top_level if isinstance(item, AllocationStatementV2))
     controls = tuple(item for item in top_level if isinstance(item, ConditionalStatementV2))
-    if (
-        len(allocations) == 1 and not controls
-        and allocations[0].semantic_id in {"allocate-selection", "allocate-by-score"}
-    ):
-        # These addresses belong to the established compatibility/corpus
-        # contracts. Preserve their exact v1-derived evidence identities while
-        # new separated Investment operations use the Program-native path.
-        return None
     if allocations and controls:
         raise V2LoweringError("top-level Allocation and conditional routing cannot be mixed")
     if len(allocations) > 1 or len(controls) > 1:
@@ -953,10 +946,9 @@ def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
 def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
     """Lower the maintained Program subset to the typed LEAN plan.
 
-    Equal-weight Selection retains the historical v1 topology bridge. Weighted
-    Score plus score-proportional allocation reuses that proven topology, then
-    replaces the placeholder ranking/allocation nodes with typed v2 plan values.
-    The placeholder never escapes this function or becomes authoritative data.
+    Maintained Program profiles lower directly from V2 semantics. Legacy-shaped
+    V2 documents without a Program retain the explicit conversion adapter until
+    their persisted-data migration policy is closed.
     """
 
     diagnostics = validate_strategy_v2(strategy)
@@ -1094,6 +1086,10 @@ def _lean_daily_value(value: DailyValueNode) -> LeanValue:
 
 
 def _lean_score_value(score: ScoreValueV2) -> LeanValue:
+    if score.condition_terms:
+        raise V2LoweringError(
+            "weighted-Score LEAN lowering currently requires Value terms only"
+        )
     terms: list[LeanScoreTerm] = []
     for term in score.terms:
         if not isinstance(term.value, DailyValueNode):

@@ -12,7 +12,7 @@ from typing import Annotated, Callable, Literal
 from pydantic import Field
 
 from ruletrade.hashing import strategy_hash
-from ruletrade.strategy.v1.models import GroupDefinition, StrategyMetadata
+from ruletrade.strategy.common import GroupDefinition, StrategyMetadata
 from ruletrade.strategy.v2.daily_values import DailyValueNode, MarketField, PriceBasis, SubjectKind
 from ruletrade.strategy.v2.models import (
     AllocationLegV2,

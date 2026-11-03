@@ -54,7 +54,7 @@ def _filter_operator(selection: LeanMomentumSelection) -> str:
 
 
 def _filter_field(selection: LeanMomentumSelection) -> str:
-    return "condition" if selection.filter_clauses else "config.threshold"
+    return "condition" if selection.filter_clauses or selection.eligibility else "config.threshold"
 
 
 def _filter_clause_evidence(selection: LeanMomentumSelection) -> str:
@@ -1034,6 +1034,7 @@ def generate_csharp(
             (
                 f"    private void QueueEvent{event_index}()",
                 "    {",
+                "        if (IsWarmingUp) return;",
                 *(
                     ("        if ((Time.Month - 1) % 3 != 0) return;",)
                     if isinstance(event, LeanQuarterlyEvent)
@@ -1669,10 +1670,15 @@ def generate_csharp(
                                         f'            "selection_component", {component_id}, "selected", string.Join(",", {variable}), "source", "primary");',
                                     )
                                 )
-                            eligible_count_variable = (
-                                ranking_input if selection.filter_threshold is not None else variable
+                            has_eligibility_filter = bool(
+                                selection.filter_threshold is not None
+                                or selection.filter_clauses
+                                or selection.eligibility
                             )
-                            if selection.filter_threshold is not None:
+                            eligible_count_variable = (
+                                ranking_input if has_eligibility_filter else variable
+                            )
+                            if has_eligibility_filter:
                                 insufficient_decision = (
                                     "insufficient" if sleeve.fallback_symbols
                                     else ("executed" if selection.shortage_policy == "choose_all" else "skipped")
@@ -1747,7 +1753,7 @@ def generate_csharp(
                                         "        }",
                                     )
                                 )
-                            if selection.filter_threshold is None and selection.cooldown_state_id is None:
+                            if not has_eligibility_filter and selection.cooldown_state_id is None:
                                 lines.extend(
                                     (
                                         '        Debug("RULETRADE_MOMENTUM|" + eventIdentity',

@@ -300,6 +300,12 @@ def test_fallback_e2e_verifier_compares_every_semantic_stage() -> None:
     log_text = _synthetic_fallback_log(fixture)
 
     assert verify_fallback_e2e(log_text, result_payload, fixture) == (12, 7, 5, 1)
+    assert verify_fallback_e2e(
+        log_text.replace("|component=fallback|", "|component=select-growth-fallback|"),
+        result_payload,
+        fixture,
+        fallback_component_id="select-growth-fallback",
+    ) == (12, 7, 5, 1)
     malformed = log_text.replace("|selected=", "|selected=TLT", 1)
     with pytest.raises(ValueError, match="primary selection mismatch"):
         verify_fallback_e2e(malformed, result_payload, fixture)
