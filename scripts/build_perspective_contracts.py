@@ -185,17 +185,29 @@ def coverage() -> dict[str, Any]:
         "reference_evaluable", "backend_lowerable", "docker_verified",
         "provider_supported", "ui_authorable", "runtime_executable",
     ]
-    counts = {key: sum(case["current_implementation_support"].get(key) is True for case in cases) for key in dimensions}
+    candidate_counts = {
+        key: sum(case["current_implementation_support"].get(key) is True for case in cases)
+        for key in dimensions
+    }
     blockers = Counter(blocker for case in cases for blocker in case["secondary_blockers"])
     return {
         "schema": "ruletrade.coverage-and-gap-analysis.v1",
         "denominator": 169,
-        "coverage": {key: {"proven": value, "denominator": 169} for key, value in counts.items()},
+        "coverage": {
+            key: {
+                "proven": 0,
+                "candidate_from_source_matrix": value,
+                "denominator": 169,
+                "evidence_status": "case-linked proof not established",
+            }
+            for key, value in candidate_counts.items()
+        },
         "gap_counts": dict(sorted(blockers.items())),
         "rules": [
             "Draft-only support is not execution support.",
             "Projection is not authoring evidence.",
             "Canonical fixtures are not UI authorability evidence.",
+            "Positive support flags in the source matrix are candidates until case-linked evidence is indexed.",
             "A case with multiple blockers is counted once per independent blocker.",
         ],
     }
@@ -214,8 +226,11 @@ def docs(values: dict[str, Any]) -> dict[Path, str]:
     for row in translation["contracts"]:
         translation_lines.append(f"| `{row['contract_id']}` | {row['forward']['status']} | {row['reverse']['status']} |")
     coverage_value = values["coverage"]
-    coverage_lines = ["# Coverage and gap analysis", "", "Denominator: **169 original fragments**.", "", "| Dimension | Proven |", "|---|---:|"]
-    coverage_lines.extend(f"| {key} | {item['proven']} / 169 |" for key, item in coverage_value["coverage"].items())
+    coverage_lines = ["# Coverage and gap analysis", "", "Denominator: **169 original fragments**.", "", "| Dimension | Proven | Candidate flags |", "|---|---:|---:|"]
+    coverage_lines.extend(
+        f"| {key} | {item['proven']} / 169 | {item['candidate_from_source_matrix']} / 169 |"
+        for key, item in coverage_value["coverage"].items()
+    )
     reconciliation = """# Perspective draft reconciliation
 
 Each editable perspective owns its unfinished draft. The shared working semantic state is distinct from both drafts and persisted immutable revisions.
