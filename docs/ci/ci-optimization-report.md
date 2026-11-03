@@ -36,14 +36,18 @@ The repository currently reports no branch protection or repository rulesets. Th
 - Duplicate Perspective job: 25-second median plus repeated environment setup.
 - Docker free-space preparation: 82-second median across 28 observations.
 
-## Expected mechanisms, not claimed results
+## Exact-head implementation evidence
 
-- A docs-only PR should run only the classifier and fast tier.
-- A frontend PR should add real Chrome but not Docker/LEAN/API.
-- A backend or shared-contract PR should run the full execution matrix.
-- Full-matrix critical path should remove approximately one Docker-profile queue interval by running all three profiles concurrently.
+- First implementation head: `f5e5e84980ccc8b8455a6c00fd935ef1fe289304`.
+- Capability CI run: [41592490382](https://github.com/jjw0624-dotcom/ruletrade/actions/runs/41592490382), success.
+- Wall clock: 578 seconds (9m38s), from 06:51:06Z to 07:00:44Z.
+- Historical successful-run median: 947 seconds (15m47s).
+- Observed improvement: 369 seconds (6m09s), or 39.0% against the median.
+- All three Docker profiles were created at 06:51:14Z and started at 06:51:16Z/17Z. Temporal queue was 3 seconds, versus the 482-second historical median caused by `max-parallel: 2`.
+- Generated C#/LEAN, core Selection/fallback, weighted Score/Allocation, temporal/state/replay, persisted V2 API, real Chrome, and `Capability CI Required` all passed.
+- The slowest job remained generated C#/LEAN compilation at 563 seconds. No semantic proof was shortened or removed to obtain the wall-clock reduction.
 
-These are design expectations. The final section must be updated with exact-head before/after Action timestamps before claiming a measured improvement.
+The path tiers remain deliberately conservative: documentation-only changes use the fast tier; frontend changes add real Chrome; backend, shared contracts, dependencies, workflows, unknown paths, `main`, and manual dispatch use the full execution matrix.
 
 ## Branch and baseline audit
 
@@ -56,4 +60,4 @@ These are design expectations. The final section must be updated with exact-head
 
 ## Validation status
 
-Pending exact-head workflow execution. Full Nightly execution will be reported separately if it cannot be triggered through the available integration.
+The first full implementation-head Capability CI passed. A final full-matrix run is required after this evidence update. Nightly was structurally split and YAML-validated, but an actual scheduled/manual Nightly run was not triggered because the available integration exposes no workflow-dispatch mutation.

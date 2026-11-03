@@ -1,3 +1,4 @@
+# Workflow changes intentionally force the full matrix through Impact Classification.
 name: Capability CI
 
 on:
