@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "starting_main": "f487633abbbde067e5ef6a1a9f07914bcdbb11cf",
+  "retirement_gate": "No item classified temporary_bridge or shared_model_debt may remain on the default V2 production path.",
+  "items": [
+    {
+      "source": "src/ruletrade/strategy/v2/bridge.py",
+      "classification": "temporary_bridge",
+      "callers": ["backtests/service.py", "backtest_runs/service.py", "execution_capability.py", "LEAN generation scripts"],
+      "responsibility": "Mixes direct V2 lowering with V2-to-V1 Canonical conversion.",
+      "v1_coupling": ["CanonicalStrategyV1", "validate_strategy_v1", "compile_strategy_to_lean_plan"],
+      "replacement": "Separate V2-native compiler frontend from an isolated legacy conversion adapter.",
+      "risk": "high",
+      "tests": ["reference/plan equivalence", "generated C#", "Docker differential", "persisted V2 API"]
+    },
+    {
+      "source": "src/ruletrade/strategy/v2/migration.py",
+      "classification": "compatibility_adapter",
+      "callers": ["historical upgrade tests and explicit migration entrypoints"],
+      "responsibility": "Creates V2 revisions from legacy V1 input.",
+      "v1_coupling": ["CanonicalStrategyV1"],
+      "replacement": "Retain until historical migration policy and compatibility readers are approved.",
+      "risk": "medium",
+      "tests": ["idempotent dry-run", "provenance", "historical read"]
+    },
+    {
+      "source": "src/ruletrade/strategy/v2/models.py",
+      "classification": "shared_model_debt",
+      "callers": ["strategy serialization and API version dispatch"],
+      "responsibility": "Defines V2 models but also owns the V1|V2 union parser.",
+      "v1_coupling": ["CanonicalStrategyV1", "StrategyMetadata", "GroupDefinition"],
+      "replacement": "Move neutral definitions and version dispatch outside the V2 semantic model.",
+      "risk": "high",
+      "tests": ["schema compatibility", "V1/V2 reopen", "API payload round trip"]
+    },
+    {
+      "source": "src/ruletrade/strategy/v2/authoring.py",
+      "classification": "shared_model_debt",
+      "callers": ["V2 authoring operations"],
+      "responsibility": "Uses legacy-located GroupDefinition and StrategyMetadata as shared value objects.",
+      "v1_coupling": ["GroupDefinition", "StrategyMetadata"],
+      "replacement": "Extract proven version-neutral definitions without changing serialized shape.",
+      "risk": "medium",
+      "tests": ["CAS", "save/reopen", "schema snapshots"]
+    },
+    {
+      "source": "src/ruletrade/strategy/v2/corpus.py",
+      "classification": "shared_model_debt",
+      "callers": ["reference fixtures", "Docker differential generators"],
+      "responsibility": "Builds V2 fixtures using legacy-located shared value objects.",
+      "v1_coupling": ["GroupDefinition", "StrategyMetadata"],
+      "replacement": "Consume neutral value-object module after extraction.",
+      "risk": "low",
+      "tests": ["fixture hashes", "differential matrix"]
+    }
+  ],
+  "legacy_read_only_candidates": [
+    "Persisted V1 revisions",
+    "Historical V1 BacktestRun configuration",
+    "Historical Result and Decision Evidence",
+    "V1 bootstrap fixtures"
+  ],
+  "not_safe_to_remove_yet": [
+    "src/ruletrade/strategy/v1",
+    "src/ruletrade/compiler/frontend",
+    "src/ruletrade/compiler/pipeline.py",
+    "V1 serialization dispatch",
+    "Historical V1 API retrieval"
+  ]
+}
