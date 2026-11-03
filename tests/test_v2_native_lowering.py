@@ -65,7 +65,7 @@ def test_selection_fallback_preserves_v2_semantic_addresses_and_evidence() -> No
     )
     fallback_mutation = source.index('new List<string> { "TLT" }')
     assert selection_evidence < fallback_mutation
-    assert "private void QueueEvent0()\\n    {\\n        if (IsWarmingUp) return;" in source
+    assert "private void QueueEvent0()\n    {\n        if (IsWarmingUp) return;" in source
 
 
 def test_weighted_score_preserves_v2_score_and_allocation_addresses() -> None:
