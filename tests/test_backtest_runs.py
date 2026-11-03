@@ -387,7 +387,7 @@ def test_saved_v2_revision_persists_original_source_result_and_evidence(
         (production_execution_profile("direct"), "single-asset-allocation"),
         (production_execution_profile("choose"), "growth-investment"),
         (production_execution_profile("split"), "portfolio-split"),
-        (weighted_momentum_allocation_strategy(), "rebalance"),
+        (weighted_momentum_allocation_strategy(), "allocate-by-score"),
         (temporal_breakout_strategy(), "temporal-policy"),
         (temporal_multiclock_strategy(), "temporal-policy"),
     ],
