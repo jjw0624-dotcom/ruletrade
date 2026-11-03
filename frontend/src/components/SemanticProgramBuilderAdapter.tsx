@@ -19,7 +19,7 @@ import { entryBlockDefinition } from "../domain/entryStyleGrammar";
 import { blockUiContract } from "../domain/blockUiContract";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
 import { translateDraftIntent } from "../domain/draftIntents";
-import { compileActiveVisualGraph, validateActiveVisualGraphs } from "../domain/activeVisualGraph";
+import { validateActiveVisualGraphs } from "../domain/activeVisualGraph";
 import { compileFinancialIntent, createFinancialIntentDraft, financialIntentReadiness, updateFinancialIntentDraft, type FinancialIntentDraft, type FinancialIntentRecipe, type IntentStartPath } from "../domain/intentAuthoring";
 import type { BacktestRunRecord } from "../backtestRunApi";
 import "./SemanticProgramBuilderAdapter.css";
@@ -762,7 +762,6 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const selectedCanvasBlock = selectedId ? workingDraft.canvasBlocks[selectedId] : undefined;
   const visualGraphValidation = useMemo(() => validateActiveVisualGraphs(workingDraft), [workingDraft]);
-  const activeGraphCompilation = useMemo(() => compileActiveVisualGraph(workingDraft), [workingDraft]);
   const selectedActiveGraph = selectedCanvasBlock ? visualGraphValidation.graphs.find((graph) => graph.rootId === selectedCanvasBlock.id || graph.blockIds.includes(selectedCanvasBlock.id)) : null;
   const selectedBlockContract = selectedCanvasBlock ? blockUiContract(selectedCanvasBlock.definitionId) : null;
   const selectedOpenAssetSlot = selectedCanvasBlock ? entryBlockDefinition(selectedCanvasBlock.definitionId)?.slots.find((slot) => slot.accepts.some((type) => ["Asset", "AssetSet", "Group", "Subgroup"].includes(type)) && !Object.values(workingDraft.blockConnections).some((connection) => connection.parentId === selectedCanvasBlock.id && connection.inputName === slot.name)) : null;
@@ -795,7 +794,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
                     : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select a Group, Subgroup, or Investment in Structure, or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><header className="summary-hero"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p className="summary-objective">{summary.objective}</p><p>{summary.description}</p></header><div className="summary-status-grid"><section><span>Execution</span><strong>{executionLabel}</strong><p>{executionCapability?.product_message ?? "Checking whether the saved revision can run."}</p></section><section><span>Latest saved test</span><strong>{latestRun ? `Run ${latestRun.id}` : "Not run"}</strong><p>{latestResult}</p>{latestRun && onOpenLatestRun && <button type="button" className="text-button" onClick={onOpenLatestRun}>View saved result</button>}</section></div>{summary.sections.length > 0 && <div className="summary-section-grid">{summary.sections.map((section) => <section key={section.id}><h2>{section.label}</h2><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</div>}{summary.missingInputs.length > 0 && <section className="perspective-missing-inputs"><h2>Next inputs</h2><ul>{summary.missingInputs.map((item) => <li key={item}>{item}</li>)}</ul></section>}</section>,
-    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><div className="blocky-commit-boundary" aria-label="Blocky semantic commit"><strong>Active graph</strong><span>{activeGraphCompilation.productMessage}</span><button type="button" className="primary-button" disabled={!activeGraphCompilation.operation} onClick={() => { if (!activeGraphCompilation.operation || !activeGraphCompilation.rootId) return; apply(activeGraphCompilation.operation); updateLayoutDraft(setCanvasBlockActive(workingDraftRef.current, activeGraphCompilation.rootId, false)); }}>Commit active graph</button></div><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
+    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky"><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft} canvasBlocks={workingDraft.canvasBlocks}
       objects={blockyObjects} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
       addSurfaceOpen={blockyAddOpen} suspended={draft?.kind === "group" || Boolean(selectedId?.startsWith("assets:"))}
