@@ -1,0 +1,61 @@
+{
+  "schema": "ruletrade.coverage-and-gap-analysis.v1",
+  "denominator": 169,
+  "coverage": {
+    "visually_draftable": {
+      "proven": 94,
+      "denominator": 169
+    },
+    "typed_graph_valid": {
+      "proven": 169,
+      "denominator": 169
+    },
+    "semantically_representable": {
+      "proven": 23,
+      "denominator": 169
+    },
+    "reference_evaluable": {
+      "proven": 0,
+      "denominator": 169
+    },
+    "backend_lowerable": {
+      "proven": 0,
+      "denominator": 169
+    },
+    "docker_verified": {
+      "proven": 0,
+      "denominator": 169
+    },
+    "provider_supported": {
+      "proven": 0,
+      "denominator": 169
+    },
+    "ui_authorable": {
+      "proven": 169,
+      "denominator": 169
+    },
+    "runtime_executable": {
+      "proven": 0,
+      "denominator": 169
+    }
+  },
+  "gap_counts": {
+    "asset_set_composition": 24,
+    "event_order": 46,
+    "event_relative_time": 30,
+    "exception_policy": 39,
+    "external_judgment": 22,
+    "fragment_requires_explicit_context": 19,
+    "multi_clock_context": 34,
+    "option_contract_or_lifecycle": 52,
+    "specialized_finance_or_model_data": 22,
+    "state_or_memory": 47,
+    "undefined_user_parameter": 96
+  },
+  "rules": [
+    "Draft-only support is not execution support.",
+    "Projection is not authoring evidence.",
+    "Canonical fixtures are not UI authorability evidence.",
+    "A case with multiple blockers is counted once per independent blocker."
+  ]
+}
