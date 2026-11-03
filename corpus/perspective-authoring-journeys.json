@@ -1,0 +1,711 @@
+{
+  "schema": "ruletrade.perspective-authoring-journeys.v1",
+  "journeys": [
+    {
+      "journey_id": "single-qqq-asset-first",
+      "strategy": "Invest in QQQ every month",
+      "construction_order": "asset_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Assets",
+          "draft_mutation": "single_asset",
+          "semantic_intent": "Invest in QQQ every month",
+          "required_context": [
+            "asset",
+            "timing",
+            "timing meaning"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Asset Workspace",
+          "gesture": "Select QQQ",
+          "draft_mutation": "single_asset.asset",
+          "semantic_intent": "Invest in QQQ every month",
+          "required_context": [
+            "timing",
+            "timing meaning"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 3,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Inspector",
+          "gesture": "Every month → Rebalance existing capital",
+          "draft_mutation": "single_asset.timing",
+          "semantic_intent": "Invest in QQQ every month",
+          "required_context": [],
+          "validation_outcome": "semantic valid; execution capability assessed after commit",
+          "canonical_operation": "commit_single_asset_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "single-qqq-timing-first",
+      "strategy": "Invest in QQQ every month",
+      "construction_order": "timing_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Rebalance",
+          "draft_mutation": "single_asset.timing",
+          "semantic_intent": "Invest in QQQ every month",
+          "required_context": [
+            "asset"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Asset Workspace",
+          "gesture": "Select QQQ",
+          "draft_mutation": "single_asset.asset",
+          "semantic_intent": "Invest in QQQ every month",
+          "required_context": [],
+          "validation_outcome": "semantic valid",
+          "canonical_operation": "commit_single_asset_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "market-regime-logic-first",
+      "strategy": "A",
+      "construction_order": "logic_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Market regime rotation",
+          "draft_mutation": "market_regime_rotation",
+          "semantic_intent": "A",
+          "required_context": [],
+          "validation_outcome": "representable",
+          "canonical_operation": "commit_market_regime_rotation_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "market-regime-asset-first",
+      "strategy": "A",
+      "construction_order": "asset_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Asset Workspace",
+          "gesture": "Choose QQQ/VGT/SOXX/SCHG",
+          "draft_mutation": "market_regime_rotation.assets",
+          "semantic_intent": "A",
+          "required_context": [
+            "trend",
+            "ranking",
+            "ELSE"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Inspector",
+          "gesture": "Set trend/ranking/OTHERWISE",
+          "draft_mutation": "market_regime_rotation",
+          "semantic_intent": "A",
+          "required_context": [],
+          "validation_outcome": "representable",
+          "canonical_operation": "commit_market_regime_rotation_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "split-flow-first",
+      "strategy": "B",
+      "construction_order": "flow_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Flow",
+          "gesture": "Add → Growth + Defensive",
+          "draft_mutation": "split_portfolio",
+          "semantic_intent": "B",
+          "required_context": [],
+          "validation_outcome": "representable",
+          "canonical_operation": "commit_split_portfolio_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "split-allocation-first",
+      "strategy": "B",
+      "construction_order": "allocation_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Inspector",
+          "gesture": "Set 70/30",
+          "draft_mutation": "split_portfolio.weights",
+          "semantic_intent": "B",
+          "required_context": [
+            "Growth assets",
+            "Defensive asset"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Blocky",
+          "gesture": "Set Growth momentum + TLT shortage; Defensive IEF",
+          "draft_mutation": "split_portfolio",
+          "semantic_intent": "B",
+          "required_context": [],
+          "validation_outcome": "representable",
+          "canonical_operation": "commit_split_portfolio_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "weighted-score-logic-first",
+      "strategy": "C",
+      "construction_order": "logic_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Weighted Score",
+          "draft_mutation": "weighted_score",
+          "semantic_intent": "C",
+          "required_context": [],
+          "validation_outcome": "Docker-verified supported subset",
+          "canonical_operation": "commit_weighted_score_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "weighted-score-asset-first",
+      "strategy": "C",
+      "construction_order": "asset_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Asset Workspace",
+          "gesture": "Choose Score universe",
+          "draft_mutation": "weighted_score.assets",
+          "semantic_intent": "C",
+          "required_context": [
+            "Score terms",
+            "Top N",
+            "allocation"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Inspector",
+          "gesture": "Set terms, Top 3, positive proportional allocation",
+          "draft_mutation": "weighted_score",
+          "semantic_intent": "C",
+          "required_context": [],
+          "validation_outcome": "executable",
+          "canonical_operation": "commit_weighted_score_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "temporal-logic-first",
+      "strategy": "D",
+      "construction_order": "logic_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Breakout sequence",
+          "draft_mutation": "temporal_sequence",
+          "semantic_intent": "D",
+          "required_context": [],
+          "validation_outcome": "Docker-verified formalized recipe",
+          "canonical_operation": "commit_temporal_sequence_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "temporal-asset-first",
+      "strategy": "D",
+      "construction_order": "asset_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Asset Workspace",
+          "gesture": "Choose QQQ",
+          "draft_mutation": "temporal_sequence.asset",
+          "semantic_intent": "D",
+          "required_context": [
+            "breakout",
+            "windows",
+            "expiry"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Inspector",
+          "gesture": "Define threshold and bounded windows",
+          "draft_mutation": "temporal_sequence",
+          "semantic_intent": "D",
+          "required_context": [],
+          "validation_outcome": "executable",
+          "canonical_operation": "commit_temporal_sequence_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "multi-clock-timing-first",
+      "strategy": "E",
+      "construction_order": "timing_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Add → Weekly context + daily signal",
+          "draft_mutation": "multi_clock_policy",
+          "semantic_intent": "E",
+          "required_context": [],
+          "validation_outcome": "Docker-verified formalized recipe",
+          "canonical_operation": "commit_multi_clock_policy_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "multi-clock-logic-first",
+      "strategy": "E",
+      "construction_order": "logic_first",
+      "evidence": "production intent authoring contract",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "committed semantic state plus empty local draft",
+          "perspective": "Blocky",
+          "gesture": "Define risk policy first",
+          "draft_mutation": "multi_clock_policy.risk",
+          "semantic_intent": "E",
+          "required_context": [
+            "weekly context",
+            "daily signal"
+          ],
+          "validation_outcome": "incomplete",
+          "canonical_operation": null,
+          "semantic_state": "local incomplete draft",
+          "other_perspective_projection": "none",
+          "persistence": "working draft only"
+        },
+        {
+          "sequence": 2,
+          "initial_or_prior_state": "perspective draft",
+          "perspective": "Inspector",
+          "gesture": "Add weekly and daily clocks/signals",
+          "draft_mutation": "multi_clock_policy",
+          "semantic_intent": "E",
+          "required_context": [],
+          "validation_outcome": "executable",
+          "canonical_operation": "commit_multi_clock_policy_intent",
+          "semantic_state": "shared working semantic state",
+          "other_perspective_projection": "after validated operation only",
+          "persistence": "explicit Save/CAS required"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:monthly-qqq",
+      "strategy": "Monthly Start -> QQQ Rebalance 100%",
+      "construction_order": "visual_composition",
+      "evidence": "static profile + Docker differential",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Monthly Start -> QQQ Rebalance 100%",
+          "draft_mutation": {
+            "connections": [
+              "Statement",
+              "Asset",
+              "Percentage"
+            ],
+            "active_roots": [
+              "monthly-start"
+            ]
+          },
+          "semantic_intent": "supported subset",
+          "required_context": [],
+          "validation_outcome": "executable when complete",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:group-reference",
+      "strategy": "Create Group in Object Library; explicitly insert Group reference",
+      "construction_order": "visual_composition",
+      "evidence": "native toolbox/object separation tests",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Create Group in Object Library; explicitly insert Group reference",
+          "draft_mutation": {
+            "connections": [
+              "Group"
+            ],
+            "active_roots": []
+          },
+          "semantic_intent": "definition only",
+          "required_context": [],
+          "validation_outcome": "draftable",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:choose-invest",
+      "strategy": "Group -> Choose Top 2 -> Investment/Rebalance",
+      "construction_order": "visual_composition",
+      "evidence": "semantic corpus + weighted Docker differential",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Group -> Choose Top 2 -> Investment/Rebalance",
+          "draft_mutation": {
+            "connections": [
+              "Group",
+              "Value",
+              "Subgroup",
+              "Statement"
+            ],
+            "active_roots": [
+              "scheduled-start"
+            ]
+          },
+          "semantic_intent": "Selection + Allocation",
+          "required_context": [],
+          "validation_outcome": "executable when complete",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:conditional-regime",
+      "strategy": "IF QQQ close > SMA(200), Growth, otherwise Defensive",
+      "construction_order": "visual_composition",
+      "evidence": "conditional static profile",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "IF QQQ close > SMA(200), Growth, otherwise Defensive",
+          "draft_mutation": {
+            "connections": [
+              "Truth",
+              "Value",
+              "Asset",
+              "Statement"
+            ],
+            "active_roots": [
+              "scheduled-start"
+            ]
+          },
+          "semantic_intent": "Control",
+          "required_context": [],
+          "validation_outcome": "supported subset",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:parallel-70-30",
+      "strategy": "Growth/Defensive 70/30 parallel allocation",
+      "construction_order": "visual_composition",
+      "evidence": "split static profile",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Growth/Defensive 70/30 parallel allocation",
+          "draft_mutation": {
+            "connections": [
+              "Statement",
+              "Percentage"
+            ],
+            "active_roots": [
+              "scheduled-start"
+            ]
+          },
+          "semantic_intent": "fixed Allocation",
+          "required_context": [],
+          "validation_outcome": "supported subset",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:weighted-score",
+      "strategy": "Weighted Score -> ranking -> selected Subgroup",
+      "construction_order": "visual_composition",
+      "evidence": "weighted Score/Allocation differential",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Weighted Score -> ranking -> selected Subgroup",
+          "draft_mutation": {
+            "connections": [
+              "Value",
+              "Group",
+              "Subgroup"
+            ],
+            "active_roots": [
+              "scheduled-start"
+            ]
+          },
+          "semantic_intent": "Score + Selection",
+          "required_context": [],
+          "validation_outcome": "Docker verified",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:breakout-state",
+      "strategy": "Event/State breakout, retest, confirmation",
+      "construction_order": "visual_composition",
+      "evidence": "temporal/stateful differential",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Event/State breakout, retest, confirmation",
+          "draft_mutation": {
+            "connections": [
+              "Truth",
+              "State",
+              "Statement"
+            ],
+            "active_roots": [
+              "event-start"
+            ]
+          },
+          "semantic_intent": "Event/State/Memory",
+          "required_context": [],
+          "validation_outcome": "Docker verified through canonical authoring",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:weekly-daily",
+      "strategy": "Weekly context -> daily decision",
+      "construction_order": "visual_composition",
+      "evidence": "weekly-to-daily differential",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Weekly context -> daily decision",
+          "draft_mutation": {
+            "connections": [
+              "Value",
+              "Truth",
+              "Statement"
+            ],
+            "active_roots": [
+              "daily-start"
+            ]
+          },
+          "semantic_intent": "multi-clock",
+          "required_context": [],
+          "validation_outcome": "Docker verified through canonical authoring",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:signal-draft",
+      "strategy": "Send Signal -> When Signal received",
+      "construction_order": "visual_composition",
+      "evidence": "save/reopen and active graph capability tests",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Send Signal -> When Signal received",
+          "draft_mutation": {
+            "connections": [
+              "Signal",
+              "Statement"
+            ],
+            "active_roots": [
+              "signal-start"
+            ]
+          },
+          "semantic_intent": "not committed",
+          "required_context": [],
+          "validation_outcome": "draft_only",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    },
+    {
+      "journey_id": "acceptance:function-draft",
+      "strategy": "Typed function definition and call",
+      "construction_order": "visual_composition",
+      "evidence": "Blockly native procedure serialization",
+      "steps": [
+        {
+          "sequence": 1,
+          "initial_or_prior_state": "blank Working Draft v3",
+          "perspective": "Blocky",
+          "gesture": "Typed function definition and call",
+          "draft_mutation": {
+            "connections": [
+              "Function",
+              "Value"
+            ],
+            "active_roots": []
+          },
+          "semantic_intent": "not committed",
+          "required_context": [],
+          "validation_outcome": "draft_only",
+          "canonical_operation": null,
+          "semantic_state": "fixture does not prove a canonical commit",
+          "other_perspective_projection": "unverified",
+          "persistence": "draft fixture evidence only"
+        }
+      ]
+    }
+  ]
+}
