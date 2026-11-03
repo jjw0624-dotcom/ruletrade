@@ -13,10 +13,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  full-regression:
-    name: Full Regression / Nightly
+  repository-validation:
+    name: Repository Validation / Nightly
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
@@ -33,34 +33,147 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm --prefix frontend ci --no-audit --no-fund
-      - name: Full repository validation
-        run: make check
+      - run: make check
+
+  lean-compilation:
+    name: Generated C# / Nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra dev --locked
+          make check-lean-generate
       - name: Free space for LEAN image
         run: |
           sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
           docker system prune --all --force
-      - name: Generated C# and all maintained Docker differentials
+      - run: ./scripts/check_lean.sh --compile-only
+      - name: Upload compile diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nightly-lean-compile-${{ github.run_id }}
+          path: build/lean/
+          if-no-files-found: ignore
+          retention-days: 21
+
+  docker-differential:
+    name: Docker Regression / ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - profile: core-selection
+            targets: |
+              make check-lean-daily-values
+              make check-lean-semantic-corpus
+              make check-lean-static-program
+          - profile: score-composable
+            targets: |
+              make check-lean-weighted-score
+              make check-lean-composable-semantic
+              make check-lean-composable-restart
+          - profile: temporal-replay
+            targets: |
+              make check-lean-temporal-stateful
+              make check-lean-temporal-reliability
+              make check-lean-temporal-multiclock
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra dev --locked
+      - name: Free space for LEAN image
         run: |
-          make check-lean-generate
-          ./scripts/check_lean.sh --compile-only
-          make check-lean-daily-values
-          make check-lean-semantic-corpus
-          make check-lean-weighted-score
-          make check-lean-temporal-stateful
-          make check-lean-temporal-reliability
-          make check-lean-temporal-multiclock
-          make check-lean-composable-semantic
-          make check-lean-composable-restart
-          make check-lean-static-program
-      - name: Real-browser regression
-        run: node scripts/check_builder_browser.mjs
-      - name: Upload full diagnostics
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+      - run: ${{ matrix.targets }}
+      - name: Upload differential diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nightly-${{ matrix.profile }}-${{ github.run_id }}
+          path: build/lean/
+          if-no-files-found: ignore
+          retention-days: 21
+
+  persisted-v2-api:
+    name: Persisted V2 API / Nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: |
+          uv python install 3.12
+          uv sync --extra bt --extra dev --locked
+      - name: Free space for persisted V2 Docker API proof
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/share/dotnet /opt/ghc
+          docker system prune --all --force
+      - run: make check-lean-persisted-v2-api
+      - name: Upload persisted API diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nightly-persisted-v2-${{ github.run_id }}
+          path: build/lean/
+          if-no-files-found: ignore
+          retention-days: 21
+
+  browser-e2e:
+    name: Real Browser / Nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci --no-audit --no-fund
+      - run: google-chrome --version
+      - run: node scripts/check_builder_browser.mjs
+      - name: Upload browser diagnostics
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: full-regression-${{ github.run_id }}
-          path: |
-            build/lean/
-            build/browser-acceptance/
+          name: nightly-browser-${{ github.run_id }}
+          path: build/browser-acceptance/
           if-no-files-found: warn
           retention-days: 21
+
+  required:
+    name: Full Regression Nightly Required
+    if: always()
+    needs: [repository-validation, lean-compilation, docker-differential, persisted-v2-api, browser-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every nightly capability
+        env:
+          REPOSITORY: ${{ needs.repository-validation.result }}
+          LEAN: ${{ needs.lean-compilation.result }}
+          DOCKER: ${{ needs.docker-differential.result }}
+          API: ${{ needs.persisted-v2-api.result }}
+          BROWSER: ${{ needs.browser-e2e.result }}
+        run: test "$REPOSITORY $LEAN $DOCKER $API $BROWSER" = "success success success success success"

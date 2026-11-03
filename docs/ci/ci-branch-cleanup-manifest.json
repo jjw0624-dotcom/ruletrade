@@ -1,0 +1,39 @@
+{
+  "schema": "ruletrade.dev/ci-branch-cleanup-manifest/v1",
+  "audited_at": "2026-11-03T16:00:00+09:00",
+  "integration_baseline": {
+    "commit": "f2b387d84a086c809c57a861b585c7d8123df6b9",
+    "pull_request": 81,
+    "purpose": "RuleTrade V2 Engine and Independent Perspectives integration",
+    "tag": "builder-v2-integration-baseline",
+    "tag_state": "missing; create before deleting any historical recovery branch",
+    "ci_run": 41590745339
+  },
+  "remote_branches": [
+    {
+      "branch": "main",
+      "sha": "f2b387d84a086c809c57a861b585c7d8123df6b9",
+      "classification": "main",
+      "protected": false,
+      "related_pr": 81,
+      "recommendation": "retain",
+      "reason": "default integration branch; deletion prohibited"
+    },
+    {
+      "branch": "copilot/audit-ruletrade-architecture",
+      "sha": "34cba795a4457d3844faf2cfcc07ce4f67eded99",
+      "classification": "obsolete closed audit branch",
+      "protected": false,
+      "related_pr": 9,
+      "pr_state": "closed_unmerged",
+      "comparison_to_main": {"ahead": 1, "behind": 388, "merge_base": "c39ecaa70769a8bff4c9efaaeb83725bc78527e0"},
+      "unique_commit": "Initial plan",
+      "changed_files_in_pr": [],
+      "active_dependents": [],
+      "recommendation": "delete_after_user_approval_and_baseline_tag",
+      "reason": "empty planning commit, no changed files, closed PR, no active PRs, and hundreds of commits behind main"
+    }
+  ],
+  "remote_deletion_performed": false,
+  "approval_required": true
+}

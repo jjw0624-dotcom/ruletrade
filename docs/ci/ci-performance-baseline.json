@@ -1,0 +1,5668 @@
+{
+  "schema": "ruletrade.dev/ci-performance-baseline/v1",
+  "repository": "jjw0624-dotcom/ruletrade",
+  "baseline_main_sha": "f2b387d84a086c809c57a861b585c7d8123df6b9",
+  "collected_at": "2026-11-03T16:00:00+09:00",
+  "source": "GitHub Actions REST run/job/step timestamps",
+  "sample_policy": "10 most recent completed Capability CI runs available at audit time; seven successful runs used for medians and three cancelled superseded runs retained as cancellation evidence",
+  "runs": [
+    {
+      "run_id": 41589090465,
+      "event": "pull_request",
+      "sha": "57d56501bf6cb1e205beac200ab62178144f5cc7",
+      "branch": "feature/blocky-compiler-boundary",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 933,
+      "jobs": [
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 371,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 68,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 283,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 489,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 126,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 354,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 493,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 8,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 102,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 376,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 51,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 29,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 13,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 12,
+          "duration_seconds": 24,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 27,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 633,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 126,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 500,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 494,
+          "duration_seconds": 431,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 63,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 358,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 21,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41580752375,
+      "event": "push",
+      "sha": "274e1c43c6dccfb672e3aa9f471134452b55c8e7",
+      "branch": "main",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 1075,
+      "jobs": [
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 22,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 9,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 598,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 233,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 356,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 65,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 35,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 598,
+          "duration_seconds": 470,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 98,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 362,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 33,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 19,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 453,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 15,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 52,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 378,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 591,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 153,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 428,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 7,
+          "duration_seconds": 27,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 26,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 4,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41572892114,
+      "event": "pull_request",
+      "sha": "d8a77a23136cb387591b4c20b676c6576392a95f",
+      "branch": "feature/perspective-roundtrip-browser-closure",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 816,
+      "jobs": [
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 25,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 18,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 62,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 33,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 13,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 478,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 9,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 127,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 332,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 448,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 13,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 59,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 369,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 404,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 49,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 346,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 500,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 100,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 391,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 410,
+          "duration_seconds": 399,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 30,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 32,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 331,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 31,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 19,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 2,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41572844402,
+      "event": "pull_request",
+      "sha": "0910244859e5570402e322feda752e8decf6df1b",
+      "branch": "feature/blocky-compiler-boundary",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 972,
+      "jobs": [
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 22,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 545,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 77,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 450,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 508,
+          "duration_seconds": 456,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 70,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 377,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 12,
+          "duration_seconds": 493,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 59,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 426,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 404,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 11,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 95,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 288,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 25,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 30,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 522,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 82,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 430,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 66,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 39,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41571074703,
+      "event": "pull_request",
+      "sha": "4e4bd0cef8d46a32788b348b61a7cdcf963dc182",
+      "branch": "feature/rules-independent-authoring",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 947,
+      "jobs": [
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 389,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 11,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 87,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 278,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 28,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 489,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 12,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 96,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 372,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 65,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 34,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 447,
+          "duration_seconds": 460,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 93,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 357,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 483,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 50,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 424,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 30,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 18,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 34,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 431,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 65,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 357,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41570754963,
+      "event": "pull_request",
+      "sha": "b9e64c6fa9e82fd5a4121face4176dc7220d2477",
+      "branch": "feature/perspective-roundtrip-browser-closure",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 937,
+      "jobs": [
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 25,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 13,
+          "duration_seconds": 47,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 23,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 8,
+          "duration_seconds": 29,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 18,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 446,
+          "duration_seconds": 445,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 76,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 360,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 7,
+          "duration_seconds": 530,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 13,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 131,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 373,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 25,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 509,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 115,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 377,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 497,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 61,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 427,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 442,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 76,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 357,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41570739942,
+      "event": "pull_request",
+      "sha": "704f8aea0650d96b5edf5b157141639080680556",
+      "branch": "feature/blocky-compiler-boundary",
+      "attempt": 1,
+      "conclusion": "success",
+      "queue_seconds": 0,
+      "wall_seconds": 1022,
+      "jobs": [
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 456,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 61,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 371,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 435,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 11,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 125,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 286,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "success",
+          "queue_seconds": 482,
+          "duration_seconds": 462,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 92,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-temporal-stateful",
+              "duration_seconds": 360,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 38,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 20,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 38,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 5,
+          "duration_seconds": 70,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 30,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 477,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 109,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 357,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 4,
+          "duration_seconds": 26,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "success",
+          "queue_seconds": 6,
+          "duration_seconds": 512,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 112,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 392,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 4,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41570723690,
+      "event": "pull_request",
+      "sha": "eea90b061e1b7cb2ae0b5127f8eb8c7341febe7f",
+      "branch": "feature/rules-independent-authoring",
+      "attempt": 1,
+      "conclusion": "cancelled",
+      "queue_seconds": 0,
+      "wall_seconds": 240,
+      "jobs": [
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 31,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 8,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "failure",
+          "queue_seconds": 3,
+          "duration_seconds": 21,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 13,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "failure",
+          "queue_seconds": 3,
+          "duration_seconds": 72,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 45,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 11,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 166,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 85,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 63,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "cancelled",
+          "queue_seconds": 0,
+          "duration_seconds": 143,
+          "steps": []
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 167,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 10,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 99,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 45,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 168,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 60,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 97,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "failure",
+          "queue_seconds": 3,
+          "duration_seconds": 18,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 1,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 166,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 72,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 84,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "failure",
+          "queue_seconds": 2,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41570511199,
+      "event": "pull_request",
+      "sha": "4f822ce3b096c6c5ad4c14517f9791ac24e9da5e",
+      "branch": "feature/perspective-roundtrip-browser-closure",
+      "attempt": 1,
+      "conclusion": "cancelled",
+      "queue_seconds": 0,
+      "wall_seconds": 180,
+      "jobs": [
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "failure",
+          "queue_seconds": 3,
+          "duration_seconds": 49,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 28,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 167,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 108,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 49,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 30,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 6,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 53,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 30,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 12,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "cancelled",
+          "queue_seconds": 0,
+          "duration_seconds": 140,
+          "steps": []
+        },
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "cancelled",
+          "queue_seconds": 4,
+          "duration_seconds": 167,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 13,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 51,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 96,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 166,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 131,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 26,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 167,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 11,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 46,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 96,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 19,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "failure",
+          "queue_seconds": 3,
+          "duration_seconds": 4,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 1,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": 41570037969,
+      "event": "pull_request",
+      "sha": "ddef4a39fae8ace5d933d6421f465e569ab49f9a",
+      "branch": "feature/blocky-compiler-boundary",
+      "attempt": 1,
+      "conclusion": "cancelled",
+      "queue_seconds": 0,
+      "wall_seconds": 478,
+      "jobs": [
+        {
+          "name": "LEAN Compilation",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 466,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 12,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 90,
+              "conclusion": "success"
+            },
+            {
+              "name": "Compile generated C# against LEAN",
+              "duration_seconds": 357,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload compile diagnostics on failure",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / score-composable",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 418,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 58,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-weighted-score",
+              "duration_seconds": 350,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / core-selection",
+          "conclusion": "cancelled",
+          "queue_seconds": 3,
+          "duration_seconds": 467,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for LEAN image",
+              "duration_seconds": 162,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run make check-lean-daily-values",
+              "duration_seconds": 295,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Upload differential diagnostics",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Real Browser E2E",
+          "conclusion": "success",
+          "queue_seconds": 2,
+          "duration_seconds": 28,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 4,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run google-chrome --version",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run production Builder in real Chrome",
+              "duration_seconds": 15,
+              "conclusion": "success"
+            },
+            {
+              "name": "Upload screenshots and trace",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Production API Contract",
+          "conclusion": "cancelled",
+          "queue_seconds": 2,
+          "duration_seconds": 467,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify revision, Run, result, evidence and failure contracts",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Free space for persisted V2 Docker API proof",
+              "duration_seconds": 218,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify saved V2 Revision through Docker LEAN and persisted API",
+              "duration_seconds": 223,
+              "conclusion": "cancelled"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Unit & Semantic",
+          "conclusion": "success",
+          "queue_seconds": 13,
+          "duration_seconds": 57,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 33,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 14,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Static & Contract",
+          "conclusion": "success",
+          "queue_seconds": 3,
+          "duration_seconds": 30,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 5,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate capability evidence",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Generate bootstrap contracts",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "TypeScript and production build",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Python, shell and generated-artifact contracts",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Perspective Consistency",
+          "conclusion": "success",
+          "queue_seconds": 8,
+          "duration_seconds": 33,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 7,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run uv python install 3.12",
+              "duration_seconds": 8,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Run npm --prefix frontend ci --no-audit --no-fund",
+              "duration_seconds": 3,
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify shared identities, projections and save/reopen",
+              "duration_seconds": 2,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run astral-sh/setup-uv@v10.3.0",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "duration_seconds": 1,
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Docker Differential / temporal-replay",
+          "conclusion": "cancelled",
+          "queue_seconds": 0,
+          "duration_seconds": 406,
+          "steps": []
+        },
+        {
+          "name": "Capability CI Required",
+          "conclusion": "failure",
+          "queue_seconds": 2,
+          "duration_seconds": 3,
+          "steps": [
+            {
+              "name": "Set up job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            },
+            {
+              "name": "Require every capability contract",
+              "duration_seconds": 0,
+              "conclusion": "failure"
+            },
+            {
+              "name": "Complete job",
+              "duration_seconds": 0,
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
