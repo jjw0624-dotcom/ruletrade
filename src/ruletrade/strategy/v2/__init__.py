@@ -24,7 +24,13 @@ from ruletrade.strategy.v2.daily_values import (
     infer_daily_type,
     plan_daily_value,
 )
-from ruletrade.strategy.v2.migration import MigrationCandidate, upgrade_v1_to_v2
+from ruletrade.strategy.v2.migration import (
+    MigrationCandidate,
+    MigrationDryRunReport,
+    MigrationRequest,
+    dry_run_v1_migrations,
+    upgrade_v1_to_v2,
+)
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
 from ruletrade.strategy.v2.validation import OP_SPECS, SemanticDiagnostic, SemanticRole, validate_strategy_v2
 
@@ -47,11 +53,14 @@ __all__ = [
     "DailyValueEvaluator",
     "DailyValueNode",
     "MigrationCandidate",
+    "MigrationDryRunReport",
+    "MigrationRequest",
     "OP_SPECS",
     "SemanticDiagnostic",
     "SemanticRole",
     "TypedValuePlan",
     "compile_v2_strategy_to_lean_plan",
+    "dry_run_v1_migrations",
     "format_daily_value",
     "infer_daily_type",
     "lower_v2_to_v1",
