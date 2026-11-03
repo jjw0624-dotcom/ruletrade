@@ -60,6 +60,11 @@ def test_selection_fallback_preserves_v2_semantic_addresses_and_evidence() -> No
     assert sleeve.fallback_symbols == ("TLT",)
     source = generate_csharp(plan)
     assert '"filter_field", "condition"' in source
+    selection_evidence = source.index(
+        'EmitDecisionEvidence(eventIdentity, "selection", "selection"'
+    )
+    fallback_mutation = source.index('new List<string> { "TLT" }')
+    assert selection_evidence < fallback_mutation
 
 
 def test_weighted_score_preserves_v2_score_and_allocation_addresses() -> None:
