@@ -1,0 +1,318 @@
+{
+  "schema_version": "ruletrade.dev/capability-evidence/v1",
+  "as_of_main": "73c7c58a270e87d32a16a127a6bdb8f789dc96f8",
+  "status_vocabulary": ["PASS", "PARTIAL", "UNSUPPORTED", "UNKNOWN", "NOT_APPLICABLE"],
+  "dimensions": [
+    "representable",
+    "authorable",
+    "persistable",
+    "reference_evaluable",
+    "lowerable",
+    "docker_verified",
+    "api_executable",
+    "browser_verified"
+  ],
+  "claims": [
+    {
+      "id": "semantic-program-v2-authority",
+      "kind": "component",
+      "summary": "SemanticProgramV2 is the committed authority for new strategies.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "PASS", "persistable": "PASS",
+        "reference_evaluable": "PASS", "lowerable": "PARTIAL", "docker_verified": "PARTIAL",
+        "api_executable": "PARTIAL", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/strategy/v2/models.py", "kind": "implementation"},
+        {"path": "tests/test_semantic_language_v2_authoring.py", "symbol": "test_blank_program_template_is_semantically_empty_and_stable", "kind": "test"},
+        {"path": "tests/test_strategy_persistence.py", "symbol": "test_empty_list_create_initial_revision_and_reopen_from_disk", "kind": "test"}
+      ],
+      "limits": ["Only explicit maintained profiles lower to LEAN.", "Persisted execution remains V1-coupled."]
+    },
+    {
+      "id": "reference-program-evaluator",
+      "kind": "component",
+      "summary": "The Program reference evaluator covers selection, allocation, events, memory, state, and completed-clock values.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "NOT_APPLICABLE", "persistable": "NOT_APPLICABLE",
+        "reference_evaluable": "PASS", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "UNSUPPORTED", "browser_verified": "NOT_APPLICABLE"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/strategy/v2/program_execution.py", "kind": "implementation"},
+        {"path": "tests/test_semantic_program_core.py", "symbol": "test_multi_clock_runs_only_at_completed_boundary", "kind": "test"},
+        {"path": "tests/test_temporal_stateful_execution.py", "symbol": "test_breakout_retest_confirmation_memory_policy_and_replay_are_deterministic", "kind": "test"}
+      ],
+      "limits": ["No production HTTP endpoint exposes the general reference evaluator as an execution product."]
+    },
+    {
+      "id": "typed-authoring-cas",
+      "kind": "component",
+      "summary": "Typed authoring operations and immutable revisions enforce source-hash/revision CAS.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "PASS", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "PASS", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/strategies/service.py", "kind": "implementation"},
+        {"path": "tests/test_strategy_persistence.py", "symbol": "test_stale_parent_is_a_structured_conflict_without_a_revision", "kind": "test"},
+        {"path": "frontend/src/domain/connectedWorkspaceContract.test.ts", "symbol": "applies only backend-returned Canonical", "kind": "test"}
+      ],
+      "limits": ["Browser evidence does not yet cover every Rules edit followed by save/reopen."]
+    },
+    {
+      "id": "working-draft-v3",
+      "kind": "component",
+      "summary": "Recoverable visual draft state remains separate from committed Canonical meaning.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "PASS", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "NOT_APPLICABLE", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/domain/programWorkingDraft.test.ts", "symbol": "persists incomplete semantic intent", "kind": "test"},
+        {"path": "frontend/src/domain/programWorkingDraft.test.ts", "symbol": "persists native Blockly JSON", "kind": "test"},
+        {"path": "scripts/check_builder_browser.mjs", "kind": "browser_test"}
+      ],
+      "limits": ["The current browser script is a focused Builder smoke test, not a full viewport/recovery matrix."]
+    },
+    {
+      "id": "lean-lowering-and-codegen",
+      "kind": "component",
+      "summary": "Strict V2 lowering produces the maintained typed LEAN plan and generated C# only for closed profiles.",
+      "capabilities": {
+        "representable": "NOT_APPLICABLE", "authorable": "NOT_APPLICABLE", "persistable": "NOT_APPLICABLE",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "PASS", "docker_verified": "PARTIAL",
+        "api_executable": "PARTIAL", "browser_verified": "NOT_APPLICABLE"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/strategy/v2/bridge.py", "kind": "implementation"},
+        {"path": "tests/test_semantic_strategy_corpus.py", "symbol": "test_v2_executable_corpus_profile_reaches_the_strict_lean_plan", "kind": "test"},
+        {"path": "scripts/check_lean.sh", "kind": "docker_test"}
+      ],
+      "limits": ["Strict profile closure is intentional; arbitrary valid Program graphs are unsupported."]
+    },
+    {
+      "id": "persisted-run-lifecycle",
+      "kind": "component",
+      "summary": "V1 revisions have a persisted pending/running/succeeded-or-failed Run lifecycle with result and decision evidence storage.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "NOT_APPLICABLE", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "PASS", "docker_verified": "PARTIAL",
+        "api_executable": "PASS", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/backtest_runs/service.py", "kind": "implementation"},
+        {"path": "tests/test_backtest_runs.py", "symbol": "test_successful_run_persists_config_result_provenance_timings_and_reopens", "kind": "test"},
+        {"path": "frontend/src/domain/backtestRunPersistence.test.tsx", "symbol": "reopens an existing Run with GET", "kind": "test"}
+      ],
+      "limits": ["The persisted Run service is typed to CanonicalStrategyV1; V2 revisions do not yet traverse this complete lifecycle."]
+    },
+    {
+      "id": "v2-transient-lean-api",
+      "kind": "component",
+      "summary": "The V2 API validates, lowers and executes a supplied working copy through LEAN without persisting a Run.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "NOT_APPLICABLE", "persistable": "UNSUPPORTED",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "PASS", "docker_verified": "PARTIAL",
+        "api_executable": "PASS", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/api.py", "symbol": "execute_v2_lean_backtest", "kind": "implementation"},
+        {"path": "tests/test_semantic_language_v2_authoring.py", "symbol": "test_v2_capability_endpoint_separates_blank_unsupported_and_runtime_unavailable", "kind": "test"},
+        {"path": "frontend/src/domain/backtestArchitecture.test.tsx", "symbol": "submits the exact current Canonical", "kind": "test"}
+      ],
+      "limits": ["No persisted V2 Run identity, execution history, or decision-evidence retrieval contract exists on this route."]
+    },
+    {
+      "id": "market-data-provenance",
+      "kind": "component",
+      "summary": "Preflight records provider/source kind, normalization, requested symbols and available coverage.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "NOT_APPLICABLE", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "PARTIAL",
+        "api_executable": "PASS", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "src/ruletrade/backtest_runs/service.py", "symbol": "BacktestRunProvenance", "kind": "implementation"},
+        {"path": "tests/test_market_data.py", "kind": "test"},
+        {"path": "frontend/src/domain/appFoundation.test.tsx", "symbol": "preserving the internal real dataset mapping", "kind": "test"}
+      ],
+      "limits": ["Most Docker claims use synthetic fixtures; live provider availability is not browser-verified."]
+    },
+    {
+      "id": "summary-perspective",
+      "kind": "perspective",
+      "summary": "Summary is a semantic projection but currently exposes only a short title/description.",
+      "capabilities": {
+        "representable": "PARTIAL", "authorable": "NOT_APPLICABLE", "persistable": "NOT_APPLICABLE",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "NOT_APPLICABLE", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/domain/programProjections.ts", "symbol": "projectProgramSummary", "kind": "implementation"},
+        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", "kind": "test"}
+      ],
+      "limits": ["Objective, schedule, risks, capability, missing configuration, latest execution and available results are incomplete."]
+    },
+    {
+      "id": "rules-perspective",
+      "kind": "perspective",
+      "summary": "Rules renders addressed financial statements and delegates supported edits to the shared Inspector.",
+      "capabilities": {
+        "representable": "PARTIAL", "authorable": "PARTIAL", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "PARTIAL", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/domain/programProjections.ts", "symbol": "projectProgramRules", "kind": "implementation"},
+        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "projects one committed Eligibility identically", "kind": "test"},
+        {"path": "tests/test_perspective_translation.py", "symbol": "test_supported_edit_round_trips_through_validated_cas_and_reprojection", "kind": "test"}
+      ],
+      "limits": ["Not every maintained semantic field has a safe Rules edit surface."]
+    },
+    {
+      "id": "flow-perspective",
+      "kind": "perspective",
+      "summary": "Flow is a capital-routing projection with draft-only layout and a bounded set of typed semantic edits.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "PARTIAL", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "PARTIAL", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/domain/flowCapitalComposer.test.ts", "symbol": "keeps 70/30 sleeves parallel", "kind": "test"},
+        {"path": "frontend/src/domain/perspectiveTranslation.test.ts", "symbol": "keeps layout outside semantic identity", "kind": "test"},
+        {"path": "frontend/src/domain/flowDraft.test.ts", "symbol": "keeps a backend-rejected draft unresolved", "kind": "test"}
+      ],
+      "limits": ["Arbitrary connections remain draft-only and unsupported; browser coverage is focused rather than end-to-end."]
+    },
+    {
+      "id": "code-perspective",
+      "kind": "perspective",
+      "summary": "Code is a read-only JSON rendering of Canonical strategy meaning.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "UNSUPPORTED", "persistable": "NOT_APPLICABLE",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "NOT_APPLICABLE", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/components/SemanticProgramBuilderAdapter.tsx", "symbol": "Read-only developer representation", "kind": "implementation"},
+        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "takes backend-returned Canonical through Blocky, Rules, Guide, Summary, and Code", "kind": "test"}
+      ],
+      "limits": ["Revision, capability, provenance, diagnostics and execution-evidence links are absent."]
+    },
+    {
+      "id": "guide-perspective",
+      "kind": "perspective",
+      "summary": "Guide offers blank recipes and a shallow list of selected/control/allocation statements.",
+      "capabilities": {
+        "representable": "PARTIAL", "authorable": "PARTIAL", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "PARTIAL", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/components/SemanticProgramBuilderAdapter.tsx", "symbol": "How this strategy works", "kind": "implementation"},
+        {"path": "frontend/src/domain/structuralAuthoringIntegration.test.tsx", "symbol": "keeps high-level shape recipes in Guide", "kind": "test"}
+      ],
+      "limits": ["It does not yet walk the actual strategy, explain missing inputs, or navigate every blocker."]
+    },
+    {
+      "id": "ai-perspective",
+      "kind": "perspective",
+      "summary": "AI is an external copy/paste handoff with validated proposal application, not an implemented model service.",
+      "capabilities": {
+        "representable": "PARTIAL", "authorable": "PARTIAL", "persistable": "PASS",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "NOT_APPLICABLE", "docker_verified": "NOT_APPLICABLE",
+        "api_executable": "UNSUPPORTED", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/views/AIHandoffView.tsx", "symbol": "Nothing is sent to a model by RuleTrade", "kind": "implementation"},
+        {"path": "frontend/src/domain/representationSystem.test.tsx", "symbol": "rejects unsupported AI targets", "kind": "test"}
+      ],
+      "limits": ["No AI provider, generation, or autonomous authoring capability exists."]
+    },
+    {
+      "id": "quick-test-and-result-rail",
+      "kind": "perspective",
+      "summary": "Quick Test collects period/capital and renders transient normalized results in the existing detail rail.",
+      "capabilities": {
+        "representable": "PASS", "authorable": "PASS", "persistable": "UNSUPPORTED",
+        "reference_evaluable": "NOT_APPLICABLE", "lowerable": "PASS", "docker_verified": "PARTIAL",
+        "api_executable": "PASS", "browser_verified": "PARTIAL"
+      },
+      "evidence": [
+        {"path": "frontend/src/components/V2StrategyEditor.tsx", "symbol": "V2QuickTestPanel", "kind": "implementation"},
+        {"path": "frontend/src/domain/backtestArchitecture.test.tsx", "symbol": "renders normalized result metrics and an equity curve", "kind": "test"},
+        {"path": "frontend/src/domain/integratedWorkbench.test.tsx", "symbol": "opens Test results directly in Research", "kind": "test"}
+      ],
+      "limits": ["V2 Quick Test is transient and cannot reopen a persisted Run or Decision Evidence history."]
+    }
+  ],
+  "representative_strategies": [
+    {
+      "id": "single-asset-monthly",
+      "title": "QQQ 100% monthly rebalance",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "tests/test_intent_first_authoring.py", "symbol": "test_single_asset_intent_is_direct_honest_monthly_rebalance", "kind": "test"},
+        {"path": "scripts/run_static_program_lean_e2e.sh", "kind": "docker_test"}
+      ],
+      "data_provenance": "synthetic fixture"
+    },
+    {
+      "id": "strongest-etfs",
+      "title": "Strongest ETFs",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "corpus/semantic-strategy-corpus.json", "kind": "fixture"},
+        {"path": "scripts/run_semantic_corpus_lean_e2e.sh", "kind": "docker_test"},
+        {"path": "tests/test_perspective_translation.py", "symbol": "test_strongest_etfs_preserves_fallback_as_shortage_not_otherwise", "kind": "test"}
+      ],
+      "data_provenance": "synthetic adjusted-close fixture"
+    },
+    {
+      "id": "growth-defensive",
+      "title": "Growth 70 / Defensive 30",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "frontend/src/test/generated-sleeves-bootstrap.json", "kind": "fixture"},
+        {"path": "tests/test_portfolio_sleeves.py", "kind": "test"},
+        {"path": "scripts/check_lean.sh", "kind": "docker_test"}
+      ],
+      "data_provenance": "synthetic adjusted-close fixture"
+    },
+    {
+      "id": "weighted-score",
+      "title": "Weighted Score and proportional allocation",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "tests/test_semantic_strategy_corpus.py", "symbol": "test_weighted_score_and_proportional_allocation_reach_typed_lean_plan", "kind": "test"},
+        {"path": "scripts/run_weighted_score_lean_e2e.sh", "kind": "docker_test"}
+      ],
+      "data_provenance": "synthetic adjusted-close fixture"
+    },
+    {
+      "id": "temporal-stateful",
+      "title": "Breakout, retest, confirmation and expiration",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "tests/test_temporal_stateful_execution.py", "kind": "test"},
+        {"path": "scripts/run_temporal_stateful_lean_e2e.sh", "kind": "docker_test"},
+        {"path": "scripts/run_temporal_reliability_lean_e2e.sh", "kind": "docker_test"}
+      ],
+      "data_provenance": "synthetic adjusted-close fixture with checkpoint evidence"
+    },
+    {
+      "id": "multi-clock",
+      "title": "Completed weekly context and daily action",
+      "statuses": {"canonical_fixture": "PASS", "save_reopen": "PASS", "reference_evaluation": "PASS", "lowering": "PASS", "generated_csharp": "PASS", "docker_lean": "PASS", "orders_positions": "PASS", "portfolio_results": "PASS", "decision_evidence": "PASS", "api_result_retrieval": "PARTIAL", "frontend_display": "PARTIAL"},
+      "evidence": [
+        {"path": "tests/test_temporal_stateful_execution.py", "symbol": "test_multiclock_profile_is_lowered_without_future_weekly_data", "kind": "test"},
+        {"path": "scripts/run_temporal_multiclock_lean_e2e.sh", "kind": "docker_test"}
+      ],
+      "data_provenance": "synthetic daily fixture with explicit completed-week boundary"
+    }
+  ]
+}

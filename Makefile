@@ -1,4 +1,4 @@
-.PHONY: bootstrap install test check-fast check check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful check-lean-temporal-reliability check-lean-temporal-multiclock check-lean-composable-semantic check-lean-composable-restart check-lean-static-program validate backtest api frontend smoke
+.PHONY: bootstrap install test check-fast check check-capability-evidence check-lean check-lean-generate check-lean-daily-values check-lean-semantic-corpus check-lean-weighted-score check-lean-temporal-stateful check-lean-temporal-reliability check-lean-temporal-multiclock check-lean-composable-semantic check-lean-composable-restart check-lean-static-program validate backtest api frontend smoke
 
 bootstrap:
 	uv sync --extra bt --extra dev --locked
@@ -14,6 +14,9 @@ check-fast:
 
 check:
 	./scripts/check.sh full
+
+check-capability-evidence:
+	PYTHONPATH=src uv run python scripts/check_capability_evidence.py
 
 check-lean:
 	./scripts/check_lean.sh

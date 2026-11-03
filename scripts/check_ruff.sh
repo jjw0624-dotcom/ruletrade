@@ -44,6 +44,7 @@ uv run ruff check \
   scripts/run_candidate_comparison_lean_e2e.py \
   scripts/run_lean_backtest.py \
   scripts/run_real_market_data_smoke.py \
+  scripts/check_capability_evidence.py \
   scripts/verify_momentum_lean_e2e.py \
   scripts/verify_cooldown_lean_e2e.py \
   scripts/verify_fallback_lean_e2e.py \
@@ -70,4 +71,5 @@ uv run ruff check \
   tests/test_strategy_ir.py \
   tests/test_strategy_ir_analysis.py \
   tests/test_strategy_ir_differential.py \
-  tests/test_strategy_persistence.py
+  tests/test_strategy_persistence.py \
+  tests/test_capability_evidence_matrix.py
