@@ -54,7 +54,7 @@ def _filter_operator(selection: LeanMomentumSelection) -> str:
 
 
 def _filter_field(selection: LeanMomentumSelection) -> str:
-    return "condition" if selection.filter_clauses else "config.threshold"
+    return "condition" if selection.filter_clauses or selection.eligibility else "config.threshold"
 
 
 def _filter_clause_evidence(selection: LeanMomentumSelection) -> str:
