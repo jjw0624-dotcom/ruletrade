@@ -6,9 +6,9 @@ Statuses distinguish projection from authoring: **verified**, **partial**, **dra
 
 | Perspective | Responsibility | Visible/understandable | Create/edit/delete | Draft/persist | Round trip / execution claim |
 |---|---|---|---|---|---|
-| Flow | capital routes, destinations, splits, exposure, fallback realization | verified projection | partial typed edits | layout verified; semantic Flow draft incomplete | capital subset only; no expression nodes |
-| Blocky | events, conditions, calculations, AssetSet dependencies, actions | verified native projection/grammar | draft creation verified; semantic commit partial | Working Draft v3/native JSON verified | registered block ≠ executable; active graph required |
-| Rules | declarative financial specification | verified | addressed Inspector subset only | local incomplete inputs | partial |
+| Flow | capital routes, destinations, splits, exposure, fallback realization | verified projection | direct Investment/Split intent creation | layout + `flow_first` intent in Working Draft | atomic intent subset verified; no expression nodes |
+| Blocky | events, conditions, calculations, AssetSet dependencies, actions | verified native projection/grammar | explicit active-graph commit for daily/monthly 100% single-asset rebalance | Working Draft v3/native JSON verified | proven subset compiles; all other complete graphs remain explicit unsupported drafts |
+| Rules | declarative financial specification | verified | direct inline Investment/Split intent creation | `rules_first` intent in Working Draft | atomic intent subset verified; broader edits partial |
 | Structure | ownership/hierarchy | verified | navigation, not general editing | derived | read-only |
 | Objects | reusable definitions/references | verified | Group create verified; lifecycle partial | definition transaction + draft objects | definition/reference separation verified |
 | Summary | meaning and readiness | verified | none | derived | read-only |
@@ -25,4 +25,4 @@ Statuses distinguish projection from authoring: **verified**, **partial**, **dra
 - Summary/Guide/Code render semantically valid incomplete strategies without lowering.
 - Fixed-money/quantity Buy, signals, loops and functions are draft-only or unsupported. Visual availability never proves execution support.
 
-The matrix intentionally does not claim that all perspectives can construct the same strategy. Current evidence proves shared projection identity and selected typed edits, not universal bidirectional authoring.
+The matrix intentionally does not claim that every perspective can construct every strategy. Current evidence proves independent Flow and Rules atomic-intent authoring plus one deliberately narrow Blocky compiler subset. Broader bidirectional authoring remains explicit partial scope.
