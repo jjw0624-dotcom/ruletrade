@@ -47,6 +47,7 @@ def verify_fallback_e2e(
     fixture: Path,
     *,
     filter_source_field_path: str = "config.threshold",
+    fallback_component_id: str = "fallback",
 ) -> tuple[int, int, int, int]:
     validate_lean_completion(log_text)
     validate_zero_failed_data_requests(log_text)
@@ -106,7 +107,7 @@ def verify_fallback_e2e(
         expected_fallback_decision = (
             "activated" if reference.fallback_activated else "not_activated"
         )
-        if fallback_trace.group("component") != "fallback":
+        if fallback_trace.group("component") != fallback_component_id:
             raise ValueError(f"fallback provenance mismatch for {event_identity}")
         if fallback_trace.group("asset") != "TLT":
             raise ValueError(f"fallback asset mismatch for {event_identity}")
