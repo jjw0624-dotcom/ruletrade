@@ -3,40 +3,58 @@
   "denominator": 169,
   "coverage": {
     "visually_draftable": {
-      "proven": 94,
-      "denominator": 169
+      "proven": 0,
+      "candidate_from_source_matrix": 94,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "typed_graph_valid": {
-      "proven": 169,
-      "denominator": 169
+      "proven": 0,
+      "candidate_from_source_matrix": 169,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "semantically_representable": {
-      "proven": 23,
-      "denominator": 169
+      "proven": 0,
+      "candidate_from_source_matrix": 23,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "reference_evaluable": {
       "proven": 0,
-      "denominator": 169
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "backend_lowerable": {
       "proven": 0,
-      "denominator": 169
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "docker_verified": {
       "proven": 0,
-      "denominator": 169
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "provider_supported": {
       "proven": 0,
-      "denominator": 169
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "ui_authorable": {
-      "proven": 169,
-      "denominator": 169
+      "proven": 0,
+      "candidate_from_source_matrix": 169,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     },
     "runtime_executable": {
       "proven": 0,
-      "denominator": 169
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
     }
   },
   "gap_counts": {
@@ -56,6 +74,7 @@
     "Draft-only support is not execution support.",
     "Projection is not authoring evidence.",
     "Canonical fixtures are not UI authorability evidence.",
+    "Positive support flags in the source matrix are candidates until case-linked evidence is indexed.",
     "A case with multiple blockers is counted once per independent blocker."
   ]
 }
