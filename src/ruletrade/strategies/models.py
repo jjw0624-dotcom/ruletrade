@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ruletrade.strategy.v2.models import CanonicalStrategy
+from ruletrade.strategy.versioning import CanonicalStrategy
 
 StrategyName = Annotated[str, Field(min_length=1, max_length=100)]
 
