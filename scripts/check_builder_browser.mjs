@@ -79,6 +79,19 @@ try {
     await screenshot(`builder-add-${width}x${height}`);
   }
 
+  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
+  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
+  await clickText("Rules"); await waitSelector('[data-intent-recipe="single_asset"]');
+  await clickText("Discard draft");
+  await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
+  await clickText("Add investment rule"); await waitSelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]');
+  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
+  await screenshot("builder-independent-flow-rules");
+  await clickText("Discard draft"); await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
+
   await clickBlocklyCategory("Start"); await sleep(250);
   console.log("Blockly category state:", JSON.stringify(await evaluate(`(() => ({addOpen:document.querySelector('.blocky-representation')?.dataset.nativeAddOpen,categories:[...document.querySelectorAll('.blocklyToolboxCategory')].slice(0,2).map((item)=>({text:item.textContent.trim(),selected:item.getAttribute('aria-selected'),className:item.className})),flyouts:[...document.querySelectorAll('[class*=Flyout],[class*=flyout]')].map((item)=>{const rect=item.getBoundingClientRect();return {className:item.className?.baseVal??item.className,width:rect.width,height:rect.height,display:getComputedStyle(item).display,visibility:getComputedStyle(item).visibility}})}))()`)));
   const hoverBefore = await evaluate(`(() => { const flyout=document.querySelector('.blocklyFlyout').getBoundingClientRect(); const canvas=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); return {flyout:{x:flyout.x,y:flyout.y,width:flyout.width,height:flyout.height},canvas:{x:canvas.x,width:canvas.width}}; })()`);
