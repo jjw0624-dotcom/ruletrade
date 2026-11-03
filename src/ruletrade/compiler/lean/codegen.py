@@ -1034,6 +1034,7 @@ def generate_csharp(
             (
                 f"    private void QueueEvent{event_index}()",
                 "    {",
+                "        if (IsWarmingUp) return;",
                 *(
                     ("        if ((Time.Month - 1) % 3 != 0) return;",)
                     if isinstance(event, LeanQuarterlyEvent)
