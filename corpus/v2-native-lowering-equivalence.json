@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "comparison_policy": {
+    "textual_csharp_identity_required": false,
+    "semantic_identity_required": true,
+    "numerical_tolerance": "0",
+    "ordering": "score direction followed by ordinal asset identity tie-break",
+    "evidence": "V2 semantic addresses replace legacy synthetic component addresses"
+  },
+  "profiles": [
+    {"id": "direct", "factory": "production_execution_profile:direct", "expected": ["fixed target", "monthly boundary", "capital conservation"]},
+    {"id": "selection-fallback", "factory": "strongest_etfs_strategy", "expected": ["QQQ,VGT,SOXX,SCHG universe", "return(126)>0", "top 2 descending", "require full", "TLT fallback", "monthly"]},
+    {"id": "parallel-split", "factory": "production_execution_profile:split", "expected": ["independent sleeves", "local equal weight", "portfolio weights sum to 1"]},
+    {"id": "conditional", "factory": "production_execution_profile:conditional", "expected": ["IF/OTHERWISE", "three-valued unknown policy", "exclusive capital route"]},
+    {"id": "weighted-score", "factory": "weighted_momentum_allocation_strategy", "expected": ["0.6 return(21)+0.4 return(63)", "deterministic ranking", "proportional score allocation"]},
+    {"id": "temporal-state", "factory": "temporal_breakout_strategy", "expected": ["event order", "state transition", "memory", "bounded window", "checkpoint identity"]},
+    {"id": "multi-clock", "factory": "temporal_multiclock_strategy", "expected": ["completed weekly close", "daily decision", "no lookahead"]},
+    {"id": "composable", "factory": "composable_semantic_execution_strategy", "expected": ["selection feeds state policy", "fallback", "restart parity"]},
+    {"id": "composable-split", "factory": "composable_split_execution_strategy", "expected": ["two selections", "policy split", "capital conservation"]}
+  ]
+}
