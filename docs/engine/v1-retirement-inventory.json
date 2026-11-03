@@ -25,13 +25,23 @@
     },
     {
       "source": "src/ruletrade/strategy/v2/models.py",
-      "classification": "shared_model_debt",
-      "callers": ["strategy serialization and API version dispatch"],
-      "responsibility": "Defines V2 models but also owns the V1|V2 union parser.",
-      "v1_coupling": ["CanonicalStrategyV1", "StrategyMetadata", "GroupDefinition"],
-      "replacement": "Move neutral definitions and version dispatch outside the V2 semantic model.",
-      "risk": "high",
+      "classification": "v2_native",
+      "callers": ["V2 validation, authoring, projection, evaluation and lowering"],
+      "responsibility": "Defines only V2 semantic models.",
+      "v1_coupling": [],
+      "replacement": "Completed: neutral definitions and version dispatch moved outside V2.",
+      "risk": "low",
       "tests": ["schema compatibility", "V1/V2 reopen", "API payload round trip"]
+    },
+    {
+      "source": "src/ruletrade/strategy/versioning.py",
+      "classification": "compatibility_adapter",
+      "callers": ["strategy service", "persistence", "BacktestRun typing"],
+      "responsibility": "Dispatches persisted Canonical payloads by api_version.",
+      "v1_coupling": ["CanonicalStrategyV1"],
+      "replacement": "Retain while historical V1 revisions are readable.",
+      "risk": "medium",
+      "tests": ["unversioned V1 read", "explicit V1/V2 read", "unknown version rejection"]
     },
     {
       "source": "src/ruletrade/strategy/v2/authoring.py",
