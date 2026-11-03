@@ -1,0 +1,124 @@
+{
+  "schema": "ruletrade.grammar-coverage-matrix.v1",
+  "denominator": 169,
+  "perspective_roles": {
+    "Flow": {
+      "role": "capital routing",
+      "projection": "projectProgramCapitalFlow",
+      "draft_owner": "React Flow layout plus flow_first FinancialIntentDraft",
+      "create": "supported_verified for Investment and Split intents",
+      "edit": "partial",
+      "round_trip": "supported_verified for the atomic intent subset"
+    },
+    "Blocky": {
+      "role": "logical execution and reasoning",
+      "projection": "projectProgramBlocky plus native Blockly",
+      "draft_owner": "WorkspaceSvg serialized in Working Draft v3",
+      "create": "supported_verified for registered draft blocks",
+      "edit": "partial",
+      "round_trip": "supported_verified for active daily/monthly 100% single-asset rebalance; partial otherwise"
+    },
+    "Rules": {
+      "role": "declarative financial meaning",
+      "projection": "RulesRepresentation",
+      "draft_owner": "rules_first FinancialIntentDraft rendered inline",
+      "create": "supported_verified for Investment and Split intents",
+      "edit": "partial",
+      "round_trip": "supported_verified for the atomic intent subset"
+    },
+    "Structure": {
+      "role": "ownership hierarchy",
+      "projection": "programStructure",
+      "draft_owner": null,
+      "create": "not_applicable",
+      "edit": "navigation_only",
+      "round_trip": "read_only"
+    },
+    "Objects": {
+      "role": "reusable definitions",
+      "projection": "definitions plus Working Draft objects",
+      "draft_owner": "Group Workspace transaction",
+      "create": "supported_verified for Group",
+      "edit": "partial",
+      "round_trip": "partial"
+    },
+    "Summary": {
+      "role": "human meaning and readiness",
+      "projection": "ProgramSummaryRepresentation",
+      "draft_owner": null,
+      "create": "not_applicable",
+      "edit": "unsupported",
+      "round_trip": "read_only"
+    },
+    "Guide": {
+      "role": "contextual explanation/navigation",
+      "projection": "GuidedEditorRepresentation",
+      "draft_owner": null,
+      "create": "partial via delegated Inspector",
+      "edit": "partial",
+      "round_trip": "partial"
+    },
+    "Code": {
+      "role": "exact Canonical envelope",
+      "projection": "read-only JSON",
+      "draft_owner": null,
+      "create": "unsupported",
+      "edit": "unsupported",
+      "round_trip": "lossless_read_only"
+    },
+    "Inspector": {
+      "role": "selected-object parameters",
+      "projection": "semantic address selection",
+      "draft_owner": "component-local incomplete inputs",
+      "create": "partial",
+      "edit": "supported_verified subset",
+      "round_trip": "partial"
+    },
+    "AI": {
+      "role": "external handoff/proposal",
+      "projection": "raw package",
+      "draft_owner": "proposal only",
+      "create": "unsupported",
+      "edit": "unsupported",
+      "round_trip": "read_only"
+    }
+  },
+  "primitives": [
+    {
+      "primitive": "proposed:finance-input",
+      "fragment_cases": 66,
+      "semantic_expressiveness": "candidate",
+      "engine_support": "unverified",
+      "perspective_reuse": [
+        "Blocky",
+        "Rules",
+        "Inspector"
+      ],
+      "implementation_status": "gap"
+    },
+    {
+      "primitive": "proposed:finance-lifecycle",
+      "fragment_cases": 66,
+      "semantic_expressiveness": "candidate",
+      "engine_support": "unverified",
+      "perspective_reuse": [
+        "Blocky",
+        "Rules",
+        "Inspector"
+      ],
+      "implementation_status": "gap"
+    },
+    {
+      "primitive": "proposed:external-signal",
+      "fragment_cases": 9,
+      "semantic_expressiveness": "candidate",
+      "engine_support": "unverified",
+      "perspective_reuse": [
+        "Blocky",
+        "Rules",
+        "Inspector"
+      ],
+      "implementation_status": "gap"
+    }
+  ]
+}
