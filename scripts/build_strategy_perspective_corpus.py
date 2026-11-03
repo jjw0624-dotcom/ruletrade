@@ -22,6 +22,13 @@ GENERATED = {
     "strategy-source-manifest.json",
     "unified-strategy-corpus.json",
     "strategy-perspective-matrix.json",
+    "perspective-authoring-journeys.json",
+    "perspective-conflict-cases.json",
+    "grammar-coverage-matrix.json",
+    "perspective-translation-contracts.json",
+    "coverage-and-gap-analysis.json",
+    "representative-ui-serialization-fixtures.json",
+    "authoring-execution-evidence.json",
 }
 
 
