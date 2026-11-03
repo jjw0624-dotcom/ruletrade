@@ -398,7 +398,7 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
   return <div className="semantic-inspector-content"><h2>Split</h2><p className="fixed-setting">Route Portfolio capital across Investments.</p>{legs.map(({ leg, id }) => <label key={leg.semantic_id}>{strategy.definitions.groups.find((group) => group.id === id)?.name || "Investment"} share (%)<input type="number" min={0} max={100} step="1" value={weights[id] ?? 0} onChange={(event) => setWeights({ ...weights, [id]: Number(event.target.value) })} /></label>)}<p>Total · {total}%</p><button type="button" className="primary-button" disabled={!valid} onClick={() => onApply(legs.map(({ id }) => ({ id, weight: weights[id] / 100 })))}>Apply Split</button>{!valid && <p>Split shares must total exactly 100%.</p>}</div>;
 }
 
-function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
+function ProgramFlowProjection({ flow, edges, blank, draftActive, onCreateInvestment, onCreateSplit, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; draftActive: boolean; onCreateInvestment: () => void; onCreateSplit: () => void; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
   const manifest = programFlowManifest({ nodes: flow, edges });
   const projected = projectProgramFlowCanvas({ nodes: flow, edges });
   const canvas = { ...projected, nodes: projected.nodes.map((node) => ({ ...node, position: positions[node.id] ?? node.position })) };
@@ -423,6 +423,11 @@ function ProgramFlowProjection({ flow, edges, blank, onSelect, positions, viewpo
       </ReactFlow>
     </div>
     {blank && <p className="v2-flow-empty">No capital route has been defined yet.</p>}
+    <div className="flow-authoring-actions" aria-label="Flow authoring">
+      <button type="button" className="primary-button" disabled={draftActive} onClick={onCreateInvestment}>Create Investment</button>
+      <button type="button" className="secondary-button" disabled={draftActive} onClick={onCreateSplit}>Create Split</button>
+      <small>Flow drafts stay independent. Canonical and Blocky change only after a complete typed intent passes validation.</small>
+    </div>
   </section>;
 }
 
@@ -815,7 +820,10 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       }}
       onDisclosureChange={(id, level) => updateLayoutDraft(withBlockDisclosure(workingDraftRef.current, id, level))}
       />{draft?.kind === "group" && <section className="program-group-workspace" aria-label="Group Workspace" data-object-definition-workspace="group"><header><div><span className="eyebrow">Group Workspace</span><h2>Create reusable Group</h2></div><button type="button" aria-label="Cancel Group creation" onClick={cancelCurrentDraft}>×</button></header><GroupDraftInspector draft={draft} onChange={(next) => setDraft(next)} onCommit={commitGroupDraft} onCancel={cancelCurrentDraft} /></section>}{selectedId?.startsWith("assets:") && <section className="program-group-workspace" aria-label="Group Workspace"><header><div><span className="eyebrow">Group Workspace</span><h2>Edit Group assets</h2></div><button type="button" aria-label="Close Group Workspace" onClick={() => select(null)}>×</button></header><ProgramAssetUniverseEditor assets={canonical.definitions.asset_sets.find((item) => item.id === selectedId.slice("assets:".length))?.assets ?? []} onCommit={(assets) => applyProduct({ kind: "setAssets", assets }, { assetSetId: selectedId.slice("assets:".length) })} /></section>}</section>,
-    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={flowGraph.edges.length === 0} onSelect={select}
+    flow: <ProgramFlowProjection flow={flow} edges={flowGraph.edges} blank={flowGraph.edges.length === 0} draftActive={Boolean(draft)}
+      onCreateInvestment={() => startFinancialIntent("single_asset", "flow_first")}
+      onCreateSplit={() => startFinancialIntent("split_portfolio", "flow_first")}
+      onSelect={select}
       positions={workingDraft.flowPositions} viewport={workingDraft.flowViewport}
       onPositionChange={(id, position) => updateLayoutDraft(withFlowPositions(workingDraftRef.current, { [id]: position }))}
       onViewportChange={(viewport) => updateWorkingDraft({ ...workingDraftRef.current, flowViewport: viewport })}
