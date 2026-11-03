@@ -50,7 +50,8 @@ from ruletrade.market_data.models import MarketDataPreflight
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.strategies.service import StrategyService
 from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
-from ruletrade.strategy.v2.models import CanonicalStrategy, CanonicalStrategyV2
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
+from ruletrade.strategy.versioning import CanonicalStrategy
 
 logger = logging.getLogger(__name__)
 
