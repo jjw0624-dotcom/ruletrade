@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ruletrade.strategies.errors import PersistenceError
 from ruletrade.strategies.models import RevisionRecord, RevisionSummary, StrategyRecord
-from ruletrade.strategy.v2.models import parse_canonical_strategy
+from ruletrade.strategy.versioning import parse_canonical_strategy
 
 SCHEMA_VERSION = 8
 
