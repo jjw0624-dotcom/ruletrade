@@ -1,3 +1,4 @@
+# V2 engine regression closure intentionally exercises the complete capability matrix.
 # Workflow changes intentionally force the full matrix through Impact Classification.
 name: Capability CI
 
