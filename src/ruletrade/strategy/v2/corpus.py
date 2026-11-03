@@ -15,7 +15,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from ruletrade.strategy.v1.models import GroupDefinition, StrategyMetadata
+from ruletrade.strategy.common import GroupDefinition, StrategyMetadata
 from ruletrade.strategy.v2.daily_values import (
     DailyMarketSnapshot,
     DailyValueNode,
