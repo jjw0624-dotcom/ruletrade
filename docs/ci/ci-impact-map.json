@@ -1,0 +1,34 @@
+{
+  "schema": "ruletrade.dev/ci-impact-map/v1",
+  "fast_pr_always": ["Static & Contract", "Unit & Semantic"],
+  "rules": [
+    {
+      "paths": ["docs/**", "*.md"],
+      "integration": [],
+      "reason": "documentation cannot change runtime behavior"
+    },
+    {
+      "paths": ["frontend/**"],
+      "integration": ["Real Browser E2E"],
+      "reason": "frontend unit/build are fast-tier owned; graphical behavior requires Chrome"
+    },
+    {
+      "paths": ["src/**", "scripts/**", "tests/**", "corpus/**", "examples/**", "data/**"],
+      "integration": ["LEAN Compilation", "all Docker Differential profiles", "Production API Contract"],
+      "reason": "conservative backend/shared semantic boundary"
+    },
+    {
+      "paths": ["scripts/check_builder_browser.mjs"],
+      "integration": ["Real Browser E2E"],
+      "reason": "browser acceptance implementation changed"
+    },
+    {
+      "paths": [".github/workflows/**", "Makefile", "uv.lock", "pyproject.toml", ".python-version", ".node-version", "unknown/unclassified"],
+      "integration": ["LEAN Compilation", "all Docker Differential profiles", "Production API Contract", "Real Browser E2E"],
+      "reason": "shared infrastructure and unknown files conservatively require every proof"
+    }
+  ],
+  "push_main": "all integration jobs forced",
+  "workflow_dispatch": "all integration jobs forced",
+  "nightly": "all maintained proofs"
+}
