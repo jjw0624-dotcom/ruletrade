@@ -1,0 +1,25 @@
+{
+  "schema":"ruletrade.dev/corpus/perspective-roundtrip/v1",
+  "audited_commit":"5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "cases": [
+    {"id":"RT-A-SINGLE-ASSET","meaning":"QQQ 100% monthly rebalance","paths":["intent operation","Flow projection","Rules projection","Blocky projection"],"status":"supported_verified","execution":"docker_verified"},
+    {"id":"RT-B-GROUP-FILTER-CHOOSE","meaning":"Group qualification, Top N, investment","paths":["Objects","Inspector","Blocky","Rules","Flow"],"status":"partial","execution":"docker_verified canonical subset"},
+    {"id":"RT-C-PARALLEL-70-30","meaning":"Growth and Defensive 70/30","paths":["atomic intent","Flow","Rules","Blocky"],"status":"supported_verified projection; partial editing","execution":"docker_verified"},
+    {"id":"RT-D-CONDITIONAL","meaning":"condition then growth otherwise defensive","paths":["atomic intent","Rules","Blocky","Flow capital route"],"status":"partial editing","execution":"docker_verified"},
+    {"id":"RT-E-WEIGHTED-SCORE","meaning":"weighted indicators, ranking, allocation","paths":["atomic intent","Blocky","Rules","Flow"],"status":"partial editing","execution":"docker_verified"},
+    {"id":"RT-F-TEMPORAL","meaning":"event, memory, retest, confirmation","paths":["atomic intent","Blocky","Rules"],"status":"partial editing","execution":"docker_verified replay"},
+    {"id":"RT-G-MULTI-CLOCK","meaning":"completed weekly context, daily action","paths":["atomic intent","Blocky","Rules"],"status":"partial editing","execution":"docker_verified replay"},
+    {"id":"RT-H-ASSETSET-COMPOSITION","meaning":"nested filter/random retain/set operations/selection","paths":["Blocky draft","Canonical corpus"],"status":"partial","execution":"maintained subset only"},
+    {"id":"RT-I-UNSUPPORTED","meaning":"fixed-money, signals, loops, functions","paths":["Blocky draft"],"status":"draft_only","execution":"unsupported"},
+    {"id":"RT-J-OBJECT-LIFECYCLE","meaning":"create rename reference remove Group/Subgroup","paths":["Objects","Blocky reference","Structure"],"status":"partial","execution":"not_applicable until referenced by active semantics"},
+    {"id":"RT-N1-TYPE-MISMATCH","meaning":"Group compared to Number","status":"invalid","expected":"typed connection rejection"},
+    {"id":"RT-N2-INVEST-REBALANCE","meaning":"cash investment silently treated as target weight","status":"invalid","expected":"no semantic commit"},
+    {"id":"RT-N3-DEFINITION-INSERTION","meaning":"Group creation inserts visual block","status":"invalid","expected":"zero inserted blocks"},
+    {"id":"RT-N4-CROSS-DRAFT","meaning":"Flow gesture creates Blockly-only draft","status":"invalid","expected":"draft isolation"},
+    {"id":"RT-N5-SILENT-SIMPLIFICATION","meaning":"unsupported route simplified","status":"invalid","expected":"unsupported capability"},
+    {"id":"RT-N6-INCOMPLETE-COMMIT","meaning":"incomplete graph committed","status":"invalid","expected":"draft retained"},
+    {"id":"RT-N7-STALE-CAS","meaning":"stale source hash overwrites revision","status":"invalid","expected":"source_hash_mismatch"},
+    {"id":"RT-N8-CANCEL-DATA-LOSS","meaning":"cancel deletes unrelated blocks","status":"invalid","expected":"unrelated draft unchanged"},
+    {"id":"RT-N9-PERSPECTIVE-LAYOUT","meaning":"perspective switch changes layout or Canonical","status":"invalid","expected":"identical semantic identity and stored viewport"}
+  ]
+}

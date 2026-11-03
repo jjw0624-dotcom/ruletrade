@@ -1,0 +1,15 @@
+{
+  "schema":"ruletrade.dev/architecture/gap-analysis/v1",
+  "audited_commit":"5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "gaps": [
+    {"id":"GAP-P0-01","priority":"P0","status":"not_observed","risk":"No currently verified semantic corruption path; keep CAS and strict lowerer mandatory"},
+    {"id":"GAP-P1-01","priority":"P1","actual":"Flow layout exists and projections expose edit operations, but an independent typed Flow draft/commit transaction is incomplete","risk":"gesture may be offered without round-trip proof","correction":"FlowDraft -> typed capital intent -> CAS adapter","tests":["RT-A","RT-C","RT-D","RT-N4"]},
+    {"id":"GAP-P1-02","priority":"P1","actual":"Blocky active roots and native JSON persist, but only a subset compiles to product semantic operations","risk":"visual authorability can be mistaken for Canonical authorability","correction":"explicit active-graph compiler capability per block","tests":["RT-H","RT-I","RT-N6"]},
+    {"id":"GAP-P1-03","priority":"P1","actual":"Rules supports addressed Inspector edits, not an independent complete Rules draft","risk":"editing claims exceed implementation","correction":"publish gesture-to-operation registry and gate unsupported controls","tests":["RT-B","RT-D"]},
+    {"id":"GAP-P1-04","priority":"P1","actual":"Working Draft is localStorage-only while Canonical revisions are server persisted","risk":"draft unavailable across devices and browser storage loss","correction":"define optional server draft record without making it Canonical","tests":["save/reopen/recovery"]},
+    {"id":"GAP-P2-01","priority":"P2","actual":"Perspective capability flags are partly hard-coded/defaulted","risk":"UI may overstate Docker/provider support","correction":"bind manifests to backend capability evidence","tests":["capability matrix consistency"]},
+    {"id":"GAP-P2-02","priority":"P2","actual":"Code identity uses JSON.stringify client-side while persisted source_hash is backend canonical hash","risk":"identity labels can be confused","correction":"name them separately and use revision source_hash for concurrency","tests":["hash behavior"]},
+    {"id":"GAP-P2-03","priority":"P2","actual":"Signals, loops, functions, fixed-money and quantity orders are visible as draft grammar without Canonical/execution closure","risk":"user may assume executable","correction":"explicit draft-only badges and no commit operation","tests":["RT-I","RT-N5"]},
+    {"id":"GAP-P3-01","priority":"P3","actual":"Inspector/sidebar visibility is ephemeral and selection restoration is best-effort","risk":"navigation friction only","correction":"preserve stable address where target survives reprojection","tests":["perspective switch selection"]}
+  ]
+}

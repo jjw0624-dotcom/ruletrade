@@ -1,0 +1,27 @@
+{
+  "schema": "ruletrade.dev/architecture/semantic-operation-registry/v1",
+  "audited_commit": "5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "apply_boundary": {"request":"ApplyV2AuthoringRequest","cas":"expected_source_hash","response":"complete CanonicalStrategyV2 plus source_hash","implementation":"src/ruletrade/strategy/v2/authoring.py:apply_v2_authoring_operation","api":"POST /v2/canonical/authoring/apply"},
+  "canonical_operations": [
+    "set_selection_universe","set_eligibility_condition","set_ranking_value","set_ranking_direction","set_selection_count","set_shortage_policy","set_selection_fallback","set_predicate","set_semantic_program","replace_program_statement","insert_program_statement","remove_program_statement","move_program_statement","set_program_selection","set_program_asset_set","add_program_investment","add_program_group","rename_program_group","remove_program_group","remove_program_investment","set_program_schedule","create_program_selection","create_program_choose","rename_program_subgroup","remove_program_choose","set_program_investment","remove_program_investment_allocation","create_program_event_state","set_program_fallback","set_program_split","set_program_condition","set_program_value","set_program_event","set_program_transition","set_program_allocation","set_program_formalizations","commit_single_asset_intent","commit_market_regime_rotation_intent","commit_split_portfolio_intent","commit_weighted_score_intent","commit_temporal_sequence_intent","commit_multi_clock_policy_intent","formalize_program_statement","formalize_draft_phrase"
+  ],
+  "operation_families": [
+    {"family":"selection compatibility","operations":["set_selection_universe","set_eligibility_condition","set_ranking_value","set_ranking_direction","set_selection_count","set_shortage_policy","set_selection_fallback","set_predicate"],"target":"compatibility SelectionV2 fields"},
+    {"family":"program structure","operations":["set_semantic_program","replace_program_statement","insert_program_statement","remove_program_statement","move_program_statement"],"target":"SemanticProgramV2 statements"},
+    {"family":"objects","operations":["set_program_asset_set","add_program_group","rename_program_group","remove_program_group","rename_program_subgroup"],"target":"definitions; no visual insertion implied"},
+    {"family":"capital","operations":["add_program_investment","remove_program_investment","set_program_investment","remove_program_investment_allocation","set_program_split","set_program_allocation"],"target":"allocation statements"},
+    {"family":"choose","operations":["create_program_selection","create_program_choose","set_program_selection","remove_program_choose","set_program_fallback"],"target":"SelectionStatementV2/SelectionV2"},
+    {"family":"temporal","operations":["set_program_schedule","create_program_event_state","set_program_event","set_program_transition","set_program_value","set_program_condition"],"target":"clock/event/state/memory"},
+    {"family":"atomic intents","operations":["commit_single_asset_intent","commit_market_regime_rotation_intent","commit_split_portfolio_intent","commit_weighted_score_intent","commit_temporal_sequence_intent","commit_multi_clock_policy_intent"],"target":"complete validated intent transaction"},
+    {"family":"formalization","operations":["set_program_formalizations","formalize_program_statement","formalize_draft_phrase"],"target":"resolved/unresolved provenance"}
+  ],
+  "noncanonical_mutations": [
+    {"owner":"native Blockly WorkspaceSvg","source":"frontend/src/domain/programWorkingDraft.ts","effects":["geometry","connections","selection","collapse","viewport","active roots"],"cas":false},
+    {"owner":"React Flow","effects":["node positions","viewport"],"cas":false},
+    {"owner":"Quick Test form","effects":["run config only"],"cas":false}
+  ],
+  "violations": [
+    {"id":"OP-GAP-01","status":"open","finding":"Flow exposes editOperation metadata but there is no independent Flow draft transaction for every editable node"},
+    {"id":"OP-GAP-02","status":"open","finding":"set_semantic_program and raw statement replacement are broad internal operations and must not be treated as ordinary product gestures"}
+  ]
+}

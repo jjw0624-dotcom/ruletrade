@@ -1,0 +1,19 @@
+{
+  "schema":"ruletrade.dev/architecture/execution-mapping/v1",
+  "audited_commit":"5ceaeda56bbe5012bf755d28c580dc848814492c",
+  "pipeline":["persisted Revision","V2 validation","execution capability preflight","strict V2 lowering","typed LEAN plan","market-data preflight","generated C#","Docker LEAN","normalized result/evidence","SQLite Run"],
+  "dimensions":["representable","reference_evaluable","lowerable","compilable","docker_verified","production_api_executable","browser_accessible"],
+  "features": [
+    {"id":"direct_fixed_target","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":true},
+    {"id":"filter_rank_top_n_fallback","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"result journey verified; full authoring partial"},
+    {"id":"weighted_score_proportional","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"projection only"},
+    {"id":"parallel_sleeves","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"projection partial edit"},
+    {"id":"conditional_allocation","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"projection partial edit"},
+    {"id":"temporal_state_memory","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"projection only/partial Inspector"},
+    {"id":"weekly_context_daily_action","reference_evaluable":true,"lowerable":true,"docker_verified":true,"api":true,"browser":"projection only"},
+    {"id":"nested_assetset_random_set_ops","reference_evaluable":true,"lowerable":"maintained subset","docker_verified":"corpus profiles only","api":"capability gated","browser":"draft/projection partial"},
+    {"id":"fixed_money_quantity_orders","representable":"Working Draft only","reference_evaluable":false,"lowerable":false,"docker_verified":false,"api":false,"browser":"draft_only"},
+    {"id":"signals_loops_functions","representable":"Working Draft only","reference_evaluable":false,"lowerable":false,"docker_verified":false,"api":false,"browser":"draft_only"}
+  ],
+  "evidence":["tests/test_composable_semantic_execution.py","tests/test_temporal_stateful_execution.py","tests/test_backtest_runs.py","scripts/run_persisted_v2_api_lean_e2e.py","scripts/check_builder_browser.mjs","corpus/lean-differential-matrix.json"]
+}
