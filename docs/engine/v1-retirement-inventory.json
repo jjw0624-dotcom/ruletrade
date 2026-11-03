@@ -35,21 +35,21 @@
     },
     {
       "source": "src/ruletrade/strategy/v2/authoring.py",
-      "classification": "shared_model_debt",
+      "classification": "v2_native",
       "callers": ["V2 authoring operations"],
       "responsibility": "Uses legacy-located GroupDefinition and StrategyMetadata as shared value objects.",
-      "v1_coupling": ["GroupDefinition", "StrategyMetadata"],
-      "replacement": "Extract proven version-neutral definitions without changing serialized shape.",
-      "risk": "medium",
+      "v1_coupling": [],
+      "replacement": "Completed: consumes version-neutral definitions with unchanged serialized shape.",
+      "risk": "low",
       "tests": ["CAS", "save/reopen", "schema snapshots"]
     },
     {
       "source": "src/ruletrade/strategy/v2/corpus.py",
-      "classification": "shared_model_debt",
+      "classification": "v2_native",
       "callers": ["reference fixtures", "Docker differential generators"],
       "responsibility": "Builds V2 fixtures using legacy-located shared value objects.",
-      "v1_coupling": ["GroupDefinition", "StrategyMetadata"],
-      "replacement": "Consume neutral value-object module after extraction.",
+      "v1_coupling": [],
+      "replacement": "Completed: consumes the neutral value-object module.",
       "risk": "low",
       "tests": ["fixture hashes", "differential matrix"]
     }
