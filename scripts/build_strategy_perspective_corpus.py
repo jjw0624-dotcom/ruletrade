@@ -18,18 +18,32 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "corpus"
 DOCS = ROOT / "docs" / "corpus"
 
-GENERATED = {
-    "strategy-source-manifest.json",
-    "unified-strategy-corpus.json",
-    "strategy-perspective-matrix.json",
-    "perspective-authoring-journeys.json",
-    "perspective-conflict-cases.json",
-    "grammar-coverage-matrix.json",
-    "perspective-translation-contracts.json",
-    "coverage-and-gap-analysis.json",
-    "representative-ui-serialization-fixtures.json",
-    "authoring-execution-evidence.json",
-}
+SOURCE_FILES = (
+    "blocky-169-case-matrix.json",
+    "blocky-169-previous-review-hypothesis.json",
+    "blocky-169-source.jsonl",
+    "blocky-composition-fixtures.json",
+    "blocky-feature-coverage.json",
+    "capital-flow-manifest.schema.json",
+    "composable-semantic-capability-matrix.json",
+    "decision-logic-manifest.schema.json",
+    "entry-style-builder-acceptance.json",
+    "expanded-semantic-case-matrix.json",
+    "group-choose-investment-execution-gap-matrix.json",
+    "intent-authoring-capability-matrix.json",
+    "intent-authoring-user-actions.json",
+    "lean-differential-matrix.json",
+    "perspective-manifest-fixtures.json",
+    "perspective-roundtrip-corpus.json",
+    "perspective-translation-corpus.json",
+    "reference-evaluation-fixtures.json",
+    "ruletrade-capability-evidence.json",
+    "semantic-builder-capability-matrix.json",
+    "semantic-first-block-readability.json",
+    "semantic-strategy-corpus.json",
+    "temporal-reliability-capability-matrix.json",
+    "visual-authoring-capability-matrix.json",
+)
 
 
 def load_json(path: Path) -> Any:
@@ -52,9 +66,10 @@ def json_rows(path: Path, payload: Any) -> tuple[str | None, list[Any]]:
 
 def source_manifest() -> dict[str, Any]:
     sources: list[dict[str, Any]] = []
-    for path in sorted(CORPUS.iterdir()):
-        if path.name in GENERATED or path.suffix not in {".json", ".jsonl"}:
-            continue
+    for name in SOURCE_FILES:
+        path = CORPUS / name
+        if not path.is_file():
+            raise FileNotFoundError(f"declared corpus source is missing: {path}")
         if path.suffix == ".jsonl":
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             container = "jsonl"
