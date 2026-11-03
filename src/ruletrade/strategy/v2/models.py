@@ -11,11 +11,8 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field, field_validator, model_validator
 
-from ruletrade.strategy.v1.models import (
-    CanonicalStrategyV1,
-    GroupDefinition,
-    StrategyMetadata,
-)
+from ruletrade.strategy.common import GroupDefinition, StrategyMetadata
+from ruletrade.strategy.v1.models import CanonicalStrategyV1
 from ruletrade.strategy.v2.daily_values import DailyValueNode, SubjectKind, infer_daily_type
 from ruletrade.strategy.v2.semantic_types import (
     Axis,
