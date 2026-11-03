@@ -22,6 +22,13 @@ GENERATED = {
     "strategy-source-manifest.json",
     "unified-strategy-corpus.json",
     "strategy-perspective-matrix.json",
+    "perspective-authoring-journeys.json",
+    "perspective-conflict-cases.json",
+    "grammar-coverage-matrix.json",
+    "perspective-translation-contracts.json",
+    "coverage-and-gap-analysis.json",
+    "representative-ui-serialization-fixtures.json",
+    "authoring-execution-evidence.json",
 }
 
 
@@ -195,31 +202,10 @@ def perspective_cell(item: dict[str, Any], perspective: str) -> dict[str, Any]:
         status = "draft_only" if caps.get("visually_draftable") else "unsupported"
     else:
         status = "unverified"
-    roles = {
-        "guide": "guided composition",
-        "flow": "capital routing",
-        "blocky": "logical execution and dependency flow",
-        "rules": "declarative strategy meaning",
-        "summary": "human-readable committed meaning",
-        "code": "precise canonical semantics",
-    }
     return {
         "status": status,
-        "visual_representation": None,
-        "grammar_elements": [],
-        "required_inputs": item["required_parameters"],
-        "optional_inputs": [],
-        "semantic_bindings": item["semantic_specification"].get("feature_ids", []),
-        "editing_gestures": [] if "read_only" in status else ["requires verified typed operation"],
-        "draft_behavior": "perspective-local; never an independent canonical authority",
-        "typed_operations": [],
+        "contract_ref": f"perspective:{perspective}",
         "reverse_translation": "unverified" if not ui_authorable else "evidence required",
-        "reprojection": "from committed or shared working semantic state",
-        "capability_limitations": [
-            "Projection is not proof of authorability.",
-            "Draftability is not proof of execution support.",
-        ],
-        "role": roles[perspective],
     }
 
 
@@ -230,24 +216,43 @@ def perspective_matrix(corpus: dict[str, Any]) -> dict[str, Any]:
             "case_id": item["id"],
             "item_type": item["item_type"],
             "semantic": {
-                "specification": item["semantic_specification"],
+                "corpus_ref": item["id"],
                 "canonical_reference": item["canonical_reference"],
-                "required_parameters": item["required_parameters"],
-                "unresolved_ambiguities": item["ambiguities"],
             },
             "perspectives": {
                 name: perspective_cell(item, name)
                 for name in ("guide", "flow", "blocky", "rules", "summary", "code")
             },
-            "cross_cutting_surfaces": {
-                "structure": "ownership and dependency navigation",
-                "objects": "stable reusable definitions and references",
-                "inspector": "advanced configuration, selection, and diagnostics",
-            },
         })
+    roles = {
+        "guide": "guided composition",
+        "flow": "capital routing",
+        "blocky": "logical execution and dependency flow",
+        "rules": "declarative strategy meaning",
+        "summary": "human-readable committed meaning",
+        "code": "precise canonical semantics",
+    }
     return {
         "schema": "ruletrade.strategy-perspective-matrix.v1",
         "perspectives": ["guide", "flow", "blocky", "rules", "summary", "code"],
+        "perspective_contracts": {
+            f"perspective:{name}": {
+                "role": role,
+                "draft_behavior": "perspective-local; never an independent canonical authority",
+                "commit_boundary": "verified typed operation and CAS",
+                "reprojection": "from committed or shared working semantic state",
+            }
+            for name, role in roles.items()
+        },
+        "cross_cutting_surfaces": {
+            "structure": "ownership and dependency navigation",
+            "objects": "stable reusable definitions and references",
+            "inspector": "advanced configuration, selection, and diagnostics",
+        },
+        "evidence_boundaries": [
+            "Projection is not proof of authorability.",
+            "Draftability is not proof of execution support.",
+        ],
         "rows": rows,
     }
 
@@ -296,8 +301,8 @@ def build() -> dict[Path, str]:
     matrix = perspective_matrix(corpus)
     values = {
         CORPUS / "strategy-source-manifest.json": json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        CORPUS / "unified-strategy-corpus.json": json.dumps(corpus, indent=2, ensure_ascii=False) + "\n",
-        CORPUS / "strategy-perspective-matrix.json": json.dumps(matrix, indent=2, ensure_ascii=False) + "\n",
+        CORPUS / "unified-strategy-corpus.json": json.dumps(corpus, ensure_ascii=False, separators=(",", ":")) + "\n",
+        CORPUS / "strategy-perspective-matrix.json": json.dumps(matrix, ensure_ascii=False, separators=(",", ":")) + "\n",
         DOCS / "source-inventory.md": source_inventory_doc(manifest),
         DOCS / "strategy-corpus-index.md": corpus_index_doc(corpus),
         DOCS / "strategy-perspective-matrix.md": matrix_doc(matrix),
