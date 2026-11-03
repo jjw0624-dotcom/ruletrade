@@ -1,4 +1,5 @@
 import { entryBlockDefinition, entryConnectionAccepts, type EntryExecutionStatus } from "./entryStyleGrammar";
+import type { V2AuthoringOperation } from "./canonicalV2";
 import type { ProgramWorkingDraft } from "./programWorkingDraft";
 
 export type VisualGraphCapability = "incomplete" | "draft_only" | "ready" | "unsupported";
@@ -14,6 +15,13 @@ export interface VisualGraphValidation {
   status: "valid" | "invalid";
   graphs: ValidatedVisualGraph[];
   diagnostics: Array<{ code: string; blockId: string; message: string }>;
+}
+
+export interface ActiveVisualGraphCompilation {
+  status: "ready" | "incomplete" | "unsupported" | "invalid";
+  operation: V2AuthoringOperation | null;
+  productMessage: string;
+  rootId: string | null;
 }
 
 const graphCapability = (statuses: EntryExecutionStatus[], incomplete: boolean): VisualGraphCapability => {
@@ -73,4 +81,39 @@ export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGr
     return [{ rootId, blockIds: [...visited], capability, reasons: incomplete ? ["Complete every required typed slot before committing this graph."] : capability === "draft_only" ? ["This graph contains a block whose execution contract is draft-only."] : capability === "unsupported" ? ["This complete graph is not supported by the current execution profile."] : [] }];
   });
   return { status: diagnostics.length ? "invalid" : "valid", graphs, diagnostics };
+}
+
+/**
+ * Compiles only the deliberately small, proven Blocky subset. Validation and
+ * compilation are separate so a complete but unsupported graph remains an
+ * honest draft instead of being coerced into different financial semantics.
+ */
+export function compileActiveVisualGraph(draft: ProgramWorkingDraft): ActiveVisualGraphCompilation {
+  const validation = validateActiveVisualGraphs(draft);
+  if (validation.status === "invalid") return { status: "invalid", operation: null, productMessage: "Correct the typed Blocky connections before committing.", rootId: null };
+  if (validation.graphs.length !== 1) return { status: validation.graphs.length ? "unsupported" : "incomplete", operation: null, productMessage: validation.graphs.length ? "Commit one active graph at a time." : "Mark one complete Start graph as active.", rootId: null };
+  const graph = validation.graphs[0]!;
+  if (graph.capability === "incomplete") return { status: "incomplete", operation: null, productMessage: graph.reasons[0]!, rootId: graph.rootId };
+  if (graph.capability !== "ready") return { status: "unsupported", operation: null, productMessage: graph.reasons[0]!, rootId: graph.rootId };
+  const root = draft.canvasBlocks[graph.rootId]!;
+  const childAt = (parentId: string, inputName: string) => {
+    const connection = Object.values(draft.blockConnections).find((item) => item.parentId === parentId && item.inputName === inputName);
+    return connection ? draft.canvasBlocks[connection.childId] ?? null : null;
+  };
+  const action = childAt(root.id, "NEXT");
+  const target = action && childAt(action.id, "TARGET");
+  const weight = action && childAt(action.id, "WEIGHT");
+  const timeframe = root.definitionId === "start-daily" ? "daily" : root.definitionId === "start-monthly" ? "monthly" : null;
+  const percent = Number(weight?.fieldValues?.VALUE ?? Number.NaN);
+  const asset = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
+  if (!timeframe || action?.definitionId !== "rebalance" || target?.definitionId !== "asset-reference" || weight?.definitionId !== "percentage" || percent !== 100 || !asset) {
+    return { status: "unsupported", operation: null, productMessage: "This complete graph is preserved, but the current compiler supports only a daily or monthly 100% single-asset rebalance.", rootId: graph.rootId };
+  }
+  const suffix = graph.rootId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "graph";
+  return {
+    status: "ready",
+    rootId: graph.rootId,
+    productMessage: `Commit ${asset} at 100% on each ${timeframe} close.`,
+    operation: { kind: "commit_single_asset_intent", investment_id: `investment-${suffix}`, investment_name: "Investment", asset_set_id: `investment-${suffix}-assets`, asset, timeframe, timing_meaning: "rebalance" },
+  };
 }
