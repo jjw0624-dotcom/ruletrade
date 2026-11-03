@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from ruletrade.strategy.v2.models import CanonicalStrategy
+from ruletrade.strategy.versioning import CanonicalStrategy
 
 
 def serialize_source_snapshot(strategy: CanonicalStrategy) -> str:
