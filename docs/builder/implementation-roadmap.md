@@ -18,6 +18,13 @@ evidence rather than only changing a surface.
 - Reject multi-operation output until CAS supports an atomic batch.
 - Keep command planning independent from perspective navigation.
 
+## Phase A3 — controller decomposition (this change)
+
+- Move command feedback and dispatch lifecycle into a dedicated controller.
+- Derive toolbox availability as pure semantic-context data.
+- Attach perspective callbacks only after capability calculation.
+- Preserve labels, ordering, availability, and production interactions.
+
 ## Phase B — typed Flow removal
 
 - Replace projection-only deletion with an explicit typed semantic removal
