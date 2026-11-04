@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { V2AuthoringOperation } from "../domain/canonicalV2";
+import type { CanonicalStrategyV2, V2AuthoringOperation } from "../domain/canonicalV2";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { StrategyApiError, strategyApi } from "../strategyApi";
 import { v2AuthoringApi, v2AuthoringErrorMessage } from "../v2AuthoringApi";
