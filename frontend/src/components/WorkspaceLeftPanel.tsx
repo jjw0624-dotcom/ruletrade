@@ -240,7 +240,7 @@ function ProductStructureBranch({ item, depth, selectedId, onSelect }: { item: P
 
 export interface BuilderLibraryObject { id: string; kind: "group" | "subgroup" | "variable" | "function" | "signal"; name: string; draft: boolean; dependencyCount: number }
 
-function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup, onInsertObjectReference, onBlockyAddOpenChange }: {
+function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup, onInsertObjectReference, blockyAddOpen = false, onBlockyAddOpenChange }: {
   tools: ProductAddAction[];
   structure: ProductStructureNode;
   selectedId: string | null;
@@ -255,8 +255,8 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
   const categories: ProductAddAction["category"][] = perspective === "blocky"
     ? [...ENTRY_BLOCK_CATEGORIES]
     : ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
-  const [tab, setTab] = useState<"structure" | "blocks" | "objects">("structure");
-  useEffect(() => { onBlockyAddOpenChange?.(perspective === "blocky" && tab === "blocks"); }, [onBlockyAddOpenChange, perspective, tab]);
+  const [tab, setTab] = useState<"structure" | "blocks" | "objects">(blockyAddOpen ? "blocks" : "structure");
+  useEffect(() => { if (perspective === "blocky") onBlockyAddOpenChange?.(tab === "blocks"); }, [onBlockyAddOpenChange, perspective, tab]);
   return <aside className="workspace-left-root" aria-label="Builder library">
     <div className="workspace-left-panel" data-perspective={perspective} data-active-tab={tab} data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>

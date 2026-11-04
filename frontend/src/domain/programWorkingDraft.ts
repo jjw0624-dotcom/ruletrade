@@ -70,6 +70,10 @@ export interface ProgramWorkingDraft {
   blockDisclosure: Record<string, 0 | 1 | 2>;
   flowViewport: Viewport | null;
   selectedDraftId: string | null;
+  /** Blocky construction state is recoverable but never semantic meaning. */
+  blockyAddOpen: boolean;
+  /** A pending definition-to-reference transaction; no reference exists until commit. */
+  pendingObjectInsertion: { parentId: string; inputName: string } | null;
   diagnostics: Array<{ code: string; productMessage: string; technicalDetail: string }>;
   updatedAt: string;
 }
@@ -91,6 +95,8 @@ export function emptyProgramWorkingDraft(strategyKey: string): ProgramWorkingDra
     blockDisclosure: {},
     flowViewport: null,
     selectedDraftId: null,
+    blockyAddOpen: false,
+    pendingObjectInsertion: null,
     diagnostics: [],
     updatedAt: new Date(0).toISOString(),
   };
@@ -153,6 +159,8 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
       blockConnections: value.blockConnections ?? {},
       blockDisclosure: value.blockDisclosure ?? {},
       diagnostics: value.diagnostics ?? [],
+      blockyAddOpen: value.blockyAddOpen ?? false,
+      pendingObjectInsertion: value.pendingObjectInsertion ?? null,
       schema: PROGRAM_WORKING_DRAFT_SCHEMA,
     };
   } catch {
@@ -166,7 +174,8 @@ export function persistProgramWorkingDraft(draft: ProgramWorkingDraft, storage: 
     if (draft.status === "clean" && !hasProgramDrafts(draft) && Object.keys(draft.canvasBlocks).length === 0 && Object.keys(draft.reusableObjects).length === 0
       && draft.activeGraphRootIds.length === 0 && Object.keys(draft.blockPositions).length === 0
       && Object.keys(draft.flowPositions).length === 0 && Object.keys(draft.blockConnections).length === 0
-      && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport && !draft.blocklyWorkspace) {
+      && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport && !draft.blocklyWorkspace
+      && !draft.blockyAddOpen && !draft.pendingObjectInsertion) {
       storage.removeItem(programDraftStorageKey(draft.strategyKey));
       return;
     }

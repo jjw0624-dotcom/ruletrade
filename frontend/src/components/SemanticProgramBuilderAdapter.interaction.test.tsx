@@ -393,6 +393,24 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelectorAll(".blocky-toolbox-entry")).toHaveLength(0);
   });
 
+  it("preserves Blocky Add state while another perspective is inspected", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("add-preservation"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "Add");
+    expect(changes.mock.calls.at(-1)?.[0].blockyAddOpen).toBe(true);
+    await clickButton(container, "Flow");
+    expect(changes.mock.calls.at(-1)?.[0].blockyAddOpen).toBe(true);
+    await clickButton(container, "Blocky");
+    expect(container.querySelector('button[role="tab"][data-state="active"]')?.textContent).toBe("Add");
+  });
+
   it("starts Investment as Investment and never substitutes an IF draft", async () => {
     const changes = vi.fn();
     function Harness() {
@@ -424,11 +442,13 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
     expect(container.querySelector(".group-draft")).toBeTruthy();
+    expect(changes.mock.calls.at(-1)?.[0].pendingObjectInsertion).toEqual({ parentId: "draft:invest-native", inputName: "TARGET" });
     await clickGroupWorkspaceButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
     const reference = Object.values(latest.canvasBlocks as Record<string, { id: string; definitionId: string; objectRef: string }>).find((item) => item.definitionId === "group-reference")!;
     expect(reference.objectRef).toBe("group-1");
     expect(latest.blockConnections[reference.id]).toMatchObject({ parentId: "draft:invest-native", inputName: "TARGET" });
+    expect(latest.pendingObjectInsertion).toBeNull();
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
   });
 

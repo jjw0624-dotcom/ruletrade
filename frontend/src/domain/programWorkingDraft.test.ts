@@ -53,6 +53,21 @@ describe("SemanticProgramV2 Working Draft", () => {
     });
   });
 
+  it("restores Blocky Add state and a pending typed object insertion transaction", () => {
+    const storage = memoryStorage();
+    const draft = {
+      ...withProgramDraftConcept(emptyProgramWorkingDraft("object-transaction"), { kind: "group" as const, semanticId: "group-1", name: "Group 1", assets: [] }),
+      blockyAddOpen: true,
+      pendingObjectInsertion: { parentId: "draft:invest-1", inputName: "TARGET" },
+    };
+    persistProgramWorkingDraft(draft, storage);
+    expect(loadProgramWorkingDraft("object-transaction", storage)).toMatchObject({
+      blockyAddOpen: true,
+      pendingObjectInsertion: { parentId: "draft:invest-1", inputName: "TARGET" },
+      perspectiveDrafts: { blocky: { kind: "group", semanticId: "group-1" } },
+    });
+  });
+
   it("migrates v1 drafts without losing incomplete intent or geometry", () => {
     const storage = memoryStorage();
     storage.setItem(programDraftStorageKey("strategy-legacy"), JSON.stringify({

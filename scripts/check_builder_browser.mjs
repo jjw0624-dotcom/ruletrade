@@ -101,6 +101,9 @@ try {
   await screenshot("builder-independent-flow-rules");
   await clickText("Discard draft"); await clickText("Flow"); await waitSelector('[data-intent-recipe="single_asset"]'); await clickText("Discard draft");
   await clickText("Blocky"); await clickText("Add"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
+  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  if (!await evaluate(`window.__RULETRADE_BROWSER_DRAFT__?.blockyAddOpen===true`)) throw new Error("Blocky Add state was discarded by a perspective switch.");
+  await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
 
   await clickBlocklyCategory("Start"); await sleep(250);
   console.log("Blockly category state:", JSON.stringify(await evaluate(`(() => ({addOpen:document.querySelector('.blocky-representation')?.dataset.nativeAddOpen,categories:[...document.querySelectorAll('.blocklyToolboxCategory')].slice(0,2).map((item)=>({text:item.textContent.trim(),selected:item.getAttribute('aria-selected'),className:item.className})),flyouts:[...document.querySelectorAll('[class*=Flyout],[class*=flyout]')].map((item)=>{const rect=item.getBoundingClientRect();return {className:item.className?.baseVal??item.className,width:rect.width,height:rect.height,display:getComputedStyle(item).display,visibility:getComputedStyle(item).visibility}})}))()`)));

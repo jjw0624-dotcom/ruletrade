@@ -41,7 +41,7 @@ evidence rather than only changing a surface.
 - Treat partial Split-leg removal and projection-only action edges as Flow-owned
   Drafts until an atomic product operation can preserve their exact intent.
 
-## Phase C — Object Library and Add preservation
+## Phase C — Object Library and Add preservation (this change)
 
 - Separate object definition, reference insertion, and semantic activation.
 - Preserve disconnected and incomplete object references across switching and
