@@ -51,7 +51,7 @@ evidence rather than only changing a surface.
   save/reopen.
 - Prove that creating a Group never inserts or activates a visual block.
 
-## Phase D — conflict lifecycle
+## Phase D — conflict lifecycle (this change)
 
 - Surface the base revision, current revision, and still-uncommitted draft.
 - Offer explicit reload/reapply/discard choices without silent overwrite.

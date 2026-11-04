@@ -21,7 +21,7 @@ def test_every_invariant_has_traceable_test_mapping() -> None:
     markdown = (ROOT / "docs/builder/architecture-invariants.md").read_text(encoding="utf-8")
     mapped = load("docs/builder/contract-test-map.json")["invariants"]
     ids = {item["id"] for item in mapped}
-    assert ids == {f"BARCH-{index:03d}" for index in range(1, 21)}
+    assert ids == {f"BARCH-{index:03d}" for index in range(1, 22)}
     assert all(item_id in markdown for item_id in ids)
     assert all(item["source"] and item["tests"] and item["evidence"] for item in mapped)
 

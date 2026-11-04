@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { V2AuthoringOperation } from "../domain/canonicalV2";
 import type { StrategyDetailV2 } from "../strategyApi";
-import { strategyApi } from "../strategyApi";
+import { StrategyApiError, strategyApi } from "../strategyApi";
 import { v2AuthoringApi, v2AuthoringErrorMessage } from "../v2AuthoringApi";
 import { executeV2Selection, v2ExecutionCapability, V2ExecutionError, type V2ExecutionCapability, type V2SelectionExecution } from "../v2ExecutionApi";
 import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig, type LeanBacktestResponse } from "../domain/backtest";
@@ -9,6 +9,33 @@ import { backtestRunApi, type BacktestRunRecord } from "../backtestRunApi";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
 import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { analyzeBuilderRevisionConflict, type BuilderRevisionConflictAnalysis } from "../domain/builderRevisionConflict";
+
+interface V2RevisionConflict {
+  baseRevisionId: string;
+  currentRevisionId: string;
+  current: StrategyDetailV2;
+  analysis: BuilderRevisionConflictAnalysis;
+}
+
+function V2ConflictBanner({ conflict, draft, onRefresh, onReapply, onDiscard }: {
+  conflict: V2RevisionConflict; draft: ProgramWorkingDraft;
+  onRefresh: () => void; onReapply: () => void; onDiscard: () => void;
+}) {
+  const draftCount = Object.keys(draft.perspectiveDrafts).length + Object.keys(draft.canvasBlocks).length;
+  return <section className="save-banner stale v2-conflict-banner" role="alert" aria-label="Revision conflict">
+    <strong>Another saved revision is now current.</strong>
+    <p>Base <code>{conflict.baseRevisionId}</code> · Current <code>{conflict.currentRevisionId}</code> · {draftCount} unfinished draft item{draftCount === 1 ? "" : "s"} preserved.</p>
+    {conflict.analysis.classification === "compatible_semantic_change"
+      ? <p>Your committed edits affect different semantic addresses and can be reapplied to the latest revision.</p>
+      : <p>Both revisions changed {conflict.analysis.conflictPaths.join(", ")}. Choose which work to keep; RuleTrade will not overwrite it automatically.</p>}
+    <div className="entry-block-actions">
+      <button type="button" className="secondary-button" onClick={onRefresh}>Reload comparison</button>
+      <button type="button" className="primary-button" disabled={!conflict.analysis.merged} onClick={onReapply}>Reapply my changes</button>
+      <button type="button" className="text-button" onClick={onDiscard}>Discard my semantic changes</button>
+    </div>
+  </section>;
+}
 
 export type V2TestPanelState =
   | { status: "setup"; config: BacktestConfig }
@@ -49,6 +76,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
 }) {
   const initial = persisted.current_revision.canonical_strategy;
   const [canonical, setCanonical] = useState(initial);
+  const [baseCanonical, setBaseCanonical] = useState(initial);
   const [revisionId, setRevisionId] = useState(persisted.current_revision.id);
   const [sourceHash, setSourceHash] = useState(persisted.current_revision.source_hash);
   const [dirty, setDirty] = useState(false);
@@ -63,6 +91,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
   const [redoStack, setRedoStack] = useState<typeof initial[]>([]);
   const draftKey = persisted.strategy.id;
   const [workingDraft, setWorkingDraft] = useState<ProgramWorkingDraft>(() => loadProgramWorkingDraft(draftKey, browserProgramDraftStorage()));
+  const [conflict, setConflict] = useState<V2RevisionConflict | null>(null);
   const sequence = useRef(0);
   const unavailable = status === "unfinished" || status === "invalid" || status === "updating";
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
@@ -151,12 +180,40 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     try {
       const response = await strategyApi.save(persisted.strategy.id, revisionId, canonical);
       setCanonical(response.revision.canonical_strategy);
+      setBaseCanonical(response.revision.canonical_strategy);
       setRevisionId(response.revision.id);
       setSourceHash(response.revision.source_hash);
       setDirty(false); setStatus("saved"); setMessage("Saved");
     } catch (reason) {
+      if (reason instanceof StrategyApiError && reason.detail.code === "stale_revision") {
+        try {
+          const current = await strategyApi.get<CanonicalStrategyV2>(persisted.strategy.id);
+          setConflict({ baseRevisionId: revisionId, currentRevisionId: current.current_revision.id, current, analysis: analyzeBuilderRevisionConflict(baseCanonical, canonical, current.current_revision.canonical_strategy) });
+          setStatus("invalid"); setMessage("Another revision was saved. Your work is preserved until you choose how to resolve it.");
+          return;
+        } catch { /* Preserve the original stale error when the latest revision cannot be loaded. */ }
+      }
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Save failed.");
     }
+  };
+  const refreshConflict = async () => {
+    if (!conflict) return;
+    const current = await strategyApi.get<CanonicalStrategyV2>(persisted.strategy.id);
+    setConflict({ ...conflict, currentRevisionId: current.current_revision.id, current, analysis: analyzeBuilderRevisionConflict(baseCanonical, canonical, current.current_revision.canonical_strategy) });
+  };
+  const reapplyConflict = () => {
+    if (!conflict?.analysis.merged) return;
+    setCanonical(conflict.analysis.merged);
+    setBaseCanonical(conflict.current.current_revision.canonical_strategy);
+    setRevisionId(conflict.currentRevisionId); setSourceHash(conflict.current.current_revision.source_hash);
+    setDirty(true); setStatus("saved"); setMessage("Reapplied to the latest revision. Save to commit it."); setConflict(null);
+  };
+  const discardConflict = () => {
+    if (!conflict) return;
+    const current = conflict.current.current_revision;
+    setCanonical(current.canonical_strategy); setBaseCanonical(current.canonical_strategy);
+    setRevisionId(current.id); setSourceHash(current.source_hash);
+    setUndoStack([]); setRedoStack([]); setDirty(false); setStatus("saved"); setMessage("Loaded the latest revision. Unfinished perspective drafts were preserved."); setConflict(null);
   };
   const run = async (config = quickTestConfig) => {
     if (unavailable || (canonical.program && dirty)) return;
@@ -195,7 +252,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setMessage(unfinished ? "Unfinished semantic edit" : "Ready");
   };
   if (canonical.selection === null && canonical.program) {
-    return <SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
+    return <>{conflict && <V2ConflictBanner conflict={conflict} draft={workingDraft} onRefresh={() => void refreshConflict()} onReapply={reapplyConflict} onDiscard={discardConflict} />}<SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
       workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
       undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
@@ -204,7 +261,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
-      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} /> : null} onCloseTestPanel={() => setTestPanel(null)} />;
+      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} /> : null} onCloseTestPanel={() => setTestPanel(null)} /></>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
