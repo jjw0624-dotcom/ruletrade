@@ -23,6 +23,7 @@ import { compileActiveVisualGraph, validateActiveVisualGraphs } from "../domain/
 import { compileFinancialIntent, createFinancialIntentDraft, financialIntentReadiness, updateFinancialIntentDraft, type FinancialIntentDraft, type FinancialIntentRecipe, type IntentStartPath } from "../domain/intentAuthoring";
 import type { BacktestRunRecord } from "../backtestRunApi";
 import { useV2BuilderCommandController } from "../hooks/useV2BuilderCommandController";
+import { useBuilderSelectionController } from "../hooks/useBuilderSelectionController";
 import { deriveProgramToolCapabilities, type ProgramToolId } from "../domain/programToolCapabilities";
 import "./SemanticProgramBuilderAdapter.css";
 
@@ -546,7 +547,6 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const roots = useMemo(() => visibleRoots(canonical), [canonical]);
   const all = useMemo(() => flatten(roots), [roots]);
   const productStatements = useMemo(() => all.filter((item) => item.kind !== "unresolved"), [all]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const restoredSelection = useRef(false);
   const [pendingGroupSlot, setPendingGroupSlot] = useState<{ parentId: string; inputName: string } | null>(null);
   const [localWorkingDraft, setLocalWorkingDraft] = useState(() => emptyProgramWorkingDraft(canonical.program?.semantic_id ?? canonical.metadata.name));
@@ -559,6 +559,11 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     feedback: commandFeedback,
     clearFeedback: clearCommandFeedback,
   } = useV2BuilderCommandController({ strategy: canonical, clockId: clock?.id, apply });
+  const onSelectionNavigate = useCallback(() => {
+    clearCommandFeedback();
+    onCloseTestPanel();
+  }, [clearCommandFeedback, onCloseTestPanel]);
+  const { selectedId, select, replaceSelection: setSelectedId } = useBuilderSelectionController(onSelectionNavigate);
   const updateWorkingDraft = useCallback((next: ProgramWorkingDraft) => {
     workingDraftRef.current = next;
     (onWorkingDraftChange ?? setLocalWorkingDraft)(next);
@@ -593,11 +598,6 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const selected = productStatements.find((item) => item.semantic_id === selectedStatementId) ?? null;
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
   const selectedSelection = all.find((item): item is SelectionStatementV2 => item.kind === "select" && item.semantic_id === selectedSelectionId) ?? null;
-  const select = useCallback((id: string | null) => {
-    clearCommandFeedback();
-    setSelectedId(id);
-    if (id) { setDraft(null); setPendingGroupSlot(null); onCloseTestPanel(); }
-  }, [clearCommandFeedback, setDraft, onCloseTestPanel]);
   useEffect(() => {
     if (restoredSelection.current) return;
     restoredSelection.current = true;
