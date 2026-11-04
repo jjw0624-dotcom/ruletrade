@@ -1,0 +1,253 @@
+{
+  "schema": "ruletrade.strategy-source-manifest.v1",
+  "audited_baseline": "main@95158dd63a005a6c4db8c60d57f91b9c0a2c90e0",
+  "sources": [
+    {
+      "source_id": "source:blocky-169-case-matrix",
+      "path": "corpus/blocky-169-case-matrix.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 169,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:blocky-169-previous-review-hypothesis",
+      "path": "corpus/blocky-169-previous-review-hypothesis.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 169,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:blocky-169-source",
+      "path": "corpus/blocky-169-source.jsonl",
+      "format": "jsonl",
+      "container": "jsonl",
+      "record_count": 169,
+      "authority": "original_fragment_source",
+      "item_type": "fragment",
+      "caveats": [
+        "Natural-language fragments are not complete executable strategies."
+      ]
+    },
+    {
+      "source_id": "source:blocky-composition-fixtures",
+      "path": "corpus/blocky-composition-fixtures.json",
+      "format": "json",
+      "container": "fixtures",
+      "record_count": 169,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:blocky-feature-coverage",
+      "path": "corpus/blocky-feature-coverage.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:capital-flow-manifest.schema",
+      "path": "corpus/capital-flow-manifest.schema.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:composable-semantic-capability-matrix",
+      "path": "corpus/composable-semantic-capability-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:decision-logic-manifest.schema",
+      "path": "corpus/decision-logic-manifest.schema.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:entry-style-builder-acceptance",
+      "path": "corpus/entry-style-builder-acceptance.json",
+      "format": "json",
+      "container": "journeys",
+      "record_count": 10,
+      "authority": "authoring_or_roundtrip_evidence",
+      "item_type": "authoring_journey",
+      "caveats": []
+    },
+    {
+      "source_id": "source:expanded-semantic-case-matrix",
+      "path": "corpus/expanded-semantic-case-matrix.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 169,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:group-choose-investment-execution-gap-matrix",
+      "path": "corpus/group-choose-investment-execution-gap-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:intent-authoring-capability-matrix",
+      "path": "corpus/intent-authoring-capability-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:intent-authoring-user-actions",
+      "path": "corpus/intent-authoring-user-actions.json",
+      "format": "json",
+      "container": "journeys",
+      "record_count": 12,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:lean-differential-matrix",
+      "path": "corpus/lean-differential-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:perspective-manifest-fixtures",
+      "path": "corpus/perspective-manifest-fixtures.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 10,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:perspective-roundtrip-corpus",
+      "path": "corpus/perspective-roundtrip-corpus.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 19,
+      "authority": "authoring_or_roundtrip_evidence",
+      "item_type": "authoring_journey",
+      "caveats": []
+    },
+    {
+      "source_id": "source:perspective-translation-corpus",
+      "path": "corpus/perspective-translation-corpus.json",
+      "format": "json",
+      "container": "cases",
+      "record_count": 10,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:reference-evaluation-fixtures",
+      "path": "corpus/reference-evaluation-fixtures.json",
+      "format": "json",
+      "container": "fixtures",
+      "record_count": 11,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:ruletrade-capability-evidence",
+      "path": "corpus/ruletrade-capability-evidence.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:semantic-builder-capability-matrix",
+      "path": "corpus/semantic-builder-capability-matrix.json",
+      "format": "json",
+      "container": "journeys",
+      "record_count": 7,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:semantic-first-block-readability",
+      "path": "corpus/semantic-first-block-readability.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "supporting_evidence",
+      "item_type": "supporting_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:semantic-strategy-corpus",
+      "path": "corpus/semantic-strategy-corpus.json",
+      "format": "json",
+      "container": "entries",
+      "record_count": 36,
+      "authority": "formalized_semantic_corpus",
+      "item_type": "complete_strategy_or_execution_fixture",
+      "caveats": []
+    },
+    {
+      "source_id": "source:temporal-reliability-capability-matrix",
+      "path": "corpus/temporal-reliability-capability-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    },
+    {
+      "source_id": "source:visual-authoring-capability-matrix",
+      "path": "corpus/visual-authoring-capability-matrix.json",
+      "format": "json",
+      "container": "object",
+      "record_count": 0,
+      "authority": "derived_analysis",
+      "item_type": "analysis_record",
+      "caveats": []
+    }
+  ],
+  "invariants": [
+    "Original natural-language records remain fragments.",
+    "Derived records retain source IDs and do not replace their sources.",
+    "Projection, authoring, lowering, and Docker evidence are separate claims."
+  ]
+}
