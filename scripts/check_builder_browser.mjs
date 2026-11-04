@@ -90,6 +90,9 @@ try {
   await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
   const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
   if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
+  await clickText("Structure"); await clickText("Portfolio");
+  const selectedWithDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,inspector:Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))})`);
+  if (selectedWithDraft.concept?.startPath !== "flow_first" || !selectedWithDraft.inspector) throw new Error(`Selection discarded Flow draft: ${JSON.stringify(selectedWithDraft)}`);
   await clickText("Rules"); await waitSelector('[data-intent-recipe="single_asset"]');
   await clickText("Discard draft");
   await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
