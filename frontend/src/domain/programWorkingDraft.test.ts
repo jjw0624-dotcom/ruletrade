@@ -69,6 +69,18 @@ describe("SemanticProgramV2 Working Draft", () => {
     });
   });
 
+  it("persists Add visibility without turning UI state into semantic work", () => {
+    const storage = memoryStorage();
+    const draft = { ...emptyProgramWorkingDraft("add-only"), blockyAddOpen: true };
+    persistProgramWorkingDraft(draft, storage);
+    expect(loadProgramWorkingDraft("add-only", storage)).toMatchObject({
+      status: "clean",
+      blockyAddOpen: true,
+      perspectiveDrafts: {},
+      activeGraphRootIds: [],
+    });
+  });
+
   it("migrates v1 drafts without losing incomplete intent or geometry", () => {
     const storage = memoryStorage();
     storage.setItem(programDraftStorageKey("strategy-legacy"), JSON.stringify({
