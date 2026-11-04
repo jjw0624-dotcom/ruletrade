@@ -5,6 +5,8 @@ import type { FinancialIntentDraft } from "./intentAuthoring";
 export const PROGRAM_WORKING_DRAFT_SCHEMA = "ruletrade.dev/program-working-draft/v3" as const;
 
 export type ProgramDraftStatus = "clean" | "incomplete" | "invalid" | "ready" | "unsupported";
+export const PROGRAM_DRAFT_PERSPECTIVES = ["guided", "flow", "blocky", "rules"] as const;
+export type ProgramDraftPerspective = typeof PROGRAM_DRAFT_PERSPECTIVES[number];
 export type ChooseProgramDraft = { kind: "choose"; semanticId: string; groupId: string | null; outputId: string; lookback: number; direction: "highest" | "lowest"; count: number; shortage: "choose_all" | "require_full"; withQualification?: boolean };
 export type InvestmentProgramDraft = { kind: "investment"; semanticId: string; targetKind: "asset" | "group" | "selection" | null; targetRef: string | null; internalAllocation: "equal" | "proportional_score"; amountKind?: "money" | "cash_fraction" | "quantity" | null; amountValue?: string };
 export type GroupProgramDraft = { kind: "group"; semanticId: string; name: string; assets: string[]; resume?: ChooseProgramDraft | InvestmentProgramDraft };
@@ -53,7 +55,8 @@ export interface ProgramWorkingDraft {
   schema: typeof PROGRAM_WORKING_DRAFT_SCHEMA;
   strategyKey: string;
   status: ProgramDraftStatus;
-  concept: ProgramDraftConcept;
+  /** Independent incomplete semantic intent owned by each editable perspective. */
+  perspectiveDrafts: Partial<Record<ProgramDraftPerspective, Exclude<ProgramDraftConcept, null>>>;
   canvasBlocks: Record<string, ProgramCanvasBlock>;
   reusableObjects: Record<string, ProgramReusableObject>;
   activeGraphRootIds: string[];
@@ -75,7 +78,7 @@ export function emptyProgramWorkingDraft(strategyKey: string): ProgramWorkingDra
     schema: PROGRAM_WORKING_DRAFT_SCHEMA,
     strategyKey,
     status: "clean",
-    concept: null,
+    perspectiveDrafts: {},
     canvasBlocks: {},
     reusableObjects: {},
     activeGraphRootIds: [],
@@ -127,13 +130,16 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
     const raw = storage.getItem(programDraftStorageKey(strategyKey));
     if (!raw) return emptyProgramWorkingDraft(strategyKey);
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const value = parsed as Partial<ProgramWorkingDraft>;
+    const value = parsed as Partial<ProgramWorkingDraft> & { concept?: ProgramDraftConcept };
     const legacy = parsed.schema === "ruletrade.dev/program-working-draft/v1" || parsed.schema === "ruletrade.dev/program-working-draft/v2";
     if ((!legacy && parsed.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
     const canvasBlocks = Object.fromEntries(Object.entries(value.canvasBlocks ?? {}).filter(([id, block]) => id !== "context:portfolio" && id !== "portfolio" && block.definitionId !== "portfolio"));
+    const perspectiveDrafts = value.perspectiveDrafts ?? (value.concept ? { blocky: value.concept } : {});
+    const { concept: _legacyConcept, ...restored } = value;
     return {
       ...emptyProgramWorkingDraft(strategyKey),
-      ...value,
+      ...restored,
+      perspectiveDrafts,
       blockPositions: value.blockPositions ?? {},
       canvasBlocks,
       reusableObjects: value.reusableObjects ?? {},
@@ -154,7 +160,7 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
 export function persistProgramWorkingDraft(draft: ProgramWorkingDraft, storage: Pick<Storage, "setItem" | "removeItem"> | null): void {
   if (!storage) return;
   try {
-    if (draft.status === "clean" && !draft.concept && Object.keys(draft.canvasBlocks).length === 0 && Object.keys(draft.reusableObjects).length === 0
+    if (draft.status === "clean" && !hasProgramDrafts(draft) && Object.keys(draft.canvasBlocks).length === 0 && Object.keys(draft.reusableObjects).length === 0
       && draft.activeGraphRootIds.length === 0 && Object.keys(draft.blockPositions).length === 0
       && Object.keys(draft.flowPositions).length === 0 && Object.keys(draft.blockConnections).length === 0
       && Object.keys(draft.blockDisclosure).length === 0 && draft.diagnostics.length === 0 && !draft.flowViewport && !draft.blocklyWorkspace) {
@@ -185,7 +191,7 @@ export function withNativeBlocklyState(draft: ProgramWorkingDraft, update: {
   } : draft.reusableObjects;
   return {
     ...draft,
-    status: Object.keys(canvasBlocks).length || draft.concept ? "incomplete" : "clean",
+    status: Object.keys(canvasBlocks).length || hasProgramDrafts(draft) ? "incomplete" : "clean",
     blocklyWorkspace: update.workspace,
     blocklyViewport: update.viewport,
     canvasBlocks,
@@ -215,7 +221,7 @@ export function removeCanvasBlock(draft: ProgramWorkingDraft, id: string): Progr
     .filter(([childId, connection]) => childId !== id && connection.parentId !== id));
   const activeGraphRootIds = draft.activeGraphRootIds.filter((rootId) => rootId !== id);
   return { ...draft, canvasBlocks, blockPositions, blockConnections, activeGraphRootIds, selectedDraftId: draft.selectedDraftId === id ? null : draft.selectedDraftId,
-    status: Object.keys(canvasBlocks).length || draft.concept ? "incomplete" : "clean" };
+    status: Object.keys(canvasBlocks).length || hasProgramDrafts(draft) ? "incomplete" : "clean" };
 }
 
 export function duplicateCanvasBlock(draft: ProgramWorkingDraft, sourceId: string, id: string): ProgramWorkingDraft {
@@ -256,13 +262,29 @@ export function removeReusableObject(draft: ProgramWorkingDraft, id: string): { 
   return { draft: { ...draft, reusableObjects }, removed: true, dependants: [] };
 }
 
-export function withProgramDraftConcept(draft: ProgramWorkingDraft, concept: ProgramDraftConcept): ProgramWorkingDraft {
+export function programDraftForPerspective(draft: ProgramWorkingDraft, perspective: ProgramDraftPerspective): ProgramDraftConcept {
+  return draft.perspectiveDrafts[perspective] ?? null;
+}
+
+export function hasProgramDrafts(draft: ProgramWorkingDraft): boolean {
+  return PROGRAM_DRAFT_PERSPECTIVES.some((perspective) => Boolean(draft.perspectiveDrafts[perspective]));
+}
+
+export function withPerspectiveProgramDraft(draft: ProgramWorkingDraft, perspective: ProgramDraftPerspective, concept: ProgramDraftConcept): ProgramWorkingDraft {
+  const perspectiveDrafts = { ...draft.perspectiveDrafts };
+  if (concept) perspectiveDrafts[perspective] = concept;
+  else delete perspectiveDrafts[perspective];
   return {
     ...draft,
-    concept,
-    status: concept || Object.keys(draft.canvasBlocks).length ? "incomplete" : "clean",
+    perspectiveDrafts,
+    status: Object.keys(perspectiveDrafts).length || Object.keys(draft.canvasBlocks).length ? "incomplete" : "clean",
     selectedDraftId: concept && concept.kind !== "group" ? concept.semanticId : draft.selectedDraftId,
   };
+}
+
+/** Compatibility helper for Blocky-only domain callers. New UI code must name its perspective. */
+export function withProgramDraftConcept(draft: ProgramWorkingDraft, concept: ProgramDraftConcept): ProgramWorkingDraft {
+  return withPerspectiveProgramDraft(draft, "blocky", concept);
 }
 
 export function withBlockPosition(draft: ProgramWorkingDraft, id: string, position: XYPosition): ProgramWorkingDraft {
