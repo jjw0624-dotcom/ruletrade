@@ -25,7 +25,8 @@ import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../do
 import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
 import type { ProductNode } from "../domain/productSemantics";
-import { ENTRY_BLOCK_CATEGORIES, type EntryBlockCategory } from "../domain/entryStyleGrammar";
+import { ENTRY_BLOCK_CATEGORIES } from "../domain/entryStyleGrammar";
+import type { ProductToolDescriptor } from "../domain/programToolCapabilities";
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -203,13 +204,9 @@ function CanonicalV1WorkspaceLeftPanel({ projection, structural }: {
 }
 
 
-export interface ProductAddAction {
+export interface ProductAddAction extends Omit<ProductToolDescriptor, "id" | "availability"> {
   id: string;
-  category: ToolboxCategory | EntryBlockCategory;
-  label: string;
-  description: string;
-  disabled: boolean;
-  availability?: "ready" | "draftable" | "needs_context" | "unsupported_execution" | "invalid_here" | "unavailable";
+  availability?: ProductToolDescriptor["availability"];
   onAdd: () => void;
 }
 
