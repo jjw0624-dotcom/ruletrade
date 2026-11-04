@@ -8,7 +8,7 @@ import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig, type LeanBacktestResponse
 import { backtestRunApi, type BacktestRunRecord } from "../backtestRunApi";
 import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
-import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, withProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 
 export type V2TestPanelState =
   | { status: "setup"; config: BacktestConfig }
@@ -198,9 +198,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     return <SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
       workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
-      undo={() => { if (workingDraft.concept) { setWorkingDraft(withProgramDraftConcept(workingDraft, null)); working(false); return; } const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
+      undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
-      canUndo={Boolean(workingDraft.concept) || undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
+      canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
