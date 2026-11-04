@@ -20,3 +20,4 @@ Invariant IDs are stable and mapped by [contract-test-map.json](contract-test-ma
 16. **BARCH-016 — Explicit command outcome.** A product gesture either produces one atomic typed operation or returns a typed incomplete/unsupported outcome; an empty adapter result is never treated as success.
 17. **BARCH-017 — Capability before callback.** Toolbox availability is derived from semantic context independently from UI callbacks and is never discovered by triggering a failing mutation.
 18. **BARCH-018 — Selection is navigation.** Changing semantic or visual focus never commits, discards, disconnects, or replaces an unfinished Draft.
+19. **BARCH-019 — Typed Flow removal.** Deleting a capital edge commits only when that exact projected relationship has one lossless atomic V2 removal; otherwise the request remains an explicit Flow-owned Draft.
