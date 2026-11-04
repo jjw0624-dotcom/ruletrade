@@ -94,10 +94,38 @@ function Harness() {
     workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
 }
 
+const flowRemovalCanonical: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { ...blank.metadata, name: "Flow Removal" },
+  definitions: {
+    ...blank.definitions,
+    asset_sets: [{ id: "growth-assets", assets: ["QQQ"] }, { id: "defense-assets", assets: ["TLT"] }],
+    groups: [{ id: "growth", name: "Growth", asset_set_ref: "growth-assets", description: "" }, { id: "defense", name: "Defensive", asset_set_ref: "defense-assets", description: "" }],
+  },
+  program: { semantic_id: "program", initial_state: {}, formalizations: [], clocks: [{ id: "monthly-close", timeframe: "monthly", boundary: "close", timezone: "UTC", completed_only: true }], statements: [{
+    kind: "allocate", semantic_id: "browser-split", method: "fixed", clock_id: "monthly-close", minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+    legs: [{ semantic_id: "growth-leg", target: { semantic_id: "growth-target", kind: "group", ref: "growth" }, weight: .7 }, { semantic_id: "defense-leg", target: { semantic_id: "defense-target", kind: "group", ref: "defense" }, weight: .3 }],
+  }] },
+};
+
+function FlowRemovalHarness() {
+  const [canonical, setCanonical] = useState(flowRemovalCanonical);
+  const [draft, setDraft] = useState(() => emptyProgramWorkingDraft("browser-flow-removal"));
+  (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
+  const apply = (operation: V2AuthoringOperation) => {
+    if (operation.kind === "remove_program_investment_allocation") setCanonical((current) => ({ ...current, program: current.program ? { ...current.program, statements: current.program.statements.filter((statement) => statement.semantic_id !== operation.semantic_id) } : null }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="flow"
+    onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+    canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+    workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
+}
+
 function PersistedJourneyHarness() {
   const [run, setRun] = useState<BacktestRunRecord | null>(null);
   if (run) return <ResultWorkspace run={run} strategyName="Persisted V2 Journey" onBack={() => setRun(null)} />;
   return <V2StrategyEditor persisted={persistedDetail} onHome={() => undefined} onOpenRun={() => setRun(persistedRun)} />;
 }
 
-createRoot(document.getElementById("root")!).render(new URLSearchParams(window.location.search).get("journey") === "persisted-v2" ? <PersistedJourneyHarness /> : <Harness />);
+const journey = new URLSearchParams(window.location.search).get("journey");
+createRoot(document.getElementById("root")!).render(journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : <Harness />);
