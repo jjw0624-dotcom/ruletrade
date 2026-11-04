@@ -10,7 +10,8 @@ import { WorkspaceLeftPanel, type BuilderLibraryObject, type ProductAddAction, t
 import { V2ConditionComposer, V2ConditionDraftComposer, V2ProgramValueComposer } from "./V2SemanticComposer";
 import { ProgramBlockyProjection, type NativeBlockyHistory } from "./ProductBlockyProjection";
 import { SelectionComposer } from "./SelectionComposer";
-import { adaptV2ProductOperation, type BuilderProductOperation } from "../domain/builderProductOperations";
+import type { BuilderProductOperation, V2ProductAddress } from "../domain/builderProductOperations";
+import { planV2BuilderCommand } from "../domain/builderCommandBoundary";
 import { projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
 import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
@@ -540,6 +541,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   onWorkingDraftChange?: (draft: ProgramWorkingDraft) => void;
 }) {
   const [view, setView] = useState<ProgramBuilderView>(initialView);
+  const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
   const [blockyAddOpen, setBlockyAddOpen] = useState(false);
   const roots = useMemo(() => visibleRoots(canonical), [canonical]);
   const all = useMemo(() => flatten(roots), [roots]);
@@ -578,6 +580,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const setDraftAt = useCallback((next: Exclude<ProgramDraftConcept, null>, position?: { x: number; y: number }) => {
     let value = withProgramDraftConcept(workingDraftRef.current, next);
     if (position) value = withBlockPosition(value, `draft:${next.semanticId}`, position);
+    setCommandFeedback(null);
     updateWorkingDraft(value);
   }, [updateWorkingDraft]);
   const selectedStatementId = selectedId?.match(/^investment:([^:]+)/)?.[1] ?? selectedId;
@@ -585,6 +588,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
   const selectedSelection = all.find((item): item is SelectionStatementV2 => item.kind === "select" && item.semantic_id === selectedSelectionId) ?? null;
   const select = useCallback((id: string | null) => {
+    setCommandFeedback(null);
     setSelectedId(id);
     if (id) { setDraft(null); setPendingGroupSlot(null); onCloseTestPanel(); }
   }, [setDraft, onCloseTestPanel]);
@@ -606,9 +610,15 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     if (!valid) setSelectedId(null);
   }, [canonical.definitions.asset_sets, canonical.definitions.groups, productStatements, selectedId, selectedSelection, workingDraft.canvasBlocks]);
   const clock = canonical.program?.clocks[0];
-  const applyProduct = (operation: BuilderProductOperation, address: Parameters<typeof adaptV2ProductOperation>[2] = {}) => {
-    const native = adaptV2ProductOperation(canonical, operation, { clockId: clock?.id, ...address });
-    if (native[0]) apply(native[0]);
+  const applyProduct = (operation: BuilderProductOperation, address: V2ProductAddress = {}) => {
+    const plan = planV2BuilderCommand(canonical, operation, { clockId: clock?.id, ...address });
+    if (plan.status !== "ready") {
+      setCommandFeedback(plan.productMessage);
+      return false;
+    }
+    setCommandFeedback(null);
+    apply(plan.operation);
+    return true;
   };
   const selections = all.filter((item): item is SelectionStatementV2 => item.kind === "select");
   const selectedGroupId = selectedId?.startsWith("group:") ? selectedId.slice("group:".length)
@@ -848,7 +858,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     code: <section className="representation-layer code-representation" aria-label="Code representation"><header className="representation-intro"><span className="eyebrow">Code</span><h1>Revision and canonical strategy</h1><p>Read-only exact semantics with saved-revision, execution-capability, and latest-Run provenance.</p></header><pre className="code-metadata">{JSON.stringify(codeEnvelope, null, 2)}</pre></section>,
     ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,
   };
-  const authoringFeedback = status === "saved" ? null : message;
+  const authoringFeedback = commandFeedback ?? (status === "saved" ? null : message);
   const workspaceDraftMessage = draft ? "Finish or discard the current semantic draft."
     : workingDraft.status === "invalid" ? "That visual connection would create an invalid strategy. Reconnect it or discard the draft."
       : workingDraft.status === "unsupported" ? "That relationship is meaningful but is not supported by the current semantic operation profile."
