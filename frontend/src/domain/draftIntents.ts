@@ -76,8 +76,9 @@ export function translateDraftIntent(strategy: CanonicalStrategyV2, intent: Draf
       const allocation = allocations.find((statement) => statement.semantic_id === semanticId);
       if (allocation?.legs.length === 1) return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: semanticId } };
     }
-    if (intent.targetId.startsWith("fallback:") && intent.sourceId === intent.targetId.slice("fallback:".length)) {
-      return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "set_program_fallback", semantic_id: intent.sourceId, fallback_asset: null } };
+    if (intent.targetId.startsWith("fallback:")) {
+      const selectionId = intent.targetId.slice("fallback:".length).split(":")[0]!;
+      if (intent.sourceId.startsWith(`choose:${selectionId}:`)) return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "set_program_fallback", semantic_id: selectionId, fallback_asset: null } };
     }
     return {
       status: "unsupported", semanticEffect: "none",
