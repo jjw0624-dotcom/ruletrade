@@ -149,8 +149,8 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
-  await waitSelector('.react-flow__edge');
-  const routePoint = await evaluate(`(() => { const edge=document.querySelector('.react-flow__edge'); const path=edge.querySelector('path'); const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); return {x:screen.x,y:screen.y}; })()`);
+  await waitSelector('.react-flow__edge-path');
+  const routePoint = await evaluate(`(() => { const path=document.querySelector('.react-flow__edge-path'); const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); return {x:screen.x,y:screen.y}; })()`);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: routePoint.x, y: routePoint.y });
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
