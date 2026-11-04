@@ -32,12 +32,14 @@ evidence rather than only changing a surface.
 - Require explicit discard or successful semantic reconciliation to clear work.
 - Prove selection preservation in mounted interaction and actual Chrome.
 
-## Phase B — typed Flow removal
+## Phase B — typed Flow removal (this change)
 
 - Replace projection-only deletion with an explicit typed semantic removal
   operation.
 - Keep incomplete removal attempts in Flow draft state.
 - Prove CAS conflict handling and cross-perspective reprojection.
+- Treat partial Split-leg removal and projection-only action edges as Flow-owned
+  Drafts until an atomic product operation can preserve their exact intent.
 
 ## Phase C — Object Library and Add preservation
 
