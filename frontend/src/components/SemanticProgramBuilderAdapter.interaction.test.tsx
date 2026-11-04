@@ -219,7 +219,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "One investment");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "asset_first" });
+    expect(latest.perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "asset_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(container.querySelector('[aria-label="Guided strategy editor"]')).toBeTruthy();
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
@@ -238,12 +238,12 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     }
     act(() => root.render(<Harness />));
     await clickButton(container, "One investment");
-    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
     await clickButton(container, "Portfolio");
-    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
     await clickButton(container, "Discard draft");
-    expect(changes.mock.calls.at(-1)?.[0].concept).toBeNull();
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toBeUndefined();
   });
 
   it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
@@ -303,11 +303,16 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Create Investment");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(apply).not.toHaveBeenCalled();
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
     await clickButton(container, "Rules");
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeNull();
+    await clickButton(container, "Add investment rule");
+    const withRulesDraft = changes.mock.calls.at(-1)?.[0];
+    expect(withRulesDraft.perspectiveDrafts.flow).toMatchObject({ startPath: "flow_first" });
+    expect(withRulesDraft.perspectiveDrafts.rules).toMatchObject({ startPath: "rules_first" });
     await clickButton(container, "Flow");
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
     expect(apply).not.toHaveBeenCalled();
@@ -327,7 +332,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Create Split");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(apply).not.toHaveBeenCalled();
   });
@@ -346,7 +351,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Add investment rule");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
+    expect(latest.perspectiveDrafts.rules).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(container.querySelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Semantic Inspector"] [data-intent-recipe="single_asset"]')).toBeNull();
@@ -374,7 +379,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.canvasBlocks["draft:invest-native"]).toMatchObject({ definitionId: "invest" });
     expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "if-otherwise")).toBe(false);
-    expect(latest.concept).toBeNull();
+    expect(latest.perspectiveDrafts.blocky).toBeUndefined();
   });
 
   it("creates a Group for an empty typed target slot and connects only the explicit reference", async () => {
@@ -437,7 +442,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await clickButton(container, "Cancel");
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.canvasBlocks["draft:invest-native"]).toBeTruthy();
-    expect(latest.concept).toBeNull();
+    expect(latest.perspectiveDrafts.blocky).toBeUndefined();
   });
 
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {

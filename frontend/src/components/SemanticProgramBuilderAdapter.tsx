@@ -14,7 +14,7 @@ import type { BuilderProductOperation } from "../domain/builderProductOperations
 import { projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
 import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
-import { emptyProgramWorkingDraft, setCanvasBlockActive, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withNativeBlocklyState, withProgramDraftConcept, type ProgramDraftConcept, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
+import { emptyProgramWorkingDraft, hasProgramDrafts, programDraftForPerspective, setCanvasBlockActive, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withNativeBlocklyState, withPerspectiveProgramDraft, type ProgramDraftConcept, type ProgramDraftPerspective, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 import { entryBlockDefinition } from "../domain/entryStyleGrammar";
 import { blockUiContract } from "../domain/blockUiContract";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
@@ -586,14 +586,16 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     setLayoutRedo([]);
     updateWorkingDraft(next);
   }, [updateWorkingDraft]);
-  const draft = workingDraft.concept;
-  const setDraft = useCallback((next: ProgramDraftConcept) => updateWorkingDraft(withProgramDraftConcept(workingDraftRef.current, next)), [updateWorkingDraft]);
-  const setDraftAt = useCallback((next: Exclude<ProgramDraftConcept, null>, position?: { x: number; y: number }) => {
-    let value = withProgramDraftConcept(workingDraftRef.current, next);
+  const draftPerspective: ProgramDraftPerspective = view === "guided" || view === "flow" || view === "rules" || view === "blocky" ? view : "blocky";
+  const draft = programDraftForPerspective(workingDraft, draftPerspective);
+  const anyDraft = hasProgramDrafts(workingDraft);
+  const setDraft = useCallback((next: ProgramDraftConcept) => updateWorkingDraft(withPerspectiveProgramDraft(workingDraftRef.current, draftPerspective, next)), [draftPerspective, updateWorkingDraft]);
+  const setDraftAt = useCallback((next: Exclude<ProgramDraftConcept, null>, position?: { x: number; y: number }, perspective: ProgramDraftPerspective = draftPerspective) => {
+    let value = withPerspectiveProgramDraft(workingDraftRef.current, perspective, next);
     if (position) value = withBlockPosition(value, `draft:${next.semanticId}`, position);
     clearCommandFeedback();
     updateWorkingDraft(value);
-  }, [clearCommandFeedback, updateWorkingDraft]);
+  }, [clearCommandFeedback, draftPerspective, updateWorkingDraft]);
   const selectedStatementId = selectedId?.match(/^investment:([^:]+)/)?.[1] ?? selectedId;
   const selected = productStatements.find((item) => item.semantic_id === selectedStatementId) ?? null;
   const selectedSelectionId = selectedId?.match(/^(?:qualification|fallback):(.+)$/)?.[1] ?? null;
@@ -629,26 +631,26 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     ?? (selectedGroupId ? undefined : selections[0]);
   const startSelectionDraft = (withQualification = false, position?: { x: number; y: number }) => {
     if (!group) return;
-    setDraftAt({ kind: "selection", semanticId: nextId(canonical, "selection"), universeId: group.id, withQualification }, position);
+    setDraftAt({ kind: "selection", semanticId: nextId(canonical, "selection"), universeId: group.id, withQualification }, position, "blocky");
     setSelectedId(null); working(true); setView("blocky");
   };
   const startGroupDraft = (position?: { x: number; y: number }, slot?: { parentId: string; inputName: string }) => {
     const number = canonical.definitions.groups.length + 1;
     setPendingGroupSlot(slot ?? null);
-    setDraftAt({ kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [] }, position);
+    setDraftAt({ kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [] }, position, "blocky");
     setSelectedId(null); working(true); setView("blocky");
   };
   const startChooseDraft = (withQualification = false, position?: { x: number; y: number }) => {
     const semanticId = nextId(canonical, "choose");
-    setDraftAt({ kind: "choose", semanticId, groupId: group?.id ?? null, outputId: `${semanticId}-subgroup`, lookback: 126, direction: "highest", count: 2, shortage: "require_full", withQualification }, position);
+    setDraftAt({ kind: "choose", semanticId, groupId: group?.id ?? null, outputId: `${semanticId}-subgroup`, lookback: 126, direction: "highest", count: 2, shortage: "require_full", withQualification }, position, "blocky");
     setSelectedId(null); working(true); setView("blocky");
   };
   const startInvestmentDraft = (position?: { x: number; y: number }) => {
-    setDraftAt({ kind: "investment", semanticId: nextId(canonical, "investment"), targetKind: null, targetRef: null, internalAllocation: "equal", amountKind: null, amountValue: "" }, position);
+    setDraftAt({ kind: "investment", semanticId: nextId(canonical, "investment"), targetKind: null, targetRef: null, internalAllocation: "equal", amountKind: null, amountValue: "" }, position, "blocky");
     setSelectedId(null); working(true); setView("blocky");
   };
-  const startEventStateDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "event_state", semanticId: nextId(canonical, "event-state") }, position); setSelectedId(null); working(true); setView("blocky"); };
-  const startControlDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "control", semanticId: nextId(canonical, "control"), condition: null }, position); setSelectedId(null); working(true); setView("blocky"); };
+  const startEventStateDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "event_state", semanticId: nextId(canonical, "event-state") }, position, "blocky"); setSelectedId(null); working(true); setView("blocky"); };
+  const startControlDraft = (position?: { x: number; y: number }) => { setDraftAt({ kind: "control", semanticId: nextId(canonical, "control"), condition: null }, position, "blocky"); setSelectedId(null); working(true); setView("blocky"); };
   const selectionAllocation = selection ? all.find((item) => item.kind === "allocate" && item.method === "equal" && item.legs.some((leg) => leg.target.kind === "selection" && leg.target.ref === selection.output_id)) : undefined;
   const portfolioSplit = roots.find((item): item is Extract<ProgramStatementV2, { kind: "allocate" }> => item.kind === "allocate" && item.method === "fixed" && item.legs.length > 1);
   const groupAssets = canonical.definitions.asset_sets.find((item) => item.id === group?.asset_set_ref);
@@ -660,7 +662,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       timingMeaning: startPath === "timing_first" ? "rebalance" : null,
     });
     const destination = view === "guided" ? "guided" : startPath === "flow_first" ? "flow" : startPath === "rules_first" ? "rules" : "blocky";
-    setDraftAt(intent, position); setSelectedId(null); working(true); setView(destination);
+    setDraftAt(intent, position, destination); setSelectedId(null); working(true); setView(destination);
   };
   const addInvestment = () => view === "guided"
     ? startFinancialIntent("single_asset", "asset_first")
@@ -768,11 +770,12 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const cancelCurrentDraft = () => {
     setPendingGroupSlot(null);
-    updateWorkingDraft(withProgramDraftConcept(workingDraftRef.current, null));
-    working(Object.keys(workingDraftRef.current.canvasBlocks).length > 0);
+    const next = withPerspectiveProgramDraft(workingDraftRef.current, draftPerspective, null);
+    updateWorkingDraft(next);
+    working(Object.keys(next.canvasBlocks).length > 0 || hasProgramDrafts(next));
   };
   const commitGroupDraft = (operation: Extract<BuilderProductOperation, { kind: "addGroup" }>) => {
-    const currentDraft = workingDraftRef.current.concept;
+    const currentDraft = programDraftForPerspective(workingDraftRef.current, "blocky");
     if (!currentDraft || currentDraft.kind !== "group") return;
     const resume = currentDraft.resume;
     if (resume?.kind === "choose") setDraft({ ...resume, groupId: currentDraft.semanticId });
@@ -876,7 +879,8 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     ai: <section className="representation-layer ai-handoff-representation" aria-label="AI representation"><header className="representation-intro"><span className="eyebrow">AI handoff</span><h1>Bring your own AI</h1><p>Copy the committed semantic strategy for external analysis. Canonical changes still require validated authoring intents.</p></header><textarea aria-label="Context to copy for AI" readOnly rows={14} value={JSON.stringify({ format: "ruletrade.strategy-context/v1", strategy: canonical }, null, 2)} /></section>,
   };
   const authoringFeedback = commandFeedback ?? (status === "saved" ? null : message);
-  const workspaceDraftMessage = draft ? "Finish or discard the current semantic draft."
+  const workspaceDraftMessage = draft ? `Finish or discard the current ${draftPerspective} draft.`
+    : anyDraft ? "Another perspective has an unfinished draft. Switch back to continue it."
     : workingDraft.status === "invalid" ? "That visual connection would create an invalid strategy. Reconnect it or discard the draft."
       : workingDraft.status === "unsupported" ? "That relationship is meaningful but is not supported by the current semantic operation profile."
         : status === "unfinished" ? message : null;
@@ -887,6 +891,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   } : undefined;
   const undoWorkspace = () => {
     if (view === "blocky" && nativeBlockyApi.current?.canUndo()) { nativeBlockyApi.current.undo(); return; }
+    if (draft) { cancelCurrentDraft(); return; }
     const previous = layoutUndoRef.current.at(-1);
     if (!previous) { undo(); return; }
     const nextUndo = layoutUndoRef.current.slice(0, -1);
@@ -910,5 +915,5 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
     updateWorkingDraft(next);
   };
   void nativeHistoryVersion;
-  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft, onInsertObjectReference: (object) => { setView("blocky"); nativeBlockyApi.current?.insertObjectReference(object); }, blockyAddOpen, onBlockyAddOpenChange: setBlockyAddOpen }} />, representations, inspector, inspectorOpen: Boolean(selectedId || (draft && draft.kind !== "group")), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={dirty || !executionCapability?.production_executable || status !== "saved" || Boolean(draft) || activeVisualGraphBlocksExecution} testTitle={dirty ? "Save this revision before testing it." : workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
+  return <StrategyBuilderWorkspace program={{ activeView: view, onViewChange: switchView, leftPanel: <WorkspaceLeftPanel semanticProgram={{ tools, structure, selectedId, onSelect: (id) => select(id), perspective: view, objects: libraryObjects, onCreateGroup: startGroupDraft, onInsertObjectReference: (object) => { setView("blocky"); nativeBlockyApi.current?.insertObjectReference(object); }, blockyAddOpen, onBlockyAddOpenChange: setBlockyAddOpen }} />, representations, inspector, inspectorOpen: Boolean(selectedId || (draft && draft.kind !== "group")), onCloseInspector: () => { if (!draft) select(null); }, draftMessage: workspaceDraftMessage, feedback: authoringFeedback, onUndo: undoWorkspace, onRedo: redoWorkspace, canUndo: Boolean(draft) || Boolean(view === "blocky" && nativeBlockyApi.current?.canUndo()) || layoutUndo.length > 0 || canUndo, canRedo: Boolean(view === "blocky" && nativeBlockyApi.current?.canRedo()) || layoutRedo.length > 0 || canRedo, onDiscardDraft: discardWorkspaceDraft, detailPanel: testPanel ? { title: "Quick Test results", content: testPanel, onClose: onCloseTestPanel } : null }} name={canonical.metadata.name} dirty={dirty} saving={status === "updating"} persisted onHome={onHome} onSave={save} onTest={run} onOpenAssets={() => { const selected = all.find((item) => item.kind === "select") as SelectionStatementV2 | undefined; if (selected) { const assets = assetSetForSelection(canonical, selected); setView("blocky"); select(`assets:${assets?.id ?? selected.selection.universe_id}`); } }} testDisabled={dirty || !executionCapability?.production_executable || status !== "saved" || anyDraft || activeVisualGraphBlocksExecution} testTitle={dirty ? "Save this revision before testing it." : workspaceDraftMessage ?? (activeVisualGraphBlocksExecution ? "Complete or deactivate the active Blocky graph before testing the committed strategy." : executionCapability?.product_message ?? "Checking whether this strategy is ready to test.")} />;
 }
