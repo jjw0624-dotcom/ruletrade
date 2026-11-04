@@ -134,7 +134,9 @@ export function loadProgramWorkingDraft(strategyKey: string, storage: Pick<Stora
     const legacy = parsed.schema === "ruletrade.dev/program-working-draft/v1" || parsed.schema === "ruletrade.dev/program-working-draft/v2";
     if ((!legacy && parsed.schema !== PROGRAM_WORKING_DRAFT_SCHEMA) || value.strategyKey !== strategyKey) return emptyProgramWorkingDraft(strategyKey);
     const canvasBlocks = Object.fromEntries(Object.entries(value.canvasBlocks ?? {}).filter(([id, block]) => id !== "context:portfolio" && id !== "portfolio" && block.definitionId !== "portfolio"));
-    const perspectiveDrafts = value.perspectiveDrafts ?? (value.concept ? { blocky: value.concept } : {});
+    const perspectiveDrafts = value.perspectiveDrafts && Object.keys(value.perspectiveDrafts).length > 0
+      ? value.perspectiveDrafts
+      : value.concept ? { blocky: value.concept } : {};
     const { concept: _legacyConcept, ...restored } = value;
     return {
       ...emptyProgramWorkingDraft(strategyKey),
