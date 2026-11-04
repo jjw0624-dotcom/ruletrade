@@ -25,6 +25,13 @@ evidence rather than only changing a surface.
 - Attach perspective callbacks only after capability calculation.
 - Preserve labels, ordering, availability, and production interactions.
 
+## Phase A4 — selection and Draft lifecycle (this change)
+
+- Give navigation focus a controller with no Draft mutation authority.
+- Preserve the active Draft and pending slot transaction while selecting objects.
+- Require explicit discard or successful semantic reconciliation to clear work.
+- Prove selection preservation in mounted interaction and actual Chrome.
+
 ## Phase B — typed Flow removal
 
 - Replace projection-only deletion with an explicit typed semantic removal

@@ -7,6 +7,7 @@ Audited against the production `SemanticProgramBuilderAdapter`, Working Draft v3
 | Canonical authority and CAS | compliant | typed V2 authoring and immutable revisions |
 | Product command outcome | corrected in this change | one atomic typed operation or an explicit incomplete/unsupported result; empty adapter output no longer disappears silently |
 | Toolbox capability authority | corrected in this change | pure semantic-context descriptors are computed before perspective callbacks are attached |
+| Selection and Draft lifecycle | corrected in this change | navigation focus has a dedicated controller and cannot implicitly clear the current Draft or pending slot transaction |
 | Rules direct editing | compliant | Rules-owned inline financial intent and typed commit |
 | Save/reopen | compliant | revision and Working Draft hydration tests |
 | Guide independence | corrected in this change | Guide recipes previously selected Blocky; Guide now retains its surface and owns the unfinished intent |

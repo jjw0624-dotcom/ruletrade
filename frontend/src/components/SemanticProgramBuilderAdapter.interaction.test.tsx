@@ -226,6 +226,26 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("keeps the current draft when navigation selection changes and discards only on explicit intent", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("selection-draft-lifecycle"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="guided"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "One investment");
+    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    await clickButton(container, "Portfolio");
+    expect(changes.mock.calls.at(-1)?.[0].concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    await clickButton(container, "Discard draft");
+    expect(changes.mock.calls.at(-1)?.[0].concept).toBeNull();
+  });
+
   it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
     act(() => root.render(<SemanticProgramBuilderAdapter
       canonical={blank} dirty={false} status="saved" message="Saved" initialView="overview"
