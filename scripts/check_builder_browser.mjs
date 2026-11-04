@@ -150,12 +150,13 @@ try {
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
   await waitSelector('.react-flow__edge');
-  const routePoint = await evaluate(`(() => { const edge=document.querySelector('.react-flow__edge'); const path=edge.querySelector('path'); const rect=path.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+  const routePoint = await evaluate(`(() => { const edge=document.querySelector('.react-flow__edge'); const path=edge.querySelector('path'); const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); return {x:screen.x,y:screen.y}; })()`);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: routePoint.x, y: routePoint.y });
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await waitExpression(`document.querySelector('.react-flow__edge')?.classList.contains('selected')`, "selected Flow route");
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
   await waitExpression(`window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements.length===0`, "typed Flow route removal");
   const flowRemoval = await evaluate(`({statements:window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements.length,draft:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,empty:document.body.innerText.includes('No capital route has been defined yet.')})`);
   if (flowRemoval.statements !== 0 || flowRemoval.draft || !flowRemoval.empty) throw new Error(`Typed Flow removal failed: ${JSON.stringify(flowRemoval)}`);
