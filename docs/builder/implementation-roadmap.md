@@ -11,6 +11,13 @@ evidence rather than only changing a surface.
 - Prove that starting an Investment intent creates no Blocky draft blocks.
 - Exercise the same journey in actual Chrome.
 
+## Phase A2 — command and capability boundary (this change)
+
+- Plan one atomic typed V2 operation before dispatch.
+- Return explicit product and technical diagnostics for missing context.
+- Reject multi-operation output until CAS supports an atomic batch.
+- Keep command planning independent from perspective navigation.
+
 ## Phase B — typed Flow removal
 
 - Replace projection-only deletion with an explicit typed semantic removal
@@ -41,7 +48,8 @@ evidence rather than only changing a surface.
 
 ## Review and merge order
 
-The current branch is stacked on PR #92. Merge dependencies in order: #91,
-#92, then this constitution/Guide-correction PR. Later phases should be small,
-dependent PRs whose base is the latest unmerged phase; none should rewrite or
-silently supersede this contract.
+The constitution/Guide-correction branch is stacked on PR #92, and this command
+boundary is stacked on that constitution head. Merge dependencies in order:
+#91, #92, the constitution PR, then this command-boundary PR. Later phases
+should be small dependent PRs whose base is the latest unmerged phase; none
+should rewrite or silently supersede this contract.
