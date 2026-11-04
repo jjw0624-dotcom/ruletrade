@@ -474,6 +474,26 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
   });
 
+  it("cancels a pending typed-slot Group transaction without inserting a reference", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("group-slot-cancel"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
+    expect(changes.mock.calls.at(-1)?.[0].pendingObjectInsertion).toEqual({ parentId: "draft:invest-native", inputName: "TARGET" });
+    await clickButton(container, "Cancel");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.pendingObjectInsertion).toBeNull();
+    expect(latest.canvasBlocks["draft:invest-native"]).toBeTruthy();
+    expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "group-reference")).toBe(false);
+  });
+
   it("cancels Group creation without erasing an unrelated Blockly fragment", async () => {
     const changes = vi.fn();
     function Harness() {
