@@ -44,6 +44,8 @@ evidence rather than only changing a surface.
 ## Phase C — Object Library and Add preservation (this change)
 
 - Separate object definition, reference insertion, and semantic activation.
+- Persist Add visibility and an unfinished typed-slot insertion as non-semantic
+  Working Draft state, and clear the transaction only on commit or cancel.
 - Preserve disconnected and incomplete object references across switching and
   save/reopen.
 - Prove that creating a Group never inserts or activates a visual block.
