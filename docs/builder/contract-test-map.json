@@ -17,6 +17,7 @@
     {"id":"BARCH-014","components":["V2 lowering"],"source":["src/ruletrade/compiler/lean/v2_native.py"],"tests":["tests/test_v2_native_lowering.py"],"evidence":["semantic","docker"],"status":"verified"},
     {"id":"BARCH-015","components":["Corpus","Browser"],"source":["corpus/coverage-and-gap-analysis.json"],"tests":["tests/test_perspective_contract_corpus.py"],"evidence":["static"],"status":"verified"},
     {"id":"BARCH-016","components":["Builder command boundary"],"source":["frontend/src/domain/builderCommandBoundary.ts","frontend/src/hooks/useV2BuilderCommandController.ts"],"tests":["frontend/src/domain/builderCommandBoundary.test.ts"],"evidence":["unit"],"status":"verified"},
-    {"id":"BARCH-017","components":["Builder toolbox capability"],"source":["frontend/src/domain/programToolCapabilities.ts"],"tests":["frontend/src/domain/programToolCapabilities.test.ts"],"evidence":["unit"],"status":"verified"}
+    {"id":"BARCH-017","components":["Builder toolbox capability"],"source":["frontend/src/domain/programToolCapabilities.ts"],"tests":["frontend/src/domain/programToolCapabilities.test.ts"],"evidence":["unit"],"status":"verified"},
+    {"id":"BARCH-018","components":["Builder selection","Perspective Draft"],"source":["frontend/src/hooks/useBuilderSelectionController.ts"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx","scripts/check_builder_browser.mjs"],"evidence":["unit","browser"],"status":"verified"}
   ]
 }
