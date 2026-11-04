@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Connection, type Edge, type Node, type NodeProps, type Viewport } from "@xyflow/react";
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Connection, type Edge, type EdgeChange, type Node, type NodeProps, type Viewport } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { isDailyValue, type CanonicalStrategyV2, type ConditionV2, type ProgramStatementV2, type SelectionStatementV2, type ValueExpressionV2, type V2AuthoringOperation } from "../domain/canonicalV2";
@@ -402,9 +402,10 @@ function ProgramSplitInspector({ strategy, statement, onApply }: {
 }
 
 function ProgramFlowProjection({ flow, edges, blank, draftActive, onCreateInvestment, onCreateSplit, onSelect, positions, viewport, onPositionChange, onViewportChange, onConnect, onDisconnect }: { flow: ProductFlowNode[]; edges: ProductFlowEdge[]; blank: boolean; draftActive: boolean; onCreateInvestment: () => void; onCreateSplit: () => void; onSelect: (id: string | null) => void; positions: Record<string, { x: number; y: number }>; viewport: Viewport | null; onPositionChange: (id: string, position: { x: number; y: number }) => void; onViewportChange: (viewport: Viewport) => void; onConnect: (connection: Connection) => void; onDisconnect: (source: string, target: string) => void }) {
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(() => new Set());
   const manifest = programFlowManifest({ nodes: flow, edges });
   const projected = projectProgramFlowCanvas({ nodes: flow, edges });
-  const canvas = { ...projected, nodes: projected.nodes.map((node) => ({ ...node, position: positions[node.id] ?? node.position })) };
+  const canvas = { ...projected, nodes: projected.nodes.map((node) => ({ ...node, position: positions[node.id] ?? node.position })), edges: projected.edges.map((edge) => ({ ...edge, selected: selectedEdgeIds.has(edge.id) })) };
   const geometry = programFlowGeometry(canvas);
   const focusById = new Map(flow.map((node) => [node.id, node.focusId ?? node.id]));
   return <section className="representation-layer v2-flow v2-flow-reactflow" aria-label="Flow capital projection"
@@ -419,7 +420,20 @@ function ProgramFlowProjection({ flow, edges, blank, draftActive, onCreateInvest
         onNodeClick={(_, node) => onSelect(focusById.get(node.id) ?? node.id)}
         onPaneClick={() => onSelect(null)} onNodeDragStop={(_, node) => onPositionChange(node.id, node.position)}
         onMoveEnd={(_, nextViewport) => onViewportChange(nextViewport)} onConnect={onConnect}
-        onEdgesDelete={(deleted) => deleted.forEach((edge) => onDisconnect(edge.source, edge.target))}
+        onEdgesChange={(changes: EdgeChange<ProgramFlowCanvasEdge>[]) => {
+          for (const change of changes) if (change.type === "remove") {
+            const edge = canvas.edges.find((item) => item.id === change.id);
+            if (edge) onDisconnect(edge.source, edge.target);
+          }
+          setSelectedEdgeIds((current) => {
+            const next = new Set(current);
+            for (const change of changes) {
+              if (change.type === "select") change.selected ? next.add(change.id) : next.delete(change.id);
+              if (change.type === "remove") next.delete(change.id);
+            }
+            return next;
+          });
+        }}
         nodesDraggable nodesConnectable elementsSelectable panOnDrag selectionOnDrag={false}
         fitView={!viewport} defaultViewport={viewport ?? { x: 0, y: 0, zoom: 1 }} fitViewOptions={{ padding: .14, maxZoom: 1.25 }} minZoom={.45} maxZoom={1.6}>
         <Background gap={24} size={1} /><Controls showInteractive={false} />
