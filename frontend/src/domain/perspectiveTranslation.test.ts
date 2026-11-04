@@ -94,7 +94,7 @@ describe("perspective translation v2", () => {
     const investment = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: investmentEdge.source, targetId: investmentEdge.target, projectedEdges: flow.edges });
     expect(investment).toMatchObject({ status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: "allocate-selected" } });
 
-    const fallbackEdge = flow.edges.find((edge) => edge.target === "fallback:select-growth")!;
+    const fallbackEdge = flow.edges.find((edge) => edge.target.startsWith("fallback:select-growth:"))!;
     const fallback = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: fallbackEdge.source, targetId: fallbackEdge.target, projectedEdges: flow.edges });
     expect(fallback).toMatchObject({ status: "ready", operation: { kind: "set_program_fallback", semantic_id: "select-growth", fallback_asset: null } });
   });
