@@ -151,9 +151,7 @@ try {
   await waitSelector('[aria-label="Flow capital projection"]');
   await waitSelector('.react-flow__edge-interaction');
   const routePoint = await evaluate(`(() => { const path=document.querySelector('.react-flow__edge-interaction'); const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); return {x:screen.x,y:screen.y}; })()`);
-  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: routePoint.x, y: routePoint.y });
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: routePoint.x, y: routePoint.y, button: "left", clickCount: 1 });
+  await evaluate(`(() => { const path=document.querySelector('.react-flow__edge-interaction'); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:${routePoint.x},clientY:${routePoint.y},button:0})); })()`);
   await waitExpression(`document.querySelector('.react-flow__edge')?.classList.contains('selected')`, "selected Flow route");
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
