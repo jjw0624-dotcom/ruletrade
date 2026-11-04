@@ -20,7 +20,7 @@ vi.mock("@xyflow/react", () => ({
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
   Position: { Top: "top", Bottom: "bottom" },
-  ReactFlow: ({ onPaneClick, onNodeDragStop, onMoveEnd, nodes = [], nodesDraggable, panOnDrag }: { onPaneClick?: () => void; onNodeDragStop?: (event: unknown, node: { id: string; position: { x: number; y: number } }) => void; onMoveEnd?: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void; nodes?: Array<{ id: string }>; nodesDraggable?: boolean; panOnDrag?: boolean }) => <div><button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button><button type="button" data-testid="flow-node-drag" onClick={() => nodes[0] && onNodeDragStop?.({}, { id: nodes[0].id, position: { x: 510, y: 240 } })}>Move node</button><button type="button" data-testid="flow-pan" onClick={() => onMoveEnd?.({}, { x: 80, y: 45, zoom: .9 })}>Pan canvas</button></div>,
+  ReactFlow: ({ onPaneClick, onNodeDragStop, onMoveEnd, onEdgesDelete, nodes = [], edges = [], nodesDraggable, panOnDrag }: { onPaneClick?: () => void; onNodeDragStop?: (event: unknown, node: { id: string; position: { x: number; y: number } }) => void; onMoveEnd?: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void; onEdgesDelete?: (edges: Array<{ source: string; target: string }>) => void; nodes?: Array<{ id: string }>; edges?: Array<{ source: string; target: string }>; nodesDraggable?: boolean; panOnDrag?: boolean }) => <div><button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button><button type="button" data-testid="flow-node-drag" onClick={() => nodes[0] && onNodeDragStop?.({}, { id: nodes[0].id, position: { x: 510, y: 240 } })}>Move node</button><button type="button" data-testid="flow-pan" onClick={() => onMoveEnd?.({}, { x: 80, y: 45, zoom: .9 })}>Pan canvas</button><button type="button" data-testid="flow-delete-first" onClick={() => edges[0] && onEdgesDelete?.([edges[0]])}>Delete first route</button><button type="button" data-testid="flow-delete-second" onClick={() => edges[1] && onEdgesDelete?.([edges[1]])}>Delete second route</button></div>,
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
@@ -286,6 +286,34 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const panned = onWorkingDraftChange.mock.calls.at(-1)?.[0];
     expect(panned.flowViewport).toEqual({ x: 80, y: 45, zoom: .9 });
     expect(Object.values(panned.flowPositions)).toContainEqual({ x: 510, y: 240 });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("dispatches a precise typed removal for a complete Flow route deletion", async () => {
+    const apply = vi.fn();
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="flow"
+      onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+      canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-delete-first"]')!.click());
+    expect(apply).toHaveBeenCalledWith({ kind: "remove_program_investment_allocation", semantic_id: "portfolio-split" });
+  });
+
+  it("preserves an unsupported partial Split removal as a Flow-owned draft", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-removal-draft"));
+      return <SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="flow"
+        onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-delete-second"]')!.click());
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "flow_route_change", action: "disconnect", sourceId: "split" });
+    expect(latest.status).toBe("unsupported");
+    expect(container.querySelector(".flow-route-draft")).toBeTruthy();
     expect(apply).not.toHaveBeenCalled();
   });
 
