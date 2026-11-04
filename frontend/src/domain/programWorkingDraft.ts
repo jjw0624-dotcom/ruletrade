@@ -17,6 +17,7 @@ export type ProgramDraftConcept =
   | InvestmentProgramDraft
   | { kind: "event_state"; semanticId: string }
   | { kind: "control"; semanticId: string; condition: ConditionV2 | null }
+  | { kind: "flow_route_change"; semanticId: string; action: "disconnect"; sourceId: string; targetId: string; diagnosticCode: string }
   | FinancialIntentDraft
   | null;
 
