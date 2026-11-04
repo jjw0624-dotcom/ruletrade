@@ -653,7 +653,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const startGroupDraft = (position?: { x: number; y: number }, slot?: { parentId: string; inputName: string }) => {
     const number = canonical.definitions.groups.length + 1;
-    const next = { kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [] } as const;
+    const next: Extract<ProgramDraftConcept, { kind: "group" }> = { kind: "group", semanticId: `group-${number}`, name: `Group ${number}`, assets: [] };
     let value = withPerspectiveProgramDraft(workingDraftRef.current, "blocky", next);
     if (position) value = withBlockPosition(value, `draft:${next.semanticId}`, position);
     clearCommandFeedback();
