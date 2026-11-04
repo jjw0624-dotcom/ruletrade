@@ -1,0 +1,10 @@
+{
+  "schema": "ruletrade.dev/builder-implementation-gap/v1",
+  "gaps": [
+    {"id":"BGAP-001","component":"Guide","invariants":["BARCH-002","BARCH-005"],"severity":"high","status":"corrected","defect":"Guide recipe changed the active perspective to Blocky","evidence":["SemanticProgramBuilderAdapter.interaction.test.tsx","scripts/check_builder_browser.mjs"]},
+    {"id":"BGAP-002","component":"Flow","invariants":["BARCH-004","BARCH-008"],"severity":"high","status":"partial","defect":"Disconnect preserves intent as unsupported Draft instead of a supported typed removal","next":"add precise capital-route removal operation and browser proof"},
+    {"id":"BGAP-003","component":"Blocky/Objects","invariants":["BARCH-002","BARCH-003"],"severity":"high","status":"partial","defect":"Object reference insertion is Blocky-specific and Group Workspace suspends Add","next":"preserve Add state and test explicit reference insertion/cancel"},
+    {"id":"BGAP-004","component":"Shared editing","invariants":["BARCH-011"],"severity":"high","status":"missing","defect":"conflict classifications exist without explicit product resolution UI","next":"implement address-aware conflict store and resolution"},
+    {"id":"BGAP-005","component":"Test","invariants":["BARCH-010","BARCH-015"],"severity":"high","status":"partial","defect":"one persisted V2 browser journey is proven; broader UI-authored equivalence is not","next":"author representative strategy through gestures and compare Canonical to verified fixture"}
+  ]
+}
