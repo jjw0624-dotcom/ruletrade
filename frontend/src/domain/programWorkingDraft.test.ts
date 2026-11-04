@@ -62,6 +62,7 @@ describe("SemanticProgramV2 Working Draft", () => {
     };
     persistProgramWorkingDraft(draft, storage);
     expect(loadProgramWorkingDraft("object-transaction", storage)).toMatchObject({
+      status: "incomplete",
       blockyAddOpen: true,
       pendingObjectInsertion: { parentId: "draft:invest-1", inputName: "TARGET" },
       perspectiveDrafts: { blocky: { kind: "group", semanticId: "group-1" } },
