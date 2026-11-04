@@ -654,9 +654,12 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       timeframe: clock?.timeframe === "monthly" ? "monthly" : clock?.timeframe === "daily" ? "daily" : null,
       timingMeaning: startPath === "timing_first" ? "rebalance" : null,
     });
-    setDraftAt(intent, position); setSelectedId(null); working(true); setView(startPath === "flow_first" ? "flow" : startPath === "rules_first" ? "rules" : "blocky");
+    const destination = view === "guided" ? "guided" : startPath === "flow_first" ? "flow" : startPath === "rules_first" ? "rules" : "blocky";
+    setDraftAt(intent, position); setSelectedId(null); working(true); setView(destination);
   };
-  const addInvestment = () => startInvestmentDraft();
+  const addInvestment = () => view === "guided"
+    ? startFinancialIntent("single_asset", "asset_first")
+    : startInvestmentDraft();
   const semanticTools: ProductAddAction[] = [
     { id: "investment", category: "Capital", label: "Investment", description: "Connect Portfolio capital to an Asset, Group, or selected Subgroup.", availability: "draftable", disabled: Boolean(draft), onAdd: addInvestment },
     { id: "split", category: "Capital", label: "Split", description: portfolioSplit ? "This Portfolio already has a Split; edit its Investments instead." : "Split capital across two investments.", availability: portfolioSplit ? "invalid_here" : canonical.definitions.groups.length < 2 ? "needs_context" : "ready", disabled: canonical.definitions.groups.length < 2 || Boolean(portfolioSplit), onAdd: () => applyProduct({ kind: "setAllocation", method: "fixed", investments: canonical.definitions.groups.slice(0, 2).map((group) => ({ id: group.id, weight: .5 })) }) },

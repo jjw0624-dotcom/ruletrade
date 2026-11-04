@@ -79,6 +79,13 @@ try {
     await screenshot(`builder-add-${width}x${height}`);
   }
 
+  await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+  await clickText("One investment"); await waitSelector('[data-intent-recipe="single_asset"]');
+  const guideDraft = await evaluate(`({guide:Boolean(document.querySelector('[aria-label="Guided strategy editor"]')),concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (!guideDraft.guide || guideDraft.concept?.startPath !== "asset_first" || guideDraft.concept?.recipe !== "single_asset" || guideDraft.blockCount !== 0) throw new Error(`Independent Guide draft failed: ${JSON.stringify(guideDraft)}`);
+  await screenshot("builder-independent-guide");
+  await clickText("Discard draft");
+
   await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
   await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
   const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);

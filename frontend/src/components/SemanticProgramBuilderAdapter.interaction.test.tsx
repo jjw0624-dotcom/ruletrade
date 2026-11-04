@@ -205,6 +205,27 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
   });
 
+  it("keeps Guide authoring inside Guide without creating Blocky draft blocks", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("guide-investment"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="guided"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "One investment");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "asset_first" });
+    expect(latest.canvasBlocks).toEqual({});
+    expect(container.querySelector('[aria-label="Guided strategy editor"]')).toBeTruthy();
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
     act(() => root.render(<SemanticProgramBuilderAdapter
       canonical={blank} dirty={false} status="saved" message="Saved" initialView="overview"

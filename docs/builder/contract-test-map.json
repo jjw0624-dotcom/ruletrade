@@ -1,0 +1,20 @@
+{
+  "schema": "ruletrade.dev/builder-contract-test-map/v1",
+  "invariants": [
+    {"id":"BARCH-001","components":["CanonicalStrategyV2","Persistence"],"source":["src/ruletrade/strategy/v2"],"tests":["tests/test_strategy_persistence.py"],"evidence":["semantic","api"],"status":"verified"},
+    {"id":"BARCH-002","components":["Guide","Flow","Blocky","Rules"],"source":["frontend/src/components/SemanticProgramBuilderAdapter.tsx"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx"],"evidence":["unit"],"status":"partial"},
+    {"id":"BARCH-003","components":["Objects","Blocky"],"source":["frontend/src/components/WorkspaceLeftPanel.tsx","frontend/src/components/ProductBlockyProjection.tsx"],"tests":["scripts/check_builder_browser.mjs"],"evidence":["browser"],"status":"verified"},
+    {"id":"BARCH-004","components":["Flow","Blocky"],"source":["frontend/src/components/SemanticProgramBuilderAdapter.tsx"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx"],"evidence":["unit"],"status":"partial"},
+    {"id":"BARCH-005","components":["Guide"],"source":["frontend/src/components/SemanticProgramBuilderAdapter.tsx"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx","scripts/check_builder_browser.mjs"],"evidence":["unit","browser"],"status":"verified"},
+    {"id":"BARCH-006","components":["Builder shell"],"source":["frontend/src/components/StrategyBuilderWorkspace.tsx"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx"],"evidence":["unit"],"status":"verified"},
+    {"id":"BARCH-007","components":["Blocky","Flow"],"source":["frontend/src/domain/programWorkingDraft.ts"],"tests":["frontend/src/components/SemanticProgramBuilderAdapter.interaction.test.tsx"],"evidence":["unit"],"status":"verified"},
+    {"id":"BARCH-008","components":["all perspectives"],"source":["frontend/src/domain/draftIntents.ts"],"tests":["frontend/src/domain/activeVisualGraph.test.ts"],"evidence":["unit"],"status":"partial"},
+    {"id":"BARCH-009","components":["Blocky","Shared working state"],"source":["frontend/src/domain/activeVisualGraph.ts"],"tests":["frontend/src/domain/activeVisualGraph.test.ts"],"evidence":["unit"],"status":"verified"},
+    {"id":"BARCH-010","components":["Test"],"source":["src/ruletrade/api/v2_routes.py"],"tests":["tests/test_v2_execution_capability.py","scripts/run_persisted_v2_api_lean_e2e.py"],"evidence":["api","docker"],"status":"verified"},
+    {"id":"BARCH-011","components":["Shared editing"],"source":["corpus/perspective-conflict-cases.json"],"tests":["tests/test_perspective_contract_corpus.py"],"evidence":["static"],"status":"specified"},
+    {"id":"BARCH-012","components":["CanonicalStrategyV2"],"source":["docs/builder/state-ownership.json"],"tests":["tests/test_builder_architecture_constitution.py"],"evidence":["static"],"status":"verified"},
+    {"id":"BARCH-013","components":["Projections","Execution"],"source":["docs/builder/README.md"],"tests":["tests/test_builder_architecture_constitution.py"],"evidence":["static"],"status":"verified"},
+    {"id":"BARCH-014","components":["V2 lowering"],"source":["src/ruletrade/compiler/lean/v2_native.py"],"tests":["tests/test_v2_native_lowering.py"],"evidence":["semantic","docker"],"status":"verified"},
+    {"id":"BARCH-015","components":["Corpus","Browser"],"source":["corpus/coverage-and-gap-analysis.json"],"tests":["tests/test_perspective_contract_corpus.py"],"evidence":["static"],"status":"verified"}
+  ]
+}

@@ -1,5 +1,10 @@
 # RuleTrade living architecture
 
+Builder work must begin at the authoritative
+[Builder architecture entry point](builder/README.md). Its state ownership,
+editing lifecycle, invariant IDs, implementation audit, and contract-to-test map
+govern all multi-perspective Builder changes.
+
 **Status: CURRENT.** This is the authoritative living architecture for the
 implemented repository. Update it when system ownership or end-to-end behavior
 changes. Historical slice documents do not override it.
