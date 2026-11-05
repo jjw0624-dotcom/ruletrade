@@ -246,9 +246,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setTestPanel({ status: "running" });
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
-      const next = await runQuickTestFromCommittedRevision(persistCommittedRevision, (executionRevision) => executionRevision.canonical.program
-        ? backtestRunApi.createV2(executionRevision.revisionId, config)
-        : executeV2Selection(executionRevision.canonical));
+      const next = await runQuickTestFromCommittedRevision<V2SelectionExecution | LeanBacktestResponse | BacktestRunRecord>(persistCommittedRevision, async (executionRevision) => executionRevision.canonical.program
+        ? await backtestRunApi.createV2(executionRevision.revisionId, config)
+        : await executeV2Selection(executionRevision.canonical));
       if (!next) {
         setTestPanel(null);
         return;
