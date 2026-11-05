@@ -16,6 +16,10 @@ const browserParams = new URLSearchParams(window.location.search);
 const journey = browserParams.get("journey");
 const advancedCaseId = browserParams.get("case");
 const advancedCase = advancedEquivalenceFixture.cases.find((item) => item.id === advancedCaseId) ?? null;
+const stableJson = (value: unknown): string => JSON.stringify(value, (_key, child) => {
+  if (!child || typeof child !== "object" || Array.isArray(child)) return child;
+  return Object.fromEntries(Object.entries(child as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)));
+});
 
 const assets = [
   ["QQQ", "Invesco QQQ Trust", "ETF"], ["VGT", "Vanguard Information Technology ETF", "ETF"],
@@ -31,7 +35,7 @@ window.fetch = async (input, init) => {
   if (url === "/api/v2/canonical/authoring/apply") {
     const request = JSON.parse(String(init?.body ?? "{}")) as { operation?: V2AuthoringOperation };
     if (journey === "ui-authored-advanced" && advancedCase) {
-      if (JSON.stringify(request.operation) !== JSON.stringify(advancedCase.operation)) return new Response(JSON.stringify({ detail: { code: "unexpected_operation", message: `The ${advancedCase.id} browser gesture produced a different operation.` } }), { status: 422, headers: { "content-type": "application/json" } });
+      if (stableJson(request.operation) !== stableJson(advancedCase.operation)) return new Response(JSON.stringify({ detail: { code: "unexpected_operation", message: `The ${advancedCase.id} browser gesture produced a different operation.` } }), { status: 422, headers: { "content-type": "application/json" } });
       const state = window as typeof window & { __RULETRADE_ADVANCED_EQUIVALENCE__?: Record<string, unknown> };
       state.__RULETRADE_ADVANCED_EQUIVALENCE__ = { ...(state.__RULETRADE_ADVANCED_EQUIVALENCE__ ?? {}), caseId: advancedCase.id, operation: request.operation, appliedCanonical: advancedCase.expected_canonical };
       return new Response(JSON.stringify({ strategy: advancedCase.expected_canonical, source_hash: `sha256:${advancedCase.id}` }), { headers: { "content-type": "application/json" } });
@@ -51,8 +55,8 @@ window.fetch = async (input, init) => {
   }
   if (advancedCase && url === `/api/v1/strategies/strategy-advanced-${advancedCase.id}/revisions` && init?.method === "POST") {
     const request = JSON.parse(String(init.body ?? "{}")) as { canonical_strategy?: CanonicalStrategyV2 };
-    if (JSON.stringify(request.canonical_strategy) !== JSON.stringify(advancedCase.expected_canonical)) return new Response(JSON.stringify({ detail: { code: "canonical_mismatch", message: `Saved ${advancedCase.id} Canonical differs from the backend fixture.` } }), { status: 422, headers: { "content-type": "application/json" } });
-    advancedSavedDetail = advancedPersistedDetail(advancedCase.id, "revision-advanced-2", advancedCase.expected_canonical as CanonicalStrategyV2, `sha256:${advancedCase.id}`);
+    if (stableJson(request.canonical_strategy) !== stableJson(advancedCase.expected_canonical)) return new Response(JSON.stringify({ detail: { code: "canonical_mismatch", message: `Saved ${advancedCase.id} Canonical differs from the backend fixture.` } }), { status: 422, headers: { "content-type": "application/json" } });
+    advancedSavedDetail = advancedPersistedDetail(advancedCase.id, "revision-advanced-2", advancedCase.expected_canonical as unknown as CanonicalStrategyV2, `sha256:${advancedCase.id}`);
     const state = window as typeof window & { __RULETRADE_ADVANCED_EQUIVALENCE__?: Record<string, unknown> };
     state.__RULETRADE_ADVANCED_EQUIVALENCE__ = { ...(state.__RULETRADE_ADVANCED_EQUIVALENCE__ ?? {}), savedCanonical: request.canonical_strategy, savedRevision: "revision-advanced-2" };
     return new Response(JSON.stringify({ created: true, strategy: advancedSavedDetail.strategy, revision: advancedSavedDetail.current_revision }), { status: 201, headers: { "content-type": "application/json" } });
