@@ -44,6 +44,19 @@ export type V2TestPanelState =
   | { status: "failure"; message: string; technicalDetail: string | null }
   | null;
 
+export interface CommittedExecutionRevision {
+  canonical: CanonicalStrategyV2;
+  revisionId: string;
+}
+
+export async function runQuickTestFromCommittedRevision<T>(
+  persist: () => Promise<CommittedExecutionRevision | null>,
+  execute: (revision: CommittedExecutionRevision) => Promise<T>,
+): Promise<T | null> {
+  const revision = await persist();
+  return revision ? execute(revision) : null;
+}
+
 export function V2TestResultPanel({ state, onOpenRun }: { state: Exclude<V2TestPanelState, null>; onOpenRun?: (runId: string) => void }) {
   if (state.status === "setup") return null;
   if (state.status === "running") return <div className="semantic-inspector-content" role="status"><h2>Testing committed strategy…</h2><p>The Builder remains available while the runtime evaluates this revision.</p></div>;
@@ -174,8 +187,9 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       setStatus("invalid"); setMessage(v2AuthoringErrorMessage(reason));
     }
   };
-  const save = async () => {
-    if (!dirty || status !== "saved") return;
+  const persistCommittedRevision = async (): Promise<{ canonical: CanonicalStrategyV2; revisionId: string } | null> => {
+    if (!dirty) return { canonical, revisionId };
+    if (status !== "saved") return null;
     setStatus("updating"); setMessage("Saving revision…");
     try {
       const response = await strategyApi.save(persisted.strategy.id, revisionId, canonical);
@@ -184,18 +198,21 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       setRevisionId(response.revision.id);
       setSourceHash(response.revision.source_hash);
       setDirty(false); setStatus("saved"); setMessage("Saved");
+      return { canonical: response.revision.canonical_strategy, revisionId: response.revision.id };
     } catch (reason) {
       if (reason instanceof StrategyApiError && reason.detail.code === "stale_revision") {
         try {
           const current = await strategyApi.get<CanonicalStrategyV2>(persisted.strategy.id);
           setConflict({ baseRevisionId: revisionId, currentRevisionId: current.current_revision.id, current, analysis: analyzeBuilderRevisionConflict(baseCanonical, canonical, current.current_revision.canonical_strategy) });
           setStatus("invalid"); setMessage("Another revision was saved. Your work is preserved until you choose how to resolve it.");
-          return;
+          return null;
         } catch { /* Preserve the original stale error when the latest revision cannot be loaded. */ }
       }
       setStatus("invalid"); setMessage(reason instanceof Error ? reason.message : "Save failed.");
+      return null;
     }
   };
+  const save = async () => { await persistCommittedRevision(); };
   const refreshConflict = async () => {
     if (!conflict) return;
     const current = await strategyApi.get<CanonicalStrategyV2>(persisted.strategy.id);
@@ -216,7 +233,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setUndoStack([]); setRedoStack([]); setDirty(false); setStatus("saved"); setMessage("Loaded the latest revision. Unfinished perspective drafts were preserved."); setConflict(null);
   };
   const run = async (config = quickTestConfig) => {
-    if (unavailable || (canonical.program && dirty)) return;
+    if (unavailable) return;
     const preflight = await v2ExecutionCapability(canonical, fetch, true).catch(() => null);
     if (!preflight || preflight.execution_state !== "executable" || preflight.runtime_state === "unavailable") {
       if (preflight) setExecutionCapability(preflight);
@@ -229,9 +246,13 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setTestPanel({ status: "running" });
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
-      const next = canonical.program
-        ? await backtestRunApi.createV2(revisionId, config)
-        : await executeV2Selection(canonical);
+      const next = await runQuickTestFromCommittedRevision<V2SelectionExecution | LeanBacktestResponse | BacktestRunRecord>(persistCommittedRevision, async (executionRevision) => executionRevision.canonical.program
+        ? await backtestRunApi.createV2(executionRevision.revisionId, config)
+        : await executeV2Selection(executionRevision.canonical));
+      if (!next) {
+        setTestPanel(null);
+        return;
+      }
       if (canonical.program && "revision_id" in next) setLatestRun(next);
       setResult(next); setTestPanel({ status: "success", result: next }); setStatus("saved"); setMessage("Test complete");
     } catch (reason) {
