@@ -46,7 +46,7 @@ const executable = { authoring_state: "committed", semantic_state: "valid", exec
 
 describe("V2 Quick Test revision ownership", () => {
   let container: HTMLDivElement; let root: Root;
-  beforeEach(() => { container = document.createElement("div"); document.body.append(container); root = createRoot(container); localStorage.clear(); });
+  beforeEach(() => { (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true; container = document.createElement("div"); document.body.append(container); root = createRoot(container); localStorage.clear(); });
   afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
   it("CAS-saves dirty committed semantics and runs the exact returned revision", async () => {
@@ -64,8 +64,11 @@ describe("V2 Quick Test revision ownership", () => {
 
     await act(async () => root.render(<V2StrategyEditor persisted={persisted} onHome={() => undefined} />));
     await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Edit committed semantics")!.click());
+    await vi.waitFor(() => expect(calls).toContain("POST /api/v2/canonical/authoring/apply"));
     await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Test")!.click());
+    await vi.waitFor(() => expect([...container.querySelectorAll<HTMLButtonElement>("button")].some((button) => button.textContent === "Run Quick Test")).toBe(true));
     await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Run Quick Test")!.click());
+    await vi.waitFor(() => expect(calls).toContain("POST /api/v2/revisions/revision-2/backtest-runs"));
 
     const saveIndex = calls.indexOf("POST /api/v1/strategies/strategy-1/revisions");
     const runIndex = calls.indexOf("POST /api/v2/revisions/revision-2/backtest-runs");
