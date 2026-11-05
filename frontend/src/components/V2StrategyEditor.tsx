@@ -44,6 +44,19 @@ export type V2TestPanelState =
   | { status: "failure"; message: string; technicalDetail: string | null }
   | null;
 
+export interface CommittedExecutionRevision {
+  canonical: CanonicalStrategyV2;
+  revisionId: string;
+}
+
+export async function runQuickTestFromCommittedRevision<T>(
+  persist: () => Promise<CommittedExecutionRevision | null>,
+  execute: (revision: CommittedExecutionRevision) => Promise<T>,
+): Promise<T | null> {
+  const revision = await persist();
+  return revision ? execute(revision) : null;
+}
+
 export function V2TestResultPanel({ state, onOpenRun }: { state: Exclude<V2TestPanelState, null>; onOpenRun?: (runId: string) => void }) {
   if (state.status === "setup") return null;
   if (state.status === "running") return <div className="semantic-inspector-content" role="status"><h2>Testing committed strategy…</h2><p>The Builder remains available while the runtime evaluates this revision.</p></div>;
@@ -230,18 +243,17 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       return;
     }
     setExecutionCapability(preflight);
-    const executionRevision = await persistCommittedRevision();
-    if (!executionRevision) {
-      setTestPanel(null);
-      return;
-    }
     setTestPanel({ status: "running" });
     setStatus("updating"); setMessage("Testing committed strategy…");
     try {
-      const next = executionRevision.canonical.program
-        ? await backtestRunApi.createV2(executionRevision.revisionId, config)
-        : await executeV2Selection(executionRevision.canonical);
-      if (executionRevision.canonical.program && "revision_id" in next) setLatestRun(next);
+      const next = await runQuickTestFromCommittedRevision(persistCommittedRevision, (executionRevision) => executionRevision.canonical.program
+        ? backtestRunApi.createV2(executionRevision.revisionId, config)
+        : executeV2Selection(executionRevision.canonical));
+      if (!next) {
+        setTestPanel(null);
+        return;
+      }
+      if (canonical.program && "revision_id" in next) setLatestRun(next);
       setResult(next); setTestPanel({ status: "success", result: next }); setStatus("saved"); setMessage("Test complete");
     } catch (reason) {
       const productMessage = reason instanceof V2ExecutionError && reason.code === "runtime_unavailable"
