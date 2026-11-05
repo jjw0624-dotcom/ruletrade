@@ -1,0 +1,1151 @@
+{
+  "cases": [
+    {
+      "expected_canonical": {
+        "api_version": "ruletrade.dev/strategy/v2",
+        "definitions": {
+          "asset_axis": {
+            "coordinate_policy": "stable_identity",
+            "domain_id": "growth",
+            "name": "asset"
+          },
+          "asset_sets": [
+            {
+              "assets": [
+                "QQQ",
+                "VGT",
+                "SOXX",
+                "SCHG"
+              ],
+              "id": "growth-assets"
+            }
+          ],
+          "groups": [
+            {
+              "asset_set_ref": "growth-assets",
+              "description": "",
+              "id": "growth",
+              "name": "Investment"
+            }
+          ]
+        },
+        "metadata": {
+          "description": "",
+          "name": "Advanced UI Authored",
+          "tags": []
+        },
+        "operator_lock": {
+          "compare": "1",
+          "daily.trailing_return": "1",
+          "program.score": "1"
+        },
+        "predicate": null,
+        "program": {
+          "clocks": [
+            {
+              "boundary": "close",
+              "completed_only": true,
+              "id": "monthly-close",
+              "terminal_boundary_policy": "not_due",
+              "timeframe": "monthly",
+              "timezone": "UTC"
+            }
+          ],
+          "formalizations": [],
+          "initial_state": {},
+          "semantic_id": "program",
+          "statements": [
+            {
+              "clock_id": "monthly-close",
+              "kind": "select",
+              "output_id": "selected-growth",
+              "selection": {
+                "binding": {
+                  "domain_id": "growth",
+                  "id": "candidate"
+                },
+                "count": 3,
+                "direction": "descending",
+                "eligibility": null,
+                "fallback_asset": null,
+                "ranking": {
+                  "clamp_max": null,
+                  "clamp_min": "0.000001",
+                  "condition_terms": [],
+                  "kind": "score",
+                  "missing_policy": "require_all",
+                  "normalization": "sum_abs",
+                  "semantic_id": "weighted-momentum-score",
+                  "terms": [
+                    {
+                      "semantic_id": "short-return-term",
+                      "value": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": null,
+                        "binding_id": null,
+                        "field": null,
+                        "kind": "trailing_return",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": 21,
+                        "operands": [
+                          {
+                            "arithmetic": null,
+                            "axis": null,
+                            "basis": "adjusted",
+                            "binding_id": "candidate",
+                            "field": "close",
+                            "kind": "observe",
+                            "minimum_count": 1,
+                            "minimum_fraction": "1",
+                            "missing_policy": "require_all",
+                            "observations": null,
+                            "operands": [],
+                            "quantity": null,
+                            "reduction": null,
+                            "refinement": null,
+                            "semantic_id": "short-return-source",
+                            "skip": 0,
+                            "subject_id": null,
+                            "subject_kind": "candidate",
+                            "unit": null,
+                            "value": null
+                          }
+                        ],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "short-return",
+                        "skip": 0,
+                        "subject_id": null,
+                        "subject_kind": null,
+                        "unit": null,
+                        "value": null
+                      },
+                      "weight": "0.6"
+                    },
+                    {
+                      "semantic_id": "long-return-term",
+                      "value": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": null,
+                        "binding_id": null,
+                        "field": null,
+                        "kind": "trailing_return",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": 63,
+                        "operands": [
+                          {
+                            "arithmetic": null,
+                            "axis": null,
+                            "basis": "adjusted",
+                            "binding_id": "candidate",
+                            "field": "close",
+                            "kind": "observe",
+                            "minimum_count": 1,
+                            "minimum_fraction": "1",
+                            "missing_policy": "require_all",
+                            "observations": null,
+                            "operands": [],
+                            "quantity": null,
+                            "reduction": null,
+                            "refinement": null,
+                            "semantic_id": "long-return-source",
+                            "skip": 0,
+                            "subject_id": null,
+                            "subject_kind": "candidate",
+                            "unit": null,
+                            "value": null
+                          }
+                        ],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "long-return",
+                        "skip": 0,
+                        "subject_id": null,
+                        "subject_kind": null,
+                        "unit": null,
+                        "value": null
+                      },
+                      "weight": "0.4"
+                    }
+                  ]
+                },
+                "semantic_id": "growth-selection",
+                "shortage_policy": "choose_all",
+                "universe_id": "growth"
+              },
+              "semantic_id": "select-growth"
+            },
+            {
+              "cash_remainder_asset": null,
+              "clock_id": "monthly-close",
+              "kind": "allocate",
+              "legs": [
+                {
+                  "semantic_id": "score-selection-leg",
+                  "target": {
+                    "kind": "selection",
+                    "ref": "selected-growth",
+                    "semantic_id": "score-selection-target"
+                  },
+                  "weight": null
+                }
+              ],
+              "maximum_weight": null,
+              "method": "proportional_score",
+              "minimum_weight": null,
+              "semantic_id": "allocate-by-score"
+            }
+          ]
+        },
+        "selection": null,
+        "semantic_profile": "profile-a/daily-compositional-core@1"
+      },
+      "id": "weighted_score",
+      "operation": {
+        "assets": [
+          "QQQ",
+          "VGT",
+          "SOXX",
+          "SCHG"
+        ],
+        "count": 3,
+        "kind": "commit_weighted_score_intent",
+        "long_observations": 63,
+        "long_weight": 0.4,
+        "missing_policy": "require_all",
+        "short_observations": 21,
+        "short_weight": 0.6,
+        "timeframe": "monthly"
+      }
+    },
+    {
+      "expected_canonical": {
+        "api_version": "ruletrade.dev/strategy/v2",
+        "definitions": {
+          "asset_axis": {
+            "coordinate_policy": "stable_identity",
+            "domain_id": "temporal-group",
+            "name": "asset"
+          },
+          "asset_sets": [
+            {
+              "assets": [
+                "QQQ"
+              ],
+              "id": "temporal-assets"
+            }
+          ],
+          "groups": [
+            {
+              "asset_set_ref": "temporal-assets",
+              "description": "",
+              "id": "temporal-group",
+              "name": "Temporal investment"
+            }
+          ]
+        },
+        "metadata": {
+          "description": "",
+          "name": "Advanced UI Authored",
+          "tags": []
+        },
+        "operator_lock": {
+          "compare": "1",
+          "program.event": "1",
+          "program.memory": "1",
+          "program.policy": "1",
+          "program.state": "1"
+        },
+        "predicate": null,
+        "program": {
+          "clocks": [
+            {
+              "boundary": "close",
+              "completed_only": true,
+              "id": "daily-close",
+              "terminal_boundary_policy": "not_due",
+              "timeframe": "daily",
+              "timezone": "UTC"
+            }
+          ],
+          "formalizations": [],
+          "initial_state": {
+            "phase": "idle"
+          },
+          "semantic_id": "program",
+          "statements": [
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "kind": "comparison",
+                  "left": {
+                    "arithmetic": null,
+                    "axis": null,
+                    "basis": "adjusted",
+                    "binding_id": null,
+                    "field": "close",
+                    "kind": "observe",
+                    "minimum_count": 1,
+                    "minimum_fraction": "1",
+                    "missing_policy": "require_all",
+                    "observations": null,
+                    "operands": [],
+                    "quantity": null,
+                    "reduction": null,
+                    "refinement": null,
+                    "semantic_id": "temporal-price",
+                    "skip": 0,
+                    "subject_id": "QQQ",
+                    "subject_kind": "asset",
+                    "unit": null,
+                    "value": null
+                  },
+                  "operator": "gt",
+                  "right": {
+                    "kind": "literal",
+                    "quantity": "price",
+                    "refinement": "adjusted_close",
+                    "semantic_id": "breakout-threshold",
+                    "unit": "USD/share",
+                    "value": "12"
+                  },
+                  "semantic_id": "breakout-condition"
+                },
+                "occurrence": "first",
+                "ordinal": null,
+                "semantic_id": "breakout-event",
+                "trigger": "crosses_above"
+              },
+              "kind": "on_event",
+              "semantic_id": "breakout-event-statement",
+              "statements": [
+                {
+                  "clock_id": null,
+                  "kind": "remember_value",
+                  "memory_id": "breakout-level",
+                  "semantic_id": "remember-breakout",
+                  "value": {
+                    "arithmetic": null,
+                    "axis": null,
+                    "basis": "adjusted",
+                    "binding_id": null,
+                    "field": "close",
+                    "kind": "observe",
+                    "minimum_count": 1,
+                    "minimum_fraction": "1",
+                    "missing_policy": "require_all",
+                    "observations": null,
+                    "operands": [],
+                    "quantity": null,
+                    "reduction": null,
+                    "refinement": null,
+                    "semantic_id": "temporal-price",
+                    "skip": 0,
+                    "subject_id": "QQQ",
+                    "subject_kind": "asset",
+                    "unit": null,
+                    "value": null
+                  }
+                },
+                {
+                  "kind": "transition",
+                  "semantic_id": "arm-breakout",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "idle",
+                    "semantic_id": "arm-breakout-transition",
+                    "state_key": "phase",
+                    "to_value": "broken",
+                    "when": {
+                      "expected": "idle",
+                      "kind": "state_equals",
+                      "semantic_id": "arm-breakout-guard",
+                      "state_key": "phase"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "children": [
+                    {
+                      "expected": "broken",
+                      "kind": "state_equals",
+                      "semantic_id": "retest-state",
+                      "state_key": "phase"
+                    },
+                    {
+                      "kind": "comparison",
+                      "left": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": "adjusted",
+                        "binding_id": null,
+                        "field": "close",
+                        "kind": "observe",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": null,
+                        "operands": [],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "temporal-price",
+                        "skip": 0,
+                        "subject_id": "QQQ",
+                        "subject_kind": "asset",
+                        "unit": null,
+                        "value": null
+                      },
+                      "operator": "lt",
+                      "right": {
+                        "kind": "remembered_value",
+                        "memory_id": "breakout-level",
+                        "quantity": "price",
+                        "refinement": "adjusted_close",
+                        "semantic_id": "remembered-breakout-level",
+                        "unit": "USD/share"
+                      },
+                      "semantic_id": "retest-level"
+                    },
+                    {
+                      "event_id": "breakout-event",
+                      "kind": "event_window",
+                      "observations": 3,
+                      "relation": "within",
+                      "semantic_id": "retest-window"
+                    }
+                  ],
+                  "kind": "all",
+                  "semantic_id": "retest-condition"
+                },
+                "occurrence": "every",
+                "ordinal": null,
+                "semantic_id": "retest-event",
+                "trigger": "while_true"
+              },
+              "kind": "on_event",
+              "semantic_id": "retest-event-statement",
+              "statements": [
+                {
+                  "kind": "transition",
+                  "semantic_id": "accept-retest",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "broken",
+                    "semantic_id": "accept-retest-transition",
+                    "state_key": "phase",
+                    "to_value": "retested",
+                    "when": {
+                      "expected": "broken",
+                      "kind": "state_equals",
+                      "semantic_id": "accept-retest-guard",
+                      "state_key": "phase"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "children": [
+                    {
+                      "expected": "retested",
+                      "kind": "state_equals",
+                      "semantic_id": "confirmation-state",
+                      "state_key": "phase"
+                    },
+                    {
+                      "kind": "comparison",
+                      "left": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": "adjusted",
+                        "binding_id": null,
+                        "field": "close",
+                        "kind": "observe",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": null,
+                        "operands": [],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "temporal-price",
+                        "skip": 0,
+                        "subject_id": "QQQ",
+                        "subject_kind": "asset",
+                        "unit": null,
+                        "value": null
+                      },
+                      "operator": "gt",
+                      "right": {
+                        "kind": "remembered_value",
+                        "memory_id": "breakout-level",
+                        "quantity": "price",
+                        "refinement": "adjusted_close",
+                        "semantic_id": "remembered-breakout-level",
+                        "unit": "USD/share"
+                      },
+                      "semantic_id": "confirmation-level"
+                    },
+                    {
+                      "event_id": "retest-event",
+                      "kind": "event_window",
+                      "observations": 2,
+                      "relation": "within",
+                      "semantic_id": "confirmation-window"
+                    }
+                  ],
+                  "kind": "all",
+                  "semantic_id": "confirmation-condition"
+                },
+                "occurrence": "every",
+                "ordinal": null,
+                "semantic_id": "confirmation-event",
+                "trigger": "while_true"
+              },
+              "kind": "on_event",
+              "semantic_id": "confirmation-event-statement",
+              "statements": [
+                {
+                  "kind": "transition",
+                  "semantic_id": "confirm-entry",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "retested",
+                    "semantic_id": "confirm-entry-transition",
+                    "state_key": "phase",
+                    "to_value": "confirmed",
+                    "when": {
+                      "expected": "retested",
+                      "kind": "state_equals",
+                      "semantic_id": "confirm-entry-guard",
+                      "state_key": "phase"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "children": [
+                    {
+                      "expected": "retested",
+                      "kind": "state_equals",
+                      "semantic_id": "expiry-state",
+                      "state_key": "phase"
+                    },
+                    {
+                      "kind": "comparison",
+                      "left": {
+                        "event_id": "retest-event",
+                        "kind": "bars_since_event",
+                        "semantic_id": "bars-since-retest"
+                      },
+                      "operator": "gt",
+                      "right": {
+                        "kind": "literal",
+                        "quantity": "count",
+                        "refinement": "elapsed_observations@1",
+                        "semantic_id": "confirmation-window-size",
+                        "unit": "count",
+                        "value": "2"
+                      },
+                      "semantic_id": "expiry-window-elapsed"
+                    }
+                  ],
+                  "kind": "all",
+                  "semantic_id": "expiry-condition"
+                },
+                "occurrence": "every",
+                "ordinal": null,
+                "semantic_id": "expiry-event",
+                "trigger": "while_true"
+              },
+              "kind": "on_event",
+              "semantic_id": "expiry-event-statement",
+              "statements": [
+                {
+                  "kind": "transition",
+                  "semantic_id": "expire-entry",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "retested",
+                    "semantic_id": "expire-entry-transition",
+                    "state_key": "phase",
+                    "to_value": "expired",
+                    "when": {
+                      "expected": "retested",
+                      "kind": "state_equals",
+                      "semantic_id": "expire-entry-guard",
+                      "state_key": "phase"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "fallback": null,
+              "guard": null,
+              "kind": "guarded_allocation",
+              "overrides": [
+                {
+                  "action": {
+                    "cash_remainder_asset": null,
+                    "clock_id": null,
+                    "kind": "allocate",
+                    "legs": [
+                      {
+                        "semantic_id": "temporal-invested-leg",
+                        "target": {
+                          "kind": "asset",
+                          "ref": "QQQ",
+                          "semantic_id": "temporal-invested-target"
+                        },
+                        "weight": "1"
+                      }
+                    ],
+                    "maximum_weight": null,
+                    "method": "fixed",
+                    "minimum_weight": null,
+                    "semantic_id": "temporal-invested"
+                  },
+                  "priority": 100,
+                  "semantic_id": "confirmed-override",
+                  "when": {
+                    "expected": "confirmed",
+                    "kind": "state_equals",
+                    "semantic_id": "confirmed-state",
+                    "state_key": "phase"
+                  }
+                }
+              ],
+              "primary": {
+                "cash_remainder_asset": null,
+                "clock_id": null,
+                "kind": "allocate",
+                "legs": [
+                  {
+                    "semantic_id": "temporal-cash-leg",
+                    "target": {
+                      "kind": "cash",
+                      "ref": null,
+                      "semantic_id": "temporal-cash-target"
+                    },
+                    "weight": "1"
+                  }
+                ],
+                "maximum_weight": null,
+                "method": "fixed",
+                "minimum_weight": null,
+                "semantic_id": "temporal-cash"
+              },
+              "semantic_id": "temporal-policy",
+              "unknown_guard_policy": "block"
+            }
+          ]
+        },
+        "selection": null,
+        "semantic_profile": "profile-a/daily-compositional-core@1"
+      },
+      "id": "temporal_sequence",
+      "operation": {
+        "asset": "QQQ",
+        "breakout_threshold": 12.0,
+        "confirmation_window": 2,
+        "expiry_state": "expired",
+        "kind": "commit_temporal_sequence_intent",
+        "retest_window": 3
+      }
+    },
+    {
+      "expected_canonical": {
+        "api_version": "ruletrade.dev/strategy/v2",
+        "definitions": {
+          "asset_axis": {
+            "coordinate_policy": "stable_identity",
+            "domain_id": "growth",
+            "name": "asset"
+          },
+          "asset_sets": [
+            {
+              "assets": [
+                "QQQ",
+                "VGT",
+                "SOXX",
+                "SCHG"
+              ],
+              "id": "growth-assets"
+            }
+          ],
+          "groups": [
+            {
+              "asset_set_ref": "growth-assets",
+              "description": "",
+              "id": "growth",
+              "name": "Growth investment"
+            }
+          ]
+        },
+        "metadata": {
+          "description": "",
+          "name": "Advanced UI Authored",
+          "tags": []
+        },
+        "operator_lock": {
+          "compare": "1",
+          "daily.trailing_return": "1",
+          "program.clocked_value": "1",
+          "program.event": "1",
+          "program.memory": "1",
+          "program.policy": "1",
+          "program.score": "1",
+          "program.state": "1"
+        },
+        "predicate": null,
+        "program": {
+          "clocks": [
+            {
+              "boundary": "close",
+              "completed_only": true,
+              "id": "daily-close",
+              "terminal_boundary_policy": "not_due",
+              "timeframe": "daily",
+              "timezone": "America/New_York"
+            },
+            {
+              "boundary": "close",
+              "completed_only": true,
+              "id": "weekly-close",
+              "terminal_boundary_policy": "not_due",
+              "timeframe": "weekly",
+              "timezone": "America/New_York"
+            }
+          ],
+          "formalizations": [],
+          "initial_state": {
+            "regime": "defensive"
+          },
+          "semantic_id": "program",
+          "statements": [
+            {
+              "clock_id": "daily-close",
+              "kind": "select",
+              "output_id": "selected-growth",
+              "selection": {
+                "binding": {
+                  "domain_id": "growth",
+                  "id": "candidate"
+                },
+                "count": 2,
+                "direction": "descending",
+                "eligibility": null,
+                "fallback_asset": "TLT",
+                "ranking": {
+                  "clamp_max": null,
+                  "clamp_min": "0.000001",
+                  "condition_terms": [],
+                  "kind": "score",
+                  "missing_policy": "require_all",
+                  "normalization": "sum_abs",
+                  "semantic_id": "composition-weighted-score",
+                  "terms": [
+                    {
+                      "semantic_id": "composition-short-term",
+                      "value": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": null,
+                        "binding_id": null,
+                        "field": null,
+                        "kind": "trailing_return",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": 21,
+                        "operands": [
+                          {
+                            "arithmetic": null,
+                            "axis": null,
+                            "basis": "adjusted",
+                            "binding_id": "candidate",
+                            "field": "close",
+                            "kind": "observe",
+                            "minimum_count": 1,
+                            "minimum_fraction": "1",
+                            "missing_policy": "require_all",
+                            "observations": null,
+                            "operands": [],
+                            "quantity": null,
+                            "reduction": null,
+                            "refinement": null,
+                            "semantic_id": "composition-short-return-source",
+                            "skip": 0,
+                            "subject_id": null,
+                            "subject_kind": "candidate",
+                            "unit": null,
+                            "value": null
+                          }
+                        ],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "composition-short-return",
+                        "skip": 0,
+                        "subject_id": null,
+                        "subject_kind": null,
+                        "unit": null,
+                        "value": null
+                      },
+                      "weight": "0.6"
+                    },
+                    {
+                      "semantic_id": "composition-long-term",
+                      "value": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": null,
+                        "binding_id": null,
+                        "field": null,
+                        "kind": "trailing_return",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": 63,
+                        "operands": [
+                          {
+                            "arithmetic": null,
+                            "axis": null,
+                            "basis": "adjusted",
+                            "binding_id": "candidate",
+                            "field": "close",
+                            "kind": "observe",
+                            "minimum_count": 1,
+                            "minimum_fraction": "1",
+                            "missing_policy": "require_all",
+                            "observations": null,
+                            "operands": [],
+                            "quantity": null,
+                            "reduction": null,
+                            "refinement": null,
+                            "semantic_id": "composition-long-return-source",
+                            "skip": 0,
+                            "subject_id": null,
+                            "subject_kind": "candidate",
+                            "unit": null,
+                            "value": null
+                          }
+                        ],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "composition-long-return",
+                        "skip": 0,
+                        "subject_id": null,
+                        "subject_kind": null,
+                        "unit": null,
+                        "value": null
+                      },
+                      "weight": "0.4"
+                    }
+                  ]
+                },
+                "semantic_id": "growth-selection",
+                "shortage_policy": "require_full",
+                "universe_id": "growth"
+              },
+              "semantic_id": "select-growth"
+            },
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "kind": "comparison",
+                  "left": {
+                    "clock_id": "weekly-close",
+                    "kind": "clocked_value",
+                    "semantic_id": "composition-weekly-close",
+                    "source": {
+                      "arithmetic": null,
+                      "axis": null,
+                      "basis": "adjusted",
+                      "binding_id": null,
+                      "field": "close",
+                      "kind": "observe",
+                      "minimum_count": 1,
+                      "minimum_fraction": "1",
+                      "missing_policy": "require_all",
+                      "observations": null,
+                      "operands": [],
+                      "quantity": null,
+                      "reduction": null,
+                      "refinement": null,
+                      "semantic_id": "composition-weekly-source",
+                      "skip": 0,
+                      "subject_id": "QQQ",
+                      "subject_kind": "asset",
+                      "unit": null,
+                      "value": null
+                    }
+                  },
+                  "operator": "gt",
+                  "right": {
+                    "kind": "literal",
+                    "quantity": "price",
+                    "refinement": "adjusted_close",
+                    "semantic_id": "composition-weekly-zero",
+                    "unit": "USD/share",
+                    "value": "0"
+                  },
+                  "semantic_id": "composition-weekly-positive"
+                },
+                "occurrence": "first",
+                "ordinal": null,
+                "semantic_id": "composition-weekly-event",
+                "trigger": "while_true"
+              },
+              "kind": "on_event",
+              "semantic_id": "composition-weekly-event-statement",
+              "statements": [
+                {
+                  "clock_id": null,
+                  "kind": "remember_value",
+                  "memory_id": "weekly-context",
+                  "semantic_id": "remember-weekly-context",
+                  "value": {
+                    "clock_id": "weekly-close",
+                    "kind": "clocked_value",
+                    "semantic_id": "composition-weekly-close",
+                    "source": {
+                      "arithmetic": null,
+                      "axis": null,
+                      "basis": "adjusted",
+                      "binding_id": null,
+                      "field": "close",
+                      "kind": "observe",
+                      "minimum_count": 1,
+                      "minimum_fraction": "1",
+                      "missing_policy": "require_all",
+                      "observations": null,
+                      "operands": [],
+                      "quantity": null,
+                      "reduction": null,
+                      "refinement": null,
+                      "semantic_id": "composition-weekly-source",
+                      "skip": 0,
+                      "subject_id": "QQQ",
+                      "subject_kind": "asset",
+                      "unit": null,
+                      "value": null
+                    }
+                  }
+                },
+                {
+                  "kind": "transition",
+                  "semantic_id": "arm-growth",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "defensive",
+                    "semantic_id": "arm-growth-transition",
+                    "state_key": "regime",
+                    "to_value": "armed",
+                    "when": {
+                      "expected": "defensive",
+                      "kind": "state_equals",
+                      "semantic_id": "defensive-state",
+                      "state_key": "regime"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "event": {
+                "clock_id": "daily-close",
+                "condition": {
+                  "children": [
+                    {
+                      "expected": "armed",
+                      "kind": "state_equals",
+                      "semantic_id": "armed-state",
+                      "state_key": "regime"
+                    },
+                    {
+                      "kind": "comparison",
+                      "left": {
+                        "arithmetic": null,
+                        "axis": null,
+                        "basis": "adjusted",
+                        "binding_id": null,
+                        "field": "close",
+                        "kind": "observe",
+                        "minimum_count": 1,
+                        "minimum_fraction": "1",
+                        "missing_policy": "require_all",
+                        "observations": null,
+                        "operands": [],
+                        "quantity": null,
+                        "reduction": null,
+                        "refinement": null,
+                        "semantic_id": "composition-daily-price",
+                        "skip": 0,
+                        "subject_id": "QQQ",
+                        "subject_kind": "asset",
+                        "unit": null,
+                        "value": null
+                      },
+                      "operator": "gt",
+                      "right": {
+                        "kind": "literal",
+                        "quantity": "price",
+                        "refinement": "adjusted_close",
+                        "semantic_id": "composition-daily-zero",
+                        "unit": "USD/share",
+                        "value": "0"
+                      },
+                      "semantic_id": "composition-daily-positive"
+                    }
+                  ],
+                  "kind": "all",
+                  "semantic_id": "composition-confirmation-condition"
+                },
+                "occurrence": "first",
+                "ordinal": null,
+                "semantic_id": "composition-confirmation-event",
+                "trigger": "while_true"
+              },
+              "kind": "on_event",
+              "semantic_id": "composition-confirmation-event-statement",
+              "statements": [
+                {
+                  "kind": "transition",
+                  "semantic_id": "confirm-growth",
+                  "transition": {
+                    "clock_id": null,
+                    "from_value": "armed",
+                    "semantic_id": "confirm-growth-transition",
+                    "state_key": "regime",
+                    "to_value": "growth",
+                    "when": {
+                      "expected": "armed",
+                      "kind": "state_equals",
+                      "semantic_id": "armed-transition-state",
+                      "state_key": "regime"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "fallback": null,
+              "guard": null,
+              "kind": "guarded_allocation",
+              "overrides": [
+                {
+                  "action": {
+                    "cash_remainder_asset": null,
+                    "clock_id": "daily-close",
+                    "kind": "allocate",
+                    "legs": [
+                      {
+                        "semantic_id": "composition-growth-leg",
+                        "target": {
+                          "kind": "selection",
+                          "ref": "selected-growth",
+                          "semantic_id": "composition-growth-target"
+                        },
+                        "weight": null
+                      }
+                    ],
+                    "maximum_weight": null,
+                    "method": "proportional_score",
+                    "minimum_weight": null,
+                    "semantic_id": "composition-growth-allocation"
+                  },
+                  "priority": 100,
+                  "semantic_id": "composition-growth-override",
+                  "when": {
+                    "expected": "growth",
+                    "kind": "state_equals",
+                    "semantic_id": "growth-state",
+                    "state_key": "regime"
+                  }
+                }
+              ],
+              "primary": {
+                "cash_remainder_asset": null,
+                "clock_id": "daily-close",
+                "kind": "allocate",
+                "legs": [
+                  {
+                    "semantic_id": "composition-defensive-leg",
+                    "target": {
+                      "kind": "asset",
+                      "ref": "TLT",
+                      "semantic_id": "composition-defensive-target"
+                    },
+                    "weight": "1"
+                  }
+                ],
+                "maximum_weight": null,
+                "method": "fixed",
+                "minimum_weight": null,
+                "semantic_id": "composition-defensive-allocation"
+              },
+              "semantic_id": "composition-policy",
+              "unknown_guard_policy": "block"
+            }
+          ]
+        },
+        "selection": null,
+        "semantic_profile": "profile-a/daily-compositional-core@1"
+      },
+      "id": "multi_clock_policy",
+      "operation": {
+        "assets": [
+          "QQQ",
+          "VGT",
+          "SOXX",
+          "SCHG"
+        ],
+        "count": 2,
+        "daily_signal_asset": "QQQ",
+        "daily_threshold": 0.0,
+        "fallback_asset": "TLT",
+        "kind": "commit_multi_clock_policy_intent",
+        "score_observations": [
+          21,
+          63
+        ],
+        "score_weights": [
+          0.6,
+          0.4
+        ],
+        "unknown_risk_policy": "block",
+        "weekly_context_asset": "QQQ",
+        "weekly_threshold": 0.0
+      }
+    }
+  ],
+  "invariant": "Production gestures, backend authoring, persistence, projections, and execution use the same committed V2 meaning.",
+  "schema": "ruletrade.advanced-ui-authored-equivalence.v1"
+}
