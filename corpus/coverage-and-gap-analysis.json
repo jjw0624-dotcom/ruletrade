@@ -1,0 +1,80 @@
+{
+  "schema": "ruletrade.coverage-and-gap-analysis.v1",
+  "denominator": 169,
+  "coverage": {
+    "visually_draftable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 94,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "typed_graph_valid": {
+      "proven": 0,
+      "candidate_from_source_matrix": 169,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "semantically_representable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 23,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "reference_evaluable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "backend_lowerable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "docker_verified": {
+      "proven": 0,
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "provider_supported": {
+      "proven": 0,
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "ui_authorable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 169,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    },
+    "runtime_executable": {
+      "proven": 0,
+      "candidate_from_source_matrix": 0,
+      "denominator": 169,
+      "evidence_status": "case-linked proof not established"
+    }
+  },
+  "gap_counts": {
+    "asset_set_composition": 24,
+    "event_order": 46,
+    "event_relative_time": 30,
+    "exception_policy": 39,
+    "external_judgment": 22,
+    "fragment_requires_explicit_context": 19,
+    "multi_clock_context": 34,
+    "option_contract_or_lifecycle": 52,
+    "specialized_finance_or_model_data": 22,
+    "state_or_memory": 47,
+    "undefined_user_parameter": 96
+  },
+  "rules": [
+    "Draft-only support is not execution support.",
+    "Projection is not authoring evidence.",
+    "Canonical fixtures are not UI authorability evidence.",
+    "Positive support flags in the source matrix are candidates until case-linked evidence is indexed.",
+    "A case with multiple blockers is counted once per independent blocker."
+  ]
+}

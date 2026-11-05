@@ -98,8 +98,8 @@ describe("Group / Subgroup / Investment authoring grammar", () => {
     const source = emptyProgramWorkingDraft("strategy");
     const logicFirst = withProgramDraftConcept(source, { kind: "choose", semanticId: "choose-1", groupId: null, outputId: "leaders", lookback: 126, direction: "highest", count: 2, shortage: "require_full" });
     const investmentFirst = withProgramDraftConcept(source, { kind: "investment", semanticId: "investment-1", targetKind: null, targetRef: null, internalAllocation: "equal" });
-    expect(logicFirst).toMatchObject({ status: "incomplete", concept: { kind: "choose", groupId: null } });
-    expect(investmentFirst).toMatchObject({ status: "incomplete", concept: { kind: "investment", targetRef: null } });
+    expect(logicFirst).toMatchObject({ status: "incomplete", perspectiveDrafts: { blocky: { kind: "choose", groupId: null } } });
+    expect(investmentFirst).toMatchObject({ status: "incomplete", perspectiveDrafts: { blocky: { kind: "investment", targetRef: null } } });
     expect(blank.definitions.groups).toEqual([]);
     expect(blank.program?.statements).toHaveLength(1);
   });

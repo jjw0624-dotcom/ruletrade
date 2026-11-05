@@ -25,7 +25,8 @@ import { composeRankedSelectionPipeline, insertConditionBeforeRank } from "../do
 import { dispatchSplitConstruction } from "../domain/constructionDispatch";
 import type { ProgramToolboxEntry } from "../domain/blockyToolbox";
 import type { ProductNode } from "../domain/productSemantics";
-import { ENTRY_BLOCK_CATEGORIES, type EntryBlockCategory } from "../domain/entryStyleGrammar";
+import { ENTRY_BLOCK_CATEGORIES } from "../domain/entryStyleGrammar";
+import type { ProductToolDescriptor } from "../domain/programToolCapabilities";
 
 function StructureBranch({ item, depth = 0 }: { item: StructureItem; depth?: number }) {
   const { state, dispatch } = useStrategyEditor();
@@ -203,13 +204,9 @@ function CanonicalV1WorkspaceLeftPanel({ projection, structural }: {
 }
 
 
-export interface ProductAddAction {
+export interface ProductAddAction extends Omit<ProductToolDescriptor, "id" | "availability"> {
   id: string;
-  category: ToolboxCategory | EntryBlockCategory;
-  label: string;
-  description: string;
-  disabled: boolean;
-  availability?: "ready" | "draftable" | "needs_context" | "unsupported_execution" | "invalid_here" | "unavailable";
+  availability?: ProductToolDescriptor["availability"];
   onAdd: () => void;
 }
 
@@ -243,7 +240,7 @@ function ProductStructureBranch({ item, depth, selectedId, onSelect }: { item: P
 
 export interface BuilderLibraryObject { id: string; kind: "group" | "subgroup" | "variable" | "function" | "signal"; name: string; draft: boolean; dependencyCount: number }
 
-function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup, onInsertObjectReference, onBlockyAddOpenChange }: {
+function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSelect, perspective, objects = [], onCreateGroup, onInsertObjectReference, blockyAddOpen = false, onBlockyAddOpenChange }: {
   tools: ProductAddAction[];
   structure: ProductStructureNode;
   selectedId: string | null;
@@ -258,8 +255,8 @@ function SemanticProgramWorkspaceLeftPanel({ tools, structure, selectedId, onSel
   const categories: ProductAddAction["category"][] = perspective === "blocky"
     ? [...ENTRY_BLOCK_CATEGORIES]
     : ["Capital", "Destination", "Routing", "Allocation", "Timing", "Behavior"];
-  const [tab, setTab] = useState<"structure" | "blocks" | "objects">("structure");
-  useEffect(() => { onBlockyAddOpenChange?.(perspective === "blocky" && tab === "blocks"); }, [onBlockyAddOpenChange, perspective, tab]);
+  const [tab, setTab] = useState<"structure" | "blocks" | "objects">(blockyAddOpen ? "blocks" : "structure");
+  useEffect(() => { if (perspective === "blocky") onBlockyAddOpenChange?.(tab === "blocks"); }, [onBlockyAddOpenChange, perspective, tab]);
   return <aside className="workspace-left-root" aria-label="Builder library">
     <div className="workspace-left-panel" data-perspective={perspective} data-active-tab={tab} data-builder-tools="contextual">
       <Tabs.Root className="workspace-left-tabs" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileActiveVisualGraph } from "./activeVisualGraph";
 import { createFinancialIntentDraft } from "./intentAuthoring";
-import { addCanvasBlock, emptyProgramWorkingDraft, loadProgramWorkingDraft, persistProgramWorkingDraft, setCanvasBlockActive, withBlockMove, withProgramDraftConcept, type ProgramCanvasBlock } from "./programWorkingDraft";
+import { addCanvasBlock, emptyProgramWorkingDraft, loadProgramWorkingDraft, persistProgramWorkingDraft, programDraftForPerspective, setCanvasBlockActive, withBlockMove, withPerspectiveProgramDraft, type ProgramCanvasBlock } from "./programWorkingDraft";
 
 const block = (id: string, definitionId: string, extra: Partial<ProgramCanvasBlock> = {}): ProgramCanvasBlock => ({ id, definitionId, label: definitionId, createdAt: "2026-10-18T00:00:00Z", active: false, ...extra });
 
@@ -17,10 +17,10 @@ const memoryStorage = () => {
 describe("independent perspective round trips", () => {
   it("preserves a Rules-first incomplete intent across save and reopen without Blockly meaning", () => {
     const storage = memoryStorage();
-    const source = withProgramDraftConcept(emptyProgramWorkingDraft("rules-round-trip"), createFinancialIntentDraft("single_asset", "rules_first"));
+    const source = withPerspectiveProgramDraft(emptyProgramWorkingDraft("rules-round-trip"), "rules", createFinancialIntentDraft("single_asset", "rules_first"));
     persistProgramWorkingDraft(source, storage);
     const reopened = loadProgramWorkingDraft("rules-round-trip", storage);
-    expect(reopened.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
+    expect(programDraftForPerspective(reopened, "rules")).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
     expect(reopened.canvasBlocks).toEqual({});
     expect(reopened.activeGraphRootIds).toEqual([]);
   });

@@ -7,7 +7,7 @@ export type DraftIntent =
   | { kind: "set_flow_viewport"; viewport: { x: number; y: number; zoom: number } }
   | { kind: "connect_block"; childId: string; childType: "statement" | "condition" | "value" | "fallback"; parentId: string | null; inputName: string | null; projected?: ProgramDraftConnection }
   | { kind: "connect_flow"; sourceId: string; targetId: string; projectedEdges: Array<{ source: string; target: string }> }
-  | { kind: "disconnect_flow"; sourceId: string; targetId: string }
+  | { kind: "disconnect_flow"; sourceId: string; targetId: string; projectedEdges: Array<{ source: string; target: string }> }
   | { kind: "delete_visual_object"; objectId: string; projectionOnly: boolean };
 
 export interface DraftIntentResult {
@@ -56,9 +56,33 @@ export function translateDraftIntent(strategy: CanonicalStrategyV2, intent: Draf
     };
   }
   if (intent.kind === "disconnect_flow") {
+    const projected = intent.projectedEdges.some((edge) => edge.source === intent.sourceId && edge.target === intent.targetId);
+    if (!projected) return {
+      status: "invalid", semanticEffect: "none",
+      diagnostic: { code: "stale_capital_route", productMessage: "That capital route is no longer present.", technicalDetail: `${intent.sourceId} -> ${intent.targetId} is absent from the current Flow projection` },
+    };
+    const statements = strategy.program?.statements ?? [];
+    const allocations = statements.filter((statement) => statement.kind === "allocate");
+    const allocationId = (nodeId: string) => nodeId.startsWith("investment:") ? nodeId.slice("investment:".length).split(":")[0]! : null;
+    if (intent.sourceId === "portfolio" && intent.targetId === "split") {
+      const split = allocations.find((statement) => statement.method === "fixed" && statement.legs.length > 1);
+      if (split) return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: split.semantic_id } };
+    }
+    if (intent.sourceId === "portfolio" && allocationId(intent.targetId)) {
+      return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: allocationId(intent.targetId)! } };
+    }
+    if (allocationId(intent.sourceId) && !intent.targetId.startsWith("investment:")) {
+      const semanticId = allocationId(intent.sourceId)!;
+      const allocation = allocations.find((statement) => statement.semantic_id === semanticId);
+      if (allocation?.legs.length === 1) return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: semanticId } };
+    }
+    if (intent.targetId.startsWith("fallback:")) {
+      const selectionId = intent.targetId.slice("fallback:".length).split(":")[0]!;
+      if (intent.sourceId.startsWith(`choose:${selectionId}:`)) return { status: "ready", semanticEffect: "commit_operation", operation: { kind: "set_program_fallback", semantic_id: selectionId, fallback_asset: null } };
+    }
     return {
       status: "unsupported", semanticEffect: "none",
-      diagnostic: { code: "route_deletion_requires_semantic_operation", productMessage: "Remove this route from its Inspector.", technicalDetail: "Flow edge deletion is not a generic Canonical delete" },
+      diagnostic: { code: "route_deletion_requires_semantic_operation", productMessage: "This route cannot be removed independently yet. The requested change remains in Flow as a draft.", technicalDetail: `${intent.sourceId} -> ${intent.targetId} has no lossless atomic V2 removal operation` },
     };
   }
   if (intent.projectionOnly) {

@@ -1,0 +1,314 @@
+{
+  "schema": "ruletrade.perspective-translation-contracts.v1",
+  "contracts": [
+    {
+      "contract_id": "single-asset-holding",
+      "source_case": "single-qqq",
+      "canonical_reference": null,
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Use an explicit fixed asset allocation; the attachment did not provide a validated Canonical fixture.",
+        "projection_identity": "single-asset-holding",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": "documented production authoring journey",
+        "draft_mutation": "perspective-local",
+        "typed_operation": "commit_single_asset_intent",
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "supported_verified"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": true
+      }
+    },
+    {
+      "contract_id": "strongest-etfs",
+      "source_case": "strongest-etfs",
+      "canonical_reference": "strongest-etfs",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Monthly Selection eligibility, ranking, require-full shortage, TLT fallback and equal selected allocation.",
+        "projection_identity": "strongest-etfs",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": "documented production authoring journey",
+        "draft_mutation": "perspective-local",
+        "typed_operation": "set_program_selection",
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "supported_verified"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": true
+      }
+    },
+    {
+      "contract_id": "growth-defensive",
+      "source_case": "growth-defensive",
+      "canonical_reference": "composable-split-execution",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Repository proof uses two independent Selections and guarded aggregation; the illustrative fixed IEF branch is not claimed identical.",
+        "projection_identity": "composable-split-execution",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": "documented production authoring journey",
+        "draft_mutation": "perspective-local",
+        "typed_operation": "commit_split_portfolio_intent",
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "supported_verified"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": true
+      }
+    },
+    {
+      "contract_id": "sma-conditional",
+      "source_case": "sma-filter",
+      "canonical_reference": "price-over-sma",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "The repository fixture observes the condition and memory; it does not invent the attachment's cash branch.",
+        "projection_identity": "price-over-sma",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": false,
+        "docker_verified": false,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "weighted-score-selection",
+      "source_case": "weighted-score",
+      "canonical_reference": "weighted-momentum-allocation",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Weighted 21/63 return Score, Top 2 Selection and proportional-score Allocation.",
+        "projection_identity": "weighted-momentum-allocation",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "n-of-m",
+      "source_case": "nofm",
+      "canonical_reference": "n-of-m",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Repository fixture preserves T/F/U condition evaluation and does not invent an unspecified false destination.",
+        "projection_identity": "n-of-m",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": false,
+        "docker_verified": false,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "breakout-retest-confirmation",
+      "source_case": "breakout-retest",
+      "canonical_reference": "temporal-breakout-state-machine",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Synthetic repository thresholds and checkpoint identities are authoritative for execution proof.",
+        "projection_identity": "temporal-breakout-state-machine",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "weekly-context-daily-action",
+      "source_case": "weekly-daily",
+      "canonical_reference": "temporal-multiclock-state-machine",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Only previous completed weekly values feed daily decisions.",
+        "projection_identity": "temporal-multiclock-state-machine",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "guard-override-policy",
+      "source_case": "guard-override",
+      "canonical_reference": "composable-semantic-execution",
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Repository fixture supplies concrete guard/override predicates and targets; the attachment was abstract.",
+        "projection_identity": "composable-semantic-execution",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": true,
+        "backend_lowerable": true,
+        "docker_verified": true,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    },
+    {
+      "contract_id": "inverse-volatility",
+      "source_case": "inverse-volatility",
+      "canonical_reference": null,
+      "forward": {
+        "source": "CanonicalStrategyV2",
+        "semantic_manifest": "Lookback, clock and nonpositive/fallback policy remain unspecified. No executable strategy is fabricated.",
+        "projection_identity": "inverse-volatility",
+        "preserved_fields": "all fields represented by the target capability manifest",
+        "hidden_fields": "must remain in canonical meaning",
+        "status": "supported"
+      },
+      "reverse": {
+        "gesture": null,
+        "draft_mutation": "perspective-local",
+        "typed_operation": null,
+        "validation": "V2 validation plus CAS",
+        "atomicity": "single typed operation",
+        "status": "unverified_or_unsupported"
+      },
+      "capability": {
+        "representable": true,
+        "reference_evaluable": false,
+        "backend_lowerable": false,
+        "docker_verified": false,
+        "provider_supported": true,
+        "ui_authorable": false
+      }
+    }
+  ],
+  "counterexamples": [
+    "incomplete_if",
+    "disconnected_selection",
+    "invalid_visual_connection",
+    "selection_fallback_as_else",
+    "split_as_sequence",
+    "missing_history",
+    "unknown_as_false",
+    "duplicate_exposure",
+    "invalid_allocation",
+    "incompatible_axes",
+    "future_weekly_data",
+    "state_ordering",
+    "stale_cas",
+    "draft_loss",
+    "save_reopen_drift",
+    "layout_changes_semantics",
+    "equivalent_labels_different_meaning"
+  ]
+}

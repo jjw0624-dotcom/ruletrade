@@ -1,0 +1,73 @@
+{
+  "schema": "ruletrade.representative-ui-serialization-fixtures.v1",
+  "fixtures": [
+    {
+      "id": "monthly-qqq-blocky-working-draft",
+      "strategy": "QQQ 100% monthly rebalance",
+      "perspective": "Blocky",
+      "serialization_status": "actual_tested_working_draft_v3",
+      "evidence": "frontend/src/domain/perspectiveRoundTrip.test.ts",
+      "semantic_authority": false,
+      "serialization": {
+        "canvasBlocks": {
+          "draft:start": {"id": "draft:start", "definitionId": "start-monthly", "active": true},
+          "draft:rebalance": {"id": "draft:rebalance", "definitionId": "rebalance", "active": false},
+          "draft:asset": {"id": "draft:asset", "definitionId": "asset-reference", "objectRef": "QQQ", "active": false},
+          "draft:weight": {"id": "draft:weight", "definitionId": "percentage", "fieldValues": {"VALUE": 100}, "active": false}
+        },
+        "blockConnections": {
+          "draft:rebalance": {"parentId": "draft:start", "inputName": "NEXT"},
+          "draft:asset": {"parentId": "draft:rebalance", "inputName": "TARGET"},
+          "draft:weight": {"parentId": "draft:rebalance", "inputName": "WEIGHT"}
+        },
+        "activeGraphRootIds": ["draft:start"],
+        "blockPositions": {
+          "draft:start": {"x": 0, "y": 0},
+          "draft:rebalance": {"x": 0, "y": 80},
+          "draft:asset": {"x": 120, "y": 80},
+          "draft:weight": {"x": 240, "y": 80}
+        }
+      }
+    },
+    {
+      "id": "strongest-etfs-rules-projection",
+      "strategy": "Strongest ETFs",
+      "perspective": "Rules",
+      "serialization_status": "projection_fixture_not_authoring_proof",
+      "evidence": "corpus/perspective-manifest-fixtures.json#strongest-etfs",
+      "semantic_authority": false,
+      "serialization": {"sections": ["universe", "eligibility", "selection", "fallback", "allocation", "timing"]}
+    },
+    {
+      "id": "parallel-70-30-flow-draft",
+      "strategy": "Growth and Defensive 70/30",
+      "perspective": "Flow",
+      "serialization_status": "representative_capital_graph",
+      "evidence": "corpus/perspective-roundtrip-corpus.json#RT-C-PARALLEL-70-30",
+      "semantic_authority": false,
+      "serialization": {
+        "nodes": [{"id": "portfolio", "role": "portfolio"}, {"id": "split", "role": "split"}, {"id": "growth", "role": "investment"}, {"id": "defensive", "role": "investment"}],
+        "edges": [{"source": "portfolio", "target": "split"}, {"source": "split", "target": "growth"}, {"source": "split", "target": "defensive"}],
+        "viewport": {"x": 0, "y": 0, "zoom": 1}
+      }
+    },
+    {
+      "id": "weighted-score-blocky-projection",
+      "strategy": "Weighted momentum Score and proportional allocation",
+      "perspective": "Blocky",
+      "serialization_status": "projection_fixture_partial_editing",
+      "evidence": "corpus/perspective-roundtrip-corpus.json#RT-E-WEIGHTED-SCORE",
+      "semantic_authority": false,
+      "serialization": {"blockRoles": ["selection", "value", "allocation"], "activeGraphRoots": []}
+    },
+    {
+      "id": "temporal-rules-projection",
+      "strategy": "Breakout, retest, confirmation",
+      "perspective": "Rules",
+      "serialization_status": "projection_fixture_partial_editing",
+      "evidence": "corpus/perspective-roundtrip-corpus.json#RT-F-TEMPORAL",
+      "semantic_authority": false,
+      "serialization": {"sections": ["event", "state", "memory", "transition", "policy"]}
+    }
+  ]
+}

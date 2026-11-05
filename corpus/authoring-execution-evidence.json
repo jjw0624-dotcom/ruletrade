@@ -1,0 +1,46 @@
+{
+  "schema": "ruletrade.authoring-execution-evidence.v1",
+  "invariant": "Browser authoring evidence and Docker execution evidence are separate and must both be present for an end-to-end claim.",
+  "cases": [
+    {
+      "id": "monthly-qqq",
+      "authoring": {"status": "production_gesture_browser_verified", "evidence": ["corpus/ui-authored-execution-equivalence.json", "tests/test_ui_authored_execution_equivalence.py", "scripts/check_builder_browser.mjs"]},
+      "semantic_operation": "commit_single_asset_intent",
+      "save_reopen": "verified in production V2StrategyEditor through actual Chrome gestures",
+      "execution": {"status": "docker_verified", "evidence": "Capability CI generated C#/LEAN and persisted V2 API jobs"},
+      "end_to_end_claim": "supported_verified"
+    },
+    {
+      "id": "strongest-etfs",
+      "authoring": {"status": "partial", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-B-GROUP-FILTER-CHOOSE"},
+      "semantic_operation": "set_program_selection",
+      "save_reopen": "canonical persistence verified; full UI journey partial",
+      "execution": {"status": "docker_verified", "evidence": "make check-lean-semantic-corpus"},
+      "end_to_end_claim": "not_claimed"
+    },
+    {
+      "id": "parallel-70-30",
+      "authoring": {"status": "supported_verified_atomic_intent", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-C-PARALLEL-70-30"},
+      "semantic_operation": "commit_split_portfolio_intent",
+      "save_reopen": "verified",
+      "execution": {"status": "docker_verified", "evidence": "composable split differential"},
+      "end_to_end_claim": "supported_verified_subset"
+    },
+    {
+      "id": "weighted-score",
+      "authoring": {"status": "partial", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-E-WEIGHTED-SCORE"},
+      "semantic_operation": "commit_weighted_score_intent",
+      "save_reopen": "canonical persistence verified",
+      "execution": {"status": "docker_verified", "evidence": "make check-lean-weighted-score"},
+      "end_to_end_claim": "not_claimed"
+    },
+    {
+      "id": "temporal-breakout",
+      "authoring": {"status": "partial", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-F-TEMPORAL"},
+      "semantic_operation": "commit_temporal_sequence_intent",
+      "save_reopen": "checkpoint and revision persistence verified",
+      "execution": {"status": "docker_verified_replay", "evidence": "make check-lean-temporal-stateful"},
+      "end_to_end_claim": "not_claimed"
+    }
+  ]
+}

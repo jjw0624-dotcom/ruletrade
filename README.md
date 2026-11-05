@@ -45,6 +45,11 @@ Read [the living architecture](docs/architecture.md) for current ownership and
 data flow. [The documentation index](docs/README.md) distinguishes current
 contracts from historical implementation records.
 
+Builder changes must also follow the
+[Builder architecture constitution](docs/builder/README.md), the authoritative
+entry point for perspective responsibilities, state ownership, editing
+lifecycle, invariants, and their executable test map.
+
 ## MVP scope
 
 The current Builder supports the backend-owned starting structures and the
@@ -107,6 +112,7 @@ Revisions, LEAN, BacktestRuns, and Decision Evidence as described above.
 ## Current reference documents
 
 - [Living system architecture](docs/architecture.md)
+- [Builder architecture constitution](docs/builder/README.md)
 - [Development and validation](docs/development.md)
 - [Canonical Strategy v1](docs/canonical-v1.md)
 - [Compiler foundation](docs/compiler-foundation.md)

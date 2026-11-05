@@ -51,6 +51,14 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
   };
+  const clickAriaLabel = async (label) => {
+    const point = await evaluate(`(() => { const item=document.querySelector('[aria-label='+CSS.escape(${JSON.stringify(label)})+']'); if(!item) throw new Error('Missing aria-label: '+${JSON.stringify(label)}); const rect=item.getBoundingClientRect(); if(!rect.width||!rect.height) throw new Error('Hidden aria-label: '+${JSON.stringify(label)}); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  };
+  const setControlValue = async (label, value) => evaluate(`(() => { const item=document.querySelector('[aria-label='+CSS.escape(${JSON.stringify(label)})+']'); if(!item) throw new Error('Missing control: '+${JSON.stringify(label)}); const prototype=item instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype; const setter=Object.getOwnPropertyDescriptor(prototype,'value').set; setter.call(item,${JSON.stringify(value)}); item.dispatchEvent(new Event('input',{bubbles:true})); item.dispatchEvent(new Event('change',{bubbles:true})); return item.value; })()`);
+  const scrollButtonIntoView = async (label) => evaluate(`(() => { const item=[...document.querySelectorAll('button')].reverse().find((button)=>button.textContent.trim()===${JSON.stringify(label)}&&!button.disabled); if(!item) throw new Error('Missing enabled button: '+${JSON.stringify(label)}); item.scrollIntoView({block:'center',inline:'center'}); return true; })()`);
   const clickBlocklyCategory = async (label) => {
     const point = await evaluate(`(() => { const row=[...document.querySelectorAll('.blocklyToolboxCategory')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!row) throw new Error('Missing Blockly category: '+${JSON.stringify(label)}); const rect=row.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -79,18 +87,33 @@ try {
     await screenshot(`builder-add-${width}x${height}`);
   }
 
+  await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+  await clickText("One investment"); await waitSelector('[data-intent-recipe="single_asset"]');
+  const guideDraft = await evaluate(`({guide:Boolean(document.querySelector('[aria-label="Guided strategy editor"]')),concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.guided,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (!guideDraft.guide || guideDraft.concept?.startPath !== "asset_first" || guideDraft.concept?.recipe !== "single_asset" || guideDraft.blockCount !== 0) throw new Error(`Independent Guide draft failed: ${JSON.stringify(guideDraft)}`);
+  await screenshot("builder-independent-guide");
+  await clickText("Discard draft");
+
   await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
   await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
-  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
   if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
-  await clickText("Rules"); await waitSelector('[data-intent-recipe="single_asset"]');
-  await clickText("Discard draft");
+  await clickText("Structure");
+  await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.trim()==='Portfolio'&&item.getClientRects().length>0)`, "visible Portfolio structure row");
+  await clickText("Portfolio");
+  const selectedWithDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,inspector:Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))})`);
+  if (selectedWithDraft.concept?.startPath !== "flow_first" || !selectedWithDraft.inspector) throw new Error(`Selection discarded Flow draft: ${JSON.stringify(selectedWithDraft)}`);
   await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
+  if (await evaluate(`Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))`)) throw new Error("Flow draft leaked into Rules.");
   await clickText("Add investment rule"); await waitSelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]');
-  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.concept,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
-  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
+  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.rules,flow:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.flow?.startPath !== "flow_first" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
   await screenshot("builder-independent-flow-rules");
-  await clickText("Discard draft"); await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
+  await clickText("Discard draft"); await clickText("Flow"); await waitSelector('[data-intent-recipe="single_asset"]'); await clickText("Discard draft");
+  await clickText("Blocky"); await clickText("Add"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
+  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  if (!await evaluate(`window.__RULETRADE_BROWSER_DRAFT__?.blockyAddOpen===true`)) throw new Error("Blocky Add state was discarded by a perspective switch.");
+  await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
 
   await clickBlocklyCategory("Start"); await sleep(250);
   console.log("Blockly category state:", JSON.stringify(await evaluate(`(() => ({addOpen:document.querySelector('.blocky-representation')?.dataset.nativeAddOpen,categories:[...document.querySelectorAll('.blocklyToolboxCategory')].slice(0,2).map((item)=>({text:item.textContent.trim(),selected:item.getAttribute('aria-selected'),className:item.className})),flyouts:[...document.querySelectorAll('[class*=Flyout],[class*=flyout]')].map((item)=>{const rect=item.getBoundingClientRect();return {className:item.className?.baseVal??item.className,width:rect.width,height:rect.height,display:getComputedStyle(item).display,visibility:getComputedStyle(item).visibility}})}))()`)));
@@ -137,6 +160,17 @@ try {
     await screenshot(`builder-${label.toLowerCase()}-perspective`);
   }
 
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
+  await waitSelector('[aria-label="Flow capital projection"]');
+  await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const path=[...document.querySelectorAll('.react-flow__edge-interaction')].find((item)=>item.isConnected&&item.getTotalLength()>0); if(path){ const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing stable Flow route interaction path'); })()`);
+  await waitExpression(`document.querySelector('.react-flow__edge')?.classList.contains('selected')`, "selected Flow route");
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+  await waitExpression(`window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements.length===0`, "typed Flow route removal");
+  const flowRemoval = await evaluate(`({statements:window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements.length,draft:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,empty:document.body.innerText.includes('No capital route has been defined yet.')})`);
+  if (flowRemoval.statements !== 0 || flowRemoval.draft || !flowRemoval.empty) throw new Error(`Typed Flow removal failed: ${JSON.stringify(flowRemoval)}`);
+  await screenshot("builder-typed-flow-removal");
+
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled persisted V2 Test");
@@ -152,6 +186,38 @@ try {
   await screenshot("persisted-v2-result-evidence");
   await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
   await screenshot("persisted-v2-builder-reopened");
+
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
+  await waitSelector('[data-production-builder-shell="true"]');
+  await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+  await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
+  await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
+  await setControlValue("Manual asset symbol", "QQQ");
+  await clickText("Add symbol"); await sleep(200);
+  await scrollButtonIntoView("Use selected assets"); await sleep(100);
+  await clickText("Use selected assets"); await sleep(200);
+  await setControlValue("Intent timing", "monthly");
+  await setControlValue("Timing meaning", "rebalance");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Commit strategy meaning'&&!item.disabled))`, "complete Guide intent");
+  await scrollButtonIntoView("Commit strategy meaning"); await sleep(100);
+  await clickText("Commit strategy meaning");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.operation?.kind==='commit_single_asset_intent'`, "typed Guide operation");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Save'&&!item.disabled))`, "enabled Save after Guide commit");
+  await clickText("Save");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-2'`, "persisted UI-authored revision");
+  const authoredBeforeReopen = await evaluate(`window.__RULETRADE_UI_EQUIVALENCE__`);
+  if (JSON.stringify(authoredBeforeReopen.appliedCanonical) !== JSON.stringify(authoredBeforeReopen.savedCanonical)) throw new Error(`UI-authored Canonical changed at Save: ${JSON.stringify(authoredBeforeReopen)}`);
+  await screenshot("ui-authored-monthly-qqq-saved");
+  await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
+  await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
+  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('monthly close')&&document.body.innerText.includes('QQQ')`, "reopened Guide meaning");
+  await clickText("Rules"); await waitExpression(`document.querySelector('[data-projection-contract="rules"]')?.innerText.includes('QQQ')`, "reopened Rules meaning");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable UI-authored Test");
+  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, "UI-authored persisted execution result");
+  const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],body:document.body.innerText})`);
+  if (!authoredJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-ui-authored-2/backtest-runs'&&item.method==='POST') || !authoredJourney.body.includes('run-ui-authored')) throw new Error(`UI-authored execution equivalence failed: ${JSON.stringify(authoredJourney)}`);
+  await screenshot("ui-authored-monthly-qqq-executed");
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {
