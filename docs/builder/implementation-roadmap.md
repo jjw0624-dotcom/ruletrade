@@ -57,13 +57,16 @@ evidence rather than only changing a surface.
 - Offer explicit reload/reapply/discard choices without silent overwrite.
 - Add concurrent-edit browser coverage.
 
-## Phase E — UI-authored execution equivalence
+## Phase E — UI-authored execution equivalence (this change)
 
 - Expand complete strategies authored only through production perspectives.
 - Compare committed meaning, reference evaluation, generated C#/LEAN, and
   persisted execution results.
 - Keep draftable, representable, lowerable, runtime-available, and executable
   as separate capability dimensions.
+- Prove the minimal monthly QQQ strategy through Guide gestures, typed commit,
+  Save, leave/reopen, cross-perspective projection, Test, V2 lowering, and
+  generated C# without injecting Canonical as authoring evidence.
 
 ## Review and merge order
 

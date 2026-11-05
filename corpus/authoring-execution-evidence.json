@@ -4,10 +4,10 @@
   "cases": [
     {
       "id": "monthly-qqq",
-      "authoring": {"status": "browser_verified", "evidence": ["frontend/src/domain/perspectiveRoundTrip.test.ts", "scripts/check_builder_browser.mjs"]},
+      "authoring": {"status": "production_gesture_browser_verified", "evidence": ["corpus/ui-authored-execution-equivalence.json", "tests/test_ui_authored_execution_equivalence.py", "scripts/check_builder_browser.mjs"]},
       "semantic_operation": "commit_single_asset_intent",
-      "save_reopen": "verified Working Draft replay and persisted revision contracts",
-      "execution": {"status": "docker_verified", "evidence": "static Program profile in Capability CI"},
+      "save_reopen": "verified in production V2StrategyEditor through actual Chrome gestures",
+      "execution": {"status": "docker_verified", "evidence": "Capability CI generated C#/LEAN and persisted V2 API jobs"},
       "end_to_end_claim": "supported_verified"
     },
     {

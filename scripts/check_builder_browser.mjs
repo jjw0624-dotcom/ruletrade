@@ -51,6 +51,13 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
   };
+  const clickAriaLabel = async (label) => {
+    const point = await evaluate(`(() => { const item=document.querySelector('[aria-label='+CSS.escape(${JSON.stringify(label)})+']'); if(!item) throw new Error('Missing aria-label: '+${JSON.stringify(label)}); const rect=item.getBoundingClientRect(); if(!rect.width||!rect.height) throw new Error('Hidden aria-label: '+${JSON.stringify(label)}); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  };
+  const setControlValue = async (label, value) => evaluate(`(() => { const item=document.querySelector('[aria-label='+CSS.escape(${JSON.stringify(label)})+']'); if(!item) throw new Error('Missing control: '+${JSON.stringify(label)}); const prototype=item instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype; const setter=Object.getOwnPropertyDescriptor(prototype,'value').set; setter.call(item,${JSON.stringify(value)}); item.dispatchEvent(new Event('input',{bubbles:true})); item.dispatchEvent(new Event('change',{bubbles:true})); return item.value; })()`);
   const clickBlocklyCategory = async (label) => {
     const point = await evaluate(`(() => { const row=[...document.querySelectorAll('.blocklyToolboxCategory')].find((item)=>item.textContent.trim()===${JSON.stringify(label)}); if(!row) throw new Error('Missing Blockly category: '+${JSON.stringify(label)}); const rect=row.getBoundingClientRect(); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -180,6 +187,36 @@ try {
   await screenshot("persisted-v2-result-evidence");
   await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
   await screenshot("persisted-v2-builder-reopened");
+
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
+  await waitSelector('[data-production-builder-shell="true"]');
+  await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+  await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
+  await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
+  await setControlValue("Manual asset symbol", "QQQ");
+  await clickText("Add symbol"); await sleep(200);
+  await clickText("Use selected assets"); await sleep(200);
+  await setControlValue("Intent timing", "monthly");
+  await setControlValue("Timing meaning", "rebalance");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Commit strategy meaning'&&!item.disabled))`, "complete Guide intent");
+  await clickText("Commit strategy meaning");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.operation?.kind==='commit_single_asset_intent'`, "typed Guide operation");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Save'&&!item.disabled))`, "enabled Save after Guide commit");
+  await clickText("Save");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-2'`, "persisted UI-authored revision");
+  const authoredBeforeReopen = await evaluate(`window.__RULETRADE_UI_EQUIVALENCE__`);
+  if (JSON.stringify(authoredBeforeReopen.appliedCanonical) !== JSON.stringify(authoredBeforeReopen.savedCanonical)) throw new Error(`UI-authored Canonical changed at Save: ${JSON.stringify(authoredBeforeReopen)}`);
+  await screenshot("ui-authored-monthly-qqq-saved");
+  await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
+  await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
+  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('monthly close')&&document.body.innerText.includes('QQQ')`, "reopened Guide meaning");
+  await clickText("Rules"); await waitExpression(`document.querySelector('[data-projection-contract="rules"]')?.innerText.includes('QQQ')`, "reopened Rules meaning");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable UI-authored Test");
+  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, "UI-authored persisted execution result");
+  const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],body:document.body.innerText})`);
+  if (!authoredJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-ui-authored-2/backtest-runs'&&item.method==='POST') || !authoredJourney.body.includes('run-ui-authored')) throw new Error(`UI-authored execution equivalence failed: ${JSON.stringify(authoredJourney)}`);
+  await screenshot("ui-authored-monthly-qqq-executed");
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {
