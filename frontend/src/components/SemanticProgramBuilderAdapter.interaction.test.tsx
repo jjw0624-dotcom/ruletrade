@@ -565,6 +565,19 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
   });
 
   it.each([
+    ["Weighted Score allocation", "weighted_score", "commit_weighted_score_intent"],
+    ["Breakout, retest, confirmation", "temporal_sequence", "commit_temporal_sequence_intent"],
+    ["Weekly context, daily signal", "multi_clock_policy", "commit_multi_clock_policy_intent"],
+  ] as const)("commits the advanced Guide recipe %s through a typed operation", async (label, recipe, kind) => {
+    const apply = vi.fn();
+    render("guided", apply);
+    await clickButton(container, label);
+    expect(container.querySelector(`[data-intent-recipe="${recipe}"]`)).toBeTruthy();
+    await clickButton(container, "Commit strategy meaning");
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind }));
+  });
+
+  it.each([
     ["Destination", "Rotation universe", "market_regime_rotation"],
     ["Allocation", "Growth / Defensive 70 / 30", "split_portfolio"],
     ["Destination", "Score universe", "weighted_score"],

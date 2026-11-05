@@ -218,6 +218,41 @@ try {
   const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],body:document.body.innerText})`);
   if (!authoredJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-ui-authored-2/backtest-runs'&&item.method==='POST') || !authoredJourney.body.includes('run-ui-authored')) throw new Error(`UI-authored execution equivalence failed: ${JSON.stringify(authoredJourney)}`);
   await screenshot("ui-authored-monthly-qqq-executed");
+
+  const advancedJourneys = [
+    { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
+    { id: "temporal_sequence", recipe: "Breakout, retest, confirmation", kind: "commit_temporal_sequence_intent", mutate: [["Breakout adjusted close", "11"], ["Breakout adjusted close", "12"], ["Expiry state", "expired"]] },
+    { id: "multi_clock_policy", recipe: "Weekly context, daily signal", kind: "commit_multi_clock_policy_intent", mutate: [["Completed weekly threshold", "1"], ["Completed weekly threshold", "0"], ["Unknown risk guard", "block"]] },
+  ];
+  for (const advanced of advancedJourneys) {
+    await send("Page.navigate", { url: `http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-advanced&case=${advanced.id}` });
+    await waitSelector('[data-production-builder-shell="true"]');
+    await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+    await clickText(advanced.recipe); await waitSelector(`[data-intent-recipe="${advanced.id}"]`);
+    for (const [label, value] of advanced.mutate) await setControlValue(label, value);
+    await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Commit strategy meaning'&&!item.disabled))`, `${advanced.id} complete intent`);
+    await scrollButtonIntoView("Commit strategy meaning"); await clickText("Commit strategy meaning");
+    await waitExpression(`window.__RULETRADE_ADVANCED_EQUIVALENCE__?.operation?.kind===${JSON.stringify(advanced.kind)}`, `${advanced.id} typed operation`);
+    await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Save'&&!item.disabled))`, `${advanced.id} enabled Save`);
+    await clickText("Save");
+    await waitExpression(`window.__RULETRADE_ADVANCED_EQUIVALENCE__?.savedRevision==='revision-advanced-2'`, `${advanced.id} persisted revision`);
+    const beforeReopen = await evaluate(`window.__RULETRADE_ADVANCED_EQUIVALENCE__`);
+    if (JSON.stringify(beforeReopen.appliedCanonical) !== JSON.stringify(beforeReopen.savedCanonical)) throw new Error(`${advanced.id} Canonical changed at Save: ${JSON.stringify(beforeReopen)}`);
+    await screenshot(`ui-authored-${advanced.id}-saved`);
+    await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
+    await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
+    for (const [label, selector] of [["Guide", '[aria-label="Guided strategy editor"]'], ["Flow", '[aria-label="Flow capital projection"]'], ["Blocky", '.blocky-representation'], ["Rules", '[data-projection-contract="rules"]'], ["Code", '.code-representation[aria-label="Code representation"]']]) {
+      await clickText(label); await waitSelector(selector);
+      const projection = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText??''`);
+      if (!projection.trim() || projection.includes("production Program lowering")) throw new Error(`${advanced.id} ${label} projection failed: ${projection}`);
+    }
+    await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, `${advanced.id} executable Test`);
+    await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+    await clickText("Run Quick Test"); await waitExpression(`document.body.innerText.includes('Backtest complete')`, `${advanced.id} persisted execution result`);
+    const advancedJourney = await evaluate(`({state:window.__RULETRADE_ADVANCED_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],body:document.body.innerText})`);
+    if (!advancedJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-advanced-2/backtest-runs'&&item.method==='POST') || !advancedJourney.body.includes(`run-advanced-${advanced.id}`)) throw new Error(`${advanced.id} execution equivalence failed: ${JSON.stringify(advancedJourney)}`);
+    await screenshot(`ui-authored-${advanced.id}-executed`);
+  }
   await writeFile(`${output}/browser-trace.json`, JSON.stringify(trace, null, 2));
   console.log(`Browser acceptance passed; artifacts: ${output}`);
 } finally {

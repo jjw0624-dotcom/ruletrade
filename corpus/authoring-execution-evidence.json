@@ -28,19 +28,27 @@
     },
     {
       "id": "weighted-score",
-      "authoring": {"status": "partial", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-E-WEIGHTED-SCORE"},
+      "authoring": {"status": "production_gesture_browser_verified", "evidence": ["corpus/advanced-ui-authored-execution-equivalence.json#weighted_score", "tests/test_advanced_ui_authored_execution_equivalence.py", "scripts/check_builder_browser.mjs"]},
       "semantic_operation": "commit_weighted_score_intent",
-      "save_reopen": "canonical persistence verified",
+      "save_reopen": "verified in production V2StrategyEditor through actual Chrome gestures",
       "execution": {"status": "docker_verified", "evidence": "make check-lean-weighted-score"},
-      "end_to_end_claim": "not_claimed"
+      "end_to_end_claim": "supported_verified"
     },
     {
       "id": "temporal-breakout",
-      "authoring": {"status": "partial", "evidence": "corpus/perspective-roundtrip-corpus.json#RT-F-TEMPORAL"},
+      "authoring": {"status": "production_gesture_browser_verified", "evidence": ["corpus/advanced-ui-authored-execution-equivalence.json#temporal_sequence", "tests/test_advanced_ui_authored_execution_equivalence.py", "scripts/check_builder_browser.mjs"]},
       "semantic_operation": "commit_temporal_sequence_intent",
-      "save_reopen": "checkpoint and revision persistence verified",
+      "save_reopen": "verified in production V2StrategyEditor through actual Chrome gestures",
       "execution": {"status": "docker_verified_replay", "evidence": "make check-lean-temporal-stateful"},
-      "end_to_end_claim": "not_claimed"
+      "end_to_end_claim": "supported_verified"
+    },
+    {
+      "id": "weekly-daily-multi-clock",
+      "authoring": {"status": "production_gesture_browser_verified", "evidence": ["corpus/advanced-ui-authored-execution-equivalence.json#multi_clock_policy", "tests/test_advanced_ui_authored_execution_equivalence.py", "scripts/check_builder_browser.mjs"]},
+      "semantic_operation": "commit_multi_clock_policy_intent",
+      "save_reopen": "verified in production V2StrategyEditor through actual Chrome gestures",
+      "execution": {"status": "docker_verified_replay", "evidence": "make check-lean-temporal-multiclock"},
+      "end_to_end_claim": "supported_verified"
     }
   ]
 }
