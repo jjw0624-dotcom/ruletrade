@@ -161,9 +161,7 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
-  await waitSelector('.react-flow__edge-interaction');
-  const routePoint = await evaluate(`(() => { const path=document.querySelector('.react-flow__edge-interaction'); const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); return {x:screen.x,y:screen.y}; })()`);
-  await evaluate(`(() => { const path=document.querySelector('.react-flow__edge-interaction'); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:${routePoint.x},clientY:${routePoint.y},button:0})); })()`);
+  await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const path=[...document.querySelectorAll('.react-flow__edge-interaction')].find((item)=>item.isConnected&&item.getTotalLength()>0); if(path){ const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing stable Flow route interaction path'); })()`);
   await waitExpression(`document.querySelector('.react-flow__edge')?.classList.contains('selected')`, "selected Flow route");
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
