@@ -9,6 +9,7 @@ import { V2StrategyEditor } from "./components/V2StrategyEditor";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { StrategyDetailV2 } from "./strategyApi";
 import type { BacktestRunRecord } from "./backtestRunApi";
+import equivalenceFixture from "../../corpus/ui-authored-execution-equivalence.json";
 
 const assets = [
   ["QQQ", "Invesco QQQ Trust", "ETF"], ["VGT", "Vanguard Information Technology ETF", "ETF"],
@@ -21,6 +22,22 @@ window.fetch = async (input, init) => {
   const url = String(input);
   const browserWindow = window as typeof window & { __RULETRADE_BROWSER_REQUESTS__?: Array<{ url: string; method: string }> };
   browserWindow.__RULETRADE_BROWSER_REQUESTS__ = [...(browserWindow.__RULETRADE_BROWSER_REQUESTS__ ?? []), { url, method: init?.method ?? "GET" }];
+  if (url === "/api/v2/canonical/authoring/apply") {
+    const request = JSON.parse(String(init?.body ?? "{}")) as { operation?: V2AuthoringOperation };
+    if (JSON.stringify(request.operation) !== JSON.stringify(uiEquivalenceCase.operation)) return new Response(JSON.stringify({ detail: { code: "unexpected_operation", message: "The browser gesture produced a different operation." } }), { status: 422, headers: { "content-type": "application/json" } });
+    const state = window as typeof window & { __RULETRADE_UI_EQUIVALENCE__?: Record<string, unknown> };
+    state.__RULETRADE_UI_EQUIVALENCE__ = { ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}), operation: request.operation, appliedCanonical: uiExpectedCanonical };
+    return new Response(JSON.stringify({ strategy: uiExpectedCanonical, source_hash: "sha256:ui-authored" }), { headers: { "content-type": "application/json" } });
+  }
+  if (url === "/api/v1/strategies/strategy-ui-authored/revisions" && init?.method === "POST") {
+    const request = JSON.parse(String(init.body ?? "{}")) as { canonical_strategy?: CanonicalStrategyV2 };
+    if (JSON.stringify(request.canonical_strategy) !== JSON.stringify(uiExpectedCanonical)) return new Response(JSON.stringify({ detail: { code: "canonical_mismatch", message: "Saved Canonical differs from the UI equivalence fixture." } }), { status: 422, headers: { "content-type": "application/json" } });
+    uiSavedDetail = uiPersistedDetail("revision-ui-authored-2", uiExpectedCanonical, "sha256:ui-authored");
+    const state = window as typeof window & { __RULETRADE_UI_EQUIVALENCE__?: Record<string, unknown> };
+    state.__RULETRADE_UI_EQUIVALENCE__ = { ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}), savedCanonical: request.canonical_strategy, savedRevision: "revision-ui-authored-2" };
+    return new Response(JSON.stringify({ created: true, strategy: uiSavedDetail.strategy, revision: uiSavedDetail.current_revision }), { status: 201, headers: { "content-type": "application/json" } });
+  }
+  if (url === `/api/v2/revisions/${uiAuthoredRun.revision_id}/backtest-runs`) return new Response(JSON.stringify(init?.method === "POST" ? uiAuthoredRun : { items: [] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
   if (url.startsWith("/api/v2/canonical/strategies/execution-capability")) return new Response(JSON.stringify({ authoring_state: "committed", semantic_state: "valid", execution_state: "executable", provider_state: "available", runtime_state: "available", product_message: "Ready to test.", technical_detail: null, authorable: true, reference_valid: true, backend_lowerable: true, production_executable: true, reason: null }), { headers: { "content-type": "application/json" } });
   if (url === `/api/v2/revisions/${persistedRun.revision_id}/backtest-runs`) return new Response(JSON.stringify(init?.method === "POST" ? persistedRun : { items: [persistedRun] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
   if (url === `/api/v2/backtest-runs/${persistedRun.id}/decision-events`) return new Response(JSON.stringify({ items: [evidenceSummary] }), { headers: { "content-type": "application/json" } });
@@ -43,6 +60,30 @@ const blank: CanonicalStrategyV2 = {
   operator_lock: {}, selection: null, predicate: null,
   program: { semantic_id: "program", clocks: [], initial_state: {}, formalizations: [], statements: [] },
 };
+
+const uiEquivalenceCase = equivalenceFixture.case;
+const uiExpectedCanonical = uiEquivalenceCase.expected_canonical as CanonicalStrategyV2;
+const uiAuthoringBlank: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { name: "UI Authored Monthly QQQ", description: "", tags: [] },
+  operator_lock: { compare: "1" },
+  program: {
+    semantic_id: "program",
+    clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true, terminal_boundary_policy: "not_due" }],
+    initial_state: {}, formalizations: [],
+    statements: [{ kind: "allocate", semantic_id: "initial-retain-allocation", method: "equal", clock_id: "daily-close", legs: [{ semantic_id: "initial-retain-leg", target: { semantic_id: "initial-retain-target", kind: "retain", ref: null }, weight: null }], minimum_weight: null, maximum_weight: null, cash_remainder_asset: null }],
+  },
+};
+
+function uiPersistedDetail(revisionId: string, canonical: CanonicalStrategyV2, sourceHash: string): StrategyDetailV2 {
+  return {
+    strategy: { id: "strategy-ui-authored", name: canonical.metadata.name, created_at: "2026-11-05T00:00:00Z", updated_at: "2026-11-05T00:00:00Z", current_revision_id: revisionId, archived_at: null },
+    current_revision: { id: revisionId, strategy_id: "strategy-ui-authored", parent_revision_id: revisionId === "revision-ui-authored-1" ? null : "revision-ui-authored-1", canonical_strategy: canonical, source_hash: sourceHash, schema_version: canonical.api_version, created_at: "2026-11-05T00:00:00Z" },
+  };
+}
+
+const uiInitialDetail = uiPersistedDetail("revision-ui-authored-1", uiAuthoringBlank, "sha256:ui-blank");
+let uiSavedDetail: StrategyDetailV2 | null = null;
 
 const persistedCanonical: CanonicalStrategyV2 = {
   ...blank,
@@ -72,6 +113,13 @@ const persistedRun: BacktestRunRecord = {
   timings: { source_load_ms: 1, validation_ms: 1, compiler_ms: 1, codegen_ms: 1, csharp_compile_ms: 1, lean_execution_ms: 1, result_load_ms: 1, normalization_ms: 1, total_ms: 8 }, created_at: "2026-11-02T00:00:00Z", started_at: "2026-11-02T00:00:01Z", completed_at: "2026-11-02T00:00:08Z",
 };
 
+const uiAuthoredRun: BacktestRunRecord = {
+  ...persistedRun,
+  id: "run-ui-authored",
+  revision_id: "revision-ui-authored-2",
+  provenance: { ...persistedRun.provenance, source_hash: "sha256:ui-authored" },
+};
+
 const evidenceSummary = { id: "decision-v2-browser", run_id: persistedRun.id, ordinal: 1, schema_version: 2 as const, session_id: "2024-02-29", phase: "portfolio_execution", kind: "final_targets", source_components: [{ role: "rebalance", component_id: "growth-allocation" }] };
 
 function Harness() {
@@ -94,10 +142,45 @@ function Harness() {
     workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
 }
 
+const flowRemovalCanonical: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { ...blank.metadata, name: "Flow Removal" },
+  definitions: {
+    ...blank.definitions,
+    asset_sets: [{ id: "growth-assets", assets: ["QQQ"] }, { id: "defense-assets", assets: ["TLT"] }],
+    groups: [{ id: "growth", name: "Growth", asset_set_ref: "growth-assets", description: "" }, { id: "defense", name: "Defensive", asset_set_ref: "defense-assets", description: "" }],
+  },
+  program: { semantic_id: "program", initial_state: {}, formalizations: [], clocks: [{ id: "monthly-close", timeframe: "monthly", boundary: "close", timezone: "UTC", completed_only: true }], statements: [{
+    kind: "allocate", semantic_id: "browser-split", method: "fixed", clock_id: "monthly-close", minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+    legs: [{ semantic_id: "growth-leg", target: { semantic_id: "growth-target", kind: "group", ref: "growth" }, weight: .7 }, { semantic_id: "defense-leg", target: { semantic_id: "defense-target", kind: "group", ref: "defense" }, weight: .3 }],
+  }] },
+};
+
+function FlowRemovalHarness() {
+  const [canonical, setCanonical] = useState(flowRemovalCanonical);
+  const [draft, setDraft] = useState(() => emptyProgramWorkingDraft("browser-flow-removal"));
+  (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
+  const apply = (operation: V2AuthoringOperation) => {
+    if (operation.kind === "remove_program_investment_allocation") setCanonical((current) => ({ ...current, program: current.program ? { ...current.program, statements: current.program.statements.filter((statement) => statement.semantic_id !== operation.semantic_id) } : null }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="flow"
+    onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+    canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+    workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
+}
+
 function PersistedJourneyHarness() {
   const [run, setRun] = useState<BacktestRunRecord | null>(null);
   if (run) return <ResultWorkspace run={run} strategyName="Persisted V2 Journey" onBack={() => setRun(null)} />;
   return <V2StrategyEditor persisted={persistedDetail} onHome={() => undefined} onOpenRun={() => setRun(persistedRun)} />;
 }
 
-createRoot(document.getElementById("root")!).render(new URLSearchParams(window.location.search).get("journey") === "persisted-v2" ? <PersistedJourneyHarness /> : <Harness />);
+function UiAuthoredEquivalenceHarness() {
+  const [open, setOpen] = useState(true);
+  const [generation, setGeneration] = useState(0);
+  if (!open) return <main aria-label="Strategy home"><h1>Strategies</h1><button type="button" onClick={() => { setGeneration((value) => value + 1); setOpen(true); }}>Reopen saved strategy</button></main>;
+  return <V2StrategyEditor key={`${uiSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={uiSavedDetail ?? uiInitialDetail} onHome={() => setOpen(false)} />;
+}
+
+const journey = new URLSearchParams(window.location.search).get("journey");
+createRoot(document.getElementById("root")!).render(journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : <Harness />);

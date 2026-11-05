@@ -87,4 +87,25 @@ describe("perspective translation v2", () => {
       expect(result.operation?.kind).toBe("set_program_split");
     }
   });
+
+  it("translates lossless Flow disconnections into precise atomic V2 operations", () => {
+    const flow = derivePerspectiveBundle(strongest).capitalFlow;
+    const investmentEdge = flow.edges.find((edge) => edge.source === "portfolio" && edge.target.startsWith("investment:"))!;
+    const investment = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: investmentEdge.source, targetId: investmentEdge.target, projectedEdges: flow.edges });
+    expect(investment).toMatchObject({ status: "ready", semanticEffect: "commit_operation", operation: { kind: "remove_program_investment_allocation", semantic_id: "allocate-selected" } });
+
+    const fallbackEdge = flow.edges.find((edge) => edge.target.startsWith("fallback:select-growth:"))!;
+    const fallback = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: fallbackEdge.source, targetId: fallbackEdge.target, projectedEdges: flow.edges });
+    expect(fallback).toMatchObject({ status: "ready", operation: { kind: "set_program_fallback", semantic_id: "select-growth", fallback_asset: null } });
+  });
+
+  it("keeps lossy or stale Flow disconnections out of Canonical", () => {
+    const flow = derivePerspectiveBundle(strongest).capitalFlow;
+    const actionEdge = flow.edges.find((edge) => edge.target === "rebalance")!;
+    const lossy = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: actionEdge.source, targetId: actionEdge.target, projectedEdges: flow.edges });
+    expect(lossy).toMatchObject({ status: "unsupported", semanticEffect: "none", diagnostic: { code: "route_deletion_requires_semantic_operation" } });
+    expect(lossy.operation).toBeUndefined();
+    const stale = translateDraftIntent(strongest, { kind: "disconnect_flow", sourceId: "portfolio", targetId: "investment:missing", projectedEdges: flow.edges });
+    expect(stale).toMatchObject({ status: "invalid", semanticEffect: "none", diagnostic: { code: "stale_capital_route" } });
+  });
 });

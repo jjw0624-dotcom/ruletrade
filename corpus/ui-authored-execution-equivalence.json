@@ -1,0 +1,106 @@
+{
+  "schema": "ruletrade.ui-authored-execution-equivalence.v1",
+  "case": {
+    "id": "monthly-qqq-guide",
+    "perspective": "Guide",
+    "user_actions": [
+      "Choose QQQ first",
+      "Select QQQ",
+      "Choose monthly close",
+      "Choose rebalance existing capital",
+      "Commit strategy meaning",
+      "Save",
+      "Leave",
+      "Reopen",
+      "Test"
+    ],
+    "operation": {
+      "kind": "commit_single_asset_intent",
+      "investment_id": "investment-1",
+      "investment_name": "Investment",
+      "asset_set_id": "investment-1-assets",
+      "asset": "QQQ",
+      "timeframe": "monthly",
+      "timing_meaning": "rebalance"
+    },
+    "expected_canonical": {
+      "api_version": "ruletrade.dev/strategy/v2",
+      "semantic_profile": "profile-a/daily-compositional-core@1",
+      "metadata": {
+        "name": "UI Authored Monthly QQQ",
+        "description": "",
+        "tags": []
+      },
+      "definitions": {
+        "asset_sets": [
+          {
+            "id": "investment-1-assets",
+            "assets": ["QQQ"]
+          }
+        ],
+        "groups": [
+          {
+            "id": "investment-1",
+            "name": "Investment",
+            "asset_set_ref": "investment-1-assets",
+            "description": ""
+          }
+        ],
+        "asset_axis": {
+          "name": "asset",
+          "domain_id": "investment-1",
+          "coordinate_policy": "member_identity"
+        }
+      },
+      "operator_lock": {
+        "compare": "1"
+      },
+      "selection": null,
+      "predicate": null,
+      "program": {
+        "semantic_id": "program",
+        "clocks": [
+          {
+            "id": "monthly-close",
+            "timeframe": "monthly",
+            "boundary": "close",
+            "timezone": "UTC",
+            "completed_only": true,
+            "terminal_boundary_policy": "not_due"
+          }
+        ],
+        "initial_state": {},
+        "formalizations": [],
+        "statements": [
+          {
+            "kind": "allocate",
+            "semantic_id": "single-asset-allocation",
+            "method": "fixed",
+            "legs": [
+              {
+                "semantic_id": "single-asset-leg",
+                "target": {
+                  "semantic_id": "single-asset-target",
+                  "kind": "asset",
+                  "ref": "QQQ"
+                },
+                "weight": "1"
+              }
+            ],
+            "clock_id": "monthly-close",
+            "minimum_weight": null,
+            "maximum_weight": null,
+            "cash_remainder_asset": null
+          }
+        ]
+      }
+    },
+    "expected_capability": {
+      "semantic_state": "valid",
+      "execution_state": "executable",
+      "reference_valid": true,
+      "backend_lowerable": true,
+      "production_executable": true
+    }
+  }
+}

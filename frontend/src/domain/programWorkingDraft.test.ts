@@ -4,12 +4,14 @@ import {
   hasFlowCycle,
   loadProgramWorkingDraft,
   persistProgramWorkingDraft,
+  programDraftForPerspective,
   programDraftStorageKey,
   validProgramBlockConnection,
   withBlockPosition,
   withBlockMove,
   withBlockDisclosure,
   withProgramDraftConcept,
+  withPerspectiveProgramDraft,
   addCanvasBlock,
   duplicateCanvasBlock,
   removeCanvasBlock,
@@ -45,9 +47,37 @@ describe("SemanticProgramV2 Working Draft", () => {
     expect(loadProgramWorkingDraft("strategy-1", storage)).toMatchObject({
       schema: "ruletrade.dev/program-working-draft/v3",
       status: "incomplete",
-      concept: { kind: "control", condition: null },
+      perspectiveDrafts: { blocky: { kind: "control", condition: null } },
       blockPositions: { "draft:if-1": { x: 420, y: 180 } },
       blockDisclosure: { "draft:if-1": 0 },
+    });
+  });
+
+  it("restores Blocky Add state and a pending typed object insertion transaction", () => {
+    const storage = memoryStorage();
+    const draft = {
+      ...withProgramDraftConcept(emptyProgramWorkingDraft("object-transaction"), { kind: "group" as const, semanticId: "group-1", name: "Group 1", assets: [] }),
+      blockyAddOpen: true,
+      pendingObjectInsertion: { parentId: "draft:invest-1", inputName: "TARGET" },
+    };
+    persistProgramWorkingDraft(draft, storage);
+    expect(loadProgramWorkingDraft("object-transaction", storage)).toMatchObject({
+      status: "incomplete",
+      blockyAddOpen: true,
+      pendingObjectInsertion: { parentId: "draft:invest-1", inputName: "TARGET" },
+      perspectiveDrafts: { blocky: { kind: "group", semanticId: "group-1" } },
+    });
+  });
+
+  it("persists Add visibility without turning UI state into semantic work", () => {
+    const storage = memoryStorage();
+    const draft = { ...emptyProgramWorkingDraft("add-only"), blockyAddOpen: true };
+    persistProgramWorkingDraft(draft, storage);
+    expect(loadProgramWorkingDraft("add-only", storage)).toMatchObject({
+      status: "clean",
+      blockyAddOpen: true,
+      perspectiveDrafts: {},
+      activeGraphRootIds: [],
     });
   });
 
@@ -63,7 +93,7 @@ describe("SemanticProgramV2 Working Draft", () => {
     expect(loadProgramWorkingDraft("strategy-legacy", storage)).toMatchObject({
       schema: "ruletrade.dev/program-working-draft/v3",
       status: "incomplete",
-      concept: { semanticId: "legacy-if" },
+      perspectiveDrafts: { blocky: { semanticId: "legacy-if" } },
       flowPositions: { portfolio: { x: 12, y: 34 } },
       blockDisclosure: {},
       diagnostics: [],
@@ -162,12 +192,24 @@ describe("SemanticProgramV2 Working Draft", () => {
     persistProgramWorkingDraft(draft, storage);
     expect(loadProgramWorkingDraft("strategy-intent", storage)).toMatchObject({
       status: "incomplete",
-      concept: {
+      perspectiveDrafts: { blocky: {
         kind: "financial_intent",
         semanticId: "intent-qqq",
         recipe: "single_asset",
         values: { asset: "QQQ", timeframe: null, timingMeaning: null },
-      },
+      } },
     });
+  });
+
+  it("owns incomplete semantic intent independently per editable perspective", () => {
+    let draft = emptyProgramWorkingDraft("perspective-slots");
+    draft = withPerspectiveProgramDraft(draft, "guided", createFinancialIntentDraft("single_asset", "asset_first", "guide-intent"));
+    draft = withPerspectiveProgramDraft(draft, "flow", createFinancialIntentDraft("split_portfolio", "flow_first", "flow-intent"));
+    expect(programDraftForPerspective(draft, "guided")).toMatchObject({ semanticId: "guide-intent" });
+    expect(programDraftForPerspective(draft, "flow")).toMatchObject({ semanticId: "flow-intent" });
+    expect(programDraftForPerspective(draft, "rules")).toBeNull();
+    const withoutFlow = withPerspectiveProgramDraft(draft, "flow", null);
+    expect(programDraftForPerspective(withoutFlow, "guided")).toMatchObject({ semanticId: "guide-intent" });
+    expect(programDraftForPerspective(withoutFlow, "flow")).toBeNull();
   });
 });

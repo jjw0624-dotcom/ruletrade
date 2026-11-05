@@ -20,7 +20,7 @@ vi.mock("@xyflow/react", () => ({
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
   Position: { Top: "top", Bottom: "bottom" },
-  ReactFlow: ({ onPaneClick, onNodeDragStop, onMoveEnd, nodes = [], nodesDraggable, panOnDrag }: { onPaneClick?: () => void; onNodeDragStop?: (event: unknown, node: { id: string; position: { x: number; y: number } }) => void; onMoveEnd?: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void; nodes?: Array<{ id: string }>; nodesDraggable?: boolean; panOnDrag?: boolean }) => <div><button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button><button type="button" data-testid="flow-node-drag" onClick={() => nodes[0] && onNodeDragStop?.({}, { id: nodes[0].id, position: { x: 510, y: 240 } })}>Move node</button><button type="button" data-testid="flow-pan" onClick={() => onMoveEnd?.({}, { x: 80, y: 45, zoom: .9 })}>Pan canvas</button></div>,
+  ReactFlow: ({ onPaneClick, onNodeDragStop, onMoveEnd, onEdgesChange, nodes = [], edges = [], nodesDraggable, panOnDrag }: { onPaneClick?: () => void; onNodeDragStop?: (event: unknown, node: { id: string; position: { x: number; y: number } }) => void; onMoveEnd?: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void; onEdgesChange?: (changes: Array<{ type: "remove"; id: string }>) => void; nodes?: Array<{ id: string }>; edges?: Array<{ id: string; source: string; target: string }>; nodesDraggable?: boolean; panOnDrag?: boolean }) => <div><button type="button" data-testid="flow-pane" data-nodes-draggable={String(nodesDraggable)} data-pan-on-drag={String(panOnDrag)} onClick={onPaneClick}>Flow canvas</button><button type="button" data-testid="flow-node-drag" onClick={() => nodes[0] && onNodeDragStop?.({}, { id: nodes[0].id, position: { x: 510, y: 240 } })}>Move node</button><button type="button" data-testid="flow-pan" onClick={() => onMoveEnd?.({}, { x: 80, y: 45, zoom: .9 })}>Pan canvas</button><button type="button" data-testid="flow-delete-first" onClick={() => edges[0] && onEdgesChange?.([{ type: "remove", id: edges[0].id }])}>Delete first route</button><button type="button" data-testid="flow-delete-second" onClick={() => edges[1] && onEdgesChange?.([{ type: "remove", id: edges[1].id }])}>Delete second route</button></div>,
 }));
 
 vi.mock("./ProductBlockyProjection", () => ({
@@ -205,6 +205,47 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
   });
 
+  it("keeps Guide authoring inside Guide without creating Blocky draft blocks", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("guide-investment"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="guided"
+        onHome={() => undefined} apply={apply} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "One investment");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "asset_first" });
+    expect(latest.canvasBlocks).toEqual({});
+    expect(container.querySelector('[aria-label="Guided strategy editor"]')).toBeTruthy();
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current draft when navigation selection changes and discards only on explicit intent", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("selection-draft-lifecycle"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="guided"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined}
+        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+        working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "One investment");
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    await clickButton(container, "Portfolio");
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toMatchObject({ kind: "financial_intent", recipe: "single_asset" });
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
+    await clickButton(container, "Discard draft");
+    expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toBeUndefined();
+  });
+
   it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
     act(() => root.render(<SemanticProgramBuilderAdapter
       canonical={blank} dirty={false} status="saved" message="Saved" initialView="overview"
@@ -248,6 +289,34 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("dispatches a precise typed removal for a complete Flow route deletion", async () => {
+    const apply = vi.fn();
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="flow"
+      onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+      canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null} />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-delete-first"]')!.click());
+    expect(apply).toHaveBeenCalledWith({ kind: "remove_program_investment_allocation", semantic_id: "portfolio-split" });
+  });
+
+  it("preserves an unsupported partial Split removal as a Flow-owned draft", async () => {
+    const apply = vi.fn();
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-removal-draft"));
+      return <SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="flow"
+        onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="flow-delete-second"]')!.click());
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "flow_route_change", action: "disconnect", sourceId: "split" });
+    expect(latest.status).toBe("unsupported");
+    expect(container.querySelector(".flow-route-draft")).toBeTruthy();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it("starts an independent Flow Investment draft without changing Blocky or Canonical", async () => {
     const apply = vi.fn();
     const changes = vi.fn();
@@ -262,11 +331,16 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Create Investment");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(apply).not.toHaveBeenCalled();
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
     await clickButton(container, "Rules");
+    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeNull();
+    await clickButton(container, "Add investment rule");
+    const withRulesDraft = changes.mock.calls.at(-1)?.[0];
+    expect(withRulesDraft.perspectiveDrafts.flow).toMatchObject({ startPath: "flow_first" });
+    expect(withRulesDraft.perspectiveDrafts.rules).toMatchObject({ startPath: "rules_first" });
     await clickButton(container, "Flow");
     expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
     expect(apply).not.toHaveBeenCalled();
@@ -286,7 +360,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Create Split");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
+    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(apply).not.toHaveBeenCalled();
   });
@@ -305,7 +379,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Add investment rule");
     const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.concept).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
+    expect(latest.perspectiveDrafts.rules).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "rules_first" });
     expect(latest.canvasBlocks).toEqual({});
     expect(container.querySelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Semantic Inspector"] [data-intent-recipe="single_asset"]')).toBeNull();
@@ -317,6 +391,24 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);
     expect(container.querySelector('[data-testid="blocky-workspace"]')?.getAttribute("data-native-toolbox")).toBe("category-flyout");
     expect(container.querySelectorAll(".blocky-toolbox-entry")).toHaveLength(0);
+  });
+
+  it("preserves Blocky Add state while another perspective is inspected", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("add-preservation"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await clickButton(container, "Add");
+    expect(changes.mock.calls.at(-1)?.[0].blockyAddOpen).toBe(true);
+    await clickButton(container, "Flow");
+    expect(changes.mock.calls.at(-1)?.[0].blockyAddOpen).toBe(true);
+    await clickButton(container, "Blocky");
+    expect(container.querySelector('button[role="tab"][data-state="active"]')?.textContent).toBe("Add");
   });
 
   it("starts Investment as Investment and never substitutes an IF draft", async () => {
@@ -333,7 +425,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.canvasBlocks["draft:invest-native"]).toMatchObject({ definitionId: "invest" });
     expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "if-otherwise")).toBe(false);
-    expect(latest.concept).toBeNull();
+    expect(latest.perspectiveDrafts.blocky).toBeUndefined();
   });
 
   it("creates a Group for an empty typed target slot and connects only the explicit reference", async () => {
@@ -350,11 +442,13 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
     expect(container.querySelector(".group-draft")).toBeTruthy();
+    expect(changes.mock.calls.at(-1)?.[0].pendingObjectInsertion).toEqual({ parentId: "draft:invest-native", inputName: "TARGET" });
     await clickGroupWorkspaceButton(container, "Create Group");
     const latest = changes.mock.calls.at(-1)?.[0];
     const reference = Object.values(latest.canvasBlocks as Record<string, { id: string; definitionId: string; objectRef: string }>).find((item) => item.definitionId === "group-reference")!;
     expect(reference.objectRef).toBe("group-1");
     expect(latest.blockConnections[reference.id]).toMatchObject({ parentId: "draft:invest-native", inputName: "TARGET" });
+    expect(latest.pendingObjectInsertion).toBeNull();
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
   });
 
@@ -380,6 +474,26 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ kind: "add_program_group" }));
   });
 
+  it("cancels a pending typed-slot Group transaction without inserting a reference", async () => {
+    const changes = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("group-slot-cancel"));
+      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+        onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+        canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
+    }
+    act(() => root.render(<Harness />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-invest"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="native-create-group-for-slot"]')!.click());
+    expect(changes.mock.calls.at(-1)?.[0].pendingObjectInsertion).toEqual({ parentId: "draft:invest-native", inputName: "TARGET" });
+    await clickButton(container, "Cancel");
+    const latest = changes.mock.calls.at(-1)?.[0];
+    expect(latest.pendingObjectInsertion).toBeNull();
+    expect(latest.canvasBlocks["draft:invest-native"]).toBeTruthy();
+    expect(Object.values(latest.canvasBlocks as Record<string, { definitionId: string }>).some((item) => item.definitionId === "group-reference")).toBe(false);
+  });
+
   it("cancels Group creation without erasing an unrelated Blockly fragment", async () => {
     const changes = vi.fn();
     function Harness() {
@@ -396,7 +510,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     await clickButton(container, "Cancel");
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.canvasBlocks["draft:invest-native"]).toBeTruthy();
-    expect(latest.concept).toBeNull();
+    expect(latest.perspectiveDrafts.blocky).toBeUndefined();
   });
 
   it("keeps Inspector focused on the same semantic address after reconciliation", async () => {

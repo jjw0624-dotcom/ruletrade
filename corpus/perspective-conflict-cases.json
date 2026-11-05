@@ -1,0 +1,69 @@
+{
+  "schema": "ruletrade.perspective-conflict-cases.v1",
+  "cases": [
+    {
+      "id": "layout-only",
+      "classification": "no_semantic_change",
+      "resolution": "preserve both layouts",
+      "user_resolution_required": false,
+      "canonical_mutation": "typed operation only when semantic meaning changes",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "incomplete-flow-route",
+      "classification": "incomplete_draft",
+      "resolution": "retain Flow draft; do not project",
+      "user_resolution_required": false,
+      "canonical_mutation": "typed operation only when semantic meaning changes",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "stale-blocky-base",
+      "classification": "stale_draft",
+      "resolution": "require rebase or explicit discard",
+      "user_resolution_required": true,
+      "canonical_mutation": "none until validated resolution",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "independent-addresses",
+      "classification": "compatible_semantic_change",
+      "resolution": "merge typed operations after dependency check",
+      "user_resolution_required": false,
+      "canonical_mutation": "typed operation only when semantic meaning changes",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "same-allocation-address",
+      "classification": "direct_conflict",
+      "resolution": "preserve both drafts and require explicit choice",
+      "user_resolution_required": true,
+      "canonical_mutation": "none until validated resolution",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "group-removed-while-referenced",
+      "classification": "dependency_conflict",
+      "resolution": "block commit until reference is resolved",
+      "user_resolution_required": true,
+      "canonical_mutation": "none until validated resolution",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "unsupported-flow-projection",
+      "classification": "unsupported_translation",
+      "resolution": "preserve canonical meaning; render capability boundary",
+      "user_resolution_required": false,
+      "canonical_mutation": "typed operation only when semantic meaning changes",
+      "draft_preservation": "all perspective drafts retained"
+    },
+    {
+      "id": "fixed-money-versus-target-weight",
+      "classification": "direct_conflict",
+      "resolution": "never coerce order notional into rebalance weight",
+      "user_resolution_required": true,
+      "canonical_mutation": "none until validated resolution",
+      "draft_preservation": "all perspective drafts retained"
+    }
+  ]
+}
