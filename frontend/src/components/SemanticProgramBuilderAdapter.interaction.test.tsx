@@ -246,7 +246,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(changes.mock.calls.at(-1)?.[0].perspectiveDrafts.guided).toBeUndefined();
   });
 
-  it("keeps Test results in the right detail rail and restores Inspector navigation", async () => {
+  it("keeps Test results in an independent Dashboard above Inspector navigation", async () => {
     act(() => root.render(<SemanticProgramBuilderAdapter
       canonical={blank} dirty={false} status="saved" message="Saved" initialView="overview"
       onHome={() => undefined} apply={() => undefined} save={() => undefined}
@@ -254,7 +254,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
       working={() => undefined} run={() => undefined} executionCapability={null}
       testPanel={<div>Runtime evidence</div>} onCloseTestPanel={() => undefined}
     />));
-    expect(container.querySelector('[aria-label="Test results"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Quick Test Dashboard"]')).toBeTruthy();
+    expect(container.querySelector('.program-builder-core')?.classList.contains('inspector-open')).toBe(false);
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
     expect(container.textContent).toContain("Runtime evidence");
   });
