@@ -280,6 +280,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
         ? <ResultWorkspace run={testPanel.result} strategyName={canonical.metadata.name} onBack={() => setTestPanel(null)} />
         : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} />
     : null;
+  const persistedTestRun = testPanel?.status === "success" && "revision_id" in testPanel.result ? testPanel.result : null;
   if (canonical.selection === null && canonical.program) {
     return <>{conflict && <V2ConflictBanner conflict={conflict} draft={workingDraft} onRefresh={() => void refreshConflict()} onReapply={reapplyConflict} onDiscard={discardConflict} />}<SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
@@ -290,7 +291,11 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
-      testPanel={testPanelContent} onCloseTestPanel={() => setTestPanel(null)} /></>;
+      testPanel={testPanelContent}
+      testPanelId={persistedTestRun ? `run:${persistedTestRun.id}` : testPanel?.status ?? undefined}
+      testPanelBookmark={persistedTestRun ? `Run ${persistedTestRun.id.slice(0, 8)}` : undefined}
+      retainTestPanel={Boolean(persistedTestRun)}
+      onCloseTestPanel={() => setTestPanel(null)} /></>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
