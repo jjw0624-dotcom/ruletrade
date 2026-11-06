@@ -228,7 +228,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
         <div className="quick-test-dashboard-content">{dashboardEntries.map((entry) => <div key={entry.id} hidden={entry.id !== activeDashboard?.id} data-quick-test-result={entry.id}>{entry.content}</div>)}</div>
       </aside>}
       {(retainedDashboards.length > 0 || (activeDashboard && dashboardCollapsed)) && <nav className="quick-test-dashboard-bookmarks" aria-label="Recent Quick Test results">
-        {retainedDashboards.map((entry) => <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={`Open ${entry.bookmarkLabel ?? entry.title}`} aria-pressed={entry.id === activeDashboardId && !dashboardCollapsed} onClick={() => { setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>)}
+        {retainedDashboards.map((entry) => <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={entry.id === activeDashboardId && dashboardCollapsed ? "Reopen Quick Test Dashboard" : `Open ${entry.bookmarkLabel ?? entry.title}`} aria-pressed={entry.id === activeDashboardId && !dashboardCollapsed} onClick={() => { setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>)}
         {activeDashboard && !activeDashboard.retainInHistory && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
       </nav>}
     </div>
