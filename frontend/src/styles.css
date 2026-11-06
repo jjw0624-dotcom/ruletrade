@@ -246,6 +246,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .blocks-panel[data-perspective="blocky"]{height:auto;min-height:0;overflow:hidden}
 .native-add-surface-hint{display:none}
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"])>.workspace-left-root{z-index:12;background:transparent;pointer-events:none}
+.program-builder-core:has(.blocky-representation[data-native-add-open="false"])>.workspace-left-root{z-index:12}
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-panel-toggle,.program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-panel-tabs{position:relative;z-index:14;pointer-events:auto}
 .program-builder-core:has(.blocky-representation[data-native-add-open="true"]) .workspace-left-panel[data-active-tab="blocks"]>.workspace-left-tabs>.blocks-panel{pointer-events:none;background:transparent}
 .program-builder-core:has(.blocky-representation[data-native-toolbox="category-flyout"])>.representation-workspace,.program-representation-slot:has(.blocky-representation[data-native-toolbox="category-flyout"]){overflow:visible}

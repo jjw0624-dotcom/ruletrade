@@ -169,12 +169,13 @@ export interface NativeBlockyHistory {
 }
 
 interface PersistentAddToolbox {
-  getFlyout: () => { setAutoClose: (autoClose: boolean) => void } | null;
+  getFlyout: () => unknown;
   refreshSelection: () => void;
 }
 
 export function configurePersistentNativeAdd(toolbox: PersistentAddToolbox | null) {
-  toolbox?.getFlyout()?.setAutoClose(false);
+  const flyout = toolbox?.getFlyout() as { setAutoClose?: (autoClose: boolean) => void } | null | undefined;
+  flyout?.setAutoClose?.(false);
 }
 
 export function syncPersistentNativeAdd(toolbox: PersistentAddToolbox | null, visible: boolean) {
