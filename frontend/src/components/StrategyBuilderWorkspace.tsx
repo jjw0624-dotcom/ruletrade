@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
@@ -179,6 +179,9 @@ export interface ProgramWorkspaceProps {
 function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
   const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
+  const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
+  const dashboardOpen = Boolean(program.detailPanel);
+  useEffect(() => { if (dashboardOpen) setDashboardCollapsed(false); }, [dashboardOpen]);
   const switchView = (view: ProgramBuilderView) => {
     setVisitedViews((current) => current.has(view) ? current : new Set(current).add(view));
     program.onViewChange(view);
@@ -199,15 +202,18 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
     </header>
     {program.feedback && <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>}
     <div className="builder-workbench builder-only" data-research-layout="builder-only">
-      <div className={`builder-core program-builder-core left-open${program.inspectorOpen || program.detailPanel ? " inspector-open" : ""}`}>
+      <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`}>
         {program.leftPanel}
         <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>
           {(Object.keys(labels) as ProgramBuilderView[]).filter((view) => visitedViews.has(view)).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
         </main>
-        {program.detailPanel
-          ? <aside className="semantic-inspector test-result-panel" aria-label="Test results"><header><span className="eyebrow">{program.detailPanel.title}</span><button type="button" aria-label="Close Test results" onClick={program.detailPanel.onClose}>×</button></header>{program.detailPanel.content}</aside>
-          : program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
+        {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
+      {program.detailPanel && <aside className={`quick-test-dashboard${dashboardCollapsed ? " is-collapsed" : ""}`} aria-label="Quick Test Dashboard" aria-hidden={dashboardCollapsed} data-dashboard-state={dashboardCollapsed ? "collapsed" : "open"}>
+        <header><span className="eyebrow">{program.detailPanel.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={program.detailPanel.onClose}>×</button></div></header>
+        <div className="quick-test-dashboard-content">{program.detailPanel.content}</div>
+      </aside>}
+      {program.detailPanel && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
     </div>
   </section>;
 }

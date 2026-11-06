@@ -10,6 +10,7 @@ import { SemanticProgramBuilderAdapter } from "./SemanticProgramBuilderAdapter";
 import { CompatibilitySelectionBuilderAdapter } from "./CompatibilitySelectionBuilderAdapter";
 import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWorkingDraft, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 import { analyzeBuilderRevisionConflict, type BuilderRevisionConflictAnalysis } from "../domain/builderRevisionConflict";
+import { ResultWorkspace } from "./ResultWorkspace";
 
 interface V2RevisionConflict {
   baseRevisionId: string;
@@ -272,6 +273,13 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setStatus(unfinished ? "unfinished" : "saved");
     setMessage(unfinished ? "Unfinished semantic edit" : "Ready");
   };
+  const testPanelContent = testPanel
+    ? testPanel.status === "setup"
+      ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} />
+      : testPanel.status === "success" && "revision_id" in testPanel.result
+        ? <ResultWorkspace run={testPanel.result} strategyName={canonical.metadata.name} onBack={() => setTestPanel(null)} />
+        : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} />
+    : null;
   if (canonical.selection === null && canonical.program) {
     return <>{conflict && <V2ConflictBanner conflict={conflict} draft={workingDraft} onRefresh={() => void refreshConflict()} onReapply={reapplyConflict} onDiscard={discardConflict} />}<SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
@@ -282,7 +290,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
-      testPanel={testPanel ? testPanel.status === "setup" ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} /> : <V2TestResultPanel state={testPanel} onOpenRun={onOpenRun} /> : null} onCloseTestPanel={() => setTestPanel(null)} /></>;
+      testPanel={testPanelContent} onCloseTestPanel={() => setTestPanel(null)} /></>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
