@@ -254,13 +254,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
    one stable host rectangle so the canvas viewport never moves between tabs. */
 .blocky-layer:has(.blocky-representation[data-native-toolbox="category-flyout"]){position:relative;z-index:11;left:-268px;width:calc(100% + 268px)}
 .blocky-program-toolbox{height:100%;min-height:0;display:grid;grid-template-columns:82px minmax(0,1fr);border-top:1px solid var(--border);background:#f6f8f6}
-.blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{display:flex!important;flex-direction:column;width:88px!important;padding-top:112px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
+.blocky-representation[data-native-toolbox="category-flyout"] [data-ruletrade-native-toolbox="true"]{display:flex!important;flex-direction:column;width:88px!important;padding-top:40px;box-sizing:border-box;background:#f4f7f4;border-right:1px solid var(--border);overflow-x:hidden;z-index:11}
 .blocky-representation[data-native-add-open="false"] [data-ruletrade-native-toolbox="true"],.blocky-representation[data-native-add-open="false"] .blocklyFlyout{visibility:hidden;pointer-events:none}
 .blocky-representation[data-native-add-open="true"] [data-ruletrade-native-toolbox="true"],.blocky-representation[data-native-add-open="true"] .blocklyFlyout{visibility:visible;pointer-events:auto}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategory{height:auto;min-height:32px;padding:7px 8px!important;margin:1px 4px;border-radius:6px}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryLabel{font-size:11px;font-weight:750}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyToolboxCategoryGroup{width:88px!important}
-.blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{border-right:1px solid var(--border);clip-path:inset(0 calc(100% - 180px) 0 0);transition:clip-path .16s ease;z-index:12}
+.blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyout{border-right:1px solid var(--border);clip-path:inset(0 calc(100% - 180px) 0 0);translate:0 40px;transition:clip-path .16s ease;z-index:12}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocky-canvas[data-add-expanded="true"] .blocklyFlyout{clip-path:inset(0);filter:drop-shadow(12px 0 18px rgba(20,32,24,.16))}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutBackground{fill:#f8faf8;fill-opacity:.98}
 .blocky-representation[data-native-toolbox="category-flyout"] .blocklyFlyoutLabelText{font-size:11px}
