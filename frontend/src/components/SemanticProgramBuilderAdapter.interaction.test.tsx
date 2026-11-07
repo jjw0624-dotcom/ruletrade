@@ -387,6 +387,33 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("infers a complete Start graph and hands it to Test without a manual commit transaction", async () => {
+    const prepareTest = vi.fn();
+    const draft = {
+      ...emptyProgramWorkingDraft("automatic-test"),
+      canvasBlocks: {
+        "draft:start": { id: "draft:start", definitionId: "start-monthly", label: "Every monthly close", active: false, createdAt: "2026-10-18T00:00:00Z" },
+        "draft:rebalance": { id: "draft:rebalance", definitionId: "rebalance", label: "Rebalance", active: false, createdAt: "2026-10-18T00:00:00Z" },
+        "draft:asset": { id: "draft:asset", definitionId: "asset-reference", label: "QQQ", active: false, objectRef: "QQQ", createdAt: "2026-10-18T00:00:00Z" },
+        "draft:weight": { id: "draft:weight", definitionId: "percentage", label: "100%", active: false, fieldValues: { VALUE: 100 }, createdAt: "2026-10-18T00:00:00Z" },
+      },
+      blockConnections: {
+        "draft:start": { childId: "draft:start", parentId: null, inputName: null },
+        "draft:rebalance": { childId: "draft:rebalance", parentId: "draft:start", inputName: "NEXT" },
+        "draft:asset": { childId: "draft:asset", parentId: "draft:rebalance", inputName: "TARGET" },
+        "draft:weight": { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" },
+      },
+    };
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="blocky"
+      onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+      canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} prepareTest={prepareTest} executionCapability={null}
+      workingDraft={draft} onWorkingDraftChange={() => undefined} />));
+    expect(container.textContent).not.toContain("Commit active graph");
+    expect(container.textContent).not.toContain("Active graph root");
+    await clickButton(container, "Test");
+    expect(prepareTest).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_single_asset_intent", asset: "QQQ", timeframe: "monthly" }));
+  });
+
   it("uses Blockly's native category toolbox as the only Blocky Add surface", async () => {
     render("blocky", vi.fn(), growthDefensive);
     expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);
