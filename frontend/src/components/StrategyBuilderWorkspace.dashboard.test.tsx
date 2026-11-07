@@ -9,14 +9,14 @@ import { StrategyBuilderWorkspace, type ProgramBuilderContract, type ProgramBuil
 const views: ProgramBuilderView[] = ["overview", "guided", "flow", "blocky", "rules", "code", "ai"];
 const representations = Object.fromEntries(views.map((view) => [view, <div key={view}>{view}</div>])) as ProgramBuilderContract["representations"];
 
-function program(): ProgramBuilderContract {
+function program(detailPanel: ProgramBuilderContract["detailPanel"] = { title: "Quick Test Dashboard", content: <input aria-label="Selected result context" defaultValue="run-2" />, onClose: () => undefined }): ProgramBuilderContract {
   return {
     activeView: "blocky", onViewChange: () => undefined,
     leftPanel: <aside>Left</aside>, representations,
     inspector: <div>Inspector</div>, inspectorOpen: false, onCloseInspector: () => undefined,
     feedback: null, draftMessage: null,
     onUndo: () => undefined, onRedo: () => undefined, canUndo: false, canRedo: false,
-    detailPanel: { title: "Quick Test Dashboard", content: <input aria-label="Selected result context" defaultValue="run-2" />, onClose: () => undefined },
+    detailPanel,
   };
 }
 
@@ -44,5 +44,24 @@ describe("Quick Test Dashboard overlay", () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Reopen Quick Test Dashboard"]')!.click());
     expect(dashboard.dataset.dashboardState).toBe("open");
     expect(container.querySelector<HTMLInputElement>('[aria-label="Selected result context"]')?.value).toBe("decision-7");
+  });
+
+  it("retains at most three saved Runs and restores each mounted result context", async () => {
+    const renderRun = async (id: string) => act(async () => root.render(<StrategyBuilderWorkspace program={program({ id: `run:${id}`, title: "Quick Test Dashboard", bookmarkLabel: `Run ${id}`, retainInHistory: true, content: <input aria-label={`Context ${id}`} defaultValue={id} />, onClose: () => undefined })} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    await renderRun("1");
+    container.querySelector<HTMLInputElement>('[aria-label="Context 1"]')!.value = "decision-1";
+    await renderRun("2"); await renderRun("3"); await renderRun("4");
+
+    expect(container.querySelector('[aria-label="Open Run 1"]')).toBeNull();
+    expect(container.querySelectorAll('[aria-label="Recent Quick Test results"] button')).toHaveLength(3);
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Open Run 2"]')!.click());
+    expect(container.querySelector<HTMLElement>('[data-quick-test-result="run:2"]')?.hidden).toBe(false);
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Open Run 4"]')!.click());
+    expect(container.querySelector<HTMLElement>('[data-quick-test-result="run:4"]')?.hidden).toBe(false);
+  });
+
+  it("does not keep setup or failure panels in recent result bookmarks", async () => {
+    await act(async () => root.render(<StrategyBuilderWorkspace program={program({ id: "setup", title: "Quick Test Dashboard", content: <div>Setup</div>, onClose: () => undefined })} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    expect(container.querySelector('[aria-label="Recent Quick Test results"]')).toBeNull();
   });
 });
