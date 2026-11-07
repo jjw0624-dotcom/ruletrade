@@ -273,6 +273,42 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     setStatus(unfinished ? "unfinished" : "saved");
     setMessage(unfinished ? "Unfinished semantic edit" : "Ready");
   };
+  const prepareBlockyTest = async (operation: V2AuthoringOperation | null) => {
+    if (!operation) {
+      setTestPanel({ status: "setup", config: quickTestConfig });
+      return;
+    }
+    if (status !== "saved") return;
+    const currentCanonical = canonical;
+    const request = ++sequence.current;
+    setStatus("updating"); setMessage("Validating and saving the visible Start graph…");
+    try {
+      const authored = await v2AuthoringApi.apply(currentCanonical, sourceHash, operation);
+      if (request !== sequence.current) return;
+      const saved = await strategyApi.save(persisted.strategy.id, revisionId, authored.strategy);
+      if (request !== sequence.current) return;
+      setUndoStack((items) => [...items, currentCanonical]);
+      setRedoStack([]);
+      setCanonical(saved.revision.canonical_strategy);
+      setBaseCanonical(saved.revision.canonical_strategy);
+      setRevisionId(saved.revision.id);
+      setSourceHash(saved.revision.source_hash);
+      setDirty(false); setStatus("saved"); setMessage("Saved");
+      setTestPanel({ status: "setup", config: quickTestConfig });
+    } catch (reason) {
+      if (request !== sequence.current) return;
+      if (reason instanceof StrategyApiError && reason.detail.code === "stale_revision") {
+        try {
+          const current = await strategyApi.get<CanonicalStrategyV2>(persisted.strategy.id);
+          setConflict({ baseRevisionId: revisionId, currentRevisionId: current.current_revision.id, current, analysis: analyzeBuilderRevisionConflict(baseCanonical, currentCanonical, current.current_revision.canonical_strategy) });
+          setStatus("invalid"); setMessage("Another revision was saved. The visible Blocky graph was preserved and was not executed.");
+          return;
+        } catch { /* Report the original conflict below. */ }
+      }
+      setStatus("invalid");
+      setMessage(reason instanceof Error ? reason.message : "The visible Blocky graph could not be saved.");
+    }
+  };
   const testPanelContent = testPanel
     ? testPanel.status === "setup"
       ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} />
@@ -287,7 +323,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
       canUndo={undoStack.length > 0} canRedo={redoStack.length > 0} working={working}
-      run={() => setTestPanel({ status: "setup", config: quickTestConfig })} executionCapability={executionCapability}
+      run={() => setTestPanel({ status: "setup", config: quickTestConfig })} prepareTest={(operation) => void prepareBlockyTest(operation)} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
       testPanel={testPanelContent} onCloseTestPanel={() => setTestPanel(null)} /></>;
