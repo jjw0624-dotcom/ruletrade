@@ -159,7 +159,7 @@ export interface ProgramBuilderContract {
   canRedo: boolean;
   onDiscardDraft?: () => void;
   workspaceOverlay?: ReactNode;
-  detailPanel?: { title: string; content: ReactNode; onClose: () => void } | null;
+  detailPanel?: { id?: string; title: string; bookmarkLabel?: string; retainInHistory?: boolean; content: ReactNode; onClose: () => void } | null;
 }
 
 export interface ProgramWorkspaceProps {
@@ -181,8 +181,22 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
   const labels = representationLabel;
   const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
   const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
-  const dashboardOpen = Boolean(program.detailPanel);
-  useEffect(() => { if (dashboardOpen) setDashboardCollapsed(false); }, [dashboardOpen]);
+  const [dashboardEntries, setDashboardEntries] = useState<NonNullable<ProgramBuilderContract["detailPanel"]>[]>([]);
+  const [activeDashboardId, setActiveDashboardId] = useState<string | null>(null);
+  useEffect(() => {
+    const panel = program.detailPanel;
+    if (!panel) { setActiveDashboardId(null); return; }
+    const id = panel.id ?? "quick-test";
+    const entry = { ...panel, id };
+    setDashboardEntries((current) => {
+      const retained = current.filter((item) => item.retainInHistory && item.id !== id);
+      return [...retained, entry].slice(-3);
+    });
+    setActiveDashboardId(id);
+    setDashboardCollapsed(false);
+  }, [program.detailPanel]);
+  const activeDashboard = dashboardEntries.find((item) => item.id === activeDashboardId) ?? null;
+  const retainedDashboards = dashboardEntries.filter((item) => item.retainInHistory);
   const switchView = (view: ProgramBuilderView) => {
     setVisitedViews((current) => current.has(view) ? current : new Set(current).add(view));
     program.onViewChange(view);
@@ -211,11 +225,14 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
         {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
       {program.workspaceOverlay}
-      {program.detailPanel && <aside className={`quick-test-dashboard${dashboardCollapsed ? " is-collapsed" : ""}`} aria-label="Quick Test Dashboard" aria-hidden={dashboardCollapsed} data-dashboard-state={dashboardCollapsed ? "collapsed" : "open"}>
-        <header><span className="eyebrow">{program.detailPanel.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={program.detailPanel.onClose}>×</button></div></header>
-        <div className="quick-test-dashboard-content">{program.detailPanel.content}</div>
+      {dashboardEntries.length > 0 && <aside className={`quick-test-dashboard${dashboardCollapsed || !activeDashboard ? " is-collapsed" : ""}`} aria-label="Quick Test Dashboard" aria-hidden={dashboardCollapsed || !activeDashboard} data-dashboard-state={dashboardCollapsed || !activeDashboard ? "collapsed" : "open"}>
+        {activeDashboard && <header><span className="eyebrow">{activeDashboard.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={() => { setActiveDashboardId(null); if (!activeDashboard.retainInHistory) setDashboardEntries((current) => current.filter((entry) => entry.id !== activeDashboard.id)); activeDashboard.onClose(); }}>×</button></div></header>}
+        <div className="quick-test-dashboard-content">{dashboardEntries.map((entry) => <div key={entry.id} hidden={entry.id !== activeDashboard?.id} data-quick-test-result={entry.id}>{entry.content}</div>)}</div>
       </aside>}
-      {program.detailPanel && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
+      {(retainedDashboards.length > 0 || (activeDashboard && dashboardCollapsed)) && <nav className="quick-test-dashboard-bookmarks" aria-label="Recent Quick Test results">
+        {retainedDashboards.map((entry) => <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={entry.id === activeDashboardId && dashboardCollapsed ? "Reopen Quick Test Dashboard" : `Open ${entry.bookmarkLabel ?? entry.title}`} aria-pressed={entry.id === activeDashboardId && !dashboardCollapsed} onClick={() => { setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>)}
+        {activeDashboard && !activeDashboard.retainInHistory && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
+      </nav>}
     </div>
   </section>;
 }
