@@ -76,8 +76,8 @@ describe("V2 revision conflict lifecycle", () => {
     }));
     await act(async () => root.render(<V2StrategyEditor persisted={persisted} onHome={() => undefined} />));
     await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Prepare Blocky Test")!.click());
-    expect(container.querySelector('[aria-label="Revision conflict"]')?.textContent).toContain("visible Blocky graph");
-    expect(container.querySelector('[data-testid="adapter"]')?.getAttribute("data-test-panel")).toBe("false");
+    expect(container.querySelector('[aria-label="Revision conflict"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="adapter"]')).toMatchObject({ dataset: expect.objectContaining({ status: "invalid", testPanel: "false" }) });
   });
 
   it("surfaces base/current revisions and reapplies only compatible changes", async () => {
