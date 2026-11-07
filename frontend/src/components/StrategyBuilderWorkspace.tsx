@@ -158,6 +158,7 @@ export interface ProgramBuilderContract {
   canUndo: boolean;
   canRedo: boolean;
   onDiscardDraft?: () => void;
+  workspaceOverlay?: ReactNode;
   detailPanel?: { title: string; content: ReactNode; onClose: () => void } | null;
 }
 
@@ -202,13 +203,14 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
     </header>
     {program.feedback && <div className="builder-messages" data-workspace-status="overlay"><div className="semantic-edit-feedback" role="status">{program.feedback}</div></div>}
     <div className="builder-workbench builder-only" data-research-layout="builder-only">
-      <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`}>
+      <div className={`builder-core program-builder-core left-open${program.inspectorOpen ? " inspector-open" : ""}`} aria-hidden={Boolean(program.workspaceOverlay)} inert={program.workspaceOverlay ? true : undefined}>
         {program.leftPanel}
         <main className="representation-workspace" aria-label={`${labels[program.activeView]} representation`}>
           {(Object.keys(labels) as ProgramBuilderView[]).filter((view) => visitedViews.has(view)).map((view) => <div className="program-representation-slot" hidden={program.activeView !== view} key={view}>{program.representations[view]}</div>)}
         </main>
         {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
+      {program.workspaceOverlay}
       {program.detailPanel && <aside className={`quick-test-dashboard${dashboardCollapsed ? " is-collapsed" : ""}`} aria-label="Quick Test Dashboard" aria-hidden={dashboardCollapsed} data-dashboard-state={dashboardCollapsed ? "collapsed" : "open"}>
         <header><span className="eyebrow">{program.detailPanel.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={program.detailPanel.onClose}>×</button></div></header>
         <div className="quick-test-dashboard-content">{program.detailPanel.content}</div>
