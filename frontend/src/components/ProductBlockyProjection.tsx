@@ -397,14 +397,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     const flyout = host.current.querySelector<SVGGElement>(".blocklyFlyout");
     const expandAdd = () => { if (host.current) host.current.dataset.addExpanded = "true"; };
     const collapseAdd = () => { if (host.current?.dataset.nativeDragActive !== "true") host.current!.dataset.addExpanded = "false"; };
-    toolboxElement?.addEventListener("click", expandAdd);
+    toolboxElement?.addEventListener("click", expandAdd, true);
     flyout?.addEventListener("pointerenter", expandAdd);
     flyout?.addEventListener("pointerleave", collapseAdd);
     flyout?.addEventListener("focusin", expandAdd);
     flyout?.addEventListener("focusout", collapseAdd);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => Blockly.svgResize(canvas));
     resizeObserver?.observe(host.current);
-    return () => { resizeObserver?.disconnect(); toolboxElement?.removeEventListener("click", expandAdd); flyout?.removeEventListener("pointerenter", expandAdd); flyout?.removeEventListener("pointerleave", collapseAdd); flyout?.removeEventListener("focusin", expandAdd); flyout?.removeEventListener("focusout", collapseAdd); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
+    return () => { resizeObserver?.disconnect(); toolboxElement?.removeEventListener("click", expandAdd, true); flyout?.removeEventListener("pointerenter", expandAdd); flyout?.removeEventListener("pointerleave", collapseAdd); flyout?.removeEventListener("focusin", expandAdd); flyout?.removeEventListener("focusout", collapseAdd); onWorkspaceApi?.(null); canvas.removeChangeListener(listener); canvas.removeChangeListener(editListener); canvas.dispose(); workspace.current = null; };
   }, []);
 
   useEffect(() => {
