@@ -25,6 +25,20 @@ describe("Quick Test Dashboard overlay", () => {
   beforeEach(() => { container = document.createElement("div"); document.body.append(container); root = createRoot(container); });
   afterEach(() => { act(() => root.unmount()); container.remove(); });
 
+  it("gives a dedicated object workspace ownership of the whole workbench", async () => {
+    const contract = program();
+    contract.detailPanel = null;
+    contract.workspaceOverlay = <section aria-label="Group Workspace">Group editor</section>;
+    await act(async () => root.render(<StrategyBuilderWorkspace program={contract} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+
+    const core = container.querySelector<HTMLElement>(".program-builder-core")!;
+    const workspace = container.querySelector<HTMLElement>('[aria-label="Group Workspace"]')!;
+    expect(core.getAttribute("aria-hidden")).toBe("true");
+    expect(core.hasAttribute("inert")).toBe(true);
+    expect(workspace.parentElement?.classList.contains("builder-workbench")).toBe(true);
+    expect(workspace.parentElement).toBe(core.parentElement);
+  });
+
   it("overlays the Builder without adding an Inspector grid column and preserves context while collapsed", async () => {
     await act(async () => root.render(<StrategyBuilderWorkspace program={program()} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
     const core = container.querySelector(".program-builder-core")!;
