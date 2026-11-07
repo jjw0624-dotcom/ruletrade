@@ -31,10 +31,12 @@ const graphCapability = (statuses: EntryExecutionStatus[], incomplete: boolean):
   return "ready";
 };
 
+const startEventType = (definitionId: string) => definitionId.replace(/^start-/, "");
+
 /**
- * Validates the user-selected graph without mutating Canonical. This is the
- * visual graph -> validated authoring intent boundary; semantic operations are
- * selected only after this result is valid and ready.
+ * Every connected Start block is an executable candidate. Disconnected
+ * fragments remain valid working material and never need an activation flag.
+ * This is the visual graph -> validated authoring intent boundary.
  */
 export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGraphValidation {
   const diagnostics: VisualGraphValidation["diagnostics"] = [];
@@ -52,14 +54,19 @@ export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGr
       diagnostics.push({ code: "typed_connection_mismatch", blockId: child.id, message: `${childDefinition.label} cannot connect to ${parentDefinition.label}.${connection.inputName}` });
     }
   }
-  const graphs = draft.activeGraphRootIds.flatMap((rootId): ValidatedVisualGraph[] => {
-    const root = draft.canvasBlocks[rootId];
-    if (!root) {
-      diagnostics.push({ code: "missing_active_root", blockId: rootId, message: "The active graph root no longer exists." });
-      return [];
-    }
-    const rootDefinition = entryBlockDefinition(root.definitionId);
-    if (rootDefinition?.shape !== "hat") diagnostics.push({ code: "active_root_not_start", blockId: rootId, message: "An active strategy graph must begin with a Start block." });
+  const rootIds = Object.values(draft.canvasBlocks)
+    .filter((block) => entryBlockDefinition(block.definitionId)?.shape === "hat")
+    .map((block) => block.id);
+  const rootsByEvent = new Map<string, string[]>();
+  for (const rootId of rootIds) {
+    const eventType = startEventType(draft.canvasBlocks[rootId]!.definitionId);
+    rootsByEvent.set(eventType, [...(rootsByEvent.get(eventType) ?? []), rootId]);
+  }
+  for (const [eventType, ids] of rootsByEvent) if (ids.length > 1) {
+    for (const blockId of ids) diagnostics.push({ code: "duplicate_start_event_type", blockId, message: `Only one ${eventType.replaceAll("-", " ")} Start is allowed.` });
+  }
+  const graphs = rootIds.flatMap((rootId): ValidatedVisualGraph[] => {
+    const root = draft.canvasBlocks[rootId]!;
     const visited = new Set<string>();
     const visit = (id: string) => {
       if (visited.has(id)) return;
@@ -78,7 +85,7 @@ export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGr
       }
     }
     const capability = graphCapability(definitions.map((definition) => definition.execution), incomplete);
-    return [{ rootId, blockIds: [...visited], capability, reasons: incomplete ? ["Complete every required typed slot before committing this graph."] : capability === "draft_only" ? ["This graph contains a block whose execution contract is draft-only."] : capability === "unsupported" ? ["This complete graph is not supported by the current execution profile."] : [] }];
+    return [{ rootId, blockIds: [...visited], capability, reasons: incomplete ? ["Complete every required typed slot before testing this graph."] : capability === "draft_only" ? ["This graph contains a block whose execution contract is draft-only."] : capability === "unsupported" ? ["This complete graph is not supported by the current execution profile."] : [] }];
   });
   return { status: diagnostics.length ? "invalid" : "valid", graphs, diagnostics };
 }
@@ -90,8 +97,8 @@ export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGr
  */
 export function compileActiveVisualGraph(draft: ProgramWorkingDraft): ActiveVisualGraphCompilation {
   const validation = validateActiveVisualGraphs(draft);
-  if (validation.status === "invalid") return { status: "invalid", operation: null, productMessage: "Correct the typed Blocky connections before committing.", rootId: null };
-  if (validation.graphs.length !== 1) return { status: validation.graphs.length ? "unsupported" : "incomplete", operation: null, productMessage: validation.graphs.length ? "Commit one active graph at a time." : "Mark one complete Start graph as active.", rootId: null };
+  if (validation.status === "invalid") return { status: "invalid", operation: null, productMessage: validation.diagnostics[0]?.message ?? "Correct the typed Blocky connections before testing.", rootId: null };
+  if (validation.graphs.length !== 1) return { status: validation.graphs.length ? "unsupported" : "incomplete", operation: null, productMessage: validation.graphs.length ? "Multiple event graphs are preserved, but this execution profile currently commits one event graph at a time." : "Connect a complete action to a Start block before testing.", rootId: null };
   const graph = validation.graphs[0]!;
   if (graph.capability === "incomplete") return { status: "incomplete", operation: null, productMessage: graph.reasons[0]!, rootId: graph.rootId };
   if (graph.capability !== "ready") return { status: "unsupported", operation: null, productMessage: graph.reasons[0]!, rootId: graph.rootId };
@@ -113,7 +120,7 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft): ActiveVisu
   return {
     status: "ready",
     rootId: graph.rootId,
-    productMessage: `Commit ${asset} at 100% on each ${timeframe} close.`,
+    productMessage: `${asset} will rebalance to 100% on each ${timeframe} close.`,
     operation: { kind: "commit_single_asset_intent", investment_id: `investment-${suffix}`, investment_name: "Investment", asset_set_id: `investment-${suffix}-assets`, asset, timeframe, timing_meaning: "rebalance" },
   };
 }
