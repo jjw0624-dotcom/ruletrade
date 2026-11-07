@@ -466,7 +466,10 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     act(() => root.render(<Harness />));
     await clickButton(container, "Objects");
     await clickButton(container, "Create Group");
-    expect(container.querySelector('[data-object-definition-workspace="group"]')).toBeTruthy();
+    const groupWorkspace = container.querySelector('[data-object-definition-workspace="group"]');
+    expect(groupWorkspace).toBeTruthy();
+    expect(groupWorkspace?.parentElement?.classList.contains("builder-workbench")).toBe(true);
+    expect(container.querySelector(".program-builder-core")?.getAttribute("aria-hidden")).toBe("true");
     expect(container.querySelector('[aria-label="Semantic Inspector"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Collapse construction panel"]')).toBeNull();
     await clickGroupWorkspaceButton(container, "Create Group");
@@ -551,6 +554,11 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(container.querySelector('[aria-label="Group Workspace"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Search assets by ticker or name"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Selected assets"]')?.textContent).toContain("QQQ");
+  });
+
+  it("does not expose a no-op global Assets entry without a committed Selection", () => {
+    render("blocky", vi.fn(), blank);
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Assets")).toBe(false);
   });
 
   it.each([
