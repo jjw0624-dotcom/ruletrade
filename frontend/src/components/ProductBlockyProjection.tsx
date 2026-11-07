@@ -168,6 +168,20 @@ export interface NativeBlockyHistory {
   insertObjectReference: (object: EntryToolboxObject, target?: { parentId: string; inputName: string }) => string | null;
 }
 
+interface PersistentAddToolbox {
+  getFlyout: () => unknown;
+  refreshSelection: () => void;
+}
+
+export function configurePersistentNativeAdd(toolbox: PersistentAddToolbox | null) {
+  const flyout = toolbox?.getFlyout() as { setAutoClose?: (autoClose: boolean) => void } | null | undefined;
+  flyout?.setAutoClose?.(false);
+}
+
+export function syncPersistentNativeAdd(toolbox: PersistentAddToolbox | null, visible: boolean) {
+  if (visible) toolbox?.refreshSelection();
+}
+
 export function nativeBlockFieldController(canvas: Blockly.Workspace) {
   const blockAt = (productId: string) => canvas.getAllBlocks(false).find((block) => readAddress(block) === productId) ?? null;
   return {
@@ -233,6 +247,9 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     const toolboxElement = (canvas.getToolbox() as unknown as { getDiv?: () => HTMLElement | null } | null)?.getDiv?.()
       ?? host.current.querySelector<HTMLElement>(".blocklyToolbox");
     toolboxElement?.setAttribute("data-ruletrade-native-toolbox", "true");
+    // React controls whether Add is visible; Blockly continues to own the
+    // category, preview, and drag lifecycle. Dragging a block must not close it.
+    configurePersistentNativeAdd(canvas.getToolbox());
     canvas.registerButtonCallback("RULETRADE_CREATE_GROUP", () => {
       const selected = Blockly.getSelected();
       const block = selected instanceof Blockly.Block ? selected : null;
@@ -327,6 +344,11 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
       }
     };
     const editListener = (event: Blockly.Events.Abstract) => {
+      if (event.type === Blockly.Events.BLOCK_DRAG && host.current) {
+        const drag = event as Blockly.Events.Abstract & { isStart?: boolean };
+        host.current.dataset.nativeDragActive = String(Boolean(drag.isStart));
+        if (!drag.isStart) host.current.dataset.addExpanded = "false";
+      }
       const blockId = (event as Blockly.Events.Abstract & { blockId?: string }).blockId;
       if (!blockId) {
         if (event.type === Blockly.Events.VIEWPORT_CHANGE || !event.isUiEvent) queueMicrotask(emitSnapshot);
@@ -398,7 +420,9 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     const toolbox = canvas?.getToolbox();
     if (!canvas || !toolbox) return;
     const visible = addSurfaceOpen && !suspended;
-    if (!visible) toolbox.getFlyout()?.hide();
+    // Hiding the native flyout changes Blockly metrics and forgets the
+    // selected category. CSS owns visibility while Blockly stays mounted.
+    syncPersistentNativeAdd(toolbox, visible);
     const frame = requestAnimationFrame(() => Blockly.svgResize(canvas));
     return () => cancelAnimationFrame(frame);
   }, [addSurfaceOpen, suspended]);
