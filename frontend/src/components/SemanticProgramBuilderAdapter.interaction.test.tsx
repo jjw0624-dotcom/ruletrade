@@ -410,7 +410,9 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
       workingDraft={draft} onWorkingDraftChange={() => undefined} />));
     expect(container.textContent).not.toContain("Commit active graph");
     expect(container.textContent).not.toContain("Active graph root");
-    await clickButton(container, "Test");
+    const testButton = [...container.querySelectorAll("button")].find((button) => button.textContent?.trim().startsWith("Test"));
+    expect(testButton).toBeTruthy();
+    await act(async () => testButton!.click());
     expect(prepareTest).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_single_asset_intent", asset: "QQQ", timeframe: "monthly" }));
   });
 
