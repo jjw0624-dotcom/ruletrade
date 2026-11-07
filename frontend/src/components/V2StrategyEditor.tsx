@@ -309,6 +309,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       setMessage(reason instanceof Error ? reason.message : "The visible Blocky graph could not be saved.");
     }
   };
+  const persistedTestRun = testPanel?.status === "success" && "revision_id" in testPanel.result ? testPanel.result : null;
   const testPanelContent = testPanel
     ? testPanel.status === "setup"
       ? <V2QuickTestPanel config={quickTestConfig} onChange={(config) => { setQuickTestConfig(config); setTestPanel({ status: "setup", config }); }} onRun={() => void run(quickTestConfig)} />
@@ -326,7 +327,11 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       run={() => setTestPanel({ status: "setup", config: quickTestConfig })} prepareTest={(operation) => void prepareBlockyTest(operation)} executionCapability={executionCapability}
       revisionContext={{ revisionId, sourceHash, schemaVersion: canonical.api_version, latestRun }}
       onOpenLatestRun={() => latestRun && setTestPanel({ status: "success", result: latestRun })}
-      testPanel={testPanelContent} onCloseTestPanel={() => setTestPanel(null)} /></>;
+      testPanel={testPanelContent}
+      testPanelId={persistedTestRun ? `run:${persistedTestRun.id}` : testPanel?.status ?? undefined}
+      testPanelBookmark={persistedTestRun ? `Run ${persistedTestRun.id.slice(0, 8)}` : undefined}
+      retainTestPanel={Boolean(persistedTestRun)}
+      onCloseTestPanel={() => setTestPanel(null)} /></>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
