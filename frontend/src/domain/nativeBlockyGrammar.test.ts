@@ -47,7 +47,7 @@ describe("native Blockly product grammar", () => {
   });
 
   it("renders simple financial meaning in one compact horizontal message", () => {
-    expect(entryBlockJson(entryBlockDefinition("invest")!)).toMatchObject({ message0: "Buy %1 with %2", inputsInline: true });
+    expect(entryBlockJson(entryBlockDefinition("invest")!)).toMatchObject({ message0: "Buy idea (draft only) %1 with %2", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("trailing-return")!)).toMatchObject({ message0: "%1 return over %2 days", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("rebalance")!)).toMatchObject({ message0: "Rebalance %1 to %2 portfolio weight", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("invest")!)).not.toHaveProperty("message1");
@@ -112,10 +112,18 @@ describe("native Blockly product grammar", () => {
     first.dispose(); second.dispose();
   });
 
-  it("lets Builder Add select one category while Blockly renders its shaped flyout", () => {
-    const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as { kind: string; contents: Array<{ type?: string }> };
+  it("leads Action with an executable Rebalance and an editable 100% shadow", () => {
+    const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as {
+      kind: string;
+      contents: Array<{ type?: string; inputs?: { WEIGHT?: { shadow?: { type?: string; fields?: { VALUE?: number } } } } }>;
+    };
     expect(flyout.kind).toBe("flyoutToolbox");
     expect(flyout.contents.map((item) => item.type)).toEqual(expect.arrayContaining([entryBlocklyType("invest"), entryBlocklyType("rebalance")]));
+    expect(flyout.contents[0]).toMatchObject({
+      type: entryBlocklyType("rebalance"),
+      inputs: { WEIGHT: { shadow: { type: entryBlocklyType("percentage"), fields: { VALUE: 100 } } } },
+    });
+    expect(entryBlockDefinition("invest")?.execution).toBe("draft_only");
   });
 
   it("lets Inspector and the block edit the same native field instead of mirrored state", () => {

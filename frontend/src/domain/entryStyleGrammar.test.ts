@@ -4,7 +4,7 @@ import { ENTRY_BLOCK_CATEGORIES, ENTRY_BLOCK_DEFINITIONS, entryBlockDefinition, 
 describe("Entry-style visual grammar", () => {
   it("exposes the product taxonomy rather than engine primitives", () => {
     expect(ENTRY_BLOCK_CATEGORIES).toEqual(["Start", "Control", "Logic", "Calculate", "Action", "Assets", "Data", "Functions"]);
-    expect(ENTRY_BLOCK_DEFINITIONS.map((item) => item.label)).toContain("Invest [A] by [B]");
+    expect(ENTRY_BLOCK_DEFINITIONS.map((item) => item.label)).toContain("Buy idea (draft only)");
     expect(ENTRY_BLOCK_DEFINITIONS.map((item) => item.label)).not.toContain("Allocate capital");
   });
 
