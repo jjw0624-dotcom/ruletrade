@@ -49,12 +49,27 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
       // A reference is one language primitive, not one toolbox block per object.
       // The selected stable object id lives in block metadata/fields after the
       // user chooses an object or inserts it from Objects.
-      entries.push({
+      const entry: Record<string, unknown> = {
         kind: "block", type: entryBlocklyType(definition.id),
         fields: entryBlocklyFields(definition.id),
         extraState: entryBlocklyExtraState(definition.id),
         data: JSON.stringify({ definitionId: definition.id, objectKind, objectRef: null }),
-      });
+      };
+      // Target-weight allocation is the currently executable capital action.
+      // Give it a native editable 100% shadow so a user only needs to connect
+      // the target. Fixed-money and quantity Buy remain honest draft ideas.
+      if (definition.id === "rebalance") {
+        entry.inputs = {
+          WEIGHT: {
+            shadow: {
+              type: entryBlocklyType("percentage"),
+              fields: { VALUE: 100 },
+              data: JSON.stringify({ definitionId: "percentage" }),
+            },
+          },
+        };
+      }
+      entries.push(entry);
     }
     if (category === "Data") entries.push(
       { kind: "block", type: "lists_create_with" }, { kind: "block", type: "lists_getIndex" },
@@ -123,7 +138,7 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     "candidate-return": { message0: "Candidate return over %1 days", args0: [input("DURATION")] },
     "candidate-rsi": { message0: "Candidate RSI(%1)", args0: [input("DURATION")] },
     "asset-set-count": { message0: "Count %1", args0: [input("ASSETS")] },
-    invest: { message0: "Buy %1 with %2", args0: [input("TARGET"), input("AMOUNT")] },
+    invest: { message0: "Buy idea (draft only) %1 with %2", args0: [input("TARGET"), input("AMOUNT")] },
     sell: { message0: "Sell %1 by %2", args0: [input("TARGET"), input("AMOUNT")] },
     rebalance: { message0: "Rebalance %1 to %2 portfolio weight", args0: [input("TARGET"), input("WEIGHT")] },
     "send-signal": { message0: "Send signal %1", args0: [input("SIGNAL")] },
