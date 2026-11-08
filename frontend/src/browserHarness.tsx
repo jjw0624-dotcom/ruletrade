@@ -188,6 +188,74 @@ function Harness() {
     workingDraft={draft} onWorkingDraftChange={(next) => { (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = next; setDraft(next); }} />;
 }
 
+const blockyGroupHandoffCanonical: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { ...blank.metadata, name: "Blocky Group Handoff" },
+  definitions: {
+    asset_sets: [{ id: "group-1-assets", assets: ["QQQ", "VOO"] }],
+    groups: [{ id: "group-1", name: "Group 1", asset_set_ref: "group-1-assets", description: "" }],
+    asset_axis: { name: "asset", domain_id: "group-1-assets", coordinate_policy: "member_identity" },
+  },
+  program: {
+    semantic_id: "program",
+    clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+    initial_state: {},
+    formalizations: [],
+    statements: [],
+  },
+};
+
+function BlockyGroupHandoffHarness() {
+  const [canonical, setCanonical] = useState(blockyGroupHandoffCanonical);
+  const [draft, setDraft] = useState<ProgramWorkingDraft>(() => ({
+    ...emptyProgramWorkingDraft("blocky-group-handoff"),
+    canvasBlocks: {
+      "draft:start": { id: "draft:start", definitionId: "start-daily", label: "Every daily close", active: false, createdAt: "2026-11-08T00:00:00Z" },
+      "draft:rebalance": { id: "draft:rebalance", definitionId: "rebalance", label: "Rebalance", active: false, createdAt: "2026-11-08T00:00:00Z" },
+      "draft:group": { id: "draft:group", definitionId: "group-reference", label: "Group 1", active: false, objectRef: "group-1", createdAt: "2026-11-08T00:00:00Z" },
+      "draft:weight": { id: "draft:weight", definitionId: "percentage", label: "100%", active: false, fieldValues: { VALUE: 100 }, createdAt: "2026-11-08T00:00:00Z" },
+    },
+    blockConnections: {
+      "draft:start": { childId: "draft:start", parentId: null, inputName: null },
+      "draft:rebalance": { childId: "draft:rebalance", parentId: "draft:start", inputName: "NEXT" },
+      "draft:group": { childId: "draft:group", parentId: "draft:rebalance", inputName: "TARGET" },
+      "draft:weight": { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" },
+    },
+    blockPositions: {
+      "draft:start": { x: 320, y: 160 },
+      "draft:rebalance": { x: 320, y: 250 },
+      "draft:group": { x: 560, y: 250 },
+      "draft:weight": { x: 700, y: 250 },
+    },
+  }));
+  (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = draft;
+  (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
+  const prepareTest = (operation: V2AuthoringOperation | null) => {
+    (window as typeof window & { __RULETRADE_BLOCKY_GROUP_HANDOFF__?: { operation: V2AuthoringOperation | null } }).__RULETRADE_BLOCKY_GROUP_HANDOFF__ = { operation };
+    if (operation?.kind !== "set_program_investment") return;
+    setCanonical((current) => ({
+      ...current,
+      program: current.program ? {
+        ...current.program,
+        statements: [{
+          kind: "allocate",
+          semantic_id: operation.semantic_id,
+          method: operation.internal_allocation,
+          clock_id: operation.clock_id,
+          legs: [{ semantic_id: `${operation.semantic_id}-leg`, target: { semantic_id: `${operation.semantic_id}-target`, kind: operation.target_kind, ref: operation.target_ref }, weight: null }],
+          minimum_weight: null,
+          maximum_weight: null,
+          cash_remainder_asset: null,
+        }],
+      } : null,
+    }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="blocky"
+    onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+    canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} prepareTest={prepareTest} executionCapability={null}
+    workingDraft={draft} onWorkingDraftChange={(next) => setDraft(next)} />;
+}
+
 const flowRemovalCanonical: CanonicalStrategyV2 = {
   ...blank,
   metadata: { ...blank.metadata, name: "Flow Removal" },
@@ -235,4 +303,4 @@ function AdvancedUiAuthoredEquivalenceHarness({ caseId }: { caseId: string }) {
   return <V2StrategyEditor key={`${advancedSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={advancedSavedDetail ?? advancedInitialDetail(caseId)} onHome={() => setOpen(false)} />;
 }
 
-createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : <Harness />);
+createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
