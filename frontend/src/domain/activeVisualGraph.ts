@@ -1,5 +1,5 @@
 import { entryBlockDefinition, entryConnectionAccepts, type EntryExecutionStatus } from "./entryStyleGrammar";
-import type { V2AuthoringOperation } from "./canonicalV2";
+import type { CanonicalStrategyV2, V2AuthoringOperation } from "./canonicalV2";
 import type { ProgramWorkingDraft } from "./programWorkingDraft";
 
 export type VisualGraphCapability = "incomplete" | "draft_only" | "ready" | "unsupported";
@@ -95,7 +95,7 @@ export function validateActiveVisualGraphs(draft: ProgramWorkingDraft): VisualGr
  * compilation are separate so a complete but unsupported graph remains an
  * honest draft instead of being coerced into different financial semantics.
  */
-export function compileActiveVisualGraph(draft: ProgramWorkingDraft): ActiveVisualGraphCompilation {
+export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?: CanonicalStrategyV2): ActiveVisualGraphCompilation {
   const validation = validateActiveVisualGraphs(draft);
   if (validation.status === "invalid") return { status: "invalid", operation: null, productMessage: validation.diagnostics[0]?.message ?? "Correct the typed Blocky connections before testing.", rootId: null };
   if (validation.graphs.length !== 1) return { status: validation.graphs.length ? "unsupported" : "incomplete", operation: null, productMessage: validation.graphs.length ? "Multiple event graphs are preserved, but this execution profile currently commits one event graph at a time." : "Connect a complete action to a Start block before testing.", rootId: null };
@@ -112,15 +112,32 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft): ActiveVisu
   const weight = action && childAt(action.id, "WEIGHT");
   const timeframe = root.definitionId === "start-daily" ? "daily" : root.definitionId === "start-monthly" ? "monthly" : null;
   const percent = Number(weight?.fieldValues?.VALUE ?? Number.NaN);
-  const asset = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
-  if (!timeframe || action?.definitionId !== "rebalance" || target?.definitionId !== "asset-reference" || weight?.definitionId !== "percentage" || percent !== 100 || !asset) {
-    return { status: "unsupported", operation: null, productMessage: "This complete graph is preserved, but the current compiler supports only a daily or monthly 100% single-asset rebalance.", rootId: graph.rootId };
+  const targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
+  const targetKind = target?.definitionId === "asset-reference" ? "asset" : target?.definitionId === "group-reference" ? "group" : null;
+  if (!timeframe || action?.definitionId !== "rebalance" || !targetKind || weight?.definitionId !== "percentage" || percent !== 100 || !targetRef) {
+    return { status: "unsupported", operation: null, productMessage: "This complete graph is preserved, but the current compiler supports only a daily or monthly 100% rebalance into one Asset or reusable Group.", rootId: graph.rootId };
   }
   const suffix = graph.rootId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "graph";
+  if (targetKind === "asset") {
+    return {
+      status: "ready",
+      rootId: graph.rootId,
+      productMessage: `${targetRef} will rebalance to 100% on each ${timeframe} close.`,
+      operation: { kind: "commit_single_asset_intent", investment_id: `investment-${suffix}`, investment_name: "Investment", asset_set_id: `investment-${suffix}-assets`, asset: targetRef, timeframe, timing_meaning: "rebalance" },
+    };
+  }
+  const group = canonical?.definitions.groups.find((item) => item.id === targetRef);
+  if (!group) {
+    return { status: "unsupported", operation: null, productMessage: "This Group reference is preserved, but it no longer resolves to a reusable Group in this strategy.", rootId: graph.rootId };
+  }
+  const clock = canonical?.program?.clocks.find((item) => item.timeframe === timeframe && item.boundary === "close" && item.completed_only);
+  if (!clock) {
+    return { status: "unsupported", operation: null, productMessage: `Add a completed ${timeframe}-close clock before testing this Group rebalance.`, rootId: graph.rootId };
+  }
   return {
     status: "ready",
     rootId: graph.rootId,
-    productMessage: `${asset} will rebalance to 100% on each ${timeframe} close.`,
-    operation: { kind: "commit_single_asset_intent", investment_id: `investment-${suffix}`, investment_name: "Investment", asset_set_id: `investment-${suffix}-assets`, asset, timeframe, timing_meaning: "rebalance" },
+    productMessage: `${group.name} will rebalance to 100% on each ${timeframe} close.`,
+    operation: { kind: "set_program_investment", semantic_id: `blocky-investment-${suffix}`, target_kind: "group", target_ref: group.id, internal_allocation: "equal", clock_id: clock.id },
   };
 }
