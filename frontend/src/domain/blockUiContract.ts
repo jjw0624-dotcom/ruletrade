@@ -25,7 +25,7 @@ function familyFor(id: string): BlockUiFamily {
   if (id.startsWith("logic-")) return "logic";
   if (["candidate-compare", "asset-predicate-and", "asset-predicate-or", "asset-predicate-not"].includes(id)) return "asset_predicate";
   if (["asset-set-any", "asset-set-all", "asset-set-n-of-m"].includes(id)) return "aggregate";
-  if (id.startsWith("calculate-") || ["number", "percentage", "money", "quantity", "trading-days", "calendar-days", "elapsed-time", "random-value"].includes(id)) return "arithmetic";
+  if (id.startsWith("calculate-") || ["number", "percentage", "money", "quantity", "units-each", "trading-days", "calendar-days", "elapsed-time", "random-value"].includes(id)) return "arithmetic";
   if (["asset-value", "trailing-return", "sma", "ema", "candidate-close", "candidate-return", "candidate-rsi"].includes(id)) return "market_value";
   if (id === "weighted-score") return "score";
   if (["asset-reference", "group-reference", "subgroup-reference"].includes(id)) return "reference";
@@ -69,7 +69,7 @@ const SUMMARY: Partial<Record<string, string>> = {
   "start-daily": "Every daily close", "start-weekly": "Every weekly close", "start-monthly": "Every monthly close", "start-signal": "When signal is received",
   "if-otherwise": "IF / OTHERWISE", "trailing-return": "Asset return over lookback", sma: "Simple moving average", ema: "Exponential moving average",
   "weighted-score": "Weighted Score", "group-reference": "Named Group", "subgroup-reference": "Named Subgroup", "choose-group": "Choose a ranked Subgroup",
-  invest: "Buy target by amount", sell: "Sell target by amount", rebalance: "Rebalance target to weight", "send-signal": "Send signal",
+  "filter-assets": "Filter to Subgroup", "top-n-assets": "Choose top N", "units-each": "Units each", invest: "Buy target by amount", sell: "Sell target by amount", rebalance: "Rebalance target to weight", "send-signal": "Send signal",
 };
 
 export const BLOCK_UI_CONTRACTS: BlockUiContract[] = ENTRY_BLOCK_DEFINITIONS.map((definition) => {
@@ -80,7 +80,13 @@ export const BLOCK_UI_CONTRACTS: BlockUiContract[] = ENTRY_BLOCK_DEFINITIONS.map
     semanticRole: definition.description,
     requiredVisibleInputs: definition.slots.map((slot) => slot.name),
     optionalVisibleInputs: family === "choose" ? ["FALLBACK"] : [],
-    advancedInspectorFields: ADVANCED[family],
+    advancedInspectorFields: definition.id === "filter-assets"
+      ? ["ALL / ANY combination", "typed candidate conditions", "missing-data policy"]
+      : definition.id === "top-n-assets"
+        ? ["ranking direction", "deterministic tie-break"]
+        : definition.id === "invest"
+          ? ["order capability", "available-cash validation"]
+          : ADVANCED[family],
     dedicatedWorkspaceFields: WORKSPACE[family] ?? [],
     connectionType: { shape: definition.shape, output: definition.output ?? null },
     summaryLabel: SUMMARY[definition.id] ?? definition.label,
