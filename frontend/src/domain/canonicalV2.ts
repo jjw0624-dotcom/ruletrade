@@ -58,7 +58,9 @@ export interface SelectionV2 {
 }
 export interface OrderTargetV2 { semantic_id: string; kind: "asset" | "group" | "selection"; ref: string }
 export interface UnitsEachAmountV2 { kind: "units_each"; units: number }
-export interface BuyStatementV2 { kind: "buy"; semantic_id: string; target: OrderTargetV2; amount: UnitsEachAmountV2; clock_id: string | null }
+export interface CashTotalAmountV2 { kind: "cash_total"; usd: string | number }
+export type OrderAmountV2 = UnitsEachAmountV2 | CashTotalAmountV2;
+export interface BuyStatementV2 { kind: "buy"; semantic_id: string; target: OrderTargetV2; amount: OrderAmountV2; clock_id: string | null }
 export interface AllocationStatementV2 {
   kind: "allocate"; semantic_id: string; method: "equal" | "fixed" | "proportional_score" | "inverse_volatility";
   legs: Array<{ semantic_id: string; target: { semantic_id: string; kind: "asset" | "selection" | "group" | "cash" | "retain"; ref: string | null }; weight: string | number | null }>;
