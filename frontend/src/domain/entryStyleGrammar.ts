@@ -12,7 +12,7 @@ export type EntryBlockCategory = typeof ENTRY_BLOCK_CATEGORIES[number];
 export const NATIVE_STRATEGY_PALETTE_IDS = new Set([
   "start-daily", "start-monthly",
   "number", "percentage", "trading-days", "candidate-close", "candidate-return",
-  "invest", "units-each",
+  "invest", "units-each", "money",
   "asset-reference", "group-reference", "create-group",
   "filter-assets", "top-n-assets",
 ]);
@@ -67,7 +67,7 @@ export const ENTRY_BLOCK_DEFINITIONS: EntryBlockDefinition[] = [
   ...(["add", "subtract", "multiply", "divide", "power"] as const).map((kind) => d({ id: `calculate-${kind}`, category: "Calculate", label: ({ add: "A + B", subtract: "A − B", multiply: "A × B", divide: "A ÷ B", power: "A to the power B" } as const)[kind], description: "Calculate a numeric value.", shape: "value", output: "Number", slots: [{ name: "A", label: "A", accepts: ["Number", "Percentage", "Money", "Quantity", "Value"] }, { name: "B", label: "B", accepts: ["Number", "Percentage", "Money", "Quantity", "Value"] }], execution: "verified" })),
   d({ id: "number", category: "Calculate", label: "Number", description: "A numeric literal.", shape: "value", output: "Number", slots: [], execution: "verified" }),
   d({ id: "percentage", category: "Calculate", label: "Percentage", description: "A fraction such as 25%.", shape: "value", output: "Percentage", slots: [], execution: "verified" }),
-  d({ id: "money", category: "Calculate", label: "Money amount", description: "A fixed money amount; it is never interpreted as a target weight.", shape: "value", output: "Money", slots: [], execution: "draft_only" }),
+  d({ id: "money", category: "Calculate", label: "USD total", description: "A fixed total USD budget split equally across the resolved target members.", shape: "value", output: "Money", slots: [], execution: "verified" }),
   d({ id: "quantity", category: "Calculate", label: "Asset quantity", description: "An explicit unit quantity where the execution profile supports it.", shape: "value", output: "Quantity", slots: [], execution: "draft_only" }),
   d({ id: "units-each", category: "Calculate", label: "Units each", description: "Buy this many shares of every member of the connected Asset, Group, or Subgroup.", shape: "value", output: "UnitsEach", slots: [], execution: "verified" }),
   d({ id: "trading-days", category: "Calculate", label: "Trading days", description: "A duration measured in completed trading sessions.", shape: "value", output: "Duration", slots: [], execution: "draft_only" }),
@@ -85,7 +85,7 @@ export const ENTRY_BLOCK_DEFINITIONS: EntryBlockDefinition[] = [
   d({ id: "elapsed-time", category: "Calculate", label: "Elapsed time", description: "Read deterministic elapsed strategy time.", shape: "value", output: "Duration", slots: [], execution: "draft_only" }),
   d({ id: "random-value", category: "Calculate", label: "Random value", description: "Draft-only until seeded replay semantics are part of execution.", shape: "value", output: "Number", slots: [], execution: "draft_only" }),
   d({ id: "rebalance", category: "Action", label: "Rebalance target to weight", description: "Adjust existing portfolio capital to an explicit portfolio weight. AssetSet weighting remains explicit.", shape: "statement", slots: [{ name: "TARGET", label: "target", accepts: ["Asset", "AssetSet"] }, { name: "WEIGHT", label: "weight", accepts: ["Percentage"] }], execution: "verified" }),
-  d({ id: "invest", category: "Action", label: "Buy", description: "Create buy orders for an Asset, Group, or locally derived Subgroup using an explicit order amount.", shape: "statement", slots: [{ name: "TARGET", label: "target", accepts: ["Asset", "Group", "Subgroup"] }, { name: "AMOUNT", label: "amount", accepts: ["UnitsEach"] }], execution: "verified" }),
+  d({ id: "invest", category: "Action", label: "Buy", description: "Create buy orders for an Asset, Group, or locally derived Subgroup using an explicit order amount.", shape: "statement", slots: [{ name: "TARGET", label: "target", accepts: ["Asset", "Group", "Subgroup"] }, { name: "AMOUNT", label: "amount", accepts: ["UnitsEach", "Money"] }], execution: "verified" }),
   d({ id: "sell", category: "Action", label: "Sell [A] by [B]", description: "Reduce an Asset or AssetSet position by a typed amount.", shape: "statement", slots: [{ name: "TARGET", label: "sell", accepts: ["Asset", "AssetSet"] }, { name: "AMOUNT", label: "by", accepts: ["Money", "Percentage", "Quantity"] }], execution: "draft_only" }),
   d({ id: "send-signal", category: "Action", label: "Send signal", description: "An internal deterministic signal, not an external notification.", shape: "statement", slots: [{ name: "SIGNAL", label: "signal", accepts: ["Signal"] }], execution: "draft_only" }),
   d({ id: "asset-reference", category: "Assets", label: "Asset reference", description: "Reference one instrument by stable identity.", shape: "value", output: "Asset", slots: [], execution: "verified" }),
