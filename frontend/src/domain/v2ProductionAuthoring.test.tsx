@@ -286,6 +286,7 @@ describe("mounted v2 production editor", () => {
       },
     } satisfies CanonicalStrategyV2;
     const markup = renderToStaticMarkup(<V2StrategyEditor persisted={{ ...detail, current_revision: { ...detail.current_revision, canonical_strategy: blank } }} onHome={() => undefined} />);
+    expect(projectProgramBlocky(blank).some((item) => item.role === "trigger")).toBe(false);
     expect(markup).toContain("Portfolio");
     expect(markup).toContain("Structure");
     expect(markup).toContain("Add");
@@ -500,7 +501,10 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
 
   it("projects explicit connected Blocky composition without duplicated trigger copy", () => {
     const blocky = projectProgramBlocky(programStrategy());
-    expect(blocky.find((item) => item.role === "trigger")?.label).toBe("Daily close");
+    expect(blocky.find((item) => item.role === "trigger")).toMatchObject({
+      label: "Daily close",
+      address: { focusId: "clock:daily-close", semanticId: "daily-close" },
+    });
     expect(blocky.some((item) => item.label.includes("Every Every"))).toBe(false);
     expect(programBlockConnectionManifest(blocky)).toEqual(expect.arrayContaining([
       "clock:daily-close:NEXT->statement:program-selection",
