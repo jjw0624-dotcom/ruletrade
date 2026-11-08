@@ -113,7 +113,7 @@ try {
   await screenshot("builder-independent-flow-rules");
   await clickText("Discard draft"); await clickText("Flow"); await waitSelector('[data-intent-recipe="single_asset"]'); await clickText("Discard draft");
   await clickText("Blocky"); await clickText("Add"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
-  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
   if (!await evaluate(`window.__RULETRADE_BROWSER_DRAFT__?.blockyAddOpen===true`)) throw new Error("Blocky Add state was discarded by a perspective switch.");
   await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
   const manualGraphChrome = await evaluate(`({ commit:document.body.innerText.includes('Commit active graph'), root:document.body.innerText.includes('Active graph root') })`);
