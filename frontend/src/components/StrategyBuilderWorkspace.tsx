@@ -197,6 +197,8 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
   }, [program.detailPanel]);
   const activeDashboard = dashboardEntries.find((item) => item.id === activeDashboardId) ?? null;
   const retainedDashboards = dashboardEntries.filter((item) => item.retainInHistory);
+  const workspaceOverlayOpen = Boolean(program.workspaceOverlay);
+  const dashboardOpen = !workspaceOverlayOpen && Boolean(activeDashboard) && !dashboardCollapsed;
   const switchView = (view: ProgramBuilderView) => {
     setVisitedViews((current) => current.has(view) ? current : new Set(current).add(view));
     program.onViewChange(view);
@@ -225,12 +227,13 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
         {program.inspectorOpen && <SemanticInspector semanticProgram={{ content: program.inspector, onClose: program.onCloseInspector, onDiscardDraft: program.onDiscardDraft }} />}
       </div>
       {program.workspaceOverlay}
-      {dashboardEntries.length > 0 && <aside className={`quick-test-dashboard${dashboardCollapsed || !activeDashboard ? " is-collapsed" : ""}`} aria-label="Quick Test Dashboard" aria-hidden={dashboardCollapsed || !activeDashboard} data-dashboard-state={dashboardCollapsed || !activeDashboard ? "collapsed" : "open"}>
+      {dashboardOpen && <div className="quick-test-dashboard-scrim" aria-hidden="true" />}
+      {dashboardEntries.length > 0 && !workspaceOverlayOpen && <aside className={`quick-test-dashboard${dashboardOpen ? "" : " is-collapsed"}`} aria-label="Quick Test Dashboard" aria-hidden={!dashboardOpen} data-dashboard-state={dashboardOpen ? "open" : "collapsed"}>
         {activeDashboard && <header><span className="eyebrow">{activeDashboard.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={() => { setActiveDashboardId(null); if (!activeDashboard.retainInHistory) setDashboardEntries((current) => current.filter((entry) => entry.id !== activeDashboard.id)); activeDashboard.onClose(); }}>×</button></div></header>}
         <div className="quick-test-dashboard-content">{dashboardEntries.map((entry) => <div key={entry.id} hidden={entry.id !== activeDashboard?.id} data-quick-test-result={entry.id}>{entry.content}</div>)}</div>
       </aside>}
-      {(retainedDashboards.length > 0 || (activeDashboard && dashboardCollapsed)) && <nav className="quick-test-dashboard-bookmarks" aria-label="Recent Quick Test results">
-        {retainedDashboards.map((entry) => <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={entry.id === activeDashboardId && dashboardCollapsed ? "Reopen Quick Test Dashboard" : `Open ${entry.bookmarkLabel ?? entry.title}`} aria-pressed={entry.id === activeDashboardId && !dashboardCollapsed} onClick={() => { setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>)}
+      {!workspaceOverlayOpen && (retainedDashboards.length > 0 || (activeDashboard && dashboardCollapsed)) && <nav className="quick-test-dashboard-bookmarks" aria-label="Recent Quick Test results">
+        {retainedDashboards.map((entry) => { const selected = entry.id === activeDashboardId && !dashboardCollapsed; const label = entry.bookmarkLabel ?? entry.title; return <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={selected ? `Collapse ${label}` : `Open ${label}`} aria-pressed={selected} onClick={() => { if (selected) { setDashboardCollapsed(true); return; } setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>; })}
         {activeDashboard && !activeDashboard.retainInHistory && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
       </nav>}
     </div>
