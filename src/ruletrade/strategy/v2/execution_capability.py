@@ -10,6 +10,7 @@ from typing import Literal
 from ruletrade.strategy.v2.bridge import V2LoweringError, compile_v2_strategy_to_lean_plan
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
+    BuyStatementV2,
     CanonicalStrategyV2,
     GuardedAllocationStatementV2,
     ProgramStatementV2,
@@ -119,6 +120,7 @@ def assess_v2_execution_capability(strategy: CanonicalStrategyV2) -> V2Execution
             "Choose assets for the investment before testing.",
             technical_detail="production execution requires a non-empty investment AssetSet",
         )
+    buys = tuple(item for item in statements if isinstance(item, BuyStatementV2))
     allocations = tuple(item for item in statements if isinstance(item, AllocationStatementV2))
     policies = tuple(item for item in statements if isinstance(item, GuardedAllocationStatementV2))
     non_bootstrap_allocations = tuple(
@@ -128,7 +130,7 @@ def assess_v2_execution_capability(strategy: CanonicalStrategyV2) -> V2Execution
             and len(item.legs) == 1 and item.legs[0].target.kind == "retain"
         )
     )
-    if not selections and not policies and not non_bootstrap_allocations:
+    if not selections and not policies and not non_bootstrap_allocations and not buys:
         return _result(
             strategy,
             "incomplete",
@@ -136,6 +138,8 @@ def assess_v2_execution_capability(strategy: CanonicalStrategyV2) -> V2Execution
             technical_detail="production Program lowering currently requires exactly one Selection",
         )
     referenced_outputs = {
+        item.target.ref for item in buys if item.target.kind == "selection"
+    } | {
         leg.target.ref
         for allocation in non_bootstrap_allocations
         for leg in allocation.legs
