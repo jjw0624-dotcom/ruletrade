@@ -1,5 +1,5 @@
 import { entryBlockDefinition, entryConnectionAccepts, type EntryExecutionStatus } from "./entryStyleGrammar";
-import type { CanonicalStrategyV2, V2AuthoringOperation } from "./canonicalV2";
+import type { CanonicalStrategyV2, ConditionV2, DailyValueNode, SelectionStatementV2, V2AuthoringOperation } from "./canonicalV2";\nimport { blockyFilterSpecErrors, normalizeBlockyFilterSpec } from "./blockyFilterSpec";
 import type { ProgramWorkingDraft } from "./programWorkingDraft";
 
 export type VisualGraphCapability = "incomplete" | "draft_only" | "ready" | "unsupported";
@@ -110,9 +110,119 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
   const action = childAt(root.id, "NEXT");
   const target = action && childAt(action.id, "TARGET");
   const timeframe = root.definitionId === "start-daily" ? "daily" : root.definitionId === "start-monthly" ? "monthly" : null;
-  const targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
-  const targetKind = target?.definitionId === "asset-reference" ? "asset" : target?.definitionId === "group-reference" ? "group" : null;
+  let targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
+  let targetKind: "asset" | "group" | "selection" | null =
+    target?.definitionId === "asset-reference" ? "asset"
+      : target?.definitionId === "group-reference" ? "group" : null;
   const suffix = graph.rootId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "graph";
+  let selectionStatement: SelectionStatementV2 | null = null;
+
+  if (action?.definitionId === "invest" && target && ["filter-assets", "top-n-assets"].includes(target.definitionId)) {
+    const choose = target.definitionId === "top-n-assets" ? target : null;
+    const chooseInput = choose ? childAt(choose.id, "ASSETS") : target;
+    const filter = chooseInput?.definitionId === "filter-assets" ? chooseInput : null;
+    const source = filter ? childAt(filter.id, "ASSETS") : chooseInput;
+    const groupRef = source?.definitionId === "group-reference"
+      ? source.objectRef ?? String(source.fieldValues?.REFERENCE ?? "") : "";
+    const group = canonical?.definitions.groups.find((item) => item.id === groupRef);
+    const assetSet = group && canonical?.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
+    if (!group || !assetSet?.assets.length) {
+      return { status: "unsupported", operation: null, productMessage: "Filter and Choose require a non-empty reusable Group input.", rootId: graph.rootId };
+    }
+
+    const bindingId = `blocky-candidate-${suffix}`;
+    const candidateClose = (semanticId: string): DailyValueNode => ({
+      semantic_id: semanticId, kind: "observe", operands: [],
+      subject_kind: "candidate", subject_id: null, binding_id: bindingId,
+      field: "close", basis: "adjusted", skip: 0,
+      missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+    });
+    const candidateReturn = (semanticId: string, lookback: number): DailyValueNode => ({
+      semantic_id: semanticId, kind: "trailing_return",
+      operands: [candidateClose(`${semanticId}-close`)], observations: lookback,
+      skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+    });
+
+    let eligibility: ConditionV2 | null = null;
+    if (filter) {
+      let rawSpec: unknown = filter.fieldValues?.FILTER_SPEC ?? filter.fieldValues?.SPEC ?? null;
+      if (typeof rawSpec === "string") {
+        try { rawSpec = JSON.parse(rawSpec); } catch { rawSpec = null; }
+      }
+      const spec = normalizeBlockyFilterSpec(rawSpec);
+      const errors = blockyFilterSpecErrors(spec);
+      if (errors.length) {
+        return { status: "unsupported", operation: null, productMessage: errors[0]!, rootId: graph.rootId };
+      }
+      const comparisons: ConditionV2[] = spec.conditions.map((condition, index) => {
+        const prefix = `blocky-filter-${suffix}-${index + 1}`;
+        const isReturn = condition.metric === "trailing_return";
+        return {
+          kind: "comparison",
+          semantic_id: `${prefix}-comparison`,
+          operator: condition.operator,
+          left: isReturn
+            ? candidateReturn(`${prefix}-return`, condition.lookbackObservations ?? 126)
+            : candidateClose(`${prefix}-price`),
+          right: {
+            semantic_id: `${prefix}-threshold`, kind: "literal", operands: [],
+            quantity: isReturn ? "return" : "price",
+            unit: isReturn ? "ratio" : "usd_per_share",
+            refinement: isReturn ? "trailing_return:adjusted_close" : "adjusted_close",
+            value: isReturn ? condition.value / 100 : condition.value,
+            skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1,
+          },
+        };
+      });
+      eligibility = comparisons.length === 1 ? comparisons[0]! : {
+        kind: spec.combination,
+        semantic_id: `blocky-filter-${suffix}-conditions`,
+        children: comparisons,
+      };
+    }
+
+    let ranking: DailyValueNode = candidateClose(`blocky-choose-${suffix}-price`);
+    let count = assetSet.assets.length;
+    if (choose) {
+      const score = childAt(choose.id, "SCORE");
+      const countBlock = childAt(choose.id, "COUNT");
+      count = Number(countBlock?.fieldValues?.VALUE ?? Number.NaN);
+      if (!Number.isInteger(count) || count < 1 || count > assetSet.assets.length) {
+        return { status: "unsupported", operation: null, productMessage: "Choose requires a positive whole-number count no larger than the input Group.", rootId: graph.rootId };
+      }
+      if (score?.definitionId === "candidate-return") {
+        const duration = childAt(score.id, "DURATION");
+        const lookback = Number(duration?.fieldValues?.VALUE ?? score.fieldValues?.LOOKBACK ?? 126);
+        if (!Number.isInteger(lookback) || lookback < 1) {
+          return { status: "unsupported", operation: null, productMessage: "Candidate return requires a positive completed-observation lookback.", rootId: graph.rootId };
+        }
+        ranking = candidateReturn(`blocky-choose-${suffix}-return`, lookback);
+      } else if (score?.definitionId !== "candidate-close") {
+        return { status: "unsupported", operation: null, productMessage: "Choose currently ranks by Candidate return or Candidate close.", rootId: graph.rootId };
+      }
+    }
+
+    const outputId = `blocky-subgroup-${suffix}`;
+    selectionStatement = {
+      kind: "select",
+      semantic_id: `blocky-select-${suffix}`,
+      output_id: outputId,
+      clock_id: null,
+      selection: {
+        semantic_id: `blocky-selection-${suffix}`,
+        universe_id: group.id,
+        binding: { id: bindingId, domain_id: group.id },
+        eligibility,
+        ranking,
+        direction: "descending",
+        count,
+        shortage_policy: String(choose?.fieldValues?.SHORTAGE_POLICY ?? "choose_all") === "require_full" ? "require_full" : "choose_all",
+        fallback_asset: null,
+      },
+    };
+    targetKind = "selection";
+    targetRef = outputId;
+  }
 
   if (action?.definitionId === "invest") {
     const amount = childAt(action.id, "AMOUNT");
@@ -150,13 +260,16 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
           kind: "on_event",
           semantic_id: `blocky-event-${suffix}`,
           event: { semantic_id: `blocky-event-definition-${suffix}`, clock_id: clock.id, condition: null, trigger: "scheduled", occurrence: "every", ordinal: null },
-          statements: [{
-            kind: "buy",
-            semantic_id: `blocky-buy-${suffix}`,
-            target: { semantic_id: `blocky-buy-target-${suffix}`, kind: targetKind, ref: targetRef },
-            amount: orderAmount,
-            clock_id: null,
-          }],
+          statements: [
+            ...(selectionStatement ? [selectionStatement] : []),
+            {
+              kind: "buy",
+              semantic_id: `blocky-buy-${suffix}`,
+              target: { semantic_id: `blocky-buy-target-${suffix}`, kind: targetKind, ref: targetRef },
+              amount: orderAmount,
+              clock_id: null,
+            },
+          ],
         },
       },
     };
