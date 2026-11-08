@@ -90,7 +90,7 @@ def blocky_group_execution_profile() -> CanonicalStrategyV2:
     ))
     strategy = _apply(strategy, AddProgramGroup(
         kind="add_program_group", group_id="group-1", name="Group 1",
-        asset_set_id="group-1-assets", assets=("QQQ", "VOO"),
+        asset_set_id="group-1-assets", assets=("QQQ",),
     ))
     return _apply(strategy, SetProgramInvestment(
         kind="set_program_investment",
