@@ -382,6 +382,40 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(prepareTest).toHaveBeenCalledWith(expect.objectContaining({ kind: "commit_single_asset_intent", asset: "QQQ", timeframe: "monthly" }));
   });
 
+  it("hands a resolved Group rebalance to Test through the existing typed investment operation", async () => {
+    const prepareTest = vi.fn();
+    const draft = {
+      ...emptyProgramWorkingDraft("group-test"),
+      canvasBlocks: {
+        "draft:start": { id: "draft:start", definitionId: "start-monthly", label: "Every monthly close", active: false, createdAt: "2026-10-18T00:00:00Z" },
+        "draft:rebalance": { id: "draft:rebalance", definitionId: "rebalance", label: "Rebalance", active: false, createdAt: "2026-10-18T00:00:00Z" },
+        "draft:group": { id: "draft:group", definitionId: "group-reference", label: "Growth", active: false, objectRef: "growth", createdAt: "2026-10-18T00:00:00Z" },
+        "draft:weight": { id: "draft:weight", definitionId: "percentage", label: "100%", active: false, fieldValues: { VALUE: 100 }, createdAt: "2026-10-18T00:00:00Z" },
+      },
+      blockConnections: {
+        "draft:start": { childId: "draft:start", parentId: null, inputName: null },
+        "draft:rebalance": { childId: "draft:rebalance", parentId: "draft:start", inputName: "NEXT" },
+        "draft:group": { childId: "draft:group", parentId: "draft:rebalance", inputName: "TARGET" },
+        "draft:weight": { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" },
+      },
+    };
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={growthDefensive} dirty={false} status="saved" message="Saved" initialView="blocky"
+      onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+      canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} prepareTest={prepareTest} executionCapability={null}
+      workingDraft={draft} onWorkingDraftChange={() => undefined} />));
+    const testButton = [...container.querySelectorAll("button")].find((button) => button.textContent?.trim().startsWith("Test"));
+    expect(testButton).toBeTruthy();
+    await act(async () => testButton!.click());
+    expect(prepareTest).toHaveBeenCalledWith({
+      kind: "set_program_investment",
+      semantic_id: "blocky-investment-draft-start",
+      target_kind: "group",
+      target_ref: "growth",
+      internal_allocation: "equal",
+      clock_id: "monthly-close",
+    });
+  });
+
   it("uses Blockly's native category toolbox as the only Blocky Add surface", async () => {
     render("blocky", vi.fn(), growthDefensive);
     expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);
