@@ -29,7 +29,14 @@ export const DEFAULT_BLOCKY_FILTER_SPEC: BlockyFilterSpec = {
 
 const operators = new Set<BlockyFilterOperator>(["lt", "lte", "eq", "neq", "gte", "gt"]);
 
+export function parseBlockyFilterSpec(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value) as unknown; }
+  catch { return null; }
+}
+
 export function normalizeBlockyFilterSpec(value: unknown): BlockyFilterSpec {
+  value = parseBlockyFilterSpec(value);
   if (!value || typeof value !== "object") return { ...DEFAULT_BLOCKY_FILTER_SPEC, conditions: [] };
   const candidate = value as Partial<BlockyFilterSpec>;
   const combination: BlockyFilterCombination = candidate.combination === "any" ? "any" : "all";
