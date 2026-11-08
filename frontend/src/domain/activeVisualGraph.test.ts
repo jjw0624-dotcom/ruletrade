@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileActiveVisualGraph, validateActiveVisualGraphs } from "./activeVisualGraph";
 import type { CanonicalStrategyV2 } from "./canonicalV2";
-import { addCanvasBlock, emptyProgramWorkingDraft, withBlockMove } from "./programWorkingDraft";
+import { addCanvasBlock, emptyProgramWorkingDraft, withBlockMove, type ProgramCanvasBlock } from "./programWorkingDraft";
 
 const block = (id: string, definitionId: string) => ({ id, definitionId, label: definitionId, createdAt: "2026-10-18T00:00:00Z", active: false });
 
@@ -209,7 +209,7 @@ describe("active visual graph translation boundary", () => {
       version: 1, combination: "all", missingPolicy: "exclude",
       conditions: [{ id: "positive-126", metric: "trailing_return", lookbackObservations: 126, operator: "gt", value: 0, unit: "percent" }],
     });
-    const blocks = [
+    const blocks: ProgramCanvasBlock[] = [
       block("draft:start-pipeline", "start-daily"),
       block("draft:buy-pipeline", "invest"),
       { ...block("draft:choose", "top-n-assets"), fieldValues: { SHORTAGE: "CHOOSE_ALL" } },
@@ -261,7 +261,7 @@ describe("active visual graph translation boundary", () => {
 
   it("keeps Filter useful without Choose and applies one total USD budget to its Subgroup", () => {
     let draft = emptyProgramWorkingDraft("filter-cash-buy");
-    const blocks = [
+    const blocks: ProgramCanvasBlock[] = [
       block("draft:start-filter", "start-monthly"),
       block("draft:buy-filter", "invest"),
       { ...block("draft:filter-only", "filter-assets"), fieldValues: { FILTER_SPEC: JSON.stringify({ version: 1, combination: "any", missingPolicy: "exclude", conditions: [{ id: "price", metric: "current_price", operator: "lte", value: 500, unit: "usd_per_share", lookbackObservations: null }] }) } },
