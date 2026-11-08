@@ -56,6 +56,9 @@ export interface SelectionV2 {
   eligibility: ConditionV2 | null; ranking: ValueExpressionV2; direction: "ascending" | "descending";
   count: number; shortage_policy: "choose_all" | "require_full"; fallback_asset: string | null;
 }
+export interface OrderTargetV2 { semantic_id: string; kind: "asset" | "group" | "selection"; ref: string }
+export interface UnitsEachAmountV2 { kind: "units_each"; units: number }
+export interface BuyStatementV2 { kind: "buy"; semantic_id: string; target: OrderTargetV2; amount: UnitsEachAmountV2; clock_id: string | null }
 export interface AllocationStatementV2 {
   kind: "allocate"; semantic_id: string; method: "equal" | "fixed" | "proportional_score" | "inverse_volatility";
   legs: Array<{ semantic_id: string; target: { semantic_id: string; kind: "asset" | "selection" | "group" | "cash" | "retain"; ref: string | null }; weight: string | number | null }>;
@@ -71,7 +74,7 @@ export interface StateTransitionStatementV2 { kind: "transition"; semantic_id: s
 export interface RememberValueStatementV2 { kind: "remember_value"; semantic_id: string; memory_id: string; value: ValueExpressionV2; clock_id: string | null }
 export interface GuardedAllocationStatementV2 { kind: "guarded_allocation"; semantic_id: string; guard: ConditionV2 | null; primary: AllocationStatementV2; overrides: Array<{ semantic_id: string; priority: number; when: ConditionV2; action: AllocationStatementV2 }>; fallback: AllocationStatementV2 | null; unknown_guard_policy: "block" | "allow" }
 export interface UnresolvedStatementV2 { kind: "unresolved"; semantic_id: string; source_text: string; category: "fuzzy_term" | "missing_reference" | "unsupported_semantics"; reason: string }
-export type ProgramStatementV2 = SelectionStatementV2 | AllocationStatementV2 | ConditionalStatementV2 | EventStatementV2 | StateTransitionStatementV2 | RememberValueStatementV2 | GuardedAllocationStatementV2 | UnresolvedStatementV2;
+export type ProgramStatementV2 = SelectionStatementV2 | BuyStatementV2 | AllocationStatementV2 | ConditionalStatementV2 | EventStatementV2 | StateTransitionStatementV2 | RememberValueStatementV2 | GuardedAllocationStatementV2 | UnresolvedStatementV2;
 export interface SemanticProgramV2 {
   semantic_id: string;
   clocks: Array<{ id: string; timeframe: "session" | "daily" | "weekly" | "monthly"; boundary: "close"; timezone: string; completed_only: true; terminal_boundary_policy?: "not_due" | "fixture_end_is_boundary" }>;

@@ -110,6 +110,13 @@ class LeanTargetSleeve:
 
 
 @dataclass(frozen=True)
+class LeanOrderAction:
+    id: str
+    symbols: tuple[str, ...]
+    quantity: int
+
+
+@dataclass(frozen=True)
 class LeanRebalance:
     id: str
     sleeve_ids: tuple[str, ...]
@@ -297,6 +304,7 @@ class LeanMonthlyEvent:
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
     boundary: Literal["start", "end"] = "start"
 
@@ -307,6 +315,7 @@ class LeanDailyEvent:
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
 
 
@@ -317,6 +326,7 @@ class LeanQuarterlyEvent:
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
 
 
@@ -329,6 +339,7 @@ class LeanPlan:
     rebalances: tuple[LeanRebalance, ...]
     monthly_events: tuple[LeanMonthlyEvent, ...]
     momentum_selections: tuple[LeanMomentumSelection, ...] = ()
+    order_actions: tuple[LeanOrderAction, ...] = ()
     target_snapshots: tuple[LeanTargetSnapshot, ...] = ()
     quarterly_events: tuple[LeanQuarterlyEvent, ...] = ()
     daily_events: tuple[LeanDailyEvent, ...] = ()
@@ -356,6 +367,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
     _unique_by_id(plan.momentum_selections, "momentum selection")
     _unique_by_id(plan.target_sleeves, "target sleeve")
     _unique_by_id(plan.rebalances, "rebalance")
+    _unique_by_id(plan.order_actions, "order action")
     _unique_by_id(plan.monthly_events, "monthly event")
     _unique_by_id(plan.target_snapshots, "target snapshot")
     _unique_by_id(plan.quarterly_events, "quarterly event")
@@ -379,6 +391,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
             grouped_events[key] = replace(
                 existing,
                 rebalance_ids=tuple(sorted(set(existing.rebalance_ids + event.rebalance_ids))),
+                order_action_ids=tuple(sorted(set(existing.order_action_ids + event.order_action_ids))),
                 refresh_ids=tuple(sorted(set(existing.refresh_ids + event.refresh_ids))),
             )
 
@@ -392,6 +405,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
             grouped_quarterly[key] = replace(
                 existing,
                 rebalance_ids=tuple(sorted(set(existing.rebalance_ids + event.rebalance_ids))),
+                order_action_ids=tuple(sorted(set(existing.order_action_ids + event.order_action_ids))),
                 refresh_ids=tuple(sorted(set(existing.refresh_ids + event.refresh_ids))),
             )
 
@@ -402,6 +416,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
         momentum_selections=tuple(sorted(plan.momentum_selections, key=lambda item: item.id)),
         target_sleeves=tuple(sorted(plan.target_sleeves, key=lambda item: item.id)),
         rebalances=tuple(sorted(plan.rebalances, key=lambda item: item.id)),
+        order_actions=tuple(sorted(plan.order_actions, key=lambda item: item.id)),
         monthly_events=tuple(sorted(grouped_events.values(), key=lambda item: item.id)),
         target_snapshots=tuple(sorted(plan.target_snapshots, key=lambda item: item.id)),
         quarterly_events=tuple(sorted(grouped_quarterly.values(), key=lambda item: item.id)),

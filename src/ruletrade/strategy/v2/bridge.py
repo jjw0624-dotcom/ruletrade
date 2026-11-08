@@ -12,7 +12,7 @@ from decimal import Decimal
 from ruletrade.compiler.pipeline import compile_strategy_to_lean_plan
 from ruletrade.compiler.lean.plan import (
     LeanDailyEvent, LeanComparison, LeanMomentumSelection, LeanMonthlyEvent,
-    LeanOnDataExecution, LeanPlan, LeanRebalance, LeanScoreTerm, LeanSubscription,
+    LeanOnDataExecution, LeanOrderAction, LeanPlan, LeanRebalance, LeanScoreTerm, LeanSubscription,
     LeanTargetSleeve, LeanTemporalAction,
     LeanTemporalAllocationLeg,
     LeanTemporalCondition, LeanTemporalEvent, LeanTemporalPolicyTarget,
@@ -41,6 +41,7 @@ from ruletrade.strategy.v1.models import (
 from ruletrade.strategy.v1.validation import validate_strategy_v1
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
+    BuyStatementV2,
     CandidateCurrentPriceValue,
     CandidateTrailingReturnValue,
     ClockedValueV2,
@@ -750,6 +751,86 @@ def _program_comparisons(condition: ConditionV2) -> tuple[LeanComparison, ...]:
     )
 
 
+def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
+    """Lower the first additive order-sized Blocky profile without weight coercion."""
+    if strategy.program is None:
+        return None
+    top_level = tuple(
+        item for item in strategy.program.statements
+        if not (
+            isinstance(item, AllocationStatementV2)
+            and item.semantic_id == "initial-retain-allocation"
+            and len(item.legs) == 1 and item.legs[0].target.kind == "retain"
+        )
+    )
+    if not top_level or any(not isinstance(item, EventStatementV2) for item in top_level):
+        return None
+    if len(top_level) != 1:
+        raise V2LoweringError("order-sized Blocky profile currently requires one scheduled Start graph")
+    event_statement = top_level[0]
+    event = event_statement.event
+    if (
+        event.condition is not None
+        or event.trigger != "scheduled"
+        or event.occurrence != "every"
+        or event.ordinal is not None
+    ):
+        raise V2LoweringError("order-sized Buy currently requires an unconditional scheduled Start")
+    if not event_statement.statements or any(
+        not isinstance(item, BuyStatementV2) for item in event_statement.statements
+    ):
+        raise V2LoweringError("scheduled order profile currently supports Buy statements only")
+
+    groups = {item.id: item for item in strategy.definitions.groups}
+    asset_sets = {item.id: tuple(item.assets) for item in strategy.definitions.asset_sets}
+    actions: list[LeanOrderAction] = []
+    symbols: set[str] = set()
+    for statement in event_statement.statements:
+        target = statement.target
+        if target.kind == "asset":
+            local_symbols = (target.ref,)
+        elif target.kind == "group":
+            group = groups.get(target.ref)
+            local_symbols = asset_sets.get(group.asset_set_ref, ()) if group is not None else ()
+        else:
+            raise V2LoweringError("Selection Buy lowering follows the Filter/Choose compiler slice")
+        if not local_symbols:
+            raise V2LoweringError(f"Buy target {target.ref!r} has no assets")
+        actions.append(LeanOrderAction(
+            id=statement.semantic_id,
+            symbols=tuple(local_symbols),
+            quantity=statement.amount.units,
+        ))
+        symbols.update(local_symbols)
+
+    clocks = {item.id: item for item in strategy.program.clocks}
+    clock = clocks.get(event.clock_id)
+    if clock is None:
+        raise V2LoweringError(f"Buy Start references unknown clock {event.clock_id!r}")
+    if clock.timeframe not in {"daily", "monthly"}:
+        raise V2LoweringError(f"{clock.timeframe} Buy timing has no maintained LEAN lowering")
+    anchor = sorted(symbols)[0]
+    execution = LeanOnDataExecution(required_symbols=tuple(sorted(symbols)))
+    event_kwargs = {
+        "id": event_statement.semantic_id,
+        "anchor_symbol": anchor,
+        "rebalance_ids": (),
+        "order_action_ids": tuple(item.id for item in actions),
+        "execution": execution,
+    }
+    return normalize_lean_plan(LeanPlan(
+        strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
+        subscriptions=tuple(LeanSubscription(symbol=item) for item in sorted(symbols)),
+        random_selections=(),
+        target_sleeves=(),
+        rebalances=(),
+        monthly_events=(LeanMonthlyEvent(day=1, boundary="end", **event_kwargs),)
+        if clock.timeframe == "monthly" else (),
+        daily_events=(LeanDailyEvent(**event_kwargs),) if clock.timeframe == "daily" else (),
+        order_actions=tuple(actions),
+    ))
+
+
 def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     """Compile allocation-driven, non-temporal Program semantics to the shared plan.
 
@@ -961,6 +1042,10 @@ def compile_v2_strategy_to_lean_plan(strategy: CanonicalStrategyV2):
     temporal_plan = _compile_temporal_program(strategy)
     if temporal_plan is not None:
         return temporal_plan
+
+    buy_plan = _compile_buy_program(strategy)
+    if buy_plan is not None:
+        return buy_plan
 
     static_plan = _compile_static_program(strategy)
     if static_plan is not None:

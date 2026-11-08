@@ -694,6 +694,7 @@ def generate_csharp(
     momentum_selections = {item.id: item for item in plan.momentum_selections}
     sleeves = {item.id: item for item in plan.target_sleeves}
     rebalances = {item.id: item for item in plan.rebalances}
+    order_actions = {item.id: item for item in plan.order_actions}
     predicates = tuple(item.predicate for item in plan.rebalances if item.predicate is not None)
     condition_values = tuple(
         value
@@ -1160,7 +1161,7 @@ def generate_csharp(
                     f"        if (readyEvent{event_index} != null) RefreshEvent{event_index}(readyEvent{event_index});"
                 )
         for event_index, event in enumerate(scheduled_events):
-            if event.rebalance_ids:
+            if event.rebalance_ids or event.order_action_ids:
                 lines.append(
                     f"        if (readyEvent{event_index} != null) ExecuteEvent{event_index}(readyEvent{event_index});"
                 )
@@ -1365,10 +1366,19 @@ def generate_csharp(
         lines.extend(("    }", ""))
 
     for event_index, event in enumerate(scheduled_events):
-        if not event.rebalance_ids:
+        if not event.rebalance_ids and not event.order_action_ids:
             continue
-        event_schedule = "quarterly" if isinstance(event, LeanQuarterlyEvent) else "monthly"
+        event_schedule = "quarterly" if isinstance(event, LeanQuarterlyEvent) else ("daily" if isinstance(event, LeanDailyEvent) else "monthly")
         lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
+        for action_id in event.order_action_ids:
+            action = order_actions[action_id]
+            for symbol in action.symbols:
+                lines.extend((
+                    f"        MarketOrder(_symbols[{_csharp_string(symbol)}], {action.quantity});",
+                    '        EmitDecisionEvidence(eventIdentity, "order_intent", "buy_units_each",',
+                    f'            "action_component", {_csharp_string(action.id)}, "asset", {_csharp_string(symbol)}, "quantity", {_csharp_string(str(action.quantity))},',
+                    f'            "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                ))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
             predicate_outcome: str | None = None

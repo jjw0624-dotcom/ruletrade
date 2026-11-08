@@ -10,6 +10,7 @@ from typing import Iterable
 from ruletrade.strategy.v2.daily_values import DailyMarketSnapshot, DailyValueEvaluator, DailyValueNode
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
+    BuyStatementV2,
     BooleanGroupV2,
     ComparisonV2,
     ClockedValueV2,
@@ -149,6 +150,13 @@ class ProgramDecisionEvidence:
 
 
 @dataclass(frozen=True)
+class ProgramOrderIntent:
+    semantic_id: str
+    symbol: str
+    quantity: Decimal
+
+
+@dataclass(frozen=True)
 class ProgramExecutionResult:
     revision_id: str | None
     program_semantic_id: str
@@ -166,6 +174,7 @@ class ProgramExecutionResult:
     retained_holdings: bool
     evidence: tuple[ProgramDecisionEvidence, ...]
     value_observations: tuple[ProgramValueObservation, ...]
+    order_intents: tuple[ProgramOrderIntent, ...] = ()
 
 
 class _Runtime:
@@ -193,6 +202,7 @@ class _Runtime:
         self.retained = False
         self.evidence: list[ProgramDecisionEvidence] = []
         self.observations: list[ProgramValueObservation] = []
+        self.orders: list[ProgramOrderIntent] = []
         self.event_cutoffs: dict[str, int] = dict(event_cutoffs or {})
         self.prior_event_truths: dict[str, str] = dict(prior_event_truths or {})
         self.event_truths: dict[str, str] = {}
@@ -639,6 +649,28 @@ class _Runtime:
             f"eligible={','.join(eligible)}; selected={','.join(selected)}",
         ))
 
+    def buy(self, statement: BuyStatementV2) -> None:
+        if not self.clock_due(statement.clock_id):
+            self.evidence.append(ProgramDecisionEvidence(
+                statement.semantic_id, "buy", "not_due", statement.clock_id or "",
+            ))
+            return
+        if statement.target.kind == "selection":
+            assets = self.selections.get(statement.target.ref, ())
+        elif statement.target.kind == "group":
+            assets = self.members(statement.target.ref)
+        else:
+            assets = (statement.target.ref,)
+        quantity = Decimal(statement.amount.units)
+        for asset in assets:
+            self.orders.append(ProgramOrderIntent(statement.semantic_id, asset, quantity))
+        self.evidence.append(ProgramDecisionEvidence(
+            statement.semantic_id,
+            "buy",
+            "orders_created" if assets else "empty_target",
+            f"units_each={quantity}; symbols={','.join(assets)}",
+        ))
+
     def allocation_resolvable(self, statement: AllocationStatementV2) -> bool:
         targets_exist = all(
             leg.target.kind != "selection" or bool(self.selections.get(leg.target.ref or ""))
@@ -738,6 +770,8 @@ class _Runtime:
         for statement in statements:
             if isinstance(statement, SelectionStatementV2):
                 self.selection(statement)
+            elif isinstance(statement, BuyStatementV2):
+                self.buy(statement)
             elif isinstance(statement, AllocationStatementV2):
                 self.allocation(statement)
             elif isinstance(statement, ConditionalStatementV2):
@@ -936,4 +970,5 @@ def execute_program_v2(
         retained_holdings=runtime.retained,
         evidence=tuple(runtime.evidence),
         value_observations=tuple(runtime.observations),
+        order_intents=tuple(runtime.orders),
     )
