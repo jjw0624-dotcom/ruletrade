@@ -167,7 +167,7 @@ try {
   }
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=blocky-group-handoff" });
-  await waitSelector('.blocky-representation[data-execution-candidate="ready"]');
+  await waitSelector('[data-projection-contract="blocky"][data-execution-candidate="ready"]');
   const blockyGroupBefore = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return {blocks:Object.keys(draft?.canvasBlocks??{}).sort(),connections:draft?.blockConnections,positions:draft?.blockPositions}; })()`);
   await clickTextContaining("Test");
   await waitExpression(`window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation?.kind==='set_program_investment'`, "typed Blocky Group investment handoff");
