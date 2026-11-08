@@ -81,3 +81,20 @@ def production_execution_profile(profile: ExecutionClosureProfile) -> CanonicalS
         trend_lookback=200, ranking_lookback=126, count=2,
         fallback_asset="TLT", timeframe="monthly",
     ))
+
+
+def blocky_group_execution_profile() -> CanonicalStrategyV2:
+    """Exact typed meaning emitted by the maintained native Blocky Group graph."""
+    strategy = create_program_strategy_template(ProgramStrategyTemplateRequest(
+        name="Blocky Group execution proof",
+    ))
+    strategy = _apply(strategy, AddProgramGroup(
+        kind="add_program_group", group_id="group-1", name="Group 1",
+        asset_set_id="group-1-assets", assets=("QQQ", "VOO"),
+    ))
+    return _apply(strategy, SetProgramInvestment(
+        kind="set_program_investment",
+        semantic_id="blocky-investment-draft-start",
+        target_kind="group", target_ref="group-1",
+        internal_allocation="equal", clock_id="daily-close",
+    ))
