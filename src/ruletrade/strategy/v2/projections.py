@@ -14,6 +14,7 @@ from pydantic import Field, model_validator
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
     BooleanGroupV2,
+    BuyStatementV2,
     CanonicalStrategyV2,
     ComparisonV2,
     ConditionalStatementV2,
@@ -129,6 +130,10 @@ def _statement_label(statement: ProgramStatementV2) -> tuple[str, str]:
         return "selection", f"Choose {statement.selection.count} assets"
     if isinstance(statement, AllocationStatementV2):
         return "allocation", f"Allocate · {statement.method.replace('_', ' ')}"
+    if isinstance(statement, BuyStatementV2):
+        units = statement.amount.units
+        suffix = "" if units == 1 else "s"
+        return "investment", f"Buy {units} unit{suffix} each · {statement.target.ref}"
     if isinstance(statement, ConditionalStatementV2):
         return "control", f"IF {_condition_label(statement.condition)}"
     if isinstance(statement, EventStatementV2):
