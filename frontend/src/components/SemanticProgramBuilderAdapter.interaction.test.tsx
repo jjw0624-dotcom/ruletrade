@@ -416,6 +416,34 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     });
   });
 
+  it("opens a Blocky-committed Group allocation as an editable Guide Investment", async () => {
+    const committed: CanonicalStrategyV2 = {
+      ...growthDefensive,
+      program: {
+        ...growthDefensive.program!,
+        statements: [{
+          kind: "allocate",
+          semantic_id: "blocky-investment-draft-start",
+          method: "equal",
+          clock_id: "monthly-close",
+          legs: [{ semantic_id: "blocky-investment-draft-start-leg", target: { semantic_id: "blocky-investment-draft-start-target", kind: "group", ref: "growth" }, weight: null }],
+          minimum_weight: null,
+          maximum_weight: null,
+          cash_remainder_asset: null,
+        }],
+      },
+    };
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={committed} dirty={false} status="saved" message="Saved" initialView="guided"
+      onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+      canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+      workingDraft={emptyProgramWorkingDraft("guide-investment")} onWorkingDraftChange={() => undefined} />));
+    const allocation = container.querySelector<HTMLButtonElement>('[data-semantic-address="blocky-investment-draft-start"]');
+    expect(allocation).toBeTruthy();
+    await act(async () => allocation!.click());
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Change target or weighting")).toBe(true);
+    expect(container.querySelector('[aria-label="Semantic Inspector"]')?.textContent).toContain("Capital target");
+  });
+
   it("uses Blockly's native category toolbox as the only Blocky Add surface", async () => {
     render("blocky", vi.fn(), growthDefensive);
     expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Add")).toBe(true);
