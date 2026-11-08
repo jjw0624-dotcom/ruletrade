@@ -217,7 +217,7 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
         ranking,
         direction: "descending",
         count,
-        shortage_policy: String(choose?.fieldValues?.SHORTAGE_POLICY ?? "choose_all") === "require_full" ? "require_full" : "choose_all",
+        shortage_policy: String(choose?.fieldValues?.SHORTAGE ?? "CHOOSE_ALL") === "REQUIRE_FULL" ? "require_full" : "choose_all",
         fallback_asset: null,
       },
     };
