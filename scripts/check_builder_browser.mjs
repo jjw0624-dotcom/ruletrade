@@ -225,6 +225,12 @@ try {
   const persistedJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!persistedJourney.body.includes("What happened, and why?") || !persistedJourney.body.includes("QQQ 100%") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/revisions/revision-v2-browser/backtest-runs"&&item.method==="POST") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/backtest-runs/run-v2-browser/decision-events") || persistedJourney.requests.some((item)=>item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Persisted V2 browser journey failed: ${JSON.stringify(persistedJourney)}`);
   await screenshot("persisted-v2-result-evidence");
+  await clickAriaLabel("Close Quick Test Dashboard");
+  await waitSelector('[aria-label="Open Run run-v2-b"]');
+  const closedDashboard = await evaluate(`({open:document.querySelector(\'.quick-test-dashboard\')?.getAttribute(\'data-dashboard-state\')===\'open\',scrim:Boolean(document.querySelector(\'.quick-test-dashboard-scrim\'))})`);
+  if (closedDashboard.open || closedDashboard.scrim) throw new Error(`Closing Quick Test Dashboard did not restore the Builder: ${JSON.stringify(closedDashboard)}`);
+  await clickAriaLabel("Open Run run-v2-b");
+  await waitSelector('.quick-test-dashboard[data-dashboard-state="open"] .result-workspace');
   await clickText("Blocky"); await clickText("Objects"); await clickText("Create Group"); await waitSelector('[data-object-definition-workspace="group"]');
   const overlayOwnership = await evaluate(`({ dashboard:Boolean(document.querySelector('[aria-label="Quick Test Dashboard"]')), bookmarks:Boolean(document.querySelector('[aria-label="Recent Quick Test results"]')), scrim:Boolean(document.querySelector('.quick-test-dashboard-scrim')) })`);
   if (overlayOwnership.dashboard || overlayOwnership.bookmarks || overlayOwnership.scrim) throw new Error(`Quick Test UI leaked above Group Workspace: ${JSON.stringify(overlayOwnership)}`);
