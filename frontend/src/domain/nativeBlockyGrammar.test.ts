@@ -26,7 +26,7 @@ describe("native Blockly product grammar", () => {
     const number = workspace.newBlock(entryBlocklyType("number"));
     expect(invest.previousConnection?.getCheck()).toContain("RuleTradeStatement");
     expect(invest.getInput("TARGET")?.connection?.getCheck()).toEqual(expect.arrayContaining(["RuleTradeAsset", "RuleTradeGroup", "RuleTradeSubgroup"]));
-    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(["RuleTradeUnitsEach"]);
+    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(["RuleTradeUnitsEach", "RuleTradeMoney"]);
     expect(comparison.outputConnection?.getCheck()).toContain("Boolean");
     expect(arithmetic.outputConnection?.getCheck()).toContain("Number");
     expect(number.outputConnection?.getCheck()).toContain("Number");
