@@ -81,7 +81,7 @@ def main() -> None:
                 blocky_response = client.post(
                     f"/v2/revisions/{blocky_revision.id}/backtest-runs",
                     json={"config": {
-                        "dataset_id": "filter-synthetic",
+                        "dataset_id": "golden-synthetic",
                         "start_date": "2024-01-01",
                         "end_date": "2024-02-29",
                         "initial_cash": "100000",
