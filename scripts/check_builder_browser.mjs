@@ -166,6 +166,24 @@ try {
     await screenshot(`builder-${label.toLowerCase()}-perspective`);
   }
 
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=blocky-group-handoff" });
+  await waitSelector('[data-projection-contract="blocky"]');
+  await sleep(300);
+  const blockyGroupState = await evaluate(`(() => { const projection=document.querySelector('[data-projection-contract="blocky"]'); const test=[...document.querySelectorAll('button')].find((item)=>item.textContent.trim().startsWith('Test')); const draft=window.__RULETRADE_BROWSER_DRAFT__; return {candidate:projection?.getAttribute('data-execution-candidate'),testDisabled:test?.disabled,testTitle:test?.title,connections:draft?.blockConnections,blocks:draft?.canvasBlocks}; })()`);
+  if (blockyGroupState.candidate !== "ready" || blockyGroupState.testDisabled) throw new Error(`Blocky Group graph was not test-ready: ${JSON.stringify(blockyGroupState)}`);
+  const blockyGroupBefore = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return {blocks:Object.keys(draft?.canvasBlocks??{}).sort(),connections:draft?.blockConnections,positions:draft?.blockPositions}; })()`);
+  await clickTextContaining("Test");
+  await waitExpression(`window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation?.kind==='set_program_investment'`, "typed Blocky Group investment handoff");
+  const blockyGroupHandoff = await evaluate(`({operation:window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation,canonical:window.__RULETRADE_BROWSER_CANONICAL__,draft:window.__RULETRADE_BROWSER_DRAFT__})`);
+  if (blockyGroupHandoff.operation?.target_kind !== "group" || blockyGroupHandoff.operation?.target_ref !== "group-1" || blockyGroupHandoff.operation?.clock_id !== "daily-close") throw new Error(`Blocky Group handoff changed typed investment meaning: ${JSON.stringify(blockyGroupHandoff.operation)}`);
+  const blockyGroupAfter = { blocks: Object.keys(blockyGroupHandoff.draft?.canvasBlocks ?? {}).sort(), connections: blockyGroupHandoff.draft?.blockConnections, positions: blockyGroupHandoff.draft?.blockPositions };
+  if (JSON.stringify(blockyGroupBefore) !== JSON.stringify(blockyGroupAfter)) throw new Error(`Testing mutated Blocky canvas state: ${JSON.stringify({blockyGroupBefore,blockyGroupAfter})}`);
+  await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"] [data-semantic-address="blocky-investment-draft-start"]');
+  await evaluate(`document.querySelector('[data-semantic-address="blocky-investment-draft-start"]').click()`);
+  await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.trim()==='Change target or weighting')`, "editable Guide Investment inspector");
+  if (!await evaluate(`document.querySelector('[aria-label="Semantic Inspector"]')?.innerText.includes('Capital target')`)) throw new Error("Guide allocation did not open the editable Investment inspector.");
+  await screenshot("builder-blocky-group-guide-handoff");
+
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
   await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const path=[...document.querySelectorAll('.react-flow__edge-interaction')].find((item)=>item.isConnected&&item.getTotalLength()>0); if(path){ const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing stable Flow route interaction path'); })()`);
