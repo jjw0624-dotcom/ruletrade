@@ -1,5 +1,6 @@
 import { entryBlockDefinition, entryConnectionAccepts, type EntryExecutionStatus } from "./entryStyleGrammar";
-import type { CanonicalStrategyV2, ConditionV2, DailyValueNode, SelectionStatementV2, V2AuthoringOperation } from "./canonicalV2";\nimport { blockyFilterSpecErrors, normalizeBlockyFilterSpec } from "./blockyFilterSpec";
+import type { CanonicalStrategyV2, ConditionV2, DailyValueNode, SelectionStatementV2, V2AuthoringOperation } from "./canonicalV2";
+import { blockyFilterSpecErrors, normalizeBlockyFilterSpec } from "./blockyFilterSpec";
 import type { ProgramWorkingDraft } from "./programWorkingDraft";
 
 export type VisualGraphCapability = "incomplete" | "draft_only" | "ready" | "unsupported";
