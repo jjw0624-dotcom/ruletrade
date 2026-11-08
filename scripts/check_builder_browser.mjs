@@ -95,8 +95,8 @@ try {
   await clickText("Discard draft");
 
   await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
-  await clickText("Add"); await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.trim()==='Investment'&&!item.disabled&&item.getClientRects().length>0)`, "visible Flow Investment tool");
-  await clickText("Investment");
+  await clickText("Add"); await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.includes('Investment')&&!item.disabled&&item.getClientRects().length>0)`, "visible Flow Investment tool");
+  await evaluate(`(() => { const button=[...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Investment')&&!item.disabled&&item.getClientRects().length>0); if(!button) throw new Error('Missing visible Flow Investment tool'); button.click(); })()`);
   await waitSelector('[data-intent-recipe="single_asset"]');
   const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
   if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
