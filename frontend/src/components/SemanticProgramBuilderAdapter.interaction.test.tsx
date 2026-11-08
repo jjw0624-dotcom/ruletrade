@@ -330,7 +330,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
         workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
     }
     act(() => root.render(<Harness />));
-    await clickButton(container, "Create Investment");
+    await clickButton(container, "Add");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-toolbox-concept="investment"] .flow-toolbox-block')!.click());
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
@@ -359,7 +360,8 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
         workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
     }
     act(() => root.render(<Harness />));
-    await clickButton(container, "Create Split");
+    await clickButton(container, "Add");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-toolbox-concept="split"] .flow-toolbox-block')!.click());
     const latest = changes.mock.calls.at(-1)?.[0];
     expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
     expect(latest.canvasBlocks).toEqual({});
