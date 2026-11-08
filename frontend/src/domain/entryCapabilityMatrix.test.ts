@@ -7,7 +7,7 @@ describe("Entry block capability evidence", () => {
     expect(ENTRY_CAPABILITY_MATRIX.map((entry) => entry.blockId)).toEqual(ENTRY_BLOCK_DEFINITIONS.map((entry) => entry.id));
     expect(ENTRY_CAPABILITY_MATRIX.every((entry) => entry.draftable)).toBe(true);
     expect(entryCapability("random-value")).toMatchObject({ semanticRepresentable: false, lowerable: false, dockerVerified: false });
-    expect(entryCapability("invest")).toMatchObject({ execution: "draft_only", lowerable: false });
+    expect(entryCapability("invest")).toMatchObject({ execution: "needs_context", lowerable: false });
     expect(entryCapability("trailing-return")).toMatchObject({ providerData: "required", lowerable: true });
   });
 });

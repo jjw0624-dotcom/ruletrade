@@ -26,7 +26,7 @@ describe("native Blockly product grammar", () => {
     const number = workspace.newBlock(entryBlocklyType("number"));
     expect(invest.previousConnection?.getCheck()).toContain("RuleTradeStatement");
     expect(invest.getInput("TARGET")?.connection?.getCheck()).toEqual(expect.arrayContaining(["RuleTradeAsset", "RuleTradeGroup", "RuleTradeSubgroup"]));
-    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(expect.arrayContaining(["RuleTradeMoney", "RuleTradePercentage", "RuleTradeQuantity"]));
+    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(["RuleTradeUnitsEach"]);
     expect(comparison.outputConnection?.getCheck()).toContain("Boolean");
     expect(arithmetic.outputConnection?.getCheck()).toContain("Number");
     expect(number.outputConnection?.getCheck()).toContain("Number");
@@ -47,7 +47,7 @@ describe("native Blockly product grammar", () => {
   });
 
   it("renders simple financial meaning in one compact horizontal message", () => {
-    expect(entryBlockJson(entryBlockDefinition("invest")!)).toMatchObject({ message0: "Buy idea (draft only) %1 with %2", inputsInline: true });
+    expect(entryBlockJson(entryBlockDefinition("invest")!)).toMatchObject({ message0: "Buy %1 with %2", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("trailing-return")!)).toMatchObject({ message0: "%1 return over %2 days", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("rebalance")!)).toMatchObject({ message0: "Rebalance %1 to %2 portfolio weight", inputsInline: true });
     expect(entryBlockJson(entryBlockDefinition("invest")!)).not.toHaveProperty("message1");
@@ -62,21 +62,27 @@ describe("native Blockly product grammar", () => {
     expect(money.args0).toEqual(expect.arrayContaining([expect.objectContaining({ name: "CURRENCY" })]));
   });
 
-  it("uses typed native connections for nested AssetSet and candidate-predicate composition", () => {
+  it("separates Filter, Choose, and Buy responsibilities with typed Subgroup connections", () => {
     registerBlockyProgramBlocks();
     const workspace = new Blockly.Workspace();
     const filter = workspace.newBlock(entryBlocklyType("filter-assets"));
     const group = workspace.newBlock(entryBlocklyType("group-reference"));
-    const predicate = workspace.newBlock(entryBlocklyType("candidate-compare"));
-    const candidateRsi = workspace.newBlock(entryBlocklyType("candidate-rsi"));
     const top = workspace.newBlock(entryBlocklyType("top-n-assets"));
+    const metric = workspace.newBlock(entryBlocklyType("candidate-return"));
+    const count = workspace.newBlock(entryBlocklyType("number"));
+    const buy = workspace.newBlock(entryBlocklyType("invest"));
+    const units = workspace.newBlock(entryBlocklyType("units-each"));
     filter.getInput("ASSETS")!.connection!.connect(group.outputConnection!);
-    predicate.getInput("A")!.connection!.connect(candidateRsi.outputConnection!);
-    filter.getInput("PREDICATE")!.connection!.connect(predicate.outputConnection!);
     top.getInput("ASSETS")!.connection!.connect(filter.outputConnection!);
-    expect(filter.getInputTargetBlock("ASSETS")).toBe(group);
-    expect(filter.getInputTargetBlock("PREDICATE")).toBe(predicate);
-    expect(top.getInputTargetBlock("ASSETS")).toBe(filter);
+    top.getInput("SCORE")!.connection!.connect(metric.outputConnection!);
+    top.getInput("COUNT")!.connection!.connect(count.outputConnection!);
+    buy.getInput("TARGET")!.connection!.connect(top.outputConnection!);
+    buy.getInput("AMOUNT")!.connection!.connect(units.outputConnection!);
+    expect(filter.getInput("PREDICATE")).toBeNull();
+    expect(filter.outputConnection?.getCheck()).toContain("RuleTradeSubgroup");
+    expect(top.outputConnection?.getCheck()).toContain("RuleTradeSubgroup");
+    expect(buy.getInputTargetBlock("TARGET")).toBe(top);
+    expect(buy.getInputTargetBlock("AMOUNT")).toBe(units);
     workspace.dispose();
   });
 
@@ -112,18 +118,16 @@ describe("native Blockly product grammar", () => {
     first.dispose(); second.dispose();
   });
 
-  it("leads Action with an executable Rebalance and an editable 100% shadow", () => {
+  it("offers only the order-sized Buy action in the executable-strategy palette", () => {
     const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as {
       kind: string;
-      contents: Array<{ type?: string; inputs?: { WEIGHT?: { shadow?: { type?: string; fields?: { VALUE?: number } } } } }>;
+      contents: Array<{ type?: string }>;
     };
     expect(flyout.kind).toBe("flyoutToolbox");
-    expect(flyout.contents.map((item) => item.type)).toEqual(expect.arrayContaining([entryBlocklyType("invest"), entryBlocklyType("rebalance")]));
-    expect(flyout.contents[0]).toMatchObject({
-      type: entryBlocklyType("rebalance"),
-      inputs: { WEIGHT: { shadow: { type: entryBlocklyType("percentage"), fields: { VALUE: 100 } } } },
-    });
-    expect(entryBlockDefinition("invest")?.execution).toBe("draft_only");
+    expect(flyout.contents.map((item) => item.type)).toEqual([entryBlocklyType("invest")]);
+    expect(entryBlockDefinition("invest")?.execution).toBe("needs_context");
+    const calculate = entryBlocklyFlyoutToolbox("Calculate") as unknown as { contents: Array<{ type?: string }> };
+    expect(calculate.contents.map((item) => item.type)).toContain(entryBlocklyType("units-each"));
   });
 
   it("lets Inspector and the block edit the same native field instead of mirrored state", () => {

@@ -1,5 +1,5 @@
 import * as Blockly from "blockly";
-import { ENTRY_BLOCK_CATEGORIES, ENTRY_BLOCK_DEFINITIONS, type EntryBlockCategory, type EntryBlockDefinition, type EntryValueType } from "../domain/entryStyleGrammar";
+import { ENTRY_BLOCK_CATEGORIES, ENTRY_BLOCK_DEFINITIONS, NATIVE_STRATEGY_PALETTE_IDS, type EntryBlockCategory, type EntryBlockDefinition, type EntryValueType } from "../domain/entryStyleGrammar";
 import { blockUiContract } from "../domain/blockUiContract";
 
 let registered = false;
@@ -44,7 +44,7 @@ export interface EntryToolboxObject { id: string; name: string; kind: "asset" | 
 export function entryBlocklyCategoryContents(category: EntryBlockCategory, objects: EntryToolboxObject[] = []): Array<Record<string, unknown>> {
     const entries: Array<Record<string, unknown>> = [];
     if (category === "Assets") entries.push({ kind: "button", text: "Create Group…", callbackKey: "RULETRADE_CREATE_GROUP" });
-    for (const definition of ENTRY_BLOCK_DEFINITIONS.filter((item) => item.category === category && item.id !== "create-group" && item.id !== "create-variable")) {
+    for (const definition of ENTRY_BLOCK_DEFINITIONS.filter((item) => item.category === category && NATIVE_STRATEGY_PALETTE_IDS.has(item.id) && item.id !== "create-group")) {
       const objectKind = definition.id === "asset-reference" ? "asset" : definition.id === "group-reference" ? "group" : definition.id === "subgroup-reference" ? "subgroup" : definition.id === "signal-reference" ? "signal" : definition.id === "call-function" ? "function" : null;
       // A reference is one language primitive, not one toolbox block per object.
       // The selected stable object id lives in block metadata/fields after the
@@ -138,7 +138,7 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     "candidate-return": { message0: "Candidate return over %1 days", args0: [input("DURATION")] },
     "candidate-rsi": { message0: "Candidate RSI(%1)", args0: [input("DURATION")] },
     "asset-set-count": { message0: "Count %1", args0: [input("ASSETS")] },
-    invest: { message0: "Buy idea (draft only) %1 with %2", args0: [input("TARGET"), input("AMOUNT")] },
+    invest: { message0: "Buy %1 with %2", args0: [input("TARGET"), input("AMOUNT")] },
     sell: { message0: "Sell %1 by %2", args0: [input("TARGET"), input("AMOUNT")] },
     rebalance: { message0: "Rebalance %1 to %2 portfolio weight", args0: [input("TARGET"), input("WEIGHT")] },
     "send-signal": { message0: "Send signal %1", args0: [input("SIGNAL")] },
@@ -150,7 +150,7 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     "asset-set-any": { message0: "Any asset in %1 matches %2", args0: [input("ASSETS"), input("PREDICATE")] },
     "asset-set-all": { message0: "All assets in %1 match %2", args0: [input("ASSETS"), input("PREDICATE")] },
     "asset-set-n-of-m": { message0: "At least %3 assets in %1 match %2", args0: [input("ASSETS"), input("PREDICATE"), input("COUNT")] },
-    "filter-assets": { message0: "Filter %1 where %2", args0: [input("ASSETS"), input("PREDICATE")] },
+    "filter-assets": { message0: "Filter %1 · conditions in Inspector", args0: [input("ASSETS")] },
     "top-n-assets": { message0: "Top %3 from %1 by %2", args0: [input("ASSETS"), input("SCORE"), input("COUNT")] },
     "bottom-n-assets": { message0: "Bottom %3 from %1 by %2", args0: [input("ASSETS"), input("SCORE"), input("COUNT")] },
     "random-select-assets": { message0: "Random %2 from %1", args0: [input("ASSETS"), input("COUNT")] },
@@ -168,12 +168,12 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     inputsInline: true,
   };
   if (layout?.args0) json.args0 = layout.args0;
-  const numericLiteral = ["number", "percentage", "money", "quantity", "trading-days", "calendar-days"].includes(definition.id);
+  const numericLiteral = ["number", "percentage", "money", "quantity", "units-each", "trading-days", "calendar-days"].includes(definition.id);
   if (definition.id === "money") {
     json.message0 = "%1 %2";
     json.args0 = [{ type: "field_dropdown", name: "CURRENCY", options: [["USD $", "USD"], ["KRW ₩", "KRW"]] }, { type: "field_number", name: "VALUE", value: 100, min: 0 }];
   } else if (numericLiteral) {
-    const unit = ({ percentage: "%", quantity: "units", "trading-days": "trading days", "calendar-days": "calendar days" } as Record<string, string>)[definition.id] ?? "";
+    const unit = ({ percentage: "%", quantity: "units", "units-each": "units each", "trading-days": "trading days", "calendar-days": "calendar days" } as Record<string, string>)[definition.id] ?? "";
     json.message0 = `%1${unit === "%" ? "%" : ` ${unit}`}`;
     json.args0 = [{ type: "field_number", name: "VALUE", value: definition.id === "percentage" ? 100 : 1, min: 0 }];
   } else if (["asset-reference", "group-reference", "subgroup-reference", "signal-reference", "call-function", "import-function"].includes(definition.id)) {

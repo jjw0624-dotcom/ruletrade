@@ -3,10 +3,23 @@ export const ENTRY_BLOCK_CATEGORIES = [
 ] as const;
 
 export type EntryBlockCategory = typeof ENTRY_BLOCK_CATEGORIES[number];
+
+/**
+ * Blocks offered for new native strategies. Definitions outside this set stay
+ * registered so persisted working drafts remain readable, but the Builder no
+ * longer advertises grammar that cannot reach maintained V2 execution.
+ */
+export const NATIVE_STRATEGY_PALETTE_IDS = new Set([
+  "start-daily", "start-monthly",
+  "number", "percentage", "trading-days", "candidate-close", "candidate-return",
+  "invest", "units-each",
+  "asset-reference", "group-reference", "create-group",
+  "filter-assets", "top-n-assets",
+]);
 export type EntryValueType =
   | "Statement" | "Truth" | "Number" | "Percentage" | "Money" | "Quantity"
   | "Duration" | "Asset" | "Group" | "Subgroup" | "Value" | "Signal"
-  | "Function" | "State" | "AssetSet" | "AssetPredicate" | "CandidateValue";
+  | "Function" | "State" | "AssetSet" | "AssetPredicate" | "CandidateValue" | "UnitsEach";
 export type EntryExecutionStatus = "verified" | "draft_only" | "needs_context";
 
 export interface EntryBlockSlot {
@@ -56,6 +69,7 @@ export const ENTRY_BLOCK_DEFINITIONS: EntryBlockDefinition[] = [
   d({ id: "percentage", category: "Calculate", label: "Percentage", description: "A fraction such as 25%.", shape: "value", output: "Percentage", slots: [], execution: "verified" }),
   d({ id: "money", category: "Calculate", label: "Money amount", description: "A fixed money amount; it is never interpreted as a target weight.", shape: "value", output: "Money", slots: [], execution: "draft_only" }),
   d({ id: "quantity", category: "Calculate", label: "Asset quantity", description: "An explicit unit quantity where the execution profile supports it.", shape: "value", output: "Quantity", slots: [], execution: "draft_only" }),
+  d({ id: "units-each", category: "Calculate", label: "Units each", description: "Buy this many shares of every member of the connected Asset, Group, or Subgroup.", shape: "value", output: "UnitsEach", slots: [], execution: "needs_context" }),
   d({ id: "trading-days", category: "Calculate", label: "Trading days", description: "A duration measured in completed trading sessions.", shape: "value", output: "Duration", slots: [], execution: "draft_only" }),
   d({ id: "calendar-days", category: "Calculate", label: "Calendar days", description: "A duration measured in calendar days.", shape: "value", output: "Duration", slots: [], execution: "draft_only" }),
   d({ id: "asset-value", category: "Calculate", label: "Asset value", description: "Read a completed market-data value for an asset.", shape: "value", output: "Value", slots: [{ name: "ASSET", label: "asset", accepts: ["Asset"] }], execution: "verified" }),
@@ -71,7 +85,7 @@ export const ENTRY_BLOCK_DEFINITIONS: EntryBlockDefinition[] = [
   d({ id: "elapsed-time", category: "Calculate", label: "Elapsed time", description: "Read deterministic elapsed strategy time.", shape: "value", output: "Duration", slots: [], execution: "draft_only" }),
   d({ id: "random-value", category: "Calculate", label: "Random value", description: "Draft-only until seeded replay semantics are part of execution.", shape: "value", output: "Number", slots: [], execution: "draft_only" }),
   d({ id: "rebalance", category: "Action", label: "Rebalance target to weight", description: "Adjust existing portfolio capital to an explicit portfolio weight. AssetSet weighting remains explicit.", shape: "statement", slots: [{ name: "TARGET", label: "target", accepts: ["Asset", "AssetSet"] }, { name: "WEIGHT", label: "weight", accepts: ["Percentage"] }], execution: "verified" }),
-  d({ id: "invest", category: "Action", label: "Buy idea (draft only)", description: "Record a fixed-money or quantity Buy idea. SemanticProgramV2 does not execute order-sized Buy actions yet.", shape: "statement", slots: [{ name: "TARGET", label: "invest", accepts: ["Asset", "AssetSet"] }, { name: "AMOUNT", label: "by", accepts: ["Money", "Percentage", "Quantity"] }], execution: "draft_only" }),
+  d({ id: "invest", category: "Action", label: "Buy", description: "Create buy orders for an Asset, Group, or locally derived Subgroup using an explicit order amount.", shape: "statement", slots: [{ name: "TARGET", label: "target", accepts: ["Asset", "Group", "Subgroup"] }, { name: "AMOUNT", label: "amount", accepts: ["UnitsEach"] }], execution: "needs_context" }),
   d({ id: "sell", category: "Action", label: "Sell [A] by [B]", description: "Reduce an Asset or AssetSet position by a typed amount.", shape: "statement", slots: [{ name: "TARGET", label: "sell", accepts: ["Asset", "AssetSet"] }, { name: "AMOUNT", label: "by", accepts: ["Money", "Percentage", "Quantity"] }], execution: "draft_only" }),
   d({ id: "send-signal", category: "Action", label: "Send signal", description: "An internal deterministic signal, not an external notification.", shape: "statement", slots: [{ name: "SIGNAL", label: "signal", accepts: ["Signal"] }], execution: "draft_only" }),
   d({ id: "asset-reference", category: "Assets", label: "Asset reference", description: "Reference one instrument by stable identity.", shape: "value", output: "Asset", slots: [], execution: "verified" }),
@@ -79,8 +93,8 @@ export const ENTRY_BLOCK_DEFINITIONS: EntryBlockDefinition[] = [
   d({ id: "create-group", category: "Assets", label: "Create Group", description: "Open a reusable Group draft without allocating capital.", shape: "value", output: "Group", slots: [], execution: "verified" }),
   d({ id: "choose-group", category: "Assets", label: "Choose from Group", description: "Produce a dynamic named Subgroup; this does not allocate capital.", shape: "value", output: "Subgroup", slots: [{ name: "GROUP", label: "from", accepts: ["Group", "Subgroup"] }, { name: "CONDITION", label: "where", accepts: ["Truth"] }, { name: "SCORE", label: "rank by", accepts: ["Value"] }, { name: "COUNT", label: "take", accepts: ["Number", "Quantity"] }], execution: "verified" }),
   d({ id: "subgroup-reference", category: "Assets", label: "Subgroup reference", description: "Reference a named dynamic selection by stable identity.", shape: "value", output: "Subgroup", slots: [], execution: "verified" }),
-  d({ id: "filter-assets", category: "Assets", label: "Filter AssetSet", description: "Produce an anonymous AssetSet by applying a per-asset predicate. This does not select or allocate capital.", shape: "value", output: "AssetSet", slots: [{ name: "ASSETS", label: "from", accepts: ["AssetSet"] }, { name: "PREDICATE", label: "where", accepts: ["AssetPredicate"] }], execution: "draft_only" }),
-  d({ id: "top-n-assets", category: "Assets", label: "Top N AssetSet", description: "Produce an anonymous top-N AssetSet from a candidate-scoped ranking value.", shape: "value", output: "AssetSet", slots: [{ name: "ASSETS", label: "from", accepts: ["AssetSet"] }, { name: "SCORE", label: "by", accepts: ["CandidateValue"] }, { name: "COUNT", label: "take", accepts: ["Number", "Quantity"] }], execution: "draft_only" }),
+  d({ id: "filter-assets", category: "Assets", label: "Filter", description: "Create a local Subgroup whose members satisfy the typed condition list edited in Inspector.", shape: "value", output: "Subgroup", slots: [{ name: "ASSETS", label: "from", accepts: ["Group", "Subgroup"] }], execution: "needs_context" }),
+  d({ id: "top-n-assets", category: "Assets", label: "Choose top N", description: "Create a local Subgroup by retaining at most N members ranked by a candidate metric.", shape: "value", output: "Subgroup", slots: [{ name: "ASSETS", label: "from", accepts: ["Group", "Subgroup"] }, { name: "SCORE", label: "by", accepts: ["CandidateValue"] }, { name: "COUNT", label: "take", accepts: ["Number"] }], execution: "needs_context" }),
   d({ id: "bottom-n-assets", category: "Assets", label: "Bottom N AssetSet", description: "Produce an anonymous bottom-N AssetSet from a candidate-scoped ranking value.", shape: "value", output: "AssetSet", slots: [{ name: "ASSETS", label: "from", accepts: ["AssetSet"] }, { name: "SCORE", label: "by", accepts: ["CandidateValue"] }, { name: "COUNT", label: "take", accepts: ["Number", "Quantity"] }], execution: "draft_only" }),
   d({ id: "random-select-assets", category: "Assets", label: "Random N AssetSet", description: "Select exactly N assets with an explicit deterministic seed and redraw scope in the Inspector.", shape: "value", output: "AssetSet", slots: [{ name: "ASSETS", label: "from", accepts: ["AssetSet"] }, { name: "COUNT", label: "take", accepts: ["Number", "Quantity"] }], execution: "draft_only" }),
   d({ id: "random-filter-assets", category: "Assets", label: "Random Filter AssetSet", description: "Independently retain each asset with an explicit probability, seed and redraw scope.", shape: "value", output: "AssetSet", slots: [{ name: "ASSETS", label: "from", accepts: ["AssetSet"] }, { name: "PROBABILITY", label: "retain probability", accepts: ["Percentage"] }], execution: "draft_only" }),

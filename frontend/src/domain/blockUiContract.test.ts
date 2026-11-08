@@ -9,9 +9,11 @@ describe("block surface and Inspector responsibility contract", () => {
   });
 
   it("keeps essential financial meaning on blocks and advanced policy in Inspector", () => {
-    expect(blockUiContract("invest")).toMatchObject({ requiredVisibleInputs: ["TARGET", "AMOUNT"], advancedInspectorFields: expect.arrayContaining(["cash semantics"]) });
+    expect(blockUiContract("filter-assets")).toMatchObject({ requiredVisibleInputs: ["ASSETS"], advancedInspectorFields: expect.arrayContaining(["ALL / ANY combination", "typed candidate conditions"]) });
+    expect(blockUiContract("top-n-assets")).toMatchObject({ requiredVisibleInputs: ["ASSETS", "SCORE", "COUNT"], advancedInspectorFields: expect.arrayContaining(["deterministic tie-break"]) });
+    expect(blockUiContract("invest")).toMatchObject({ requiredVisibleInputs: ["TARGET", "AMOUNT"], advancedInspectorFields: expect.arrayContaining(["available-cash validation"]) });
+    expect(blockUiContract("units-each")).toMatchObject({ requiredVisibleInputs: [], connectionType: { shape: "value", output: "UnitsEach" } });
     expect(blockUiContract("rebalance")).toMatchObject({ requiredVisibleInputs: ["TARGET", "WEIGHT"], advancedInspectorFields: expect.arrayContaining(["portfolio-weight validation"]) });
-    expect(blockUiContract("choose-group")).toMatchObject({ requiredVisibleInputs: ["GROUP", "CONDITION", "SCORE", "COUNT"], advancedInspectorFields: expect.arrayContaining(["shortage policy", "tie-break"]) });
     expect(blockUiContract("group-reference")?.dedicatedWorkspaceFields).toContain("Group membership");
   });
 });
