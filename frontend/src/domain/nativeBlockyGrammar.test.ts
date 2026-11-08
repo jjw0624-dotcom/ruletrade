@@ -125,7 +125,7 @@ describe("native Blockly product grammar", () => {
     };
     expect(flyout.kind).toBe("flyoutToolbox");
     expect(flyout.contents.map((item) => item.type)).toEqual([entryBlocklyType("invest")]);
-    expect(entryBlockDefinition("invest")?.execution).toBe("needs_context");
+    expect(entryBlockDefinition("invest")?.execution).toBe("verified");
     const calculate = entryBlocklyFlyoutToolbox("Calculate") as unknown as { contents: Array<{ type?: string }> };
     expect(calculate.contents.map((item) => item.type)).toContain(entryBlocklyType("units-each"));
   });
