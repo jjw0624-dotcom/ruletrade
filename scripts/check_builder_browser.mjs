@@ -95,23 +95,14 @@ try {
   await clickText("Discard draft");
 
   await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
-  await clickText("Add"); await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.includes('Investment')&&!item.disabled&&item.getClientRects().length>0)`, "visible Flow Investment tool");
-  await evaluate(`(() => { const button=[...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Investment')&&!item.disabled&&item.getClientRects().length>0); if(!button) throw new Error('Missing visible Flow Investment tool'); button.click(); })()`);
-  await waitSelector('[data-intent-recipe="single_asset"]');
-  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
-  if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
-  await clickText("Structure");
-  await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.trim()==='Portfolio'&&item.getClientRects().length>0)`, "visible Portfolio structure row");
-  await clickText("Portfolio");
-  const selectedWithDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,inspector:Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))})`);
-  if (selectedWithDraft.concept?.startPath !== "flow_first" || !selectedWithDraft.inspector) throw new Error(`Selection discarded Flow draft: ${JSON.stringify(selectedWithDraft)}`);
+  const flowSurface = await evaluate(`(() => { const surface=document.querySelector('[aria-label="Flow capital projection"]'); return { text:surface?.innerText??'', duplicateActions:[...surface.querySelectorAll('button')].filter((item)=>item.textContent.includes('Create Investment')||item.textContent.includes('Create Split')).length }; })()`);
+  if (flowSurface.duplicateActions || flowSurface.text.includes("Flow drafts stay independent") || flowSurface.text.includes("complete typed intent passes validation")) throw new Error(`Flow exposed duplicate authoring controls or architecture prose: ${JSON.stringify(flowSurface)}`);
   await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
-  if (await evaluate(`Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))`)) throw new Error("Flow draft leaked into Rules.");
   await clickText("Add investment rule"); await waitSelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]');
-  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.rules,flow:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
-  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.flow?.startPath !== "flow_first" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
+  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.rules,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
   await screenshot("builder-independent-flow-rules");
-  await clickText("Discard draft"); await clickText("Flow"); await waitSelector('[data-intent-recipe="single_asset"]'); await clickText("Discard draft");
+  await clickText("Discard draft");
   await clickText("Blocky"); await clickText("Add"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
   await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
   if (!await evaluate(`window.__RULETRADE_BROWSER_DRAFT__?.blockyAddOpen===true`)) throw new Error("Blocky Add state was discarded by a perspective switch.");
