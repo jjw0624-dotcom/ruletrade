@@ -303,8 +303,8 @@ class LeanMonthlyEvent:
     day: int
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
-    order_action_ids: tuple[str, ...] = ()
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
     boundary: Literal["start", "end"] = "start"
 
