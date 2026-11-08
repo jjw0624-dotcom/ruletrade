@@ -116,10 +116,20 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
 
   if (action?.definitionId === "invest") {
     const amount = childAt(action.id, "AMOUNT");
-    const units = Number(amount?.fieldValues?.VALUE ?? Number.NaN);
-    if (!timeframe || !targetKind || !targetRef || amount?.definitionId !== "units-each" || !Number.isInteger(units) || units < 1) {
-      return { status: "unsupported", operation: null, productMessage: "Buy requires an Asset or reusable Group and a positive whole-number Units each amount.", rootId: graph.rootId };
+    const numericAmount = Number(amount?.fieldValues?.VALUE ?? Number.NaN);
+    const unitsEach = amount?.definitionId === "units-each";
+    const cashTotal = amount?.definitionId === "money";
+    if (
+      !timeframe || !targetKind || !targetRef
+      || !Number.isFinite(numericAmount) || numericAmount <= 0
+      || unitsEach && !Number.isInteger(numericAmount)
+      || !unitsEach && !cashTotal
+    ) {
+      return { status: "unsupported", operation: null, productMessage: "Buy requires an Asset or reusable Group and either positive whole-number Units each or a positive USD total.", rootId: graph.rootId };
     }
+    const orderAmount = unitsEach
+      ? { kind: "units_each" as const, units: numericAmount }
+      : { kind: "cash_total" as const, usd: numericAmount };
     if (targetKind === "group" && !canonical?.definitions.groups.some((item) => item.id === targetRef)) {
       return { status: "unsupported", operation: null, productMessage: "This Group reference no longer resolves to a reusable Group in this strategy.", rootId: graph.rootId };
     }
@@ -130,7 +140,7 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
     return {
       status: "ready",
       rootId: graph.rootId,
-      productMessage: `Buy ${units} unit${units === 1 ? "" : "s"} of each ${targetRef} member on every ${timeframe} close.`,
+      productMessage: unitsEach\n        ? `Buy ${numericAmount} unit${numericAmount === 1 ? "" : "s"} of each ${targetRef} member on every ${timeframe} close.`\n        : `Buy ${numericAmount} total across ${targetRef} members on every ${timeframe} close.`,
       operation: {
         kind: "insert_program_statement",
         parent_semantic_id: null,
@@ -144,7 +154,7 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
             kind: "buy",
             semantic_id: `blocky-buy-${suffix}`,
             target: { semantic_id: `blocky-buy-target-${suffix}`, kind: targetKind, ref: targetRef },
-            amount: { kind: "units_each", units },
+            amount: orderAmount,
             clock_id: null,
           }],
         },
