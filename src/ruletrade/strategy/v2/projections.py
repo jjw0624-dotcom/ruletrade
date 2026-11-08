@@ -131,9 +131,11 @@ def _statement_label(statement: ProgramStatementV2) -> tuple[str, str]:
     if isinstance(statement, AllocationStatementV2):
         return "allocation", f"Allocate · {statement.method.replace('_', ' ')}"
     if isinstance(statement, BuyStatementV2):
-        units = statement.amount.units
-        suffix = "" if units == 1 else "s"
-        return "investment", f"Buy {units} unit{suffix} each · {statement.target.ref}"
+        if statement.amount.kind == "units_each":
+            units = statement.amount.units
+            suffix = "" if units == 1 else "s"
+            return "investment", f"Buy {units} unit{suffix} each · {statement.target.ref}"
+        return "investment", f"Buy ${statement.amount.usd} total · {statement.target.ref}"
     if isinstance(statement, ConditionalStatementV2):
         return "control", f"IF {_condition_label(statement.condition)}"
     if isinstance(statement, EventStatementV2):
