@@ -50,9 +50,11 @@ describe("Quick Test Dashboard overlay", () => {
     expect(dashboard.parentElement?.classList.contains("builder-workbench")).toBe(true);
     expect(dashboard.parentElement).toBe(core.parentElement);
     expect(dashboard.dataset.dashboardState).toBe("open");
+    expect(container.querySelector(".quick-test-dashboard-scrim")).not.toBeNull();
 
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Collapse Quick Test Dashboard"]')!.click());
     expect(dashboard.dataset.dashboardState).toBe("collapsed");
+    expect(container.querySelector(".quick-test-dashboard-scrim")).toBeNull();
     expect(container.querySelector('[aria-label="Reopen Quick Test Dashboard"]')).not.toBeNull();
 
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Reopen Quick Test Dashboard"]')!.click());
@@ -72,11 +74,30 @@ describe("Quick Test Dashboard overlay", () => {
     expect(container.querySelector<HTMLElement>('[data-quick-test-result="run:2"]')?.hidden).toBe(false);
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Open Run 4"]')!.click());
     expect(container.querySelector<HTMLElement>('[data-quick-test-result="run:4"]')?.hidden).toBe(false);
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Collapse Run 4"]')!.click());
+    expect(container.querySelector<HTMLElement>('[aria-label="Quick Test Dashboard"]')?.dataset.dashboardState).toBe("collapsed");
+    expect(container.querySelector('[aria-label="Open Run 4"]')).not.toBeNull();
   });
 
   it("does not keep setup or failure panels in recent result bookmarks", async () => {
     await act(async () => root.render(<StrategyBuilderWorkspace program={program({ id: "setup", title: "Quick Test Dashboard", content: <div>Setup</div>, onClose: () => undefined })} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
     expect(container.querySelector('[aria-label="Recent Quick Test results"]')).toBeNull();
+  });
+
+
+  it("gives Group Workspace exclusive visual ownership while preserving retained Runs", async () => {
+    const retained = program({ id: "run:kept", title: "Quick Test Dashboard", bookmarkLabel: "Run kept", retainInHistory: true, content: <div>Saved result</div>, onClose: () => undefined });
+    await act(async () => root.render(<StrategyBuilderWorkspace program={retained} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    expect(container.querySelector('[aria-label="Quick Test Dashboard"]')).not.toBeNull();
+
+    const withWorkspace = { ...retained, workspaceOverlay: <section aria-label="Group Workspace">Group editor</section> };
+    await act(async () => root.render(<StrategyBuilderWorkspace program={withWorkspace} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    expect(container.querySelector('[aria-label="Quick Test Dashboard"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Recent Quick Test results"]')).toBeNull();
+    expect(container.querySelector(".quick-test-dashboard-scrim")).toBeNull();
+
+    await act(async () => root.render(<StrategyBuilderWorkspace program={retained} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    expect(container.querySelector('[aria-label="Collapse Run kept"]')).not.toBeNull();
   });
 
 });
