@@ -113,6 +113,7 @@ class LeanTargetSleeve:
 class LeanOrderAction:
     id: str
     symbols: tuple[str, ...]
+    selection_id: str | None = None
     quantity: int | None = None
     cash_total: Decimal | None = None
 
