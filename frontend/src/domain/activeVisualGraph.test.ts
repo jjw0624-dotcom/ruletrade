@@ -1,8 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { compileActiveVisualGraph, validateActiveVisualGraphs } from "./activeVisualGraph";
+import type { CanonicalStrategyV2 } from "./canonicalV2";
 import { addCanvasBlock, emptyProgramWorkingDraft, withBlockMove } from "./programWorkingDraft";
 
 const block = (id: string, definitionId: string) => ({ id, definitionId, label: definitionId, createdAt: "2026-10-18T00:00:00Z", active: false });
+
+
+const canonicalWithGroup = (timeframe: "daily" | "monthly" = "daily"): CanonicalStrategyV2 => ({
+  api_version: "ruletrade.dev/strategy/v2",
+  semantic_profile: "profile-a/daily-compositional-core@1",
+  metadata: { name: "Group strategy", description: "", tags: [] },
+  definitions: {
+    asset_sets: [{ id: "group-1-assets", assets: ["QQQ", "VOO"] }],
+    groups: [{ id: "group-1", name: "Group 1", asset_set_ref: "group-1-assets", description: "" }],
+    asset_axis: { name: "asset", domain_id: "group-1-assets", coordinate_policy: "member_identity" },
+  },
+  operator_lock: {},
+  selection: null,
+  predicate: null,
+  program: {
+    semantic_id: "program",
+    clocks: [{ id: `${timeframe}-close`, timeframe, boundary: "close", timezone: "America/New_York", completed_only: true }],
+    initial_state: {},
+    statements: [],
+  },
+});
+
+const completeGroupRebalance = (weight = 100) => {
+  let draft = emptyProgramWorkingDraft("group-rebalance");
+  draft = addCanvasBlock(draft, block("draft:start", "start-daily"), { x: 0, y: 0 });
+  draft = addCanvasBlock(draft, block("draft:rebalance", "rebalance"), { x: 0, y: 80 });
+  draft = addCanvasBlock(draft, { ...block("draft:group", "group-reference"), objectRef: "group-1" }, { x: 100, y: 80 });
+  draft = addCanvasBlock(draft, { ...block("draft:weight", "percentage"), fieldValues: { VALUE: weight } }, { x: 200, y: 80 });
+  draft = withBlockMove(draft, "draft:rebalance", { x: 0, y: 80 }, { childId: "draft:rebalance", parentId: "draft:start", inputName: "NEXT" });
+  draft = withBlockMove(draft, "draft:group", { x: 100, y: 80 }, { childId: "draft:group", parentId: "draft:rebalance", inputName: "TARGET" });
+  return withBlockMove(draft, "draft:weight", { x: 200, y: 80 }, { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" });
+};
 
 describe("active visual graph translation boundary", () => {
   it("infers connected Start graphs and ignores disconnected alternatives", () => {
@@ -57,6 +90,35 @@ describe("active visual graph translation boundary", () => {
     draft = withBlockMove(draft, "draft:asset", { x: 180, y: 100 }, { childId: "draft:asset", parentId: "draft:rebalance", inputName: "TARGET" });
     draft = withBlockMove(draft, "draft:weight", { x: 280, y: 100 }, { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" });
     expect(compileActiveVisualGraph(draft)).toMatchObject({ status: "ready", rootId: "draft:start", operation: { kind: "commit_single_asset_intent", asset: "QQQ", timeframe: "monthly", timing_meaning: "rebalance" } });
+  });
+
+  it("compiles a resolved Group rebalance through the existing typed investment operation", () => {
+    expect(compileActiveVisualGraph(completeGroupRebalance(), canonicalWithGroup())).toMatchObject({
+      status: "ready",
+      rootId: "draft:start",
+      operation: {
+        kind: "set_program_investment",
+        semantic_id: "blocky-investment-draft-start",
+        target_kind: "group",
+        target_ref: "group-1",
+        internal_allocation: "equal",
+        clock_id: "daily-close",
+      },
+    });
+  });
+
+  it("does not compile a stale Group reference or invent a missing clock", () => {
+    const missingGroup = canonicalWithGroup();
+    missingGroup.definitions.groups = [];
+    expect(compileActiveVisualGraph(completeGroupRebalance(), missingGroup)).toMatchObject({ status: "unsupported", operation: null });
+
+    const missingClock = canonicalWithGroup();
+    missingClock.program!.clocks = [];
+    expect(compileActiveVisualGraph(completeGroupRebalance(), missingClock)).toMatchObject({ status: "unsupported", operation: null });
+  });
+
+  it("does not reinterpret a partial Group allocation as a 100% investment", () => {
+    expect(compileActiveVisualGraph(completeGroupRebalance(50), canonicalWithGroup())).toMatchObject({ status: "unsupported", operation: null });
   });
 
   it("keeps a complete 50% graph unsupported instead of changing its intended weight", () => {
