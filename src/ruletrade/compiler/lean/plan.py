@@ -113,7 +113,16 @@ class LeanTargetSleeve:
 class LeanOrderAction:
     id: str
     symbols: tuple[str, ...]
-    quantity: int
+    quantity: int | None = None
+    cash_total: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        if (self.quantity is None) == (self.cash_total is None):
+            raise ValueError("order action requires exactly one of quantity or cash_total")
+        if self.quantity is not None and self.quantity <= 0:
+            raise ValueError("order quantity must be positive")
+        if self.cash_total is not None and self.cash_total <= 0:
+            raise ValueError("order cash_total must be positive")
 
 
 @dataclass(frozen=True)
