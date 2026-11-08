@@ -814,10 +814,22 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   };
   const selectedCanvasBlock = selectedId ? workingDraft.canvasBlocks[selectedId] : undefined;
   const visualGraphValidation = useMemo(() => validateActiveVisualGraphs(workingDraft), [workingDraft]);
-  const activeGraphCompilation = useMemo(() => compileActiveVisualGraph(workingDraft), [workingDraft]);
+  const activeGraphCompilation = useMemo(() => compileActiveVisualGraph(workingDraft, canonical), [workingDraft, canonical]);
   const visualGraphAlreadyCommitted = useMemo(() => {
     const operation = activeGraphCompilation.operation;
-    if (!operation || operation.kind !== "commit_single_asset_intent") return false;
+    if (!operation) return false;
+    if (operation.kind === "set_program_investment") {
+      const statement = canonical.program?.statements.find((item) => item.kind === "allocate" && item.semantic_id === operation.semantic_id);
+      return Boolean(
+        statement?.kind === "allocate"
+        && statement.method === operation.internal_allocation
+        && statement.clock_id === operation.clock_id
+        && statement.legs.length === 1
+        && statement.legs[0]?.target.kind === operation.target_kind
+        && statement.legs[0]?.target.ref === operation.target_ref
+      );
+    }
+    if (operation.kind !== "commit_single_asset_intent") return false;
     const group = canonical.definitions.groups.find((item) => item.id === operation.investment_id);
     const assets = canonical.definitions.asset_sets.find((item) => item.id === operation.asset_set_id);
     const matchingClock = canonical.program?.clocks.some((item) => item.timeframe === operation.timeframe && item.boundary === "close");
