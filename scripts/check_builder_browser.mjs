@@ -167,7 +167,10 @@ try {
   }
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=blocky-group-handoff" });
-  await waitSelector('[data-projection-contract="blocky"][data-execution-candidate="ready"]');
+  await waitSelector('[data-projection-contract="blocky"]');
+  await sleep(300);
+  const blockyGroupState = await evaluate(`(() => { const projection=document.querySelector('[data-projection-contract="blocky"]'); const test=[...document.querySelectorAll('button')].find((item)=>item.textContent.trim().startsWith('Test')); const draft=window.__RULETRADE_BROWSER_DRAFT__; return {candidate:projection?.getAttribute('data-execution-candidate'),testDisabled:test?.disabled,testTitle:test?.title,connections:draft?.blockConnections,blocks:draft?.canvasBlocks}; })()`);
+  if (blockyGroupState.candidate !== "ready" || blockyGroupState.testDisabled) throw new Error(`Blocky Group graph was not test-ready: ${JSON.stringify(blockyGroupState)}`);
   const blockyGroupBefore = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return {blocks:Object.keys(draft?.canvasBlocks??{}).sort(),connections:draft?.blockConnections,positions:draft?.blockPositions}; })()`);
   await clickTextContaining("Test");
   await waitExpression(`window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation?.kind==='set_program_investment'`, "typed Blocky Group investment handoff");
