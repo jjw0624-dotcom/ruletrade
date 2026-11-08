@@ -252,6 +252,11 @@ class BacktestRunService:
                 )
             evidence_validation_ms = elapsed_ms(evidence_validation_started)
         except (BacktestError, DecisionEvidenceError) as exc:
+            logger.warning(
+                "backtest_run_execution_failed",
+                extra={"run_id": running.id, "failure_type": type(exc).__name__},
+                exc_info=exc,
+            )
             timings = BacktestTimings(
                 source_load_ms=source_load_ms,
                 total_ms=elapsed_ms(total_started),

@@ -143,7 +143,7 @@ function semanticBlockType(node: ProgramBlockNode) {
  * definitions belong to Structure/Objects; a Group only appears here when the
  * user explicitly inserts a typed reference block into the working draft.
  */
-export const programBlockyVisibleNodes = (nodes: ProgramBlockNode[]) => nodes.filter((node) => node.role !== "context" && node.role !== "group");
+export const programBlockyVisibleNodes = (nodes: ProgramBlockNode[], nativeGraphOwnsProjection = false) => nativeGraphOwnsProjection ? [] : nodes.filter((node) => node.role !== "context" && node.role !== "group");
 
 const projectedStartDefinitionId = (node: ProgramBlockNode): string | null => {
   if (node.role !== "trigger") return null;
@@ -222,7 +222,7 @@ export function nativeBlockFieldController(canvas: Blockly.Workspace) {
   };
 }
 
-export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, objects = [], workspaceState = null, viewport = null, addSurfaceOpen = false, suspended = false, onWorkspaceChange, onWorkspaceApi, onCreateGroup, onBlockMove, onDisclosureChange }: {
+export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions = {}, connections = {}, disclosure = {}, draft = null, canvasBlocks = {}, objects = [], workspaceState = null, viewport = null, addSurfaceOpen = false, suspended = false, nativeGraphOwnsProjection = false, onWorkspaceChange, onWorkspaceApi, onCreateGroup, onBlockMove, onDisclosureChange }: {
   nodes: ProgramBlockNode[];
   selectedId: string | null;
   onSelect: (focusId: string | null) => void;
@@ -236,13 +236,14 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
   viewport?: { x: number; y: number; scale: number } | null;
   addSurfaceOpen?: boolean;
   suspended?: boolean;
+  nativeGraphOwnsProjection?: boolean;
   onWorkspaceChange?: (snapshot: NativeBlockySnapshot) => void;
   onWorkspaceApi?: (api: NativeBlockyHistory | null) => void;
   onCreateGroup?: (request?: { parentId: string; inputName: string }) => void;
   onBlockMove?: (blockId: string, position: { x: number; y: number }, parentId: string | null, inputName: string | null) => void;
   onDisclosureChange?: (blockId: string, level: 0 | 1 | 2) => void;
 }) {
-  const visualNodes = useMemo(() => programBlockyVisibleNodes(nodes), [nodes]);
+  const visualNodes = useMemo(() => programBlockyVisibleNodes(nodes, nativeGraphOwnsProjection), [nodes, nativeGraphOwnsProjection]);
   const host = useRef<HTMLDivElement>(null);
   const workspace = useRef<Blockly.WorkspaceSvg | null>(null);
   const nodesRef = useRef(nodes);

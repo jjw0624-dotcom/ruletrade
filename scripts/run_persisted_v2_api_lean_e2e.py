@@ -15,7 +15,10 @@ from ruletrade.hashing import strategy_hash
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
-from ruletrade.strategy.v2.execution_profiles import production_execution_profile
+from ruletrade.strategy.v2.execution_profiles import (
+    blocky_group_execution_profile,
+    production_execution_profile,
+)
 
 
 def main() -> None:
@@ -70,6 +73,45 @@ def main() -> None:
                 }
                 if "single-asset-allocation" not in source_ids:
                     raise RuntimeError("Decision Evidence lost V2 plan provenance")
+
+                blocky_strategy = blocky_group_execution_profile()
+                blocky_revision = strategies.create_strategy(
+                    "Blocky Group persisted proof", blocky_strategy
+                ).current_revision
+                blocky_response = client.post(
+                    f"/v2/revisions/{blocky_revision.id}/backtest-runs",
+                    json={"config": {
+                        "dataset_id": "golden-synthetic",
+                        "start_date": "2024-01-01",
+                        "end_date": "2024-02-29",
+                        "initial_cash": "100000",
+                    }},
+                )
+                blocky_response.raise_for_status()
+                blocky_run = blocky_response.json()
+                if blocky_run["status"] != "succeeded":
+                    raise RuntimeError(
+                        f"native Blocky Group Run failed: {blocky_run.get('error')}"
+                    )
+                blocky_evidence_response = client.get(
+                    f"/v2/backtest-runs/{blocky_run['id']}/decision-events"
+                )
+                blocky_evidence_response.raise_for_status()
+                blocky_evidence = blocky_evidence_response.json()["items"]
+                if not blocky_evidence:
+                    raise RuntimeError("native Blocky Group Run has no Decision Evidence")
+                blocky_detail = client.get(
+                    f"/v2/backtest-runs/{blocky_run['id']}/decision-events/{blocky_evidence[0]['id']}"
+                )
+                blocky_detail.raise_for_status()
+                blocky_source_ids = {
+                    item["component_id"]
+                    for item in blocky_detail.json()["source_components"]
+                }
+                if "blocky-investment-draft-start" not in blocky_source_ids:
+                    raise RuntimeError(
+                        "native Blocky Group Run lost allocation provenance"
+                    )
         finally:
             app.dependency_overrides.clear()
 

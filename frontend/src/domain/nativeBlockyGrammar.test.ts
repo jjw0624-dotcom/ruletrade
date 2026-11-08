@@ -146,6 +146,7 @@ describe("native Blockly product grammar", () => {
       { id: "action:1", role: "allocation", label: "Rebalance QQQ", depth: 1, address: { kind: "statement", focusId: "action:1", semanticId: "action:1", canonicalPath: "statements" } },
     ]);
     expect(visible.map((node) => node.label)).toEqual(["Rebalance QQQ"]);
+    expect(programBlockyVisibleNodes(visible, true)).toEqual([]);
   });
 
   it("rejects only duplicate Starts of the same event type at creation time", () => {
