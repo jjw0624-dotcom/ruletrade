@@ -251,7 +251,9 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
     return {
       status: "ready",
       rootId: graph.rootId,
-      productMessage: unitsEach\n        ? `Buy ${numericAmount} unit${numericAmount === 1 ? "" : "s"} of each ${targetRef} member on every ${timeframe} close.`\n        : `Buy ${numericAmount} total across ${targetRef} members on every ${timeframe} close.`,
+      productMessage: unitsEach
+        ? `Buy ${numericAmount} unit${numericAmount === 1 ? "" : "s"} of each ${targetRef} member on every ${timeframe} close.`
+        : `Buy ${numericAmount} total across ${targetRef} members on every ${timeframe} close.`,
       operation: {
         kind: "insert_program_statement",
         parent_semantic_id: null,
