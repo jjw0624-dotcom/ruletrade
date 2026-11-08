@@ -314,8 +314,8 @@ class LeanDailyEvent:
     id: str
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
-    order_action_ids: tuple[str, ...] = ()
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
 
 
@@ -325,8 +325,8 @@ class LeanQuarterlyEvent:
     day: int
     anchor_symbol: str
     rebalance_ids: tuple[str, ...]
-    order_action_ids: tuple[str, ...] = ()
     execution: LeanOnDataExecution
+    order_action_ids: tuple[str, ...] = ()
     refresh_ids: tuple[str, ...] = ()
 
 
@@ -405,6 +405,7 @@ def normalize_lean_plan(plan: LeanPlan) -> LeanPlan:
             grouped_quarterly[key] = replace(
                 existing,
                 rebalance_ids=tuple(sorted(set(existing.rebalance_ids + event.rebalance_ids))),
+                order_action_ids=tuple(sorted(set(existing.order_action_ids + event.order_action_ids))),
                 refresh_ids=tuple(sorted(set(existing.refresh_ids + event.refresh_ids))),
             )
 
