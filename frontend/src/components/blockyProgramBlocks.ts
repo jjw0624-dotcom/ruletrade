@@ -194,6 +194,10 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
     json.message1 = "If too few qualify %1";
     json.args1 = [{ type: "field_dropdown", name: "SHORTAGE", options: [["require full count", "REQUIRE_FULL"], ["choose all available", "CHOOSE_ALL"]] }];
   }
+  if (definition.id === "top-n-assets") {
+    json.message1 = "If fewer qualify %1";
+    json.args1 = [{ type: "field_dropdown", name: "SHORTAGE", options: [["choose all available", "CHOOSE_ALL"], ["require full count", "REQUIRE_FULL"]] }];
+  }
   if (["random-select-assets", "random-filter-assets"].includes(definition.id)) {
     json.message1 = "seed %1 redraw %2";
     json.args1 = [
