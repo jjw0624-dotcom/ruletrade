@@ -186,7 +186,6 @@ interface PersistentAddToolbox {
 }
 
 export const RULETRADE_NATIVE_ADD_WIDTH = 180;
-export const RULETRADE_NATIVE_ADD_OVERLAY_WIDTH = 380;
 
 /**
  * Blockly normally sizes a category flyout to its longest preview block. That
@@ -202,17 +201,8 @@ export class RuleTradeVerticalFlyout extends Blockly.VerticalFlyout {
 }
 
 export function configurePersistentNativeAdd(toolbox: PersistentAddToolbox | null) {
-  const flyout = toolbox?.getFlyout() as { setAutoClose?: (autoClose: boolean) => void; getSvgRoot?: () => SVGElement | null } | null | undefined;
+  const flyout = toolbox?.getFlyout() as { setAutoClose?: (autoClose: boolean) => void } | null | undefined;
   flyout?.setAutoClose?.(false);
-  const root = flyout?.getSvgRoot?.();
-  if (!root) return;
-  const expandCoordinateSpace = () => root.setAttribute("width", String(RULETRADE_NATIVE_ADD_OVERLAY_WIDTH));
-  expandCoordinateSpace();
-  if (root.dataset.ruletradeOverlayWidth !== "true") {
-    root.dataset.ruletradeOverlayWidth = "true";
-    root.addEventListener("pointerenter", expandCoordinateSpace);
-    root.addEventListener("mouseenter", expandCoordinateSpace);
-  }
 }
 
 export function syncPersistentNativeAdd(toolbox: PersistentAddToolbox | null, visible: boolean) {
