@@ -799,7 +799,8 @@ def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         actions.append(LeanOrderAction(
             id=statement.semantic_id,
             symbols=tuple(local_symbols),
-            quantity=statement.amount.units,
+            quantity=statement.amount.units if statement.amount.kind == "units_each" else None,
+            cash_total=statement.amount.usd if statement.amount.kind == "cash_total" else None,
         ))
         symbols.update(local_symbols)
 
