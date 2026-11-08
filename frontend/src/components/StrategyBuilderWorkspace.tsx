@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
 import type { ConceptualFlowProjection } from "../domain/conceptualFlow";
@@ -183,10 +183,12 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
   const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
   const [dashboardEntries, setDashboardEntries] = useState<NonNullable<ProgramBuilderContract["detailPanel"]>[]>([]);
   const [activeDashboardId, setActiveDashboardId] = useState<string | null>(null);
+  const dismissedDashboardId = useRef<string | null>(null);
   useEffect(() => {
     const panel = program.detailPanel;
-    if (!panel) { setActiveDashboardId(null); return; }
+    if (!panel) { dismissedDashboardId.current = null; setActiveDashboardId(null); return; }
     const id = panel.id ?? "quick-test";
+    if (dismissedDashboardId.current === id) return;
     const entry = { ...panel, id };
     setDashboardEntries((current) => {
       const retained = current.filter((item) => item.retainInHistory && item.id !== id);
@@ -229,11 +231,11 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
       {program.workspaceOverlay}
       {dashboardOpen && <div className="quick-test-dashboard-scrim" aria-hidden="true" />}
       {dashboardEntries.length > 0 && !workspaceOverlayOpen && <aside className={`quick-test-dashboard${dashboardOpen ? "" : " is-collapsed"}`} aria-label="Quick Test Dashboard" aria-hidden={!dashboardOpen} data-dashboard-state={dashboardOpen ? "open" : "collapsed"}>
-        {activeDashboard && <header><span className="eyebrow">{activeDashboard.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={() => { setActiveDashboardId(null); if (!activeDashboard.retainInHistory) setDashboardEntries((current) => current.filter((entry) => entry.id !== activeDashboard.id)); activeDashboard.onClose(); }}>×</button></div></header>}
+        {activeDashboard && <header><span className="eyebrow">{activeDashboard.title}</span><div><button type="button" aria-label="Collapse Quick Test Dashboard" onClick={() => setDashboardCollapsed(true)}>−</button><button type="button" aria-label="Close Quick Test Dashboard" onClick={() => { dismissedDashboardId.current = activeDashboard.id ?? "quick-test"; setActiveDashboardId(null); if (!activeDashboard.retainInHistory) setDashboardEntries((current) => current.filter((entry) => entry.id !== activeDashboard.id)); activeDashboard.onClose(); }}>×</button></div></header>}
         <div className="quick-test-dashboard-content">{dashboardEntries.map((entry) => <div key={entry.id} hidden={entry.id !== activeDashboard?.id} data-quick-test-result={entry.id}>{entry.content}</div>)}</div>
       </aside>}
       {!workspaceOverlayOpen && (retainedDashboards.length > 0 || (activeDashboard && dashboardCollapsed)) && <nav className="quick-test-dashboard-bookmarks" aria-label="Recent Quick Test results">
-        {retainedDashboards.map((entry) => { const selected = entry.id === activeDashboardId && !dashboardCollapsed; const label = entry.bookmarkLabel ?? entry.title; return <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={selected ? `Collapse ${label}` : `Open ${label}`} aria-pressed={selected} onClick={() => { if (selected) { setDashboardCollapsed(true); return; } setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>; })}
+        {retainedDashboards.map((entry) => { const selected = entry.id === activeDashboardId && !dashboardCollapsed; const label = entry.bookmarkLabel ?? entry.title; return <button type="button" key={entry.id} className="quick-test-dashboard-bookmark" aria-label={selected ? `Collapse ${label}` : `Open ${label}`} aria-pressed={selected} onClick={() => { if (selected) { setDashboardCollapsed(true); return; } dismissedDashboardId.current = null; setActiveDashboardId(entry.id ?? null); setDashboardCollapsed(false); }}><span>{entry.bookmarkLabel ?? "Quick Test"}</span></button>; })}
         {activeDashboard && !activeDashboard.retainInHistory && dashboardCollapsed && <button type="button" className="quick-test-dashboard-bookmark" aria-label="Reopen Quick Test Dashboard" onClick={() => setDashboardCollapsed(false)}><span>Quick Test</span></button>}
       </nav>}
     </div>
