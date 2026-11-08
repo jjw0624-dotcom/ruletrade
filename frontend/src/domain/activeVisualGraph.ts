@@ -109,8 +109,50 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
   };
   const action = childAt(root.id, "NEXT");
   const target = action && childAt(action.id, "TARGET");
-  const weight = action && childAt(action.id, "WEIGHT");
   const timeframe = root.definitionId === "start-daily" ? "daily" : root.definitionId === "start-monthly" ? "monthly" : null;
+  const targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
+  const targetKind = target?.definitionId === "asset-reference" ? "asset" : target?.definitionId === "group-reference" ? "group" : null;
+  const suffix = graph.rootId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "graph";
+
+  if (action?.definitionId === "invest") {
+    const amount = childAt(action.id, "AMOUNT");
+    const units = Number(amount?.fieldValues?.VALUE ?? Number.NaN);
+    if (!timeframe || !targetKind || !targetRef || amount?.definitionId !== "units-each" || !Number.isInteger(units) || units < 1) {
+      return { status: "unsupported", operation: null, productMessage: "Buy requires an Asset or reusable Group and a positive whole-number Units each amount.", rootId: graph.rootId };
+    }
+    if (targetKind === "group" && !canonical?.definitions.groups.some((item) => item.id === targetRef)) {
+      return { status: "unsupported", operation: null, productMessage: "This Group reference no longer resolves to a reusable Group in this strategy.", rootId: graph.rootId };
+    }
+    const clock = canonical?.program?.clocks.find((item) => item.timeframe === timeframe && item.boundary === "close" && item.completed_only);
+    if (!clock) {
+      return { status: "unsupported", operation: null, productMessage: `Add a completed ${timeframe}-close clock before testing this Buy graph.`, rootId: graph.rootId };
+    }
+    return {
+      status: "ready",
+      rootId: graph.rootId,
+      productMessage: `Buy ${units} unit${units === 1 ? "" : "s"} of each ${targetRef} member on every ${timeframe} close.`,
+      operation: {
+        kind: "insert_program_statement",
+        parent_semantic_id: null,
+        branch: "root",
+        index: null,
+        statement: {
+          kind: "on_event",
+          semantic_id: `blocky-event-${suffix}`,
+          event: { semantic_id: `blocky-event-definition-${suffix}`, clock_id: clock.id, condition: null, trigger: "scheduled", occurrence: "every", ordinal: null },
+          statements: [{
+            kind: "buy",
+            semantic_id: `blocky-buy-${suffix}`,
+            target: { semantic_id: `blocky-buy-target-${suffix}`, kind: targetKind, ref: targetRef },
+            amount: { kind: "units_each", units },
+            clock_id: null,
+          }],
+        },
+      },
+    };
+  }
+
+  const weight = action && childAt(action.id, "WEIGHT");
   const percent = Number(weight?.fieldValues?.VALUE ?? Number.NaN);
   const targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
   const targetKind = target?.definitionId === "asset-reference" ? "asset" : target?.definitionId === "group-reference" ? "group" : null;
