@@ -465,6 +465,27 @@ class AllocationStatementV2(FrozenModel):
         return self
 
 
+class OrderTargetV2(FrozenModel):
+    semantic_id: Identifier
+    kind: Literal["asset", "group", "selection"]
+    ref: str = Field(min_length=1, max_length=100)
+
+
+class UnitsEachAmountV2(FrozenModel):
+    kind: Literal["units_each"] = "units_each"
+    units: Annotated[int, Field(ge=1, le=1000000)]
+
+
+class BuyStatementV2(FrozenModel):
+    """Create additive orders without implying target-weight allocation."""
+
+    kind: Literal["buy"] = "buy"
+    semantic_id: Identifier
+    target: OrderTargetV2
+    amount: UnitsEachAmountV2
+    clock_id: Identifier | None = None
+
+
 class SelectionStatementV2(FrozenModel):
     kind: Literal["select"] = "select"
     semantic_id: Identifier
@@ -540,6 +561,7 @@ class UnresolvedStatementV2(FrozenModel):
 
 ProgramStatementV2: TypeAlias = Annotated[
     SelectionStatementV2
+    | BuyStatementV2
     | AllocationStatementV2
     | ConditionalStatementV2
     | EventStatementV2
