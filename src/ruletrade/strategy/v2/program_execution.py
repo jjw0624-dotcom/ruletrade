@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from statistics import pstdev
 from typing import Iterable
 
@@ -661,14 +661,40 @@ class _Runtime:
             assets = self.members(statement.target.ref)
         else:
             assets = (statement.target.ref,)
-        quantity = Decimal(statement.amount.units)
-        for asset in assets:
-            self.orders.append(ProgramOrderIntent(statement.semantic_id, asset, quantity))
+        if statement.amount.kind == "units_each":
+            quantity = Decimal(statement.amount.units)
+            for asset in assets:
+                self.orders.append(ProgramOrderIntent(statement.semantic_id, asset, quantity))
+            detail = f"units_each={quantity}; symbols={','.join(assets)}"
+        else:
+            budget_each = statement.amount.usd / Decimal(len(assets)) if assets else Decimal(0)
+            spent = Decimal(0)
+            missing: list[str] = []
+            zero_quantity: list[str] = []
+            for asset in assets:
+                series = self.snapshot.series.get(asset, {}).get("close:adjusted")
+                price = None if series is None or self.cutoff >= len(series) else series[self.cutoff]
+                if price is None or price <= 0:
+                    missing.append(asset)
+                    continue
+                quantity = (budget_each / price).to_integral_value(rounding=ROUND_FLOOR)
+                if quantity <= 0:
+                    zero_quantity.append(asset)
+                    continue
+                self.orders.append(ProgramOrderIntent(statement.semantic_id, asset, quantity))
+                spent += quantity * price
+            detail = (
+                f"cash_total={statement.amount.usd}; budget_each={budget_each}; "
+                f"spent={spent}; unused={statement.amount.usd - spent}; "
+                f"missing={','.join(missing)}; zero_quantity={','.join(zero_quantity)}; "
+                f"symbols={','.join(assets)}"
+            )
         self.evidence.append(ProgramDecisionEvidence(
             statement.semantic_id,
             "buy",
-            "orders_created" if assets else "empty_target",
-            f"units_each={quantity}; symbols={','.join(assets)}",
+            "orders_created" if any(item.semantic_id == statement.semantic_id for item in self.orders)
+            else "empty_target" if not assets else "no_affordable_orders",
+            detail,
         ))
 
     def allocation_resolvable(self, statement: AllocationStatementV2) -> bool:
