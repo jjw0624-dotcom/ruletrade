@@ -874,6 +874,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft} canvasBlocks={workingDraft.canvasBlocks}
       objects={blockyObjects} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
       addSurfaceOpen={view === "blocky" && workingDraft.blockyAddOpen} suspended={draft?.kind === "group" || Boolean(selectedId?.startsWith("assets:"))}
+      nativeGraphOwnsProjection={visualGraphAlreadyCommitted}
       onWorkspaceApi={(api) => { nativeBlockyApi.current = api; setNativeHistoryVersion((value) => value + 1); }}
       onWorkspaceChange={(snapshot) => { updateWorkingDraft(withNativeBlocklyState(workingDraftRef.current, snapshot)); setNativeHistoryVersion((value) => value + 1); }}
       onCreateGroup={(request) => startGroupDraft(undefined, request)}
