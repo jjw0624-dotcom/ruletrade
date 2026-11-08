@@ -1,5 +1,5 @@
 import * as Blockly from "blockly";
-import { ENTRY_BLOCK_CATEGORIES, ENTRY_BLOCK_DEFINITIONS, type EntryBlockCategory, type EntryBlockDefinition, type EntryValueType } from "../domain/entryStyleGrammar";
+import { ENTRY_BLOCK_CATEGORIES, ENTRY_BLOCK_DEFINITIONS, NATIVE_STRATEGY_PALETTE_IDS, type EntryBlockCategory, type EntryBlockDefinition, type EntryValueType } from "../domain/entryStyleGrammar";
 import { blockUiContract } from "../domain/blockUiContract";
 
 let registered = false;
@@ -44,7 +44,7 @@ export interface EntryToolboxObject { id: string; name: string; kind: "asset" | 
 export function entryBlocklyCategoryContents(category: EntryBlockCategory, objects: EntryToolboxObject[] = []): Array<Record<string, unknown>> {
     const entries: Array<Record<string, unknown>> = [];
     if (category === "Assets") entries.push({ kind: "button", text: "Create Group…", callbackKey: "RULETRADE_CREATE_GROUP" });
-    for (const definition of ENTRY_BLOCK_DEFINITIONS.filter((item) => item.category === category && item.id !== "create-group" && item.id !== "create-variable")) {
+    for (const definition of ENTRY_BLOCK_DEFINITIONS.filter((item) => item.category === category && NATIVE_STRATEGY_PALETTE_IDS.has(item.id) && item.id !== "create-group")) {
       const objectKind = definition.id === "asset-reference" ? "asset" : definition.id === "group-reference" ? "group" : definition.id === "subgroup-reference" ? "subgroup" : definition.id === "signal-reference" ? "signal" : definition.id === "call-function" ? "function" : null;
       // A reference is one language primitive, not one toolbox block per object.
       // The selected stable object id lives in block metadata/fields after the
