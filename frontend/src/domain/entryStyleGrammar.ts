@@ -3,6 +3,20 @@ export const ENTRY_BLOCK_CATEGORIES = [
 ] as const;
 
 export type EntryBlockCategory = typeof ENTRY_BLOCK_CATEGORIES[number];
+
+/**
+ * Blocks offered for new native strategies. Definitions outside this set stay
+ * registered so persisted working drafts remain readable, but the Builder no
+ * longer advertises grammar that cannot reach maintained V2 execution.
+ */
+export const NATIVE_STRATEGY_PALETTE_IDS = new Set([
+  "start-daily", "start-monthly",
+  "candidate-compare", "asset-predicate-and", "asset-predicate-or", "asset-predicate-not",
+  "number", "percentage", "trading-days", "candidate-close", "candidate-return",
+  "rebalance",
+  "asset-reference", "group-reference", "create-group",
+  "filter-assets", "top-n-assets",
+]);
 export type EntryValueType =
   | "Statement" | "Truth" | "Number" | "Percentage" | "Money" | "Quantity"
   | "Duration" | "Asset" | "Group" | "Subgroup" | "Value" | "Signal"
