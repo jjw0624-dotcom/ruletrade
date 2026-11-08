@@ -15,7 +15,10 @@ from ruletrade.hashing import strategy_hash
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import SQLiteBacktestRunRepository, SQLiteStrategyRepository
 from ruletrade.strategies.service import StrategyService
-from ruletrade.strategy.v2.execution_profiles import (\n    blocky_group_execution_profile,\n    production_execution_profile,\n)
+from ruletrade.strategy.v2.execution_profiles import (
+    blocky_group_execution_profile,
+    production_execution_profile,
+)
 
 
 def main() -> None:
