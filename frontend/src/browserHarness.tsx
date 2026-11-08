@@ -227,6 +227,45 @@ function BlockyGroupHandoffHarness() {
       "draft:group": { x: 560, y: 250 },
       "draft:weight": { x: 700, y: 250 },
     },
+    blocklyWorkspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [{
+          type: "rt_entry_start_daily",
+          id: "native-start",
+          x: 320,
+          y: 160,
+          data: JSON.stringify({ productId: "draft:start", definitionId: "start-daily" }),
+          inputs: {
+            NEXT: {
+              block: {
+                type: "rt_entry_rebalance",
+                id: "native-rebalance",
+                data: JSON.stringify({ productId: "draft:rebalance", definitionId: "rebalance" }),
+                inputs: {
+                  TARGET: {
+                    block: {
+                      type: "rt_entry_group_reference",
+                      id: "native-group",
+                      fields: { REFERENCE: "group-1" },
+                      data: JSON.stringify({ productId: "draft:group", definitionId: "group-reference", objectRef: "group-1" }),
+                    },
+                  },
+                  WEIGHT: {
+                    block: {
+                      type: "rt_entry_percentage",
+                      id: "native-weight",
+                      fields: { VALUE: 100 },
+                      data: JSON.stringify({ productId: "draft:weight", definitionId: "percentage" }),
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }],
+      },
+    },
   }));
   (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = draft;
   (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
