@@ -476,13 +476,24 @@ class UnitsEachAmountV2(FrozenModel):
     units: Annotated[int, Field(ge=1, le=1000000)]
 
 
+class CashTotalAmountV2(FrozenModel):
+    kind: Literal["cash_total"] = "cash_total"
+    usd: Decimal = Field(gt=0, le=Decimal("1000000000"))
+
+
+OrderAmountV2: TypeAlias = Annotated[
+    UnitsEachAmountV2 | CashTotalAmountV2,
+    Field(discriminator="kind"),
+]
+
+
 class BuyStatementV2(FrozenModel):
     """Create additive orders without implying target-weight allocation."""
 
     kind: Literal["buy"] = "buy"
     semantic_id: Identifier
     target: OrderTargetV2
-    amount: UnitsEachAmountV2
+    amount: OrderAmountV2
     clock_id: Identifier | None = None
 
 
