@@ -175,4 +175,32 @@ describe("active visual graph translation boundary", () => {
     expect(compile(1.5)).toMatchObject({ status: "unsupported", operation: null });
   });
 
+
+  it("compiles a Group Buy with one fixed USD budget", () => {
+    let draft = emptyProgramWorkingDraft("group-cash-buy");
+    draft = addCanvasBlock(draft, block("draft:start-cash", "start-monthly"), { x: 0, y: 0 });
+    draft = addCanvasBlock(draft, block("draft:buy-cash", "invest"), { x: 0, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:cash-group", "group-reference"), objectRef: "group-1" }, { x: 120, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:cash", "money"), fieldValues: { VALUE: 100 } }, { x: 240, y: 80 });
+    draft = withBlockMove(draft, "draft:buy-cash", { x: 0, y: 80 }, { childId: "draft:buy-cash", parentId: "draft:start-cash", inputName: "NEXT" });
+    draft = withBlockMove(draft, "draft:cash-group", { x: 120, y: 80 }, { childId: "draft:cash-group", parentId: "draft:buy-cash", inputName: "TARGET" });
+    draft = withBlockMove(draft, "draft:cash", { x: 240, y: 80 }, { childId: "draft:cash", parentId: "draft:buy-cash", inputName: "AMOUNT" });
+
+    expect(compileActiveVisualGraph(draft, canonicalWithGroup())).toMatchObject({
+      status: "ready",
+      operation: {
+        kind: "insert_program_statement",
+        statement: {
+          kind: "on_event",
+          event: { clock_id: "monthly-close", trigger: "scheduled" },
+          statements: [{
+            kind: "buy",
+            target: { kind: "group", ref: "group-1" },
+            amount: { kind: "cash_total", usd: 100 },
+          }],
+        },
+      },
+    });
+  });
+
 });
