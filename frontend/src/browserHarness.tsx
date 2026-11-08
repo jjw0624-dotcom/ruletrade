@@ -236,9 +236,8 @@ function BlockyGroupHandoffHarness() {
           x: 320,
           y: 160,
           data: JSON.stringify({ productId: "draft:start", definitionId: "start-daily" }),
-          inputs: {
-            NEXT: {
-              block: {
+          next: {
+            block: {
                 type: "rt_entry_rebalance",
                 id: "native-rebalance",
                 data: JSON.stringify({ productId: "draft:rebalance", definitionId: "rebalance" }),
@@ -247,7 +246,6 @@ function BlockyGroupHandoffHarness() {
                     block: {
                       type: "rt_entry_group_reference",
                       id: "native-group",
-                      fields: { REFERENCE: "group-1" },
                       data: JSON.stringify({ productId: "draft:group", definitionId: "group-reference", objectRef: "group-1" }),
                     },
                   },
@@ -261,7 +259,6 @@ function BlockyGroupHandoffHarness() {
                   },
                 },
               },
-            },
           },
         }],
       },
