@@ -94,24 +94,17 @@ try {
   await screenshot("builder-independent-guide");
   await clickText("Discard draft");
 
-  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
-  await clickText("Create Investment"); await waitSelector('[data-intent-recipe="single_asset"]');
-  const flowDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
-  if (flowDraft.concept?.startPath !== "flow_first" || flowDraft.concept?.recipe !== "single_asset" || flowDraft.blockCount !== 0) throw new Error(`Independent Flow draft failed: ${JSON.stringify(flowDraft)}`);
-  await clickText("Structure");
-  await waitExpression(`[...document.querySelectorAll('button')].some((item)=>item.textContent.trim()==='Portfolio'&&item.getClientRects().length>0)`, "visible Portfolio structure row");
-  await clickText("Portfolio");
-  const selectedWithDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,inspector:Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))})`);
-  if (selectedWithDraft.concept?.startPath !== "flow_first" || !selectedWithDraft.inspector) throw new Error(`Selection discarded Flow draft: ${JSON.stringify(selectedWithDraft)}`);
+  await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
+  const flowSurface = await evaluate(`(() => { const surface=document.querySelector('[aria-label="Flow capital projection"]'); return { text:surface?.innerText??'', duplicateActions:[...surface.querySelectorAll('button')].filter((item)=>item.textContent.includes('Create Investment')||item.textContent.includes('Create Split')).length }; })()`);
+  if (flowSurface.duplicateActions || flowSurface.text.includes("Flow drafts stay independent") || flowSurface.text.includes("complete typed intent passes validation")) throw new Error(`Flow exposed duplicate authoring controls or architecture prose: ${JSON.stringify(flowSurface)}`);
   await clickText("Rules"); await waitSelector('[aria-label="Rules authoring"]');
-  if (await evaluate(`Boolean(document.querySelector('[data-intent-recipe="single_asset"]'))`)) throw new Error("Flow draft leaked into Rules.");
   await clickText("Add investment rule"); await waitSelector('[aria-label="Rules intent editor"] [data-intent-recipe="single_asset"]');
-  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.rules,flow:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.flow,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
-  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.flow?.startPath !== "flow_first" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
+  const rulesDraft = await evaluate(`({concept:window.__RULETRADE_BROWSER_DRAFT__?.perspectiveDrafts?.rules,blockCount:Object.keys(window.__RULETRADE_BROWSER_DRAFT__?.canvasBlocks??{}).length})`);
+  if (rulesDraft.concept?.startPath !== "rules_first" || rulesDraft.concept?.recipe !== "single_asset" || rulesDraft.blockCount !== 0) throw new Error(`Independent Rules draft failed: ${JSON.stringify(rulesDraft)}`);
   await screenshot("builder-independent-flow-rules");
-  await clickText("Discard draft"); await clickText("Flow"); await waitSelector('[data-intent-recipe="single_asset"]'); await clickText("Discard draft");
+  await clickText("Discard draft");
   await clickText("Blocky"); await clickText("Add"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
-  await clickText("Flow"); await waitSelector('[aria-label="Flow authoring"]');
+  await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
   if (!await evaluate(`window.__RULETRADE_BROWSER_DRAFT__?.blockyAddOpen===true`)) throw new Error("Blocky Add state was discarded by a perspective switch.");
   await clickText("Blocky"); await waitSelector('.blocky-representation[data-native-add-open="true"]');
   const manualGraphChrome = await evaluate(`({ commit:document.body.innerText.includes('Commit active graph'), root:document.body.innerText.includes('Active graph root') })`);
@@ -120,6 +113,7 @@ try {
   await clickBlocklyCategory("Start"); await sleep(250);
   console.log("Blockly category state:", JSON.stringify(await evaluate(`(() => ({addOpen:document.querySelector('.blocky-representation')?.dataset.nativeAddOpen,categories:[...document.querySelectorAll('.blocklyToolboxCategory')].slice(0,2).map((item)=>({text:item.textContent.trim(),selected:item.getAttribute('aria-selected'),className:item.className})),flyouts:[...document.querySelectorAll('[class*=Flyout],[class*=flyout]')].map((item)=>{const rect=item.getBoundingClientRect();return {className:item.className?.baseVal??item.className,width:rect.width,height:rect.height,display:getComputedStyle(item).display,visibility:getComputedStyle(item).visibility}})}))()`)));
   const hoverBefore = await evaluate(`(() => { const flyoutElement=document.querySelector('.blocklyFlyout'); const flyout=flyoutElement.getBoundingClientRect(); const canvas=document.querySelector('.blocklyMainBackground').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); const blockCanvas=document.querySelector('.blocklyBlockCanvas'); return {flyout:{x:flyout.x,y:flyout.y,width:flyout.width,height:flyout.height,clip:getComputedStyle(flyoutElement).clipPath},canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{x:workbench.x,y:workbench.y,width:workbench.width,height:workbench.height},blockTransform:blockCanvas.getAttribute('transform')}; })()`);
+  if (!hoverBefore.flyout.clip.includes("180px")) throw new Error(`Add preview was not clipped to the fixed left workspace before hover: ${JSON.stringify(hoverBefore)}`);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: hoverBefore.canvas.x + hoverBefore.canvas.width - 80, y: hoverBefore.canvas.y + 220 });
   await sleep(80);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: hoverBefore.flyout.x + Math.min(80, hoverBefore.flyout.width / 2), y: hoverBefore.flyout.y + 120 });
@@ -186,10 +180,11 @@ try {
   await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
   const dashboardGeometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); const dashboard=document.querySelector('.quick-test-dashboard').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width},dashboard:{width:dashboard.width}}; })()`);
   if (Math.abs(builderBeforeDashboard.canvas.x-dashboardGeometry.canvas.x)>1 || Math.abs(builderBeforeDashboard.canvas.y-dashboardGeometry.canvas.y)>1 || Math.abs(builderBeforeDashboard.canvas.width-dashboardGeometry.canvas.width)>1 || Math.abs(builderBeforeDashboard.canvas.height-dashboardGeometry.canvas.height)>1 || dashboardGeometry.dashboard.width/dashboardGeometry.workbench.width < .68 || dashboardGeometry.dashboard.width/dashboardGeometry.workbench.width > .72) throw new Error(`Quick Test Dashboard changed Builder geometry: ${JSON.stringify({builderBeforeDashboard,dashboardGeometry})}`);
-  await clickAriaLabel("Collapse Quick Test Dashboard"); await waitSelector('[aria-label="Reopen Quick Test Dashboard"]');
+  if (!await evaluate(`Boolean(document.querySelector('.quick-test-dashboard-scrim'))`)) throw new Error("Quick Test Dashboard did not soften the underlying Builder.");
+  await clickAriaLabel("Collapse Run run-v2-b"); await waitSelector('[aria-label="Open Run run-v2-b"]');
   const collapsedGeometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); return {x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height}; })()`);
-  if (Math.abs(builderBeforeDashboard.canvas.x-collapsedGeometry.x)>1 || Math.abs(builderBeforeDashboard.canvas.width-collapsedGeometry.width)>1) throw new Error(`Collapsed Dashboard changed Builder geometry: ${JSON.stringify({builderBeforeDashboard,collapsedGeometry})}`);
-  await clickAriaLabel("Reopen Quick Test Dashboard"); await waitSelector('.quick-test-dashboard[data-dashboard-state="open"] .result-workspace');
+  if (Math.abs(builderBeforeDashboard.canvas.x-collapsedGeometry.x)>1 || Math.abs(builderBeforeDashboard.canvas.width-collapsedGeometry.width)>1 || await evaluate(`Boolean(document.querySelector('.quick-test-dashboard-scrim'))`)) throw new Error(`Collapsed Dashboard changed Builder geometry or left its backdrop mounted: ${JSON.stringify({builderBeforeDashboard,collapsedGeometry})}`);
+  await clickAriaLabel("Open Run run-v2-b"); await waitSelector('.quick-test-dashboard[data-dashboard-state="open"] .result-workspace');
   await waitSelector('[data-decision-id="decision-v2-browser"]');
   await evaluate(`document.querySelector('[data-decision-id="decision-v2-browser"]').click()`);
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/backtest-runs/run-v2-browser/decision-events/decision-v2-browser')`, "persisted V2 decision detail request");
@@ -197,6 +192,10 @@ try {
   const persistedJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!persistedJourney.body.includes("What happened, and why?") || !persistedJourney.body.includes("QQQ 100%") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/revisions/revision-v2-browser/backtest-runs"&&item.method==="POST") || !persistedJourney.requests.some((item)=>item.url==="/api/v2/backtest-runs/run-v2-browser/decision-events") || persistedJourney.requests.some((item)=>item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Persisted V2 browser journey failed: ${JSON.stringify(persistedJourney)}`);
   await screenshot("persisted-v2-result-evidence");
+  await clickText("Blocky"); await clickText("Objects"); await clickText("Create Group"); await waitSelector('[data-object-definition-workspace="group"]');
+  const overlayOwnership = await evaluate(`({ dashboard:Boolean(document.querySelector('[aria-label="Quick Test Dashboard"]')), bookmarks:Boolean(document.querySelector('[aria-label="Recent Quick Test results"]')), scrim:Boolean(document.querySelector('.quick-test-dashboard-scrim')) })`);
+  if (overlayOwnership.dashboard || overlayOwnership.bookmarks || overlayOwnership.scrim) throw new Error(`Quick Test UI leaked above Group Workspace: ${JSON.stringify(overlayOwnership)}`);
+  await clickAriaLabel("Cancel Group creation"); await waitSelector('[aria-label="Collapse Run run-v2-b"]');
   await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
   await screenshot("persisted-v2-builder-reopened");
 
