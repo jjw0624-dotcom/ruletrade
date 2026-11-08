@@ -186,7 +186,7 @@ describe("active visual graph translation boundary", () => {
     draft = withBlockMove(draft, "draft:cash-group", { x: 120, y: 80 }, { childId: "draft:cash-group", parentId: "draft:buy-cash", inputName: "TARGET" });
     draft = withBlockMove(draft, "draft:cash", { x: 240, y: 80 }, { childId: "draft:cash", parentId: "draft:buy-cash", inputName: "AMOUNT" });
 
-    expect(compileActiveVisualGraph(draft, canonicalWithGroup())).toMatchObject({
+    expect(compileActiveVisualGraph(draft, canonicalWithGroup("monthly"))).toMatchObject({
       status: "ready",
       operation: {
         kind: "insert_program_statement",
