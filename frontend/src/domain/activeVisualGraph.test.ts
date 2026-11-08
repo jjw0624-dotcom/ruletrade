@@ -132,4 +132,47 @@ describe("active visual graph translation boundary", () => {
     draft = withBlockMove(draft, "draft:weight", { x: 200, y: 80 }, { childId: "draft:weight", parentId: "draft:rebalance", inputName: "WEIGHT" });
     expect(compileActiveVisualGraph(draft)).toMatchObject({ status: "unsupported", operation: null });
   });
+  it("compiles a direct Group Buy with units each without converting it to target weight", () => {
+    let draft = emptyProgramWorkingDraft("group-buy");
+    draft = addCanvasBlock(draft, block("draft:start-buy", "start-daily"), { x: 0, y: 0 });
+    draft = addCanvasBlock(draft, block("draft:buy", "invest"), { x: 0, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:buy-group", "group-reference"), objectRef: "group-1" }, { x: 120, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:units", "units-each"), fieldValues: { VALUE: 1 } }, { x: 240, y: 80 });
+    draft = withBlockMove(draft, "draft:buy", { x: 0, y: 80 }, { childId: "draft:buy", parentId: "draft:start-buy", inputName: "NEXT" });
+    draft = withBlockMove(draft, "draft:buy-group", { x: 120, y: 80 }, { childId: "draft:buy-group", parentId: "draft:buy", inputName: "TARGET" });
+    draft = withBlockMove(draft, "draft:units", { x: 240, y: 80 }, { childId: "draft:units", parentId: "draft:buy", inputName: "AMOUNT" });
+
+    expect(compileActiveVisualGraph(draft, canonicalWithGroup())).toMatchObject({
+      status: "ready",
+      operation: {
+        kind: "insert_program_statement",
+        statement: {
+          kind: "on_event",
+          event: { clock_id: "daily-close", trigger: "scheduled" },
+          statements: [{
+            kind: "buy",
+            target: { kind: "group", ref: "group-1" },
+            amount: { kind: "units_each", units: 1 },
+          }],
+        },
+      },
+    });
+  });
+
+  it("rejects zero and fractional units without reinterpreting the amount", () => {
+    const compile = (value: number) => {
+      let draft = emptyProgramWorkingDraft("invalid-units");
+      draft = addCanvasBlock(draft, block("draft:start-buy", "start-daily"), { x: 0, y: 0 });
+      draft = addCanvasBlock(draft, block("draft:buy", "invest"), { x: 0, y: 80 });
+      draft = addCanvasBlock(draft, { ...block("draft:buy-group", "group-reference"), objectRef: "group-1" }, { x: 120, y: 80 });
+      draft = addCanvasBlock(draft, { ...block("draft:units", "units-each"), fieldValues: { VALUE: value } }, { x: 240, y: 80 });
+      draft = withBlockMove(draft, "draft:buy", { x: 0, y: 80 }, { childId: "draft:buy", parentId: "draft:start-buy", inputName: "NEXT" });
+      draft = withBlockMove(draft, "draft:buy-group", { x: 120, y: 80 }, { childId: "draft:buy-group", parentId: "draft:buy", inputName: "TARGET" });
+      draft = withBlockMove(draft, "draft:units", { x: 240, y: 80 }, { childId: "draft:units", parentId: "draft:buy", inputName: "AMOUNT" });
+      return compileActiveVisualGraph(draft, canonicalWithGroup());
+    };
+    expect(compile(0)).toMatchObject({ status: "unsupported", operation: null });
+    expect(compile(1.5)).toMatchObject({ status: "unsupported", operation: null });
+  });
+
 });
