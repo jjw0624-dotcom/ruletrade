@@ -318,54 +318,18 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
-  it("starts an independent Flow Investment draft without changing Blocky or Canonical", async () => {
-    const apply = vi.fn();
-    const changes = vi.fn();
-    function Harness() {
-      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-investment"));
-      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="flow"
-        onHome={() => undefined} apply={apply} save={() => undefined}
-        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
-        working={() => undefined} run={() => undefined} executionCapability={null}
-        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
-    }
-    act(() => root.render(<Harness />));
-    await clickButton(container, "Add");
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-toolbox-concept="investment"] .flow-toolbox-block')!.click());
-    const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "single_asset", startPath: "flow_first" });
-    expect(latest.canvasBlocks).toEqual({});
-    expect(apply).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
-    await clickButton(container, "Rules");
-    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeNull();
-    await clickButton(container, "Add investment rule");
-    const withRulesDraft = changes.mock.calls.at(-1)?.[0];
-    expect(withRulesDraft.perspectiveDrafts.flow).toMatchObject({ startPath: "flow_first" });
-    expect(withRulesDraft.perspectiveDrafts.rules).toMatchObject({ startPath: "rules_first" });
-    await clickButton(container, "Flow");
-    expect(container.querySelector('[data-intent-recipe="single_asset"]')).toBeTruthy();
-    expect(apply).not.toHaveBeenCalled();
-  });
-
-  it("starts an independent Flow Split draft through the same typed intent boundary", async () => {
-    const apply = vi.fn();
-    const changes = vi.fn();
-    function Harness() {
-      const [draft, setDraft] = React.useState(() => emptyProgramWorkingDraft("flow-split"));
-      return <SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="flow"
-        onHome={() => undefined} apply={apply} save={() => undefined}
-        undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
-        working={() => undefined} run={() => undefined} executionCapability={null}
-        workingDraft={draft} onWorkingDraftChange={(next) => { changes(next); setDraft(next); }} />;
-    }
-    act(() => root.render(<Harness />));
-    await clickButton(container, "Add");
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-toolbox-concept="split"] .flow-toolbox-block')!.click());
-    const latest = changes.mock.calls.at(-1)?.[0];
-    expect(latest.perspectiveDrafts.flow).toMatchObject({ kind: "financial_intent", recipe: "split_portfolio", startPath: "flow_first" });
-    expect(latest.canvasBlocks).toEqual({});
-    expect(apply).not.toHaveBeenCalled();
+  it("keeps Flow authoring in the left toolbox without duplicate central actions", () => {
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={blank} dirty={false} status="saved" message="Saved" initialView="flow"
+      onHome={() => undefined} apply={() => undefined} save={() => undefined}
+      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+      working={() => undefined} run={() => undefined} executionCapability={null}
+      workingDraft={emptyProgramWorkingDraft("flow-surface")} onWorkingDraftChange={() => undefined} />));
+    const surface = container.querySelector('[aria-label="Flow capital projection"]');
+    expect(surface).toBeTruthy();
+    expect([...surface!.querySelectorAll("button")].some((item) => item.textContent?.includes("Create Investment"))).toBe(false);
+    expect([...surface!.querySelectorAll("button")].some((item) => item.textContent?.includes("Create Split"))).toBe(false);
+    expect(surface!.textContent).not.toContain("Flow drafts stay independent");
+    expect(surface!.textContent).not.toContain("complete typed intent passes validation");
   });
 
   it("authors an incomplete investment intent directly inside Rules", async () => {
