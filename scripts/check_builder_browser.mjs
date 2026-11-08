@@ -186,7 +186,7 @@ try {
   const blockyGroupAfter = { blocks: Object.keys(blockyGroupHandoff.draft?.canvasBlocks ?? {}).sort(), connections: blockyGroupHandoff.draft?.blockConnections, positions: blockyGroupHandoff.draft?.blockPositions };
   if (JSON.stringify(blockyGroupBefore) !== JSON.stringify(blockyGroupAfter)) throw new Error(`Testing mutated Blocky canvas state: ${JSON.stringify({blockyGroupBefore,blockyGroupAfter})}`);
   await sleep(100);
-  const blockyRoundTrip = await evaluate(`(() => { const canvas=document.querySelector('.blocklyBlockCanvas'); const text=canvas?.textContent?.replace(/\\s+/g,' ')??''; return {text,blocks:canvas?.querySelectorAll(':scope>.blocklyDraggable').length??0}; })()`);
+  const blockyRoundTrip = await evaluate(`(() => { const canvas=[...document.querySelectorAll('.blocklyBlockCanvas')].find((item)=>item.getAttribute('transform')?.includes('scale')); const text=canvas?.textContent?.replace(/\\s+/g,' ')??''; return {text,blocks:canvas?.querySelectorAll(':scope>.blocklyDraggable').length??0,transforms:[...document.querySelectorAll('.blocklyBlockCanvas')].map((item)=>item.getAttribute('transform'))}; })()`);
   if (blockyRoundTrip.text.includes("Investment · Group 1") || blockyRoundTrip.blocks !== blockyGroupBefore.blocks.length) throw new Error(`Canonical projection replaced or duplicated the native Blocky grammar: ${JSON.stringify(blockyRoundTrip)}`);
   await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"] [data-semantic-address="blocky-investment-draft-start"]');
   await evaluate(`document.querySelector('[data-semantic-address="blocky-investment-draft-start"]').click()`);
