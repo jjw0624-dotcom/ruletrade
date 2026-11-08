@@ -195,7 +195,7 @@ try {
   await clickText("Blocky"); await clickText("Objects"); await clickText("Create Group"); await waitSelector('[data-object-definition-workspace="group"]');
   const overlayOwnership = await evaluate(`({ dashboard:Boolean(document.querySelector('[aria-label="Quick Test Dashboard"]')), bookmarks:Boolean(document.querySelector('[aria-label="Recent Quick Test results"]')), scrim:Boolean(document.querySelector('.quick-test-dashboard-scrim')) })`);
   if (overlayOwnership.dashboard || overlayOwnership.bookmarks || overlayOwnership.scrim) throw new Error(`Quick Test UI leaked above Group Workspace: ${JSON.stringify(overlayOwnership)}`);
-  await clickAriaLabel("Close Group Workspace"); await waitSelector('[aria-label="Collapse Run run-v2-b"]');
+  await clickAriaLabel("Cancel Group creation"); await waitSelector('[aria-label="Collapse Run run-v2-b"]');
   await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
   await screenshot("persisted-v2-builder-reopened");
 
