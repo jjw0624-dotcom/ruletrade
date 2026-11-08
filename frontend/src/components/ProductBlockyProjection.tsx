@@ -19,10 +19,10 @@ export function productBlockLabel(node: ProductNode) {
   return node.detail ? `${node.label} · ${node.detail}` : node.label;
 }
 
-function setAddress(block: Blockly.Block, id: string) {
+function setAddress(block: Blockly.Block, id: string, definitionId?: string | null) {
   let existing: Record<string, unknown> = {};
   try { existing = block.data ? JSON.parse(block.data) as Record<string, unknown> : {}; } catch { /* Replace malformed third-party data. */ }
-  block.data = JSON.stringify({ ...existing, productId: id });
+  block.data = JSON.stringify({ ...existing, productId: id, ...(definitionId ? { definitionId } : {}) });
 }
 
 function readMetadata(block: Blockly.Block | null): { productId?: string; definitionId?: string; objectRef?: string | null } {
@@ -144,6 +144,18 @@ function semanticBlockType(node: ProgramBlockNode) {
  * user explicitly inserts a typed reference block into the working draft.
  */
 export const programBlockyVisibleNodes = (nodes: ProgramBlockNode[]) => nodes.filter((node) => node.role !== "context" && node.role !== "group");
+
+const projectedStartDefinitionId = (node: ProgramBlockNode): string | null => {
+  if (node.role !== "trigger") return null;
+  const label = node.label.toLowerCase();
+  if (label.startsWith("daily ")) return "start-daily";
+  if (label.startsWith("weekly ")) return "start-weekly";
+  if (label.startsWith("monthly ")) return "start-monthly";
+  return null;
+};
+
+export const duplicateStartDefinitionId = (candidate: string, existing: Array<string | null | undefined>) =>
+  entryBlockDefinition(candidate)?.shape === "hat" && existing.includes(candidate);
 
 /** Program-native logic projection. It never consumes the Structure tree. */
 export interface NativeBlockySnapshot {
@@ -358,9 +370,20 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         const block = canvas.getBlockById(blockId);
         const definitionId = block && entryDefinitionIdForBlock(block);
         if (block && definitionId) {
+          const existingStarts = canvas.getAllBlocks(false).filter((candidate) => candidate.id !== block.id);
+          const duplicate = duplicateStartDefinitionId(definitionId, existingStarts.map((candidate) => readMetadata(candidate).definitionId ?? entryDefinitionIdForBlock(candidate)));
+          if (duplicate) {
+            const existing = existingStarts.find((candidate) => (readMetadata(candidate).definitionId ?? entryDefinitionIdForBlock(candidate)) === definitionId);
+            block.dispose(false);
+            existing?.setWarningText(`Only one ${entryBlockDefinition(definitionId)?.label ?? "Start"} block is allowed.`);
+            existing?.select();
+            const existingId = readAddress(existing ?? null);
+            if (existingId) onSelectRef.current(existingId);
+            return;
+          }
           configureEntryReferenceFields(canvas, objects);
           const id = `draft:${block.id}`;
-          setAddress(block, id);
+          setAddress(block, id, definitionId);
           onSelectRef.current(id);
         }
       }
@@ -454,7 +477,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
         const isNew = !block;
         if (!block) {
           block = canvas.newBlock(semanticBlockType(node)) as Blockly.BlockSvg;
-          setAddress(block, node.id);
+          setAddress(block, node.id, projectedStartDefinitionId(node));
           block.setDeletable(false); block.setMovable(node.role !== "context"); block.contextMenu = node.role !== "context";
           block.initSvg(); block.render();
           existing.set(node.id, block);
