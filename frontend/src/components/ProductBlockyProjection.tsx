@@ -185,6 +185,21 @@ interface PersistentAddToolbox {
   refreshSelection: () => void;
 }
 
+export const RULETRADE_NATIVE_ADD_WIDTH = 180;
+
+/**
+ * Blockly normally sizes a category flyout to its longest preview block. That
+ * measured width is then removed from the main workspace metrics even when CSS
+ * only clips the preview. Keep the native flyout and drag lifecycle, but report
+ * the fixed left-rail width so long financial blocks overlay instead of
+ * translating or shrinking the canvas.
+ */
+export class RuleTradeVerticalFlyout extends Blockly.VerticalFlyout {
+  override getWidth() {
+    return RULETRADE_NATIVE_ADD_WIDTH;
+  }
+}
+
 export function configurePersistentNativeAdd(toolbox: PersistentAddToolbox | null) {
   const flyout = toolbox?.getFlyout() as { setAutoClose?: (autoClose: boolean) => void } | null | undefined;
   flyout?.setAutoClose?.(false);
@@ -251,6 +266,7 @@ export function ProgramBlockyProjection({ nodes, selectedId, onSelect, positions
     const compactTheme = Blockly.Theme.defineTheme("ruletrade-compact", { name: "ruletrade-compact", base: Blockly.Themes.Zelos, fontStyle: { family: "Inter, system-ui, sans-serif", weight: "600", size: 10 } });
     const canvas = Blockly.inject(host.current, {
       toolbox: entryBlocklyToolbox(objects), renderer: "zelos", theme: compactTheme, trashcan: true, sounds: false,
+      plugins: { flyoutsVerticalToolbox: RuleTradeVerticalFlyout },
       grid: { spacing: 24, length: 3, colour: "#d8dfd9", snap: false },
       move: { scrollbars: true, drag: true, wheel: true },
       zoom: { controls: true, wheel: true, startScale: .78, minScale: .4, maxScale: 1.8, scaleSpeed: 1.12 },
