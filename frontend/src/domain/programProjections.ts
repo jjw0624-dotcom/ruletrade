@@ -187,8 +187,15 @@ function statementBlocks(statement: ProgramStatementV2, path: string, depth: num
 /** Logic projection: unlike Structure it exposes executable semantic composition. */
 export function projectProgramBlocky(strategy: CanonicalStrategyV2): ProgramBlockNode[] {
   const program = strategy.program;
+  const executableStatements = (program?.statements ?? []).filter((statement) => !isProgramBootstrap(statement));
+  const clockIdFor = (statement: ProgramStatementV2) => statement.kind === "on_event" ? statement.event.clock_id
+    : statement.kind === "transition" ? statement.transition.clock_id
+      : "clock_id" in statement ? statement.clock_id
+        : statement.kind === "guarded_allocation" ? statement.primary.clock_id
+          : null;
+  const referencedClockIds = new Set(executableStatements.map(clockIdFor).filter((id): id is string => Boolean(id)));
   const nodes: ProgramBlockNode[] = [{ id: "context:portfolio", role: "context", label: "Portfolio", depth: 0, address: address("strategy", program?.semantic_id ?? "program", "program", "portfolio") }];
-  for (const [index, clock] of (program?.clocks ?? []).entries()) nodes.push({ id: `clock:${clock.id}`, role: "trigger", label: `${clock.timeframe[0]!.toUpperCase()}${clock.timeframe.slice(1)} close`, depth: 1, address: address("clock", clock.id, `program.clocks[${index}]`, "rebalance") });
+  for (const [index, clock] of (program?.clocks ?? []).entries()) if (referencedClockIds.has(clock.id)) nodes.push({ id: `clock:${clock.id}`, role: "trigger", label: `${clock.timeframe[0]!.toUpperCase()}${clock.timeframe.slice(1)} close`, depth: 1, address: address("clock", clock.id, `program.clocks[${index}]`, `clock:${clock.id}`) });
   for (const [index, group] of strategy.definitions.groups.entries()) {
     const assets = strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref);
     nodes.push({

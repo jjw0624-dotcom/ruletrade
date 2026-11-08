@@ -3,7 +3,7 @@ import * as Blockly from "blockly";
 
 import { configureEntryReferenceFields, entryBlockJson, entryBlocklyExtraState, entryBlocklyFields, entryBlocklyFlyoutToolbox, entryBlocklyToolbox, entryBlocklyType, entryDefinitionIdForBlock, registerBlockyProgramBlocks } from "../components/blockyProgramBlocks";
 import { entryBlockDefinition } from "./entryStyleGrammar";
-import { nativeBlockFieldController, programBlockyVisibleNodes } from "../components/ProductBlockyProjection";
+import { duplicateStartDefinitionId, nativeBlockFieldController, programBlockyVisibleNodes } from "../components/ProductBlockyProjection";
 
 describe("native Blockly product grammar", () => {
   it("reuses built-in logic, math, loop, variable, and procedure block types", () => {
@@ -138,6 +138,12 @@ describe("native Blockly product grammar", () => {
       { id: "action:1", role: "allocation", label: "Rebalance QQQ", depth: 1, address: { kind: "statement", focusId: "action:1", semanticId: "action:1", canonicalPath: "statements" } },
     ]);
     expect(visible.map((node) => node.label)).toEqual(["Rebalance QQQ"]);
+  });
+
+  it("rejects only duplicate Starts of the same event type at creation time", () => {
+    expect(duplicateStartDefinitionId("start-daily", ["start-daily"])).toBe(true);
+    expect(duplicateStartDefinitionId("start-daily", ["start-weekly", "start-monthly"])).toBe(false);
+    expect(duplicateStartDefinitionId("rebalance", ["rebalance"])).toBe(false);
   });
 
   it("round-trips native Blockly JSON with stable ids, coordinates, fields, and disconnected alternatives", () => {
