@@ -154,12 +154,9 @@ export function compileActiveVisualGraph(draft: ProgramWorkingDraft, canonical?:
 
   const weight = action && childAt(action.id, "WEIGHT");
   const percent = Number(weight?.fieldValues?.VALUE ?? Number.NaN);
-  const targetRef = target?.objectRef ?? String(target?.fieldValues?.REFERENCE ?? "");
-  const targetKind = target?.definitionId === "asset-reference" ? "asset" : target?.definitionId === "group-reference" ? "group" : null;
   if (!timeframe || action?.definitionId !== "rebalance" || !targetKind || weight?.definitionId !== "percentage" || percent !== 100 || !targetRef) {
     return { status: "unsupported", operation: null, productMessage: "This complete graph is preserved, but the current compiler supports only a daily or monthly 100% rebalance into one Asset or reusable Group.", rootId: graph.rootId };
   }
-  const suffix = graph.rootId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "graph";
   if (targetKind === "asset") {
     return {
       status: "ready",
