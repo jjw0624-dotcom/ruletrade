@@ -38,7 +38,7 @@ describe("native Blockly product grammar", () => {
   it("renders the primary categories through a native category toolbox and separates Group definition from references", () => {
     const toolbox = entryBlocklyToolbox([{ id: "growth", name: "Growth ETFs", kind: "group" }]) as unknown as { kind: string; contents: Array<{ name: string; contents: Array<Record<string, unknown>> }> };
     expect(toolbox.kind).toBe("categoryToolbox");
-    expect(toolbox.contents.map((category) => category.name)).toEqual(["Start", "Control", "Logic", "Calculate", "Action", "Assets", "Data", "Functions"]);
+    expect(toolbox.contents.map((category) => category.name)).toEqual(["Start", "Calculate", "Action", "Assets"]);
     const assets = toolbox.contents.find((category) => category.name === "Assets")!.contents;
     expect(assets).toContainEqual(expect.objectContaining({ kind: "button", text: "Create Group…" }));
     expect(assets).not.toContainEqual(expect.objectContaining({ type: entryBlocklyType("create-group") }));
@@ -128,6 +128,7 @@ describe("native Blockly product grammar", () => {
     expect(entryBlockDefinition("invest")?.execution).toBe("verified");
     const calculate = entryBlocklyFlyoutToolbox("Calculate") as unknown as { contents: Array<{ type?: string }> };
     expect(calculate.contents.map((item) => item.type)).toContain(entryBlocklyType("units-each"));
+    expect(calculate.contents.map((item) => item.type)).not.toContain(entryBlocklyType("percentage"));
   });
 
   it("lets Inspector and the block edit the same native field instead of mirrored state", () => {
