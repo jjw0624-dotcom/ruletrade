@@ -147,7 +147,8 @@ try {
   if (!workspaceState.basket || !workspaceState.workspaceParent || workspaceState.coreHidden !== "true" || !workspaceState.coreInert || workspaceState.leftHit || Math.abs(workspaceState.workspace.x-workspaceState.workbench.x)>2 || Math.abs(workspaceState.workspace.width-workspaceState.workbench.width)>2) throw new Error(`Group Workspace isolation failed: ${JSON.stringify(workspaceState)}`);
   await screenshot("group-asset-workspace.png");
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; const input=details.querySelector('input'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'QQQ'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-  await clickText("Add symbol"); await sleep(200);
+  await clickText("Add symbol");
+  await waitExpression(`[...document.querySelectorAll('button')].some((button)=>button.textContent.trim()==='Use selected assets'&&!button.disabled)`, "selected asset basket readiness");
   await clickText("Use selected assets"); await sleep(200);
   await clickText("Create Group");
   await waitExpression(`document.querySelectorAll('.object-library-insert').length===1`, "committed Group object row");
