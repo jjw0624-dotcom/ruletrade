@@ -11,7 +11,7 @@ export type EntryBlockCategory = typeof ENTRY_BLOCK_CATEGORIES[number];
  */
 export const NATIVE_STRATEGY_PALETTE_IDS = new Set([
   "start-daily", "start-monthly",
-  "number", "percentage", "trading-days", "candidate-close", "candidate-return",
+  "number", "trading-days", "candidate-close", "candidate-return",
   "invest", "units-each", "money",
   "asset-reference", "group-reference", "create-group",
   "filter-assets", "top-n-assets",
