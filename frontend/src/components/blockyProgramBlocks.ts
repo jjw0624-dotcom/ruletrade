@@ -85,7 +85,10 @@ export function entryBlocklyFlyoutToolbox(category: EntryBlockCategory, objects:
 
 /** Production Builder Add surface: Blockly owns categories, previews and drag gestures. */
 export function entryBlocklyToolbox(objects: EntryToolboxObject[] = []): Blockly.utils.toolbox.ToolboxDefinition {
-  return { kind: "categoryToolbox", contents: ENTRY_BLOCK_CATEGORIES.map((category) => ({ kind: "category", name: category, contents: entryBlocklyCategoryContents(category, objects) })) } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
+  const contents = ENTRY_BLOCK_CATEGORIES
+    .map((category) => ({ kind: "category", name: category, contents: entryBlocklyCategoryContents(category, objects) }))
+    .filter((category) => category.contents.length > 0);
+  return { kind: "categoryToolbox", contents } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
 }
 
 const checkNames = (type: EntryValueType): string[] => {
