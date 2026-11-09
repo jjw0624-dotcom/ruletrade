@@ -55,9 +55,6 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
         extraState: entryBlocklyExtraState(definition.id),
         data: JSON.stringify({ definitionId: definition.id, objectKind, objectRef: null }),
       };
-      // Target-weight allocation is the currently executable capital action.
-      // Give it a native editable 100% shadow so a user only needs to connect
-      // the target. Fixed-money and quantity Buy remain honest draft ideas.
       if (definition.id === "rebalance") {
         entry.inputs = {
           WEIGHT: {
@@ -71,10 +68,6 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
       }
       entries.push(entry);
     }
-    if (category === "Data") entries.push(
-      { kind: "block", type: "lists_create_with" }, { kind: "block", type: "lists_getIndex" },
-      { kind: "button", text: "Create variable…", callbackKey: "CREATE_VARIABLE" },
-    );
     return entries;
 }
 
