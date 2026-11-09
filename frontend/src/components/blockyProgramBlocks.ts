@@ -55,9 +55,6 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
         extraState: entryBlocklyExtraState(definition.id),
         data: JSON.stringify({ definitionId: definition.id, objectKind, objectRef: null }),
       };
-      // Target-weight allocation is the currently executable capital action.
-      // Give it a native editable 100% shadow so a user only needs to connect
-      // the target. Fixed-money and quantity Buy remain honest draft ideas.
       if (definition.id === "rebalance") {
         entry.inputs = {
           WEIGHT: {
@@ -71,10 +68,6 @@ export function entryBlocklyCategoryContents(category: EntryBlockCategory, objec
       }
       entries.push(entry);
     }
-    if (category === "Data") entries.push(
-      { kind: "block", type: "lists_create_with" }, { kind: "block", type: "lists_getIndex" },
-      { kind: "button", text: "Create variable…", callbackKey: "CREATE_VARIABLE" },
-    );
     return entries;
 }
 
@@ -85,7 +78,10 @@ export function entryBlocklyFlyoutToolbox(category: EntryBlockCategory, objects:
 
 /** Production Builder Add surface: Blockly owns categories, previews and drag gestures. */
 export function entryBlocklyToolbox(objects: EntryToolboxObject[] = []): Blockly.utils.toolbox.ToolboxDefinition {
-  return { kind: "categoryToolbox", contents: ENTRY_BLOCK_CATEGORIES.map((category) => ({ kind: "category", name: category, contents: entryBlocklyCategoryContents(category, objects) })) } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
+  const contents = ENTRY_BLOCK_CATEGORIES
+    .map((category) => ({ kind: "category", name: category, contents: entryBlocklyCategoryContents(category, objects) }))
+    .filter((category) => category.contents.length > 0);
+  return { kind: "categoryToolbox", contents } as unknown as Blockly.utils.toolbox.ToolboxDefinition;
 }
 
 const checkNames = (type: EntryValueType): string[] => {
@@ -193,6 +189,10 @@ export function entryBlockJson(definition: EntryBlockDefinition): Record<string,
   if (definition.id === "choose-group") {
     json.message1 = "If too few qualify %1";
     json.args1 = [{ type: "field_dropdown", name: "SHORTAGE", options: [["require full count", "REQUIRE_FULL"], ["choose all available", "CHOOSE_ALL"]] }];
+  }
+  if (definition.id === "top-n-assets") {
+    json.message1 = "If fewer qualify %1";
+    json.args1 = [{ type: "field_dropdown", name: "SHORTAGE", options: [["choose all available", "CHOOSE_ALL"], ["require full count", "REQUIRE_FULL"]] }];
   }
   if (["random-select-assets", "random-filter-assets"].includes(definition.id)) {
     json.message1 = "seed %1 redraw %2";

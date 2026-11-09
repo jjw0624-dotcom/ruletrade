@@ -300,3 +300,26 @@ units, emitted orders, and any missing-data exclusions.
   temporal state machines, arbitrary loops, and universal expression blocks.
 - UI dashboard polish that does not unblock authoring/execution follows the first
   real executable vertical slice.
+
+
+## Consolidated core-language acceptance pass
+
+The next manual acceptance pass occurs only after these independent operators have
+typed authoring, validation, projection, LEAN lowering, and evidence:
+
+| Operator | Input | Output or effect | Owns |
+| --- | --- | --- | --- |
+| Filter | Group or Subgroup | local Subgroup | ordered Inspector conditions only |
+| Choose | Group or Subgroup | local Subgroup | direction, count, ranking metric, shortage policy |
+| Buy units each | Asset, Group, or Subgroup | additive orders | whole units per resolved member |
+| Buy cash total | Asset, Group, or Subgroup | additive orders | fixed cash budget, split equally across resolved members |
+
+Fixed cash Buy is not target allocation. At the event boundary, the compiler resolves
+the target members, divides the cash budget equally, converts each share budget to a
+whole non-negative quantity using the completed observation price, and records unused
+cash and excluded members in evidence. It never liquidates or resizes existing
+holdings.
+
+Filter and Choose remain separate editable blocks even if the maintained execution
+plan fuses them into one ranked Selection. Reprojection must preserve that editable
+operator chain rather than replacing it with an opaque Investment block.

@@ -20,6 +20,7 @@ import { blockUiContract } from "../domain/blockUiContract";
 import { derivePerspectiveBundle, type PerspectiveCapability } from "../domain/perspectiveTranslation";
 import { translateDraftIntent } from "../domain/draftIntents";
 import { compileActiveVisualGraph, validateActiveVisualGraphs } from "../domain/activeVisualGraph";
+import { blockyFilterSpecErrors, normalizeBlockyFilterSpec, type BlockyFilterCondition, type BlockyFilterSpec } from "../domain/blockyFilterSpec";
 import { compileFinancialIntent, createFinancialIntentDraft, financialIntentReadiness, updateFinancialIntentDraft, type FinancialIntentDraft, type FinancialIntentRecipe, type IntentStartPath } from "../domain/intentAuthoring";
 import type { BacktestRunRecord } from "../backtestRunApi";
 import { useV2BuilderCommandController } from "../hooks/useV2BuilderCommandController";
@@ -839,11 +840,50 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
   const selectedActiveGraph = selectedCanvasBlock ? visualGraphValidation.graphs.find((graph) => graph.rootId === selectedCanvasBlock.id || graph.blockIds.includes(selectedCanvasBlock.id)) : null;
   const selectedBlockContract = selectedCanvasBlock ? blockUiContract(selectedCanvasBlock.definitionId) : null;
   const selectedOpenAssetSlot = selectedCanvasBlock ? entryBlockDefinition(selectedCanvasBlock.definitionId)?.slots.find((slot) => slot.accepts.some((type) => ["Asset", "AssetSet", "Group", "Subgroup"].includes(type)) && !Object.values(workingDraft.blockConnections).some((connection) => connection.parentId === selectedCanvasBlock.id && connection.inputName === slot.name)) : null;
+  const selectedFilterSpec = selectedCanvasBlock?.definitionId === "filter-assets"
+    ? normalizeBlockyFilterSpec(selectedCanvasBlock.fieldValues?.FILTER_SPEC)
+    : null;
+  const updateSelectedFilterSpec = (next: BlockyFilterSpec) => {
+    if (!selectedCanvasBlock) return;
+    const current = workingDraftRef.current;
+    const existing = current.canvasBlocks[selectedCanvasBlock.id];
+    if (!existing) return;
+    updateLayoutDraft({
+      ...current,
+      canvasBlocks: {
+        ...current.canvasBlocks,
+        [existing.id]: { ...existing, fieldValues: { ...(existing.fieldValues ?? {}), FILTER_SPEC: JSON.stringify(next) } },
+      },
+      status: blockyFilterSpecErrors(next).length ? "incomplete" : current.status,
+    });
+  };
+  const changeFilterCondition = (id: string, patch: Partial<BlockyFilterCondition>) => {
+    if (!selectedFilterSpec) return;
+    updateSelectedFilterSpec(normalizeBlockyFilterSpec({
+      ...selectedFilterSpec,
+      conditions: selectedFilterSpec.conditions.map((condition) => condition.id === id ? { ...condition, ...patch } : condition),
+    }));
+  };
   const inspector = selectedCanvasBlock ? <div className="semantic-inspector-content entry-block-inspector" data-entry-block={selectedCanvasBlock.definitionId}>
     <h2>{selectedBlockContract?.summaryLabel ?? selectedCanvasBlock.label}</h2>
     <p>{selectedBlockContract?.semanticRole ?? entryBlockDefinition(selectedCanvasBlock.definitionId)?.description}</p>
     {selectedBlockContract && <><section className="entry-inspector-section"><h3>Advanced details</h3><ul>{selectedBlockContract.advancedInspectorFields.map((field) => <li key={field}>{field}</li>)}</ul></section>{selectedBlockContract.dedicatedWorkspaceFields.length > 0 && <section className="entry-inspector-section"><h3>Dedicated workspace</h3><p>{selectedBlockContract.dedicatedWorkspaceFields.join(" · ")}</p></section>}</>}
-    {selectedCanvasBlock.definitionId === "choose-group" && <label>When too few qualify<select aria-label="Selection shortage policy" value={String(selectedCanvasBlock.fieldValues?.SHORTAGE ?? "REQUIRE_FULL")} onChange={(event) => nativeBlockyApi.current?.setFieldValue(selectedCanvasBlock.id, "SHORTAGE", event.target.value)}><option value="REQUIRE_FULL">Require full count</option><option value="CHOOSE_ALL">Choose all available</option></select></label>}
+    {["choose-group", "top-n-assets"].includes(selectedCanvasBlock.definitionId) && <label>When too few qualify<select aria-label="Selection shortage policy" value={String(selectedCanvasBlock.fieldValues?.SHORTAGE ?? "REQUIRE_FULL")} onChange={(event) => nativeBlockyApi.current?.setFieldValue(selectedCanvasBlock.id, "SHORTAGE", event.target.value)}><option value="REQUIRE_FULL">Require full count</option><option value="CHOOSE_ALL">Choose all available</option></select></label>}
+    {selectedFilterSpec && <section className="entry-inspector-section blocky-filter-inspector" aria-label="Filter conditions">
+      <h3>Filter conditions</h3>
+      <p>Each condition decides membership only. Ranking and capital stay in Choose and Buy.</p>
+      <label>Match<select aria-label="Filter combination" value={selectedFilterSpec.combination} onChange={(event) => updateSelectedFilterSpec({ ...selectedFilterSpec, combination: event.target.value === "any" ? "any" : "all" })}><option value="all">All conditions</option><option value="any">Any condition</option></select></label>
+      {selectedFilterSpec.conditions.map((condition) => <fieldset key={condition.id}>
+        <legend>Condition</legend>
+        <label>Metric<select aria-label="Filter metric" value={condition.metric} onChange={(event) => changeFilterCondition(condition.id, { metric: event.target.value === "current_price" ? "current_price" : "trailing_return", lookbackObservations: event.target.value === "current_price" ? null : condition.lookbackObservations ?? 126 })}><option value="trailing_return">Trailing return</option><option value="current_price">Current close price</option></select></label>
+        {condition.metric === "trailing_return" && <label>Completed observations<input aria-label="Filter lookback" type="number" min={1} max={2000} value={condition.lookbackObservations ?? 126} onChange={(event) => changeFilterCondition(condition.id, { lookbackObservations: Number(event.target.value) })} /></label>}
+        <label>Comparison<select aria-label="Filter operator" value={condition.operator} onChange={(event) => changeFilterCondition(condition.id, { operator: event.target.value as BlockyFilterCondition["operator"] })}><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option><option value="eq">=</option><option value="neq">≠</option></select></label>
+        <label>{condition.metric === "trailing_return" ? "Percent" : "USD per share"}<input aria-label="Filter value" type="number" step="any" value={condition.value} onChange={(event) => changeFilterCondition(condition.id, { value: Number(event.target.value) })} /></label>
+        <button type="button" className="text-button" onClick={() => updateSelectedFilterSpec({ ...selectedFilterSpec, conditions: selectedFilterSpec.conditions.filter((item) => item.id !== condition.id) })}>Remove condition</button>
+      </fieldset>)}
+      <button type="button" className="secondary-button" disabled={selectedFilterSpec.conditions.length >= 12} onClick={() => updateSelectedFilterSpec(normalizeBlockyFilterSpec({ ...selectedFilterSpec, conditions: [...selectedFilterSpec.conditions, { id: `condition-${Date.now()}`, metric: "trailing_return", lookbackObservations: 126, operator: "gt", value: 0, unit: "percent" }] }))}>Add condition</button>
+      {blockyFilterSpecErrors(selectedFilterSpec).map((error) => <p className="form-error" key={error}>{error}</p>)}
+    </section>}
     {selectedOpenAssetSlot && <section className="entry-inspector-section" data-empty-object-slot={selectedOpenAssetSlot.name}><h3>Fill {selectedOpenAssetSlot.label} slot</h3><p>Select an existing typed object or create a new Group. Canceling Group creation preserves this block and slot.</p><div className="entry-block-actions">{libraryObjects.filter((object) => object.kind === "group" || object.kind === "subgroup").map((object) => <button type="button" className="secondary-button" key={object.id} onClick={() => nativeBlockyApi.current?.insertObjectReference(object, { parentId: selectedCanvasBlock.id, inputName: selectedOpenAssetSlot.name })}>{object.name}</button>)}<button type="button" className="secondary-button" onClick={() => startGroupDraft(undefined, { parentId: selectedCanvasBlock.id, inputName: selectedOpenAssetSlot.name })}>Create new Group</button></div></section>}
     <p className="value-capability-note">{selectedActiveGraph ? `Connected Start graph · ${selectedActiveGraph.capability.replaceAll("_", " ")}` : entryBlockDefinition(selectedCanvasBlock.definitionId)?.execution === "verified" ? "This block has verified runtime semantics when connected into a complete Start graph." : "This block is preserved in Working Draft and is not sent to execution."}</p>
     <label><input type="checkbox" checked={selectedCanvasBlock.active} onChange={(event) => updateLayoutDraft(setCanvasBlockActive(workingDraftRef.current, selectedCanvasBlock.id, event.target.checked))} /> Active graph root</label>

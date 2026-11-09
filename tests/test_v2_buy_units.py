@@ -9,6 +9,7 @@ from ruletrade.strategy.v2.daily_values import (
 )
 from ruletrade.strategy.v2.models import (
     BuyStatementV2,
+    CashTotalAmountV2,
     CandidateBinding,
     EventDefinitionV2,
     EventStatementV2,
@@ -142,3 +143,57 @@ def test_buy_cannot_reference_a_later_or_missing_selection() -> None:
     assert [item.code for item in validate_program_v2(program)] == [
         "unknown_selection_output"
     ]
+
+
+
+def test_group_cash_buy_splits_total_budget_and_floors_whole_shares() -> None:
+    buy = BuyStatementV2(
+        semantic_id="buy-growth-cash",
+        target=OrderTargetV2(semantic_id="growth-cash-target", kind="group", ref="growth"),
+        amount=CashTotalAmountV2(usd=Decimal("1000")),
+    )
+    program = SemanticProgramV2(
+        semantic_id="group-cash-accumulation",
+        clocks=(ProgramClockV2(id="daily-close", timeframe="daily"),),
+        statements=(
+            EventStatementV2(
+                semantic_id="daily-cash-entry",
+                event=EventDefinitionV2(
+                    semantic_id="daily-cash-event",
+                    clock_id="daily-close",
+                    trigger="scheduled",
+                ),
+                statements=(buy,),
+            ),
+        ),
+    )
+
+    assert validate_program_v2(program) == ()
+    result = execute_program_v2(program, snapshot(), cutoff_index=1)
+
+    assert [(item.symbol, item.quantity) for item in result.order_intents] == [
+        ("QQQ", Decimal("3")),
+        ("VGT", Decimal("3")),
+        ("SOXX", Decimal("3")),
+    ]
+    assert "cash_total=1000" in result.evidence[-1].detail
+    assert "unused=85" in result.evidence[-1].detail
+
+
+def test_cash_buy_reports_when_no_member_is_affordable() -> None:
+    buy = BuyStatementV2(
+        semantic_id="buy-small-cash",
+        target=OrderTargetV2(semantic_id="small-cash-target", kind="asset", ref="QQQ"),
+        amount=CashTotalAmountV2(usd=Decimal("50")),
+    )
+    program = SemanticProgramV2(
+        semantic_id="small-cash-accumulation",
+        clocks=(ProgramClockV2(id="daily-close", timeframe="daily"),),
+        statements=(buy,),
+    )
+
+    result = execute_program_v2(program, snapshot(), cutoff_index=1)
+
+    assert result.order_intents == ()
+    assert result.evidence[-1].outcome == "no_affordable_orders"
+    assert "zero_quantity=QQQ" in result.evidence[-1].detail

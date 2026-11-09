@@ -1370,15 +1370,95 @@ def generate_csharp(
             continue
         event_schedule = "quarterly" if isinstance(event, LeanQuarterlyEvent) else ("daily" if isinstance(event, LeanDailyEvent) else "monthly")
         lines.extend((f"    private void ExecuteEvent{event_index}(string eventIdentity)", "    {"))
-        for action_id in event.order_action_ids:
+        for action_index, action_id in enumerate(event.order_action_ids):
             action = order_actions[action_id]
-            for symbol in action.symbols:
+            if action.selection_id is not None:
+                selection = momentum_selections[action.selection_id]
+                scores_name = f"orderScores{event_index}_{action_index}"
+                ranked_name = f"orderRanked{event_index}_{action_index}"
+                chosen_name = f"orderChosen{event_index}_{action_index}"
+                symbols = ", ".join(_csharp_string(item) for item in selection.symbols)
+                ranking = _value_csharp(_ranking_value(selection), "ticker")
+                eligibility = (
+                    " && ".join(
+                        _eligibility_condition(selection, item)
+                        for item in selection.eligibility
+                    )
+                    if selection.eligibility else "true"
+                )
+                order = _ranking_method(selection)
                 lines.extend((
-                    f"        MarketOrder(_symbols[{_csharp_string(symbol)}], {action.quantity});",
-                    '        EmitDecisionEvidence(eventIdentity, "order_intent", "buy_units_each",',
-                    f'            "action_component", {_csharp_string(action.id)}, "asset", {_csharp_string(symbol)}, "quantity", {_csharp_string(str(action.quantity))},',
-                    f'            "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                    f"        var {scores_name} = new Dictionary<string, decimal>(StringComparer.Ordinal);",
+                    f"        foreach (var ticker in new[] {{ {symbols} }})",
+                    "        {",
+                    f"            var observed = {ranking};",
+                    f"            if (observed.HasValue) {scores_name}[ticker] = observed.Value;",
+                    "        }",
+                    f"        var {ranked_name} = {scores_name}.Where(item => {eligibility}).{order}(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal).ToList();",
+                    f"        var {chosen_name} = {ranked_name}.Take({selection.count}).Select(item => item.Key).ToList();",
                 ))
+                if selection.shortage_policy == "require_full":
+                    lines.append(
+                        f"        if ({chosen_name}.Count < {selection.count}) {chosen_name}.Clear();"
+                    )
+                lines.extend((
+                    '        EmitDecisionEvidence(eventIdentity, "selection", "selection",',
+                    f'            "selection_component", {_csharp_string(selection.selection_component_id)}, "ranked", string.Join(",", {ranked_name}.Select(item => item.Key)),',
+                    f'            "selected", string.Join(",", {chosen_name}), "required_count", "{selection.count}", "shortage_policy", {_csharp_string(selection.shortage_policy)});',
+                    f"        foreach (var ticker in {chosen_name})",
+                    "        {",
+                ))
+                if action.quantity is not None:
+                    lines.extend((
+                        f"            MarketOrder(_symbols[ticker], {action.quantity});",
+                        '            EmitDecisionEvidence(eventIdentity, "order_intent", "buy_units_each",',
+                        f'                "action_component", {_csharp_string(action.id)}, "asset", ticker, "quantity", {_csharp_string(str(action.quantity))},',
+                        f'                "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                    ))
+                else:
+                    budget_name = f"selectionCashBudget{event_index}_{action_index}"
+                    price_name = f"selectionCashPrice{event_index}_{action_index}"
+                    quantity_name = f"selectionCashQuantity{event_index}_{action_index}"
+                    lines.extend((
+                        f"            var {budget_name} = {format(action.cash_total, 'f')}m / Math.Max(1, {chosen_name}.Count);",
+                        f"            var {price_name} = Securities[_symbols[ticker]].Price;",
+                        f"            var {quantity_name} = {price_name} > 0m ? (int)Math.Floor({budget_name} / {price_name}) : 0;",
+                        f"            if ({quantity_name} > 0)",
+                        "            {",
+                        f"                MarketOrder(_symbols[ticker], {quantity_name});",
+                        '                EmitDecisionEvidence(eventIdentity, "order_intent", "buy_cash_total",',
+                        f'                    "action_component", {_csharp_string(action.id)}, "asset", ticker, "quantity", {quantity_name}.ToString(CultureInfo.InvariantCulture),',
+                        f'                    "member_budget", {budget_name}.ToString("G29", CultureInfo.InvariantCulture), "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                        "            }",
+                    ))
+                lines.append("        }")
+                continue
+
+            for symbol_index, symbol in enumerate(action.symbols):
+                if action.quantity is not None:
+                    lines.extend((
+                        f"        MarketOrder(_symbols[{_csharp_string(symbol)}], {action.quantity});",
+                        '        EmitDecisionEvidence(eventIdentity, "order_intent", "buy_units_each",',
+                        f'            "action_component", {_csharp_string(action.id)}, "asset", {_csharp_string(symbol)}, "quantity", {_csharp_string(str(action.quantity))},',
+                        f'            "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                    ))
+                else:
+                    budget_name = f"cashBudget{event_index}_{action_index}_{symbol_index}"
+                    price_name = f"cashPrice{event_index}_{action_index}_{symbol_index}"
+                    quantity_name = f"cashQuantity{event_index}_{action_index}_{symbol_index}"
+                    budget = action.cash_total / Decimal(len(action.symbols))
+                    lines.extend((
+                        f"        var {budget_name} = {format(budget, 'f')}m;",
+                        f"        var {price_name} = Securities[_symbols[{_csharp_string(symbol)}]].Price;",
+                        f"        var {quantity_name} = {price_name} > 0m ? (int)Math.Floor({budget_name} / {price_name}) : 0;",
+                        f"        if ({quantity_name} > 0)",
+                        "        {",
+                        f"            MarketOrder(_symbols[{_csharp_string(symbol)}], {quantity_name});",
+                        '            EmitDecisionEvidence(eventIdentity, "order_intent", "buy_cash_total",',
+                        f'                "action_component", {_csharp_string(action.id)}, "asset", {_csharp_string(symbol)}, "quantity", {quantity_name}.ToString(CultureInfo.InvariantCulture),',
+                        f'                "member_budget", {budget_name}.ToString("G29", CultureInfo.InvariantCulture), "schedule_component", {_csharp_string(event.id)}, "schedule", {_csharp_string(event_schedule)});',
+                        "        }",
+                    ))
         for rebalance_index, rebalance_id in enumerate(event.rebalance_ids):
             rebalance = rebalances[rebalance_id]
             predicate_outcome: str | None = None

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileActiveVisualGraph, validateActiveVisualGraphs } from "./activeVisualGraph";
 import type { CanonicalStrategyV2 } from "./canonicalV2";
-import { addCanvasBlock, emptyProgramWorkingDraft, withBlockMove } from "./programWorkingDraft";
+import { addCanvasBlock, emptyProgramWorkingDraft, withBlockMove, type ProgramCanvasBlock } from "./programWorkingDraft";
 
 const block = (id: string, definitionId: string) => ({ id, definitionId, label: definitionId, createdAt: "2026-10-18T00:00:00Z", active: false });
 
@@ -173,6 +173,115 @@ describe("active visual graph translation boundary", () => {
     };
     expect(compile(0)).toMatchObject({ status: "unsupported", operation: null });
     expect(compile(1.5)).toMatchObject({ status: "unsupported", operation: null });
+  });
+
+
+  it("compiles a Group Buy with one fixed USD budget", () => {
+    let draft = emptyProgramWorkingDraft("group-cash-buy");
+    draft = addCanvasBlock(draft, block("draft:start-cash", "start-monthly"), { x: 0, y: 0 });
+    draft = addCanvasBlock(draft, block("draft:buy-cash", "invest"), { x: 0, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:cash-group", "group-reference"), objectRef: "group-1" }, { x: 120, y: 80 });
+    draft = addCanvasBlock(draft, { ...block("draft:cash", "money"), fieldValues: { VALUE: 100 } }, { x: 240, y: 80 });
+    draft = withBlockMove(draft, "draft:buy-cash", { x: 0, y: 80 }, { childId: "draft:buy-cash", parentId: "draft:start-cash", inputName: "NEXT" });
+    draft = withBlockMove(draft, "draft:cash-group", { x: 120, y: 80 }, { childId: "draft:cash-group", parentId: "draft:buy-cash", inputName: "TARGET" });
+    draft = withBlockMove(draft, "draft:cash", { x: 240, y: 80 }, { childId: "draft:cash", parentId: "draft:buy-cash", inputName: "AMOUNT" });
+
+    expect(compileActiveVisualGraph(draft, canonicalWithGroup("monthly"))).toMatchObject({
+      status: "ready",
+      operation: {
+        kind: "insert_program_statement",
+        statement: {
+          kind: "on_event",
+          event: { clock_id: "monthly-close", trigger: "scheduled" },
+          statements: [{
+            kind: "buy",
+            target: { kind: "group", ref: "group-1" },
+            amount: { kind: "cash_total", usd: 100 },
+          }],
+        },
+      },
+    });
+  });
+
+  it("composes Filter then Choose then Buy units as membership, ranking, and execution statements", () => {
+    let draft = emptyProgramWorkingDraft("filter-choose-buy");
+    const filterSpec = JSON.stringify({
+      version: 1, combination: "all", missingPolicy: "exclude",
+      conditions: [{ id: "positive-126", metric: "trailing_return", lookbackObservations: 126, operator: "gt", value: 0, unit: "percent" }],
+    });
+    const blocks: ProgramCanvasBlock[] = [
+      block("draft:start-pipeline", "start-daily"),
+      block("draft:buy-pipeline", "invest"),
+      { ...block("draft:choose", "top-n-assets"), fieldValues: { SHORTAGE: "CHOOSE_ALL" } },
+      { ...block("draft:filter", "filter-assets"), fieldValues: { FILTER_SPEC: filterSpec } },
+      { ...block("draft:source", "group-reference"), objectRef: "group-1" },
+      block("draft:score", "candidate-return"),
+      { ...block("draft:lookback", "trading-days"), fieldValues: { VALUE: 63 } },
+      { ...block("draft:count", "number"), fieldValues: { VALUE: 1 } },
+      { ...block("draft:amount", "units-each"), fieldValues: { VALUE: 1 } },
+    ];
+    blocks.forEach((item, index) => { draft = addCanvasBlock(draft, item, { x: index * 30, y: index * 40 }); });
+    const connect = (childId: string, parentId: string, inputName: string) => {
+      draft = withBlockMove(draft, childId, draft.blockPositions[childId]!, { childId, parentId, inputName });
+    };
+    connect("draft:buy-pipeline", "draft:start-pipeline", "NEXT");
+    connect("draft:choose", "draft:buy-pipeline", "TARGET");
+    connect("draft:amount", "draft:buy-pipeline", "AMOUNT");
+    connect("draft:filter", "draft:choose", "ASSETS");
+    connect("draft:score", "draft:choose", "SCORE");
+    connect("draft:count", "draft:choose", "COUNT");
+    connect("draft:source", "draft:filter", "ASSETS");
+    connect("draft:lookback", "draft:score", "DURATION");
+
+    const compiled = compileActiveVisualGraph(draft, canonicalWithGroup());
+    expect(compiled).toMatchObject({
+      status: "ready",
+      operation: {
+        kind: "insert_program_statement",
+        statement: {
+          kind: "on_event",
+          statements: [
+            {
+              kind: "select",
+              selection: {
+                universe_id: "group-1",
+                eligibility: { kind: "comparison", operator: "gt", right: { value: 0, unit: "ratio" } },
+                ranking: { kind: "trailing_return", observations: 63 },
+                count: 1,
+                shortage_policy: "choose_all",
+              },
+            },
+            { kind: "buy", target: { kind: "selection" }, amount: { kind: "units_each", units: 1 } },
+          ],
+        },
+      },
+    });
+    expect(draft.canvasBlocks["draft:filter"]?.fieldValues?.FILTER_SPEC).toBe(filterSpec);
+  });
+
+  it("keeps Filter useful without Choose and applies one total USD budget to its Subgroup", () => {
+    let draft = emptyProgramWorkingDraft("filter-cash-buy");
+    const blocks: ProgramCanvasBlock[] = [
+      block("draft:start-filter", "start-monthly"),
+      block("draft:buy-filter", "invest"),
+      { ...block("draft:filter-only", "filter-assets"), fieldValues: { FILTER_SPEC: JSON.stringify({ version: 1, combination: "any", missingPolicy: "exclude", conditions: [{ id: "price", metric: "current_price", operator: "lte", value: 500, unit: "usd_per_share", lookbackObservations: null }] }) } },
+      { ...block("draft:filter-source", "group-reference"), objectRef: "group-1" },
+      { ...block("draft:cash-filter", "money"), fieldValues: { VALUE: 100 } },
+    ];
+    blocks.forEach((item, index) => { draft = addCanvasBlock(draft, item, { x: index * 40, y: index * 50 }); });
+    const connect = (childId: string, parentId: string, inputName: string) => { draft = withBlockMove(draft, childId, draft.blockPositions[childId]!, { childId, parentId, inputName }); };
+    connect("draft:buy-filter", "draft:start-filter", "NEXT");
+    connect("draft:filter-only", "draft:buy-filter", "TARGET");
+    connect("draft:cash-filter", "draft:buy-filter", "AMOUNT");
+    connect("draft:filter-source", "draft:filter-only", "ASSETS");
+
+    expect(compileActiveVisualGraph(draft, canonicalWithGroup("monthly"))).toMatchObject({
+      status: "ready",
+      operation: { statement: { statements: [
+        { kind: "select", selection: { eligibility: { kind: "comparison", operator: "lte", right: { value: 500, unit: "usd_per_share" } }, count: 2 } },
+        { kind: "buy", amount: { kind: "cash_total", usd: 100 } },
+      ] } },
+    });
   });
 
 });

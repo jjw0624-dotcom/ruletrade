@@ -60,7 +60,9 @@ export function describeConditionV2(condition: ConditionV2): string {
 export function describeProgramStatement(statement: ProgramStatementV2): string {
   if (statement.kind === "select") return `Choose ${statement.selection.count} assets`;
   if (statement.kind === "allocate") return statement.method === "equal" ? "Allocate equally" : `Allocate · ${statement.method.replace("_", " ")}`;
-  if (statement.kind === "buy") return `Buy ${statement.amount.units} unit${statement.amount.units === 1 ? "" : "s"} each · ${statement.target.ref}`;
+  if (statement.kind === "buy") return statement.amount.kind === "units_each"
+    ? `Buy ${statement.amount.units} unit${statement.amount.units === 1 ? "" : "s"} each · ${statement.target.ref}`
+    : `Buy ${statement.amount.usd} total · ${statement.target.ref}`;
   if (statement.kind === "control") return `IF ${describeConditionV2(statement.condition)}`;
   if (statement.kind === "on_event") return statement.event.trigger === "scheduled" ? "When the schedule occurs" : `When ${statement.event.trigger.replaceAll("_", " ")}`;
   if (statement.kind === "transition") return `Change ${statement.transition.state_key} from ${statement.transition.from_value ?? "any state"} to ${statement.transition.to_value}`;

@@ -12,12 +12,12 @@ describe("Entry-style visual grammar", () => {
     const invest = entryBlockDefinition("invest")!;
     expect(invest.slots).toEqual([
       { name: "TARGET", label: "target", accepts: ["Asset", "Group", "Subgroup"] },
-      { name: "AMOUNT", label: "amount", accepts: ["UnitsEach"] },
+      { name: "AMOUNT", label: "amount", accepts: ["UnitsEach", "Money"] },
     ]);
     expect(validEntryBlockConnection("invest", "TARGET", "asset-reference")).toBe(true);
     expect(validEntryBlockConnection("invest", "TARGET", "number")).toBe(false);
     expect(validEntryBlockConnection("invest", "AMOUNT", "units-each")).toBe(true);
-    expect(validEntryBlockConnection("invest", "AMOUNT", "money")).toBe(false);
+    expect(validEntryBlockConnection("invest", "AMOUNT", "money")).toBe(true);
     expect(validEntryBlockConnection("if-otherwise", "CONDITION", "compare-gt")).toBe(true);
     expect(validEntryBlockConnection("if-otherwise", "CONDITION", "asset-reference")).toBe(false);
   });
@@ -26,8 +26,8 @@ describe("Entry-style visual grammar", () => {
     for (const id of ["repeat-while", "wait", "random-value", "send-signal", "create-function", "import-function" , "random-select-assets", "random-filter-assets"]) {
       expect(entryBlockDefinition(id)?.execution).toBe("draft_only");
     }
-    expect(entryBlockDefinition("filter-assets")?.execution).toBe("needs_context");
-    expect(entryBlockDefinition("top-n-assets")?.execution).toBe("needs_context");
+    expect(entryBlockDefinition("filter-assets")?.execution).toBe("verified");
+    expect(entryBlockDefinition("top-n-assets")?.execution).toBe("verified");
     expect(entryBlockDefinition("trailing-return")?.execution).toBe("verified");
   });
 

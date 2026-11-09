@@ -752,7 +752,7 @@ def _program_comparisons(condition: ConditionV2) -> tuple[LeanComparison, ...]:
 
 
 def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
-    """Lower the first additive order-sized Blocky profile without weight coercion."""
+    """Lower scheduled Filter/Choose/Buy graphs without weight coercion."""
     if strategy.program is None:
         return None
     top_level = tuple(
@@ -776,30 +776,81 @@ def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         or event.ordinal is not None
     ):
         raise V2LoweringError("order-sized Buy currently requires an unconditional scheduled Start")
-    if not event_statement.statements or any(
-        not isinstance(item, BuyStatementV2) for item in event_statement.statements
+
+    children = event_statement.statements
+    if not children or any(
+        not isinstance(item, (SelectionStatementV2, BuyStatementV2))
+        for item in children
     ):
-        raise V2LoweringError("scheduled order profile currently supports Buy statements only")
+        raise V2LoweringError("scheduled order profile supports Selection and Buy statements only")
+    selection_statements = tuple(
+        item for item in children if isinstance(item, SelectionStatementV2)
+    )
+    buy_statements = tuple(item for item in children if isinstance(item, BuyStatementV2))
+    if not buy_statements:
+        raise V2LoweringError("scheduled order profile requires at least one Buy")
+    selection_by_output = {item.output_id: item for item in selection_statements}
+    if len(selection_by_output) != len(selection_statements):
+        raise V2LoweringError("Program Selection outputs must be unique")
 
     groups = {item.id: item for item in strategy.definitions.groups}
     asset_sets = {item.id: tuple(item.assets) for item in strategy.definitions.asset_sets}
+    selections: list[LeanMomentumSelection] = []
+    selection_symbols: dict[str, tuple[str, ...]] = {}
+    for statement in selection_statements:
+        selection = statement.selection
+        group = groups.get(selection.universe_id)
+        universe = asset_sets.get(group.asset_set_ref, ()) if group is not None else ()
+        if not universe:
+            raise V2LoweringError(
+                f"Selection {statement.semantic_id!r} requires a non-empty reusable Group"
+            )
+        ranking = _program_value(selection.ranking)
+        eligibility = (
+            _program_comparisons(selection.eligibility)
+            if selection.eligibility is not None else ()
+        )
+        selections.append(LeanMomentumSelection(
+            id=statement.semantic_id,
+            score_component_id=selection.ranking.semantic_id,
+            rank_component_id=f"{statement.semantic_id}-rank",
+            selection_component_id=statement.semantic_id,
+            symbols=universe,
+            lookback_bars=max(1, _lean_value_observations(ranking) - 1),
+            count=selection.count,
+            direction=selection.direction,
+            shortage_policy=selection.shortage_policy,
+            ranking_value=ranking,
+            eligibility=eligibility,
+        ))
+        selection_symbols[statement.output_id] = universe
+
     actions: list[LeanOrderAction] = []
     symbols: set[str] = set()
-    for statement in event_statement.statements:
+    for statement in buy_statements:
         target = statement.target
+        selection_id: str | None = None
         if target.kind == "asset":
             local_symbols = (target.ref,)
         elif target.kind == "group":
             group = groups.get(target.ref)
             local_symbols = asset_sets.get(group.asset_set_ref, ()) if group is not None else ()
         else:
-            raise V2LoweringError("Selection Buy lowering follows the Filter/Choose compiler slice")
+            selection_statement = selection_by_output.get(target.ref)
+            local_symbols = selection_symbols.get(target.ref, ())
+            selection_id = (
+                selection_statement.semantic_id if selection_statement is not None else None
+            )
         if not local_symbols:
             raise V2LoweringError(f"Buy target {target.ref!r} has no assets")
+        if target.kind == "selection" and selection_id is None:
+            raise V2LoweringError(f"Buy references unknown Selection output {target.ref!r}")
         actions.append(LeanOrderAction(
             id=statement.semantic_id,
             symbols=tuple(local_symbols),
-            quantity=statement.amount.units,
+            selection_id=selection_id,
+            quantity=statement.amount.units if statement.amount.kind == "units_each" else None,
+            cash_total=statement.amount.usd if statement.amount.kind == "cash_total" else None,
         ))
         symbols.update(local_symbols)
 
@@ -822,6 +873,7 @@ def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         strategy_identity=semantic_content_hash(strategy.model_dump(mode="json")),
         subscriptions=tuple(LeanSubscription(symbol=item) for item in sorted(symbols)),
         random_selections=(),
+        momentum_selections=tuple(selections),
         target_sleeves=(),
         rebalances=(),
         monthly_events=(LeanMonthlyEvent(day=1, boundary="end", **event_kwargs),)
@@ -829,7 +881,6 @@ def _compile_buy_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
         daily_events=(LeanDailyEvent(**event_kwargs),) if clock.timeframe == "daily" else (),
         order_actions=tuple(actions),
     ))
-
 
 def _compile_static_program(strategy: CanonicalStrategyV2) -> LeanPlan | None:
     """Compile allocation-driven, non-temporal Program semantics to the shared plan.
