@@ -274,7 +274,7 @@ try {
   await waitSelector('select[aria-label="Single asset rule schedule"]');
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
-  await evaluate(`document.querySelector('[aria-label="Close Inspector"]').click()`);
+  await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click()`);
   await sleep(300);
   await clickText("Guide"); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules edit preserved in Guide");
   await clickText("Flow"); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Flow");
