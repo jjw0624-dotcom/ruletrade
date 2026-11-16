@@ -274,7 +274,7 @@ try {
   await waitSelector('select[aria-label="Single asset rule schedule"]');
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
-  await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click()`);
+  await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click(); [...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Discard draft')?.click()`);
   await waitExpression(`Boolean([...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.trim()==='Save').at(-1)&&![...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.trim()==='Save').at(-1).disabled)`, "savable Rules edit");
   await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.trim()==='Save').at(-1)?.click()`);
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit saved revision");
