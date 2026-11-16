@@ -269,12 +269,31 @@ try {
   await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
   await clickText("Guide"); await waitExpression(`document.body.innerText.includes('monthly close')&&document.body.innerText.includes('QQQ')`, "reopened Guide meaning");
   await clickText("Rules"); await waitExpression(`document.querySelector('[data-projection-contract="rules"]')?.innerText.includes('QQQ')`, "reopened Rules meaning");
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable UI-authored Test");
+  await evaluate(`document.querySelector('button[data-semantic-address="single-asset-allocation"]').click()`);
+  await waitSelector('select[aria-label="Single asset rule schedule"]');
+  await setControlValue("Single asset rule schedule", "daily");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
+  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules edit preserved in Guide");
+  await clickText("Flow"); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Flow");
+  await clickText("Blocky"); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Blocky");
+  await clickText("Code"); await waitExpression(`document.querySelector('[data-projection-contract="code"]')?.innerText.includes('"timeframe": "daily"')`, "Rules edit preserved in Code");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable Rules-edited Test");
   await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
-  await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
+  await clickText("Run Quick Test");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit auto-saved before Test");
+  await waitSelector('.quick-test-dashboard .result-workspace');
+  await waitSelector('[data-decision-id="decision-ui-authored"]');
+  await evaluate(`document.querySelector('[data-decision-id="decision-ui-authored"]').click()`);
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/backtest-runs/run-ui-authored/decision-events/decision-ui-authored')`, "Rules-edited V2 decision detail request");
+  await waitExpression(`document.body.innerText.includes('QQQ 100%')`, "Rules-edited V2 decision detail");
   const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],dashboard:Boolean(document.querySelector('.quick-test-dashboard .result-workspace'))})`);
-  if (!authoredJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-ui-authored-2/backtest-runs'&&item.method==='POST') || !authoredJourney.dashboard) throw new Error(`UI-authored execution equivalence failed: ${JSON.stringify(authoredJourney)}`);
-  await screenshot("ui-authored-monthly-qqq-executed");
+  const editedSaveIndex = authoredJourney.requests.findIndex((item)=>item.url==='/api/v1/strategies/strategy-ui-authored/revisions'&&item.method==='POST'&&authoredJourney.requests.indexOf(item)>autoSaveIndex);
+  const editedRunIndex = authoredJourney.requests.findIndex((item)=>item.url==='/api/v2/revisions/revision-ui-authored-3/backtest-runs'&&item.method==='POST');
+  if (JSON.stringify(authoredJourney.state.rulesAppliedCanonical) !== JSON.stringify(authoredJourney.state.savedCanonical) || editedSaveIndex < 0 || editedRunIndex <= editedSaveIndex || !authoredJourney.dashboard || !authoredJourney.requests.some((item)=>item.url==='/api/v2/backtest-runs/run-ui-authored/decision-events')) throw new Error(`UI-authored Rules roundtrip failed: ${JSON.stringify(authoredJourney)}`);
+  await screenshot("ui-authored-rules-daily-qqq-evidence");
+  await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
+  await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
+  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules-edited meaning after second reopen");
 
   const advancedJourneys = [
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
