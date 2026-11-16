@@ -43,3 +43,27 @@ def test_guide_authored_monthly_qqq_matches_execution_fixture() -> None:
     source_code = generate_csharp(plan)
     assert 'SetHoldings(target.Key, target.Value)' in source_code
     assert '"final_targets"' in source_code
+
+    rules_edit = fixture["rules_edit"]
+    rules_operation = TypeAdapter(V2AuthoringOperation).validate_python(rules_edit["operation"])
+    rules_authored = apply_v2_authoring(ApplyV2AuthoringRequest(
+        strategy=authored,
+        expected_source_hash=strategy_hash(authored),
+        operation=rules_operation,
+    )).strategy
+    rules_expected = CanonicalStrategyV2.model_validate(rules_edit["expected_canonical"])
+
+    assert rules_authored == rules_expected
+    assert rules_authored.definitions == authored.definitions
+    assert rules_authored.program.statements[0].semantic_id == authored.program.statements[0].semantic_id
+    assert rules_authored.program.clocks[0].timeframe == "daily"
+    assert validate_strategy_v2(rules_authored) == ()
+
+    rules_capability = assess_v2_execution_capability(rules_authored)
+    for field, value in expected_capability.items():
+        assert getattr(rules_capability, field) == value
+
+    rules_plan = compile_v2_strategy_to_lean_plan(rules_authored)
+    assert [subscription.symbol for subscription in rules_plan.subscriptions] == ["QQQ"]
+    assert len(rules_plan.daily_events) == 1
+    assert rules_plan.target_sleeves[0].symbols == ("QQQ",)
