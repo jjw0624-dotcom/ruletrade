@@ -2,6 +2,10 @@
 
 **Status: AUTHORITATIVE.** This directory is the entry point for multi-perspective Builder development.
 
+The current delivery order, representative strategies, required evidence, WSL
+acceptance, and exact-head CI merge gate are defined by the
+[V2 Builder completion baseline](../v2-builder-completion-baseline.md).
+
 When documents conflict, apply this order:
 
 1. machine-readable contracts in this directory;
