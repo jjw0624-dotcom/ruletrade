@@ -9,6 +9,11 @@ govern all multi-perspective Builder changes.
 implemented repository. Update it when system ownership or end-to-end behavior
 changes. Historical slice documents do not override it.
 
+`CanonicalStrategyV2` is the current product authority. V1 is a legacy
+compatibility path and is not a target for new Builder capability. The active
+completion order and evidence gate are defined by the
+[V2 Builder completion baseline](v2-builder-completion-baseline.md).
+
 The composable authoring boundary is described in
 [composable-authoring-contract-v1.md](composable-authoring-contract-v1.md).
 The headless user-semantic vocabulary, aggregate provenance, distinct Flow and
@@ -46,7 +51,7 @@ never reconstruct or become the authored Strategy.
 
 | Concept | Authority | Persisted? | Derived/non-authoritative counterparts |
 | --- | --- | --- | --- |
-| Strategy semantics | `CanonicalStrategyV1` | In immutable Revision | Summary, Guide, Flow, IR, C#, xyflow nodes |
+| Strategy semantics | `CanonicalStrategyV2` | In immutable Revision | Summary, Guide, Flow, IR, C#, xyflow nodes |
 | Primitive vocabulary | Primitive Registry | Code-defined and serialized through schema/bootstrap | Inspector controls and labels |
 | Source validity | Canonical validator using Registry and semantic checks | No | Frontend advisory validation |
 | Supported Strategy edits | Backend authoring capabilities/apply service | Only after Save | Buttons, forms, and contextual actions |
@@ -65,7 +70,7 @@ never reconstruct or become the authored Strategy.
 
 ## Strategy model and compiler
 
-`CanonicalStrategyV1` combines named definitions, stable component identities,
+`CanonicalStrategyV2` combines named definitions, stable component identities,
 typed components and connections, entrypoints, and deterministic randomness.
 The Primitive Registry describes ports, fields, definition references,
 authoring metadata, and compiler implementation identities. Compiler algorithms
