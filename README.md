@@ -24,7 +24,8 @@ Discover an idea
 
 ## The current system
 
-- `CanonicalStrategyV1` is the sole authored and persisted Strategy truth.
+- `CanonicalStrategyV2` is the sole current authored and persisted Strategy truth.
+  V1 remains only as a legacy compatibility path during migration.
 - Summary, Guide, and Flow are synchronized representations inside one shared
   Strategy Builder; they do not own separate Strategy documents.
 - Flow uses xyflow for canvas mechanics. Nodes, edges, selection, and visual
@@ -52,15 +53,21 @@ lifecycle, invariants, and their executable test map.
 
 ## MVP scope
 
-The current Builder supports the backend-owned starting structures and the
-implemented constrained semantic edits and valid-shape transformations. It is
-not an arbitrary graph editor.
+The current Builder supports a constrained V2 semantic language through
+perspective-specific Guide, Flow, Blocky, and Rules authoring. Summary and Code
+remain read-oriented. A capability is advertised only when its production
+gesture, typed V2 operation, validation, reprojection, persistence, and claimed
+execution evidence are connected. The Builder is not an arbitrary graph editor.
 
-Explicitly deferred work includes arbitrary wiring, generic Group CRUD,
-unrestricted nested groups or AND/OR construction, Blocky, Rules, editable
-Code, AI authoring, optimization, robustness, Holdout, Forward testing,
-production Replay, broker execution, authentication/multi-user support, and
-Community features.
+The active delivery sequence is the
+[V2 Builder completion baseline](docs/v2-builder-completion-baseline.md). It
+closes representative multi-perspective round trips before adding more grammar.
+
+Explicitly deferred work includes arbitrary wiring, generic unrestricted Group
+CRUD, unrestricted nested boolean construction, editable arbitrary Code,
+embedded AI authoring, optimization, robustness, Hidden/Holdout evaluation,
+Forward testing, production Replay, broker execution, authentication/multi-user
+support, Learning, Competition, and Community features.
 
 ## Development quick start
 
@@ -112,6 +119,7 @@ Revisions, LEAN, BacktestRuns, and Decision Evidence as described above.
 ## Current reference documents
 
 - [Living system architecture](docs/architecture.md)
+- [V2 Builder completion baseline](docs/v2-builder-completion-baseline.md)
 - [Builder architecture constitution](docs/builder/README.md)
 - [Development and validation](docs/development.md)
 - [Canonical Strategy v1](docs/canonical-v1.md)
