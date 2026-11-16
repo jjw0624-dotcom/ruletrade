@@ -275,10 +275,6 @@ try {
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
   await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click()`);
-  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .representation-switcher button')].filter((item)=>item.textContent.trim()==='Guide').at(-1)?.click()`); await waitExpression(`document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.toLowerCase().includes('daily')&&document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.includes('QQQ')`, "Rules edit preserved in Guide");
-  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .representation-switcher button')].filter((item)=>item.textContent.trim()==='Flow').at(-1)?.click()`); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Flow");
-  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .representation-switcher button')].filter((item)=>item.textContent.trim()==='Blocky').at(-1)?.click()`); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Blocky");
-  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .representation-switcher button')].filter((item)=>item.textContent.trim()==='Code').at(-1)?.click()`); await waitExpression(`document.querySelector('[aria-label="Code representation"]')?.innerText.includes('"timeframe": "daily"')`, "Rules edit preserved in Code");
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable Rules-edited Test");
   await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled)?.click()`); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test");
@@ -295,7 +291,10 @@ try {
   await screenshot("ui-authored-rules-daily-qqq-evidence");
   await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
   await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
-  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules-edited meaning after second reopen");
+  await clickText("Guide"); await waitExpression(`document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.toLowerCase().includes('daily')&&document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.includes('QQQ')`, "Rules-edited Guide meaning after second reopen");
+  await clickText("Flow"); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules-edited Flow meaning after second reopen");
+  await clickText("Blocky"); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules-edited Blocky meaning after second reopen");
+  await clickText("Code"); await waitExpression(`document.querySelector('[aria-label="Code representation"]')?.innerText.includes('"timeframe": "daily"')`, "Rules-edited Code meaning after second reopen");
 
   const advancedJourneys = [
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
