@@ -275,13 +275,12 @@ try {
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
   await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click()`);
-  await sleep(300);
-  await clickText("Guide"); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules edit preserved in Guide");
-  await clickText("Flow"); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Flow");
-  await clickText("Blocky"); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Blocky");
-  await clickText("Code"); await waitExpression(`document.querySelector('[aria-label="Code representation"]')?.innerText.includes('"timeframe": "daily"')`, "Rules edit preserved in Code");
+  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Guide')?.click()`); await waitExpression(`document.body.innerText.includes('daily close')&&document.body.innerText.includes('QQQ')`, "Rules edit preserved in Guide");
+  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Flow')?.click()`); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Flow");
+  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Blocky')?.click()`); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules edit preserved in Blocky");
+  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Code')?.click()`); await waitExpression(`document.querySelector('[aria-label="Code representation"]')?.innerText.includes('"timeframe": "daily"')`, "Rules edit preserved in Code");
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable Rules-edited Test");
-  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled)?.click()`); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit auto-saved before Test");
   await waitSelector('.quick-test-dashboard .result-workspace');
