@@ -245,7 +245,8 @@ try {
   await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
   await setControlValue("Manual asset symbol", "QQQ");
-  await clickText("Add symbol"); await sleep(200);
+  await clickText("Add symbol");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Use selected assets'&&!item.disabled))`, "selected QQQ asset");
   await scrollButtonIntoView("Use selected assets"); await sleep(100);
   await clickText("Use selected assets"); await sleep(200);
   await setControlValue("Intent timing", "monthly");
