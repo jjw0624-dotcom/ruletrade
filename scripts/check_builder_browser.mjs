@@ -275,8 +275,8 @@ try {
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
   await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click()`);
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable Rules-edited Test");
-  await evaluate(`[...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled)?.click()`); await waitSelector('.quick-test-panel');
+  await waitExpression(`Boolean([...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1)&&![...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1).disabled)`, "executable Rules-edited Test");
+  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1)?.click()`); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit auto-saved before Test");
   await waitSelector('.quick-test-dashboard .result-workspace');
