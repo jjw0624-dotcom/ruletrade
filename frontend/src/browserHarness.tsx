@@ -40,17 +40,27 @@ window.fetch = async (input, init) => {
       state.__RULETRADE_ADVANCED_EQUIVALENCE__ = { ...(state.__RULETRADE_ADVANCED_EQUIVALENCE__ ?? {}), caseId: advancedCase.id, operation: request.operation, appliedCanonical: advancedCase.expected_canonical };
       return new Response(JSON.stringify({ strategy: advancedCase.expected_canonical, source_hash: `sha256:${advancedCase.id}` }), { headers: { "content-type": "application/json" } });
     }
-    if (JSON.stringify(request.operation) !== JSON.stringify(uiEquivalenceCase.operation)) return new Response(JSON.stringify({ detail: { code: "unexpected_operation", message: "The browser gesture produced a different operation." } }), { status: 422, headers: { "content-type": "application/json" } });
+    const initialCommit = stableJson(request.operation) === stableJson(uiEquivalenceCase.operation);
+    const rulesEdit = stableJson(request.operation) === stableJson(uiRulesEditOperation);
+    if (!initialCommit && !rulesEdit) return new Response(JSON.stringify({ detail: { code: "unexpected_operation", message: "The browser gesture produced a different operation." } }), { status: 422, headers: { "content-type": "application/json" } });
     const state = window as typeof window & { __RULETRADE_UI_EQUIVALENCE__?: Record<string, unknown> };
-    state.__RULETRADE_UI_EQUIVALENCE__ = { ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}), operation: request.operation, appliedCanonical: uiExpectedCanonical };
-    return new Response(JSON.stringify({ strategy: uiExpectedCanonical, source_hash: "sha256:ui-authored" }), { headers: { "content-type": "application/json" } });
+    const appliedCanonical = rulesEdit ? uiRulesEditedCanonical : uiExpectedCanonical;
+    state.__RULETRADE_UI_EQUIVALENCE__ = {
+      ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}),
+      ...(rulesEdit ? { rulesOperation: request.operation, rulesAppliedCanonical: appliedCanonical } : { operation: request.operation, appliedCanonical }),
+    };
+    return new Response(JSON.stringify({ strategy: appliedCanonical, source_hash: rulesEdit ? "sha256:ui-rules-edited" : "sha256:ui-authored" }), { headers: { "content-type": "application/json" } });
   }
   if (url === "/api/v1/strategies/strategy-ui-authored/revisions" && init?.method === "POST") {
     const request = JSON.parse(String(init.body ?? "{}")) as { canonical_strategy?: CanonicalStrategyV2 };
-    if (JSON.stringify(request.canonical_strategy) !== JSON.stringify(uiExpectedCanonical)) return new Response(JSON.stringify({ detail: { code: "canonical_mismatch", message: "Saved Canonical differs from the UI equivalence fixture." } }), { status: 422, headers: { "content-type": "application/json" } });
-    uiSavedDetail = uiPersistedDetail("revision-ui-authored-2", uiExpectedCanonical, "sha256:ui-authored");
+    const isInitial = stableJson(request.canonical_strategy) === stableJson(uiExpectedCanonical);
+    const isRulesEdited = stableJson(request.canonical_strategy) === stableJson(uiRulesEditedCanonical);
+    if (!isInitial && !isRulesEdited) return new Response(JSON.stringify({ detail: { code: "canonical_mismatch", message: "Saved Canonical differs from the UI equivalence fixture." } }), { status: 422, headers: { "content-type": "application/json" } });
+    const revisionId = isRulesEdited ? "revision-ui-authored-3" : "revision-ui-authored-2";
+    const sourceHash = isRulesEdited ? "sha256:ui-rules-edited" : "sha256:ui-authored";
+    uiSavedDetail = uiPersistedDetail(revisionId, request.canonical_strategy!, sourceHash);
     const state = window as typeof window & { __RULETRADE_UI_EQUIVALENCE__?: Record<string, unknown> };
-    state.__RULETRADE_UI_EQUIVALENCE__ = { ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}), savedCanonical: request.canonical_strategy, savedRevision: "revision-ui-authored-2" };
+    state.__RULETRADE_UI_EQUIVALENCE__ = { ...(state.__RULETRADE_UI_EQUIVALENCE__ ?? {}), savedCanonical: request.canonical_strategy, savedRevision: revisionId };
     return new Response(JSON.stringify({ created: true, strategy: uiSavedDetail.strategy, revision: uiSavedDetail.current_revision }), { status: 201, headers: { "content-type": "application/json" } });
   }
   if (advancedCase && url === `/api/v1/strategies/strategy-advanced-${advancedCase.id}/revisions` && init?.method === "POST") {
@@ -61,10 +71,16 @@ window.fetch = async (input, init) => {
     state.__RULETRADE_ADVANCED_EQUIVALENCE__ = { ...(state.__RULETRADE_ADVANCED_EQUIVALENCE__ ?? {}), savedCanonical: request.canonical_strategy, savedRevision: "revision-advanced-2" };
     return new Response(JSON.stringify({ created: true, strategy: advancedSavedDetail.strategy, revision: advancedSavedDetail.current_revision }), { status: 201, headers: { "content-type": "application/json" } });
   }
-  if (url === `/api/v2/revisions/${uiAuthoredRun.revision_id}/backtest-runs`) return new Response(JSON.stringify(init?.method === "POST" ? uiAuthoredRun : { items: [] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
+  const uiRunMatch = url.match(/^\/api\/v2\/revisions\/(revision-ui-authored-[23])\/backtest-runs$/);
+  if (uiRunMatch) {
+    const run = { ...uiAuthoredRun, revision_id: uiRunMatch[1]! };
+    return new Response(JSON.stringify(init?.method === "POST" ? run : { items: [] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
+  }
   if (advancedCase && url === "/api/v2/revisions/revision-advanced-2/backtest-runs") return new Response(JSON.stringify(init?.method === "POST" ? advancedRun(advancedCase.id) : { items: [] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
   if (url.startsWith("/api/v2/canonical/strategies/execution-capability")) return new Response(JSON.stringify({ authoring_state: "committed", semantic_state: "valid", execution_state: "executable", provider_state: "available", runtime_state: "available", product_message: "Ready to test.", technical_detail: null, authorable: true, reference_valid: true, backend_lowerable: true, production_executable: true, reason: null }), { headers: { "content-type": "application/json" } });
   if (url === `/api/v2/revisions/${persistedRun.revision_id}/backtest-runs`) return new Response(JSON.stringify(init?.method === "POST" ? persistedRun : { items: [persistedRun] }), { status: init?.method === "POST" ? 201 : 200, headers: { "content-type": "application/json" } });
+  if (url === `/api/v2/backtest-runs/${uiAuthoredRun.id}/decision-events`) return new Response(JSON.stringify({ items: [uiEvidenceSummary] }), { headers: { "content-type": "application/json" } });
+  if (url === `/api/v2/backtest-runs/${uiAuthoredRun.id}/decision-events/${uiEvidenceSummary.id}`) return new Response(JSON.stringify({ ...uiEvidenceSummary, evidence: { kind: "final_targets", selected: ["QQQ"], targets: { QQQ: "1" } } }), { headers: { "content-type": "application/json" } });
   if (url === `/api/v2/backtest-runs/${persistedRun.id}/decision-events`) return new Response(JSON.stringify({ items: [evidenceSummary] }), { headers: { "content-type": "application/json" } });
   if (url === `/api/v2/backtest-runs/${persistedRun.id}/decision-events/${evidenceSummary.id}`) return new Response(JSON.stringify({ ...evidenceSummary, evidence: { kind: "final_targets", selected: ["QQQ"], targets: { QQQ: "1" } } }), { headers: { "content-type": "application/json" } });
   if (url.startsWith("/api/v1/assets/compare")) return new Response(JSON.stringify({ as_of: "2026-10-24", items: [] }), { headers: { "content-type": "application/json" } });
@@ -88,6 +104,20 @@ const blank: CanonicalStrategyV2 = {
 
 const uiEquivalenceCase = equivalenceFixture.case;
 const uiExpectedCanonical = uiEquivalenceCase.expected_canonical as CanonicalStrategyV2;
+const uiRulesEditOperation: V2AuthoringOperation = {
+  ...uiEquivalenceCase.operation,
+  timeframe: "daily",
+};
+const uiRulesEditedCanonical: CanonicalStrategyV2 = {
+  ...uiExpectedCanonical,
+  program: {
+    ...uiExpectedCanonical.program,
+    clocks: [{ ...uiExpectedCanonical.program.clocks[0]!, id: "daily-close", timeframe: "daily" }],
+    statements: uiExpectedCanonical.program.statements.map((statement) => statement.kind === "allocate"
+      ? { ...statement, clock_id: "daily-close" }
+      : statement),
+  },
+};
 const uiAuthoringBlank: CanonicalStrategyV2 = {
   ...blank,
   metadata: { name: "UI Authored Monthly QQQ", description: "", tags: [] },
@@ -167,6 +197,7 @@ const advancedRun = (caseId: string): BacktestRunRecord => ({
 });
 
 const evidenceSummary = { id: "decision-v2-browser", run_id: persistedRun.id, ordinal: 1, schema_version: 2 as const, session_id: "2024-02-29", phase: "portfolio_execution", kind: "final_targets", source_components: [{ role: "rebalance", component_id: "growth-allocation" }] };
+const uiEvidenceSummary = { ...evidenceSummary, id: "decision-ui-authored", run_id: uiAuthoredRun.id, source_components: [{ role: "rebalance", component_id: "single-asset-allocation" }] };
 
 function Harness() {
   const [canonical, setCanonical] = useState<CanonicalStrategyV2>(blank);
