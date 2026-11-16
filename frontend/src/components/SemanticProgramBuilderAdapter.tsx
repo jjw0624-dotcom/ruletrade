@@ -549,7 +549,34 @@ function Inspector({ strategy, statement, apply, working }: { strategy: Canonica
     </div>;
   }
   if (statement.kind === "allocate") {
-    return <div className="semantic-inspector-content"><h2>Allocate capital</h2><p className="fixed-setting">{statement.method === "fixed" ? "Fixed weights" : "Equal weight"}</p><p>{statement.legs.map((leg) => leg.target.kind === "retain" ? "Retain current holdings" : leg.target.ref ?? leg.target.kind).join(" · ")}</p><p className="value-capability-note">Allocation changes use the Selection and Split product controls. Score-proportional and inverse-volatility allocation remain authoring-unreachable until production lowering is available.</p></div>;
+    const group = strategy.definitions.groups.length === 1 ? strategy.definitions.groups[0] : null;
+    const assetSet = group ? strategy.definitions.asset_sets.find((item) => item.id === group.asset_set_ref) : null;
+    const leg = statement.legs.length === 1 ? statement.legs[0] : null;
+    const clock = strategy.program?.clocks.find((item) => item.id === statement.clock_id);
+    const singleAssetRule = statement.method === "fixed" && leg?.target.kind === "asset" && leg.target.ref
+      && Number(leg.weight) === 1 && group && assetSet?.assets.length === 1
+      && (clock?.timeframe === "daily" || clock?.timeframe === "monthly")
+      ? { group, assetSet, asset: leg.target.ref, timeframe: clock.timeframe }
+      : null;
+    const commitSingleAsset = (asset: string, timeframe: "daily" | "monthly") => {
+      if (!singleAssetRule) return;
+      apply({
+        kind: "commit_single_asset_intent",
+        investment_id: singleAssetRule.group.id,
+        investment_name: singleAssetRule.group.name,
+        asset_set_id: singleAssetRule.assetSet.id,
+        asset,
+        timeframe,
+        timing_meaning: "rebalance",
+      });
+    };
+    if (singleAssetRule) return <div className="semantic-inspector-content"><h2>Single asset allocation rule</h2>
+      <p className="fixed-setting">Rebalance the portfolio to 100% of one asset.</p>
+      <label>Asset<input aria-label="Single asset rule target" defaultValue={singleAssetRule.asset} onBlur={(event) => { const asset = event.target.value.trim().toUpperCase(); if (asset && asset !== singleAssetRule.asset) commitSingleAsset(asset, singleAssetRule.timeframe); }} /></label>
+      <label>Schedule<select aria-label="Single asset rule schedule" value={singleAssetRule.timeframe} onChange={(event) => commitSingleAsset(singleAssetRule.asset, event.target.value as "daily" | "monthly")}><option value="daily">Every daily close</option><option value="monthly">Every monthly close</option></select></label>
+      <p className="value-capability-note">Rules commits the complete Investment, asset membership, allocation target, and rebalance clock as one validated V2 intent.</p>
+    </div>;
+    return <div className="semantic-inspector-content"><h2>Allocate capital</h2><p className="fixed-setting">{statement.method === "fixed" ? "Fixed weights" : "Equal weight"}</p><p>{statement.legs.map((item) => item.target.kind === "retain" ? "Retain current holdings" : item.target.ref ?? item.target.kind).join(" · ")}</p><p className="value-capability-note">Allocation changes use the Selection and Split product controls. Score-proportional and inverse-volatility allocation remain authoring-unreachable until production lowering is available.</p></div>;
   }
   if (statement.kind === "guarded_allocation") {
     const replacePolicy = (replacement: typeof statement) => strategy.program && apply({ kind: "set_semantic_program", program: { ...strategy.program, statements: replaceStatement(strategy.program.statements, statement.semantic_id, replacement) } });

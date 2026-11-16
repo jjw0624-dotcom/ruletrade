@@ -245,7 +245,8 @@ try {
   await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
   await setControlValue("Manual asset symbol", "QQQ");
-  await clickText("Add symbol"); await sleep(200);
+  await clickText("Add symbol");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Use selected assets'&&!item.disabled))`, "selected QQQ asset");
   await scrollButtonIntoView("Use selected assets"); await sleep(100);
   await clickText("Use selected assets"); await sleep(200);
   await setControlValue("Intent timing", "monthly");
@@ -269,12 +270,13 @@ try {
   await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
   await clickText("Guide"); await waitExpression(`document.body.innerText.includes('monthly close')&&document.body.innerText.includes('QQQ')`, "reopened Guide meaning");
   await clickText("Rules"); await waitExpression(`document.querySelector('[data-projection-contract="rules"]')?.innerText.includes('QQQ')`, "reopened Rules meaning");
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "executable UI-authored Test");
-  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
-  await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
-  const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],dashboard:Boolean(document.querySelector('.quick-test-dashboard .result-workspace'))})`);
-  if (!authoredJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-ui-authored-2/backtest-runs'&&item.method==='POST') || !authoredJourney.dashboard) throw new Error(`UI-authored execution equivalence failed: ${JSON.stringify(authoredJourney)}`);
-  await screenshot("ui-authored-monthly-qqq-executed");
+  await evaluate(`document.querySelector('[data-projection-contract="rules"] button[data-semantic-address="single-asset-allocation"]').click()`);
+  await waitSelector('select[aria-label="Single asset rule schedule"]');
+  await setControlValue("Single asset rule schedule", "daily");
+  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
+  const rulesEdit = await evaluate(`window.__RULETRADE_UI_EQUIVALENCE__`);
+  if (rulesEdit.rulesOperation?.kind !== "commit_single_asset_intent" || rulesEdit.rulesAppliedCanonical?.program?.clocks?.[0]?.timeframe !== "daily") throw new Error(`Rules typed edit did not produce daily Canonical: ${JSON.stringify(rulesEdit)}`);
+  await screenshot("ui-authored-rules-daily-edit");
 
   const advancedJourneys = [
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
