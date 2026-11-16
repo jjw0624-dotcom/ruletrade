@@ -13,6 +13,7 @@ from ruletrade.strategy.v2.daily_values import (
 )
 from ruletrade.strategy.v2.models import (
     AllocationStatementV2,
+    BuyStatementV2,
     ConditionalStatementV2,
     EventRelativeValueV2,
     ClockedValueV2,
@@ -369,6 +370,15 @@ def validate_program_v2(program: SemanticProgramV2) -> tuple[SemanticDiagnostic,
                         "Selection ranking must yield one comparable scalar per Candidate.",
                     ))
             return available_outputs | {statement.output_id}
+        if isinstance(statement, BuyStatementV2):
+            clock_ref(statement.clock_id, f"{path}.clock_id")
+            if statement.target.kind == "selection" and statement.target.ref not in available_outputs:
+                diagnostics.append(SemanticDiagnostic(
+                    "unknown_selection_output",
+                    f"{path}.target.ref",
+                    "Buy must reference a Selection output defined earlier in program order.",
+                ))
+            return available_outputs
         if isinstance(statement, AllocationStatementV2):
             allocation(statement, path, available_outputs)
             return available_outputs

@@ -100,4 +100,14 @@ describe("Quick Test Dashboard overlay", () => {
     expect(container.querySelector('[aria-label="Collapse Run kept"]')).not.toBeNull();
   });
 
+  it("keeps a closed Run closed when its detail panel is recreated with the same id", async () => {
+    const renderRun = async () => act(async () => root.render(<StrategyBuilderWorkspace program={program({ id: "run:same", title: "Quick Test Dashboard", bookmarkLabel: "Run same", retainInHistory: true, content: <div>Saved result</div>, onClose: () => undefined })} name="Strategy" dirty={false} saving={false} persisted onHome={() => undefined} onSave={() => undefined} onTest={() => undefined} />));
+    await renderRun();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Close Quick Test Dashboard"]')!.click());
+    expect(container.querySelector<HTMLElement>('[aria-label="Quick Test Dashboard"]')?.dataset.dashboardState).toBe("collapsed");
+    await renderRun();
+    expect(container.querySelector<HTMLElement>('[aria-label="Quick Test Dashboard"]')?.dataset.dashboardState).toBe("collapsed");
+    expect(container.querySelector('[aria-label="Open Run same"]')).not.toBeNull();
+  });
+
 });

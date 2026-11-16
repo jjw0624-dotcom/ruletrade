@@ -141,7 +141,7 @@ function valueBlocks(value: ValueExpressionV2, path: string, depth: number, focu
 }
 
 function statementBlocks(statement: ProgramStatementV2, path: string, depth: number, connection?: ProgramBlockNode["connection"], relation?: string): ProgramBlockNode[] {
-  const role: ProgramBlockNode["role"] = ({ select: "selection", allocate: "allocation", control: "control", on_event: "event", transition: "state", remember_value: "memory", guarded_allocation: "policy", unresolved: "unresolved" } as const)[statement.kind];
+  const role: ProgramBlockNode["role"] = ({ select: "selection", allocate: "allocation", buy: "investment", control: "control", on_event: "event", transition: "state", remember_value: "memory", guarded_allocation: "policy", unresolved: "unresolved" } as const)[statement.kind];
   const humanize = (value: string) => value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const allocationLabel = statement.kind === "allocate"
     ? statement.method === "fixed" && statement.legs.length > 1 ? "Split Portfolio capital" : `Investment · ${humanize(statement.legs[0]?.target.ref ?? statement.legs[0]?.target.kind ?? "Target")}`

@@ -26,7 +26,7 @@ describe("native Blockly product grammar", () => {
     const number = workspace.newBlock(entryBlocklyType("number"));
     expect(invest.previousConnection?.getCheck()).toContain("RuleTradeStatement");
     expect(invest.getInput("TARGET")?.connection?.getCheck()).toEqual(expect.arrayContaining(["RuleTradeAsset", "RuleTradeGroup", "RuleTradeSubgroup"]));
-    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(expect.arrayContaining(["RuleTradeMoney", "RuleTradePercentage", "RuleTradeQuantity"]));
+    expect(invest.getInput("AMOUNT")?.connection?.getCheck()).toEqual(["RuleTradeUnitsEach", "RuleTradeMoney"]);
     expect(comparison.outputConnection?.getCheck()).toContain("Boolean");
     expect(arithmetic.outputConnection?.getCheck()).toContain("Number");
     expect(number.outputConnection?.getCheck()).toContain("Number");
@@ -38,7 +38,7 @@ describe("native Blockly product grammar", () => {
   it("renders the primary categories through a native category toolbox and separates Group definition from references", () => {
     const toolbox = entryBlocklyToolbox([{ id: "growth", name: "Growth ETFs", kind: "group" }]) as unknown as { kind: string; contents: Array<{ name: string; contents: Array<Record<string, unknown>> }> };
     expect(toolbox.kind).toBe("categoryToolbox");
-    expect(toolbox.contents.map((category) => category.name)).toEqual(["Start", "Control", "Logic", "Calculate", "Action", "Assets", "Data", "Functions"]);
+    expect(toolbox.contents.map((category) => category.name)).toEqual(["Start", "Calculate", "Action", "Assets"]);
     const assets = toolbox.contents.find((category) => category.name === "Assets")!.contents;
     expect(assets).toContainEqual(expect.objectContaining({ kind: "button", text: "Create Group…" }));
     expect(assets).not.toContainEqual(expect.objectContaining({ type: entryBlocklyType("create-group") }));
@@ -62,21 +62,27 @@ describe("native Blockly product grammar", () => {
     expect(money.args0).toEqual(expect.arrayContaining([expect.objectContaining({ name: "CURRENCY" })]));
   });
 
-  it("uses typed native connections for nested AssetSet and candidate-predicate composition", () => {
+  it("separates Filter, Choose, and Buy responsibilities with typed Subgroup connections", () => {
     registerBlockyProgramBlocks();
     const workspace = new Blockly.Workspace();
     const filter = workspace.newBlock(entryBlocklyType("filter-assets"));
     const group = workspace.newBlock(entryBlocklyType("group-reference"));
-    const predicate = workspace.newBlock(entryBlocklyType("candidate-compare"));
-    const candidateRsi = workspace.newBlock(entryBlocklyType("candidate-rsi"));
     const top = workspace.newBlock(entryBlocklyType("top-n-assets"));
+    const metric = workspace.newBlock(entryBlocklyType("candidate-return"));
+    const count = workspace.newBlock(entryBlocklyType("number"));
+    const buy = workspace.newBlock(entryBlocklyType("invest"));
+    const units = workspace.newBlock(entryBlocklyType("units-each"));
     filter.getInput("ASSETS")!.connection!.connect(group.outputConnection!);
-    predicate.getInput("A")!.connection!.connect(candidateRsi.outputConnection!);
-    filter.getInput("PREDICATE")!.connection!.connect(predicate.outputConnection!);
     top.getInput("ASSETS")!.connection!.connect(filter.outputConnection!);
-    expect(filter.getInputTargetBlock("ASSETS")).toBe(group);
-    expect(filter.getInputTargetBlock("PREDICATE")).toBe(predicate);
-    expect(top.getInputTargetBlock("ASSETS")).toBe(filter);
+    top.getInput("SCORE")!.connection!.connect(metric.outputConnection!);
+    top.getInput("COUNT")!.connection!.connect(count.outputConnection!);
+    buy.getInput("TARGET")!.connection!.connect(top.outputConnection!);
+    buy.getInput("AMOUNT")!.connection!.connect(units.outputConnection!);
+    expect(filter.getInput("PREDICATE")).toBeNull();
+    expect(filter.outputConnection?.getCheck()).toContain("RuleTradeSubgroup");
+    expect(top.outputConnection?.getCheck()).toContain("RuleTradeSubgroup");
+    expect(buy.getInputTargetBlock("TARGET")).toBe(top);
+    expect(buy.getInputTargetBlock("AMOUNT")).toBe(units);
     workspace.dispose();
   });
 
@@ -112,10 +118,17 @@ describe("native Blockly product grammar", () => {
     first.dispose(); second.dispose();
   });
 
-  it("lets Builder Add select one category while Blockly renders its shaped flyout", () => {
-    const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as { kind: string; contents: Array<{ type?: string }> };
+  it("offers only the order-sized Buy action in the executable-strategy palette", () => {
+    const flyout = entryBlocklyFlyoutToolbox("Action") as unknown as {
+      kind: string;
+      contents: Array<{ type?: string }>;
+    };
     expect(flyout.kind).toBe("flyoutToolbox");
-    expect(flyout.contents.map((item) => item.type)).toEqual(expect.arrayContaining([entryBlocklyType("invest"), entryBlocklyType("rebalance")]));
+    expect(flyout.contents.map((item) => item.type)).toEqual([entryBlocklyType("invest")]);
+    expect(entryBlockDefinition("invest")?.execution).toBe("verified");
+    const calculate = entryBlocklyFlyoutToolbox("Calculate") as unknown as { contents: Array<{ type?: string }> };
+    expect(calculate.contents.map((item) => item.type)).toContain(entryBlocklyType("units-each"));
+    expect(calculate.contents.map((item) => item.type)).not.toContain(entryBlocklyType("percentage"));
   });
 
   it("lets Inspector and the block edit the same native field instead of mirrored state", () => {
@@ -138,6 +151,7 @@ describe("native Blockly product grammar", () => {
       { id: "action:1", role: "allocation", label: "Rebalance QQQ", depth: 1, address: { kind: "statement", focusId: "action:1", semanticId: "action:1", canonicalPath: "statements" } },
     ]);
     expect(visible.map((node) => node.label)).toEqual(["Rebalance QQQ"]);
+    expect(programBlockyVisibleNodes(visible, true)).toEqual([]);
   });
 
   it("rejects only duplicate Starts of the same event type at creation time", () => {

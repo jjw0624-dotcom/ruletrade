@@ -353,6 +353,48 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("edits a canonical Buy rule from Rules without creating perspective-local meaning", async () => {
+    const apply = vi.fn();
+    const canonical: CanonicalStrategyV2 = {
+      ...blank,
+      definitions: {
+        asset_sets: [{ id: "assets", assets: ["QQQ", "VOO"] }],
+        groups: [{ id: "growth", name: "Growth", asset_set_ref: "assets", description: "" }],
+        asset_axis: { name: "asset", domain_id: "assets", coordinate_policy: "member_identity" },
+      },
+      program: {
+        semantic_id: "program", initial_state: {}, formalizations: [],
+        clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+        statements: [{
+          kind: "on_event", semantic_id: "daily-rule",
+          event: { semantic_id: "daily-event", clock_id: "daily-close", condition: null, trigger: "scheduled", occurrence: "every", ordinal: null },
+          statements: [{
+            kind: "buy", semantic_id: "buy-growth",
+            target: { semantic_id: "buy-growth-target", kind: "group", ref: "growth" },
+            amount: { kind: "units_each", units: 1 }, clock_id: null,
+          }],
+        }],
+      },
+    };
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="rules"
+      onHome={() => undefined} apply={apply} save={() => undefined}
+      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+      working={() => undefined} run={() => undefined} executionCapability={null} />));
+    const rule = container.querySelector('button[data-semantic-address="buy-growth"]') as HTMLButtonElement | null;
+    expect(rule).toBeTruthy();
+    await act(async () => rule!.click());
+    const amountType = container.querySelector('select[aria-label="Buy amount type"]') as HTMLSelectElement;
+    await act(async () => {
+      amountType.value = "cash_total";
+      amountType.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "replace_program_statement",
+      semantic_id: "buy-growth",
+      statement: expect.objectContaining({ kind: "buy", amount: { kind: "cash_total", usd: "1" } }),
+    }));
+  });
+
   it("infers a complete Start graph and hands it to Test without a manual commit transaction", async () => {
     const prepareTest = vi.fn();
     const draft = {
