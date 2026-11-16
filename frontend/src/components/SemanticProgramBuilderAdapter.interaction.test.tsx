@@ -395,6 +395,64 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     }));
   });
 
+  it("edits the complete single-asset meaning from Rules with one typed intent", async () => {
+    const apply = vi.fn();
+    const canonical: CanonicalStrategyV2 = {
+      ...blank,
+      definitions: {
+        asset_sets: [{ id: "investment-assets", assets: ["QQQ"] }],
+        groups: [{ id: "investment", name: "Investment", asset_set_ref: "investment-assets", description: "" }],
+        asset_axis: { name: "asset", domain_id: "investment", coordinate_policy: "member_identity" },
+      },
+      program: {
+        semantic_id: "program", initial_state: {}, formalizations: [],
+        clocks: [{ id: "monthly-close", timeframe: "monthly", boundary: "close", timezone: "UTC", completed_only: true }],
+        statements: [{
+          kind: "allocate", semantic_id: "single-asset-allocation", method: "fixed", clock_id: "monthly-close",
+          legs: [{ semantic_id: "single-asset-leg", target: { semantic_id: "single-asset-target", kind: "asset", ref: "QQQ" }, weight: 1 }],
+          minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+        }],
+      },
+    };
+    act(() => root.render(<SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="rules"
+      onHome={() => undefined} apply={apply} save={() => undefined}
+      undo={() => undefined} redo={() => undefined} canUndo={false} canRedo={false}
+      working={() => undefined} run={() => undefined} executionCapability={null} />));
+    const rule = container.querySelector('button[data-semantic-address="single-asset-allocation"]') as HTMLButtonElement | null;
+    expect(rule).toBeTruthy();
+    await act(async () => rule!.click());
+
+    const target = container.querySelector('input[aria-label="Single asset rule target"]') as HTMLInputElement;
+    await act(async () => {
+      target.value = "spy";
+      target.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+    });
+    expect(apply).toHaveBeenCalledWith({
+      kind: "commit_single_asset_intent",
+      investment_id: "investment",
+      investment_name: "Investment",
+      asset_set_id: "investment-assets",
+      asset: "SPY",
+      timeframe: "monthly",
+      timing_meaning: "rebalance",
+    });
+
+    const schedule = container.querySelector('select[aria-label="Single asset rule schedule"]') as HTMLSelectElement;
+    await act(async () => {
+      schedule.value = "daily";
+      schedule.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(apply).toHaveBeenCalledWith({
+      kind: "commit_single_asset_intent",
+      investment_id: "investment",
+      investment_name: "Investment",
+      asset_set_id: "investment-assets",
+      asset: "QQQ",
+      timeframe: "daily",
+      timing_meaning: "rebalance",
+    });
+  });
+
   it("infers a complete Start graph and hands it to Test without a manual commit transaction", async () => {
     const prepareTest = vi.fn();
     const draft = {
