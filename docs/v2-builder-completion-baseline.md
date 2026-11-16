@@ -73,6 +73,10 @@ matching backtest result do not establish semantic equivalence.
 - Remove stale current-status claims when implementation evidence does not
   support them.
 
+Phase 0 is complete when the repository README, living architecture,
+documentation index, and Builder entry point agree on V2 authority and link to
+this ledger.
+
 ### Phase 1 — V2B-01 single-asset round trip
 
 - Close Guide, Flow, Blocky, Rules, Summary, and Code projection.
