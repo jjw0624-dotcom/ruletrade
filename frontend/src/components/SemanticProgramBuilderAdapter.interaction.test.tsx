@@ -425,7 +425,7 @@ describe("SemanticProgram Builder interaction lifecycle", () => {
     const target = container.querySelector('input[aria-label="Single asset rule target"]') as HTMLInputElement;
     await act(async () => {
       target.value = "spy";
-      target.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+      target.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
     expect(apply).toHaveBeenCalledWith({
       kind: "commit_single_asset_intent",
