@@ -105,15 +105,21 @@ const blank: CanonicalStrategyV2 = {
 const uiEquivalenceCase = equivalenceFixture.case;
 const uiExpectedCanonical = uiEquivalenceCase.expected_canonical as CanonicalStrategyV2;
 const uiRulesEditOperation: V2AuthoringOperation = {
-  ...uiEquivalenceCase.operation,
+  kind: "commit_single_asset_intent",
+  investment_id: "investment-1",
+  investment_name: "Investment",
+  asset_set_id: "investment-1-assets",
+  asset: "QQQ",
   timeframe: "daily",
+  timing_meaning: "rebalance",
 };
+const uiExpectedProgram = uiExpectedCanonical.program!;
 const uiRulesEditedCanonical: CanonicalStrategyV2 = {
   ...uiExpectedCanonical,
   program: {
-    ...uiExpectedCanonical.program,
-    clocks: [{ ...uiExpectedCanonical.program.clocks[0]!, id: "daily-close", timeframe: "daily" }],
-    statements: uiExpectedCanonical.program.statements.map((statement) => statement.kind === "allocate"
+    ...uiExpectedProgram,
+    clocks: [{ ...uiExpectedProgram.clocks[0]!, id: "daily-close", timeframe: "daily" }],
+    statements: uiExpectedProgram.statements.map((statement) => statement.kind === "allocate"
       ? { ...statement, clock_id: "daily-close" }
       : statement),
   },
