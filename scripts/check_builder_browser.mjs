@@ -269,7 +269,7 @@ try {
   await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
   await clickText("Guide"); await waitExpression(`document.body.innerText.includes('monthly close')&&document.body.innerText.includes('QQQ')`, "reopened Guide meaning");
   await clickText("Rules"); await waitExpression(`document.querySelector('[data-projection-contract="rules"]')?.innerText.includes('QQQ')`, "reopened Rules meaning");
-  await evaluate(`document.querySelector('button[data-semantic-address="single-asset-allocation"]').click()`);
+  await evaluate(`document.querySelector('[data-projection-contract="rules"] button[data-semantic-address="single-asset-allocation"]').click()`);
   await waitSelector('select[aria-label="Single asset rule schedule"]');
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
