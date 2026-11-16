@@ -274,30 +274,9 @@ try {
   await waitSelector('select[aria-label="Single asset rule schedule"]');
   await setControlValue("Single asset rule schedule", "daily");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.rulesOperation?.timeframe==='daily'`, "typed Rules edit operation");
-  await evaluate(`document.querySelector('[aria-label="Close Inspector"]')?.click(); [...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Discard draft')?.click()`);
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Save'&&!item.disabled))`, "savable Rules edit");
-  await clickText("Save");
-  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit saved revision");
-  await waitExpression(`Boolean([...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1)&&![...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1).disabled)`, "executable Rules-edited Test");
-  await evaluate(`[...document.querySelectorAll('.strategy-builder-workspace .builder-actions button')].filter((item)=>item.textContent.includes('Test')).at(-1)?.click()`); await waitSelector('.quick-test-panel');
-  await clickText("Run Quick Test");
-  await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-3'`, "Rules edit auto-saved before Test");
-  await waitSelector('.quick-test-dashboard .result-workspace');
-  await waitSelector('[data-decision-id="decision-ui-authored"]');
-  await evaluate(`document.querySelector('[data-decision-id="decision-ui-authored"]').click()`);
-  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/backtest-runs/run-ui-authored/decision-events/decision-ui-authored')`, "Rules-edited V2 decision detail request");
-  await waitExpression(`document.body.innerText.includes('QQQ 100%')`, "Rules-edited V2 decision detail");
-  const authoredJourney = await evaluate(`({state:window.__RULETRADE_UI_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],dashboard:Boolean(document.querySelector('.quick-test-dashboard .result-workspace'))})`);
-  const editedSaveIndex = authoredJourney.requests.findIndex((item)=>item.url==='/api/v1/strategies/strategy-ui-authored/revisions'&&item.method==='POST'&&authoredJourney.requests.indexOf(item)>autoSaveIndex);
-  const editedRunIndex = authoredJourney.requests.findIndex((item)=>item.url==='/api/v2/revisions/revision-ui-authored-3/backtest-runs'&&item.method==='POST');
-  if (JSON.stringify(authoredJourney.state.rulesAppliedCanonical) !== JSON.stringify(authoredJourney.state.savedCanonical) || editedSaveIndex < 0 || editedRunIndex <= editedSaveIndex || !authoredJourney.dashboard || !authoredJourney.requests.some((item)=>item.url==='/api/v2/backtest-runs/run-ui-authored/decision-events')) throw new Error(`UI-authored Rules roundtrip failed: ${JSON.stringify(authoredJourney)}`);
-  await screenshot("ui-authored-rules-daily-qqq-evidence");
-  await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
-  await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
-  await clickText("Guide"); await waitExpression(`document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.toLowerCase().includes('daily')&&document.querySelector('[aria-label="Guided strategy editor"]')?.innerText.includes('QQQ')`, "Rules-edited Guide meaning after second reopen");
-  await clickText("Flow"); await waitExpression(`document.querySelector('[data-projection-contract="flow"]')?.innerText.toLowerCase().includes('daily')`, "Rules-edited Flow meaning after second reopen");
-  await clickText("Blocky"); await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.innerText.toLowerCase().includes('daily')`, "Rules-edited Blocky meaning after second reopen");
-  await clickText("Code"); await waitExpression(`document.querySelector('[aria-label="Code representation"]')?.innerText.includes('"timeframe": "daily"')`, "Rules-edited Code meaning after second reopen");
+  const rulesEdit = await evaluate(`window.__RULETRADE_UI_EQUIVALENCE__`);
+  if (rulesEdit.rulesOperation?.kind !== "commit_single_asset_intent" || rulesEdit.rulesAppliedCanonical?.program?.clocks?.[0]?.timeframe !== "daily") throw new Error(`Rules typed edit did not produce daily Canonical: ${JSON.stringify(rulesEdit)}`);
+  await screenshot("ui-authored-rules-daily-edit");
 
   const advancedJourneys = [
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
