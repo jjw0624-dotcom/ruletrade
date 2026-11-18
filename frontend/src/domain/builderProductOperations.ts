@@ -48,6 +48,21 @@ export function adaptV1ProductOperation(operation: BuilderProductOperation, addr
 
 export interface V2ProductAddress { investmentId?: string; assetSetId?: string; selectionId?: string; clockId?: string }
 
+function findProgramSelection(statements: ProgramStatementV2[], selectionId?: string): Extract<ProgramStatementV2, { kind: "select" }> | undefined {
+  for (const statement of statements) {
+    if (statement.kind === "select" && (!selectionId || statement.semantic_id === selectionId)) return statement;
+    if (statement.kind === "control") {
+      const nested = findProgramSelection([...statement.then_statements, ...statement.otherwise_statements], selectionId);
+      if (nested) return nested;
+    }
+    if (statement.kind === "on_event") {
+      const nested = findProgramSelection(statement.statements, selectionId);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
 function candidateReturn(prefix: string, bindingId: string, lookback: number): DailyValueNode {
   const close: DailyValueNode = { semantic_id: `${prefix}-close`, kind: "observe", operands: [], subject_kind: "candidate", subject_id: null, binding_id: bindingId, field: "close", basis: "adjusted", skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 };
   return { semantic_id: `${prefix}-return`, kind: "trailing_return", operands: [close], observations: lookback, skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 };
@@ -61,7 +76,7 @@ function qualification(prefix: string, bindingId: string, operation: Extract<Bui
 }
 
 export function adaptV2ProductOperation(strategy: CanonicalStrategyV2, operation: BuilderProductOperation, address: V2ProductAddress): V2AuthoringOperation[] {
-  const selection = strategy.program?.statements.find((item) => item.kind === "select" && (!address.selectionId || item.semantic_id === address.selectionId));
+  const selection = strategy.program ? findProgramSelection(strategy.program.statements, address.selectionId) : undefined;
   switch (operation.kind) {
     case "addGroup": return [{ kind: "add_program_group", group_id: operation.groupId, name: operation.name, asset_set_id: operation.assetSetId, assets: operation.assets }];
     case "renameGroup": return [{ kind: "rename_program_group", group_id: operation.groupId, name: operation.name }];
