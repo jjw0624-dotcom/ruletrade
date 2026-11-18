@@ -317,6 +317,7 @@ try {
   await screenshot("ui-authored-rules-daily-edit");
 
   const advancedJourneys = [
+    { id: "split_portfolio", recipe: "Growth + Defensive", kind: "commit_split_portfolio_intent", mutate: [["Growth share (%)", "69"], ["Growth share (%)", "70"]] },
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
     { id: "temporal_sequence", recipe: "Breakout, retest, confirmation", kind: "commit_temporal_sequence_intent", mutate: [["Breakout adjusted close", "11"], ["Breakout adjusted close", "12"], ["Expiry state", "expired"]] },
     { id: "multi_clock_policy", recipe: "Weekly context, daily signal", kind: "commit_multi_clock_policy_intent", mutate: [["Completed weekly threshold", "1"], ["Completed weekly threshold", "0"], ["Unknown risk guard", "block"]] },
@@ -338,10 +339,20 @@ try {
     await screenshot(`ui-authored-${advanced.id}-saved`);
     await clickAriaLabel("Back to Home"); await waitSelector('[aria-label="Strategy home"]');
     await clickText("Reopen saved strategy"); await waitSelector('[data-production-builder-shell="true"]');
+    const projectionEvidence = {};
     for (const [label, selector] of [["Guide", '[aria-label="Guided strategy editor"]'], ["Flow", '[aria-label="Flow capital projection"]'], ["Blocky", '.blocky-representation'], ["Rules", '[data-projection-contract="rules"]'], ["Code", '.code-representation[aria-label="Code representation"]']]) {
       await clickText(label); await waitSelector(selector);
       const projection = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText??''`);
+      projectionEvidence[label] = projection;
       if (!projection.trim() || projection.includes("production Program lowering")) throw new Error(`${advanced.id} ${label} projection failed: ${projection}`);
+    }
+    if (advanced.id === "split_portfolio") {
+      await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
+      const flow = projectionEvidence.Flow ?? "";
+      await clickText("Blocky"); await waitSelector('.blocky-representation');
+      const blocky = projectionEvidence.Blocky ?? "";
+      const manifest = await evaluate(`document.querySelector('[data-projection-contract="blocky"]')?.getAttribute('data-block-connection-manifest')??''`);
+      if (!flow.includes("70%") || !flow.includes("30%") || !flow.includes("IEF") || !blocky.includes("Split Portfolio capital") || !blocky.includes("70% portfolio weight") || !blocky.includes("30% portfolio weight") || !manifest.includes("statement:portfolio-split:LEG_1->investment-leg:growth-sleeve-leg") || !manifest.includes("statement:portfolio-split:LEG_2->investment-leg:defensive-sleeve-leg") || manifest.includes("investment-leg:growth-sleeve-leg:NEXT->investment-leg:defensive-sleeve-leg")) throw new Error(`V2B-04 did not preserve parallel split ownership: ${JSON.stringify({flow,blocky,manifest})}`);
     }
     await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, `${advanced.id} executable Test`);
     await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
