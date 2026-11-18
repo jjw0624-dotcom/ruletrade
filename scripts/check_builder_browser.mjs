@@ -354,7 +354,7 @@ try {
       const flow = projectionEvidence.Flow ?? "";
       await clickText("Blocky"); await waitSelector('.blocky-representation');
       const blocky = projectionEvidence.Blocky ?? "";
-      const manifest = await evaluate(`document.querySelector('.blocky-representation')?.getAttribute('data-block-connection-manifest')??''`);
+      const manifest = await evaluate(`document.querySelector('[data-projection-contract="blocky"]')?.getAttribute('data-block-connection-manifest')??''`);
       if (!flow.includes("70%") || !flow.includes("30%") || !flow.includes("IEF") || !blocky.includes("Split Portfolio capital") || !blocky.includes("70% portfolio weight") || !blocky.includes("30% portfolio weight") || !manifest.includes("statement:portfolio-split:LEG_1->investment-leg:growth-sleeve-leg") || !manifest.includes("statement:portfolio-split:LEG_2->investment-leg:defensive-sleeve-leg") || manifest.includes("investment-leg:growth-sleeve-leg:NEXT->investment-leg:defensive-sleeve-leg")) throw new Error(`V2B-04 did not preserve parallel split ownership: ${JSON.stringify({flow,blocky,manifest})}`);
     }
     await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, `${advanced.id} executable Test`);
