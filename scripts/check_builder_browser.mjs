@@ -328,7 +328,8 @@ try {
     const authoringView = advanced.view ?? "Guide";
     await clickText(authoringView); await waitSelector(authoringView === "Flow" ? '[aria-label="Flow capital projection"]' : '[aria-label="Guided strategy editor"]');
     if (authoringView === "Flow") { await clickText("Add"); await clickText("Capital"); }
-    await clickText(advanced.recipe); await waitSelector(`[data-intent-recipe="${advanced.id}"]`);
+    if (authoringView === "Flow") await clickTextContaining(advanced.recipe); else await clickText(advanced.recipe);
+    await waitSelector(`[data-intent-recipe="${advanced.id}"]`);
     for (const [label, value] of advanced.mutate) await setControlValue(label, value);
     await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Commit strategy meaning'&&!item.disabled))`, `${advanced.id} complete intent`);
     await scrollButtonIntoView("Commit strategy meaning"); await clickText("Commit strategy meaning");
