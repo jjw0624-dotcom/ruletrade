@@ -317,7 +317,7 @@ try {
   await screenshot("ui-authored-rules-daily-edit");
 
   const advancedJourneys = [
-    { id: "split_portfolio", recipe: "Growth + Defensive", kind: "commit_split_portfolio_intent", mutate: [["Growth share (%)", "69"], ["Growth share (%)", "70"]] },
+    { id: "split_portfolio", view: "Flow", recipe: "Growth + Defensive", kind: "commit_split_portfolio_intent", mutate: [["Growth share (%)", "69"], ["Growth share (%)", "70"]] },
     { id: "weighted_score", recipe: "Weighted Score allocation", kind: "commit_weighted_score_intent", mutate: [["Short return observations", "20"], ["Short return observations", "21"], ["Select Top N", "3"]] },
     { id: "temporal_sequence", recipe: "Breakout, retest, confirmation", kind: "commit_temporal_sequence_intent", mutate: [["Breakout adjusted close", "11"], ["Breakout adjusted close", "12"], ["Expiry state", "expired"]] },
     { id: "multi_clock_policy", recipe: "Weekly context, daily signal", kind: "commit_multi_clock_policy_intent", mutate: [["Completed weekly threshold", "1"], ["Completed weekly threshold", "0"], ["Unknown risk guard", "block"]] },
@@ -325,7 +325,8 @@ try {
   for (const advanced of advancedJourneys) {
     await send("Page.navigate", { url: `http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-advanced&case=${advanced.id}` });
     await waitSelector('[data-production-builder-shell="true"]');
-    await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
+    const authoringView = advanced.view ?? "Guide";
+    await clickText(authoringView); await waitSelector(authoringView === "Flow" ? '[aria-label="Flow capital projection"]' : '[aria-label="Guided strategy editor"]');
     await clickText(advanced.recipe); await waitSelector(`[data-intent-recipe="${advanced.id}"]`);
     for (const [label, value] of advanced.mutate) await setControlValue(label, value);
     await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Commit strategy meaning'&&!item.disabled))`, `${advanced.id} complete intent`);
