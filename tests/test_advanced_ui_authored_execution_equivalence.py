@@ -42,6 +42,7 @@ def test_advanced_ui_equivalence_fixture_is_current() -> None:
 
 def test_advanced_ui_operations_match_backend_semantics_and_execution() -> None:
     assert {case["id"] for case in cases()} == {
+        "split_portfolio",
         "weighted_score",
         "temporal_sequence",
         "multi_clock_policy",
@@ -71,8 +72,10 @@ def test_advanced_ui_operations_match_backend_semantics_and_execution() -> None:
         plan = compile_v2_strategy_to_lean_plan(reopened)
         generated = generate_csharp(plan)
         assert "public class RuleTradeGeneratedAlgorithm : QCAlgorithm" in generated
-        if case["id"] == "weighted_score":
+        if case["id"] in {"weighted_score", "split_portfolio"}:
             assert '"final_targets"' in generated
+            if case["id"] == "split_portfolio":
+                assert generated.count('"sleeve_contribution"') >= 2
         else:
             assert '"state_transition"' in generated
             assert "ruletrade-temporal-checkpoint@1" in generated
@@ -83,9 +86,15 @@ def test_advanced_cases_keep_their_distinct_execution_contracts() -> None:
         case["id"]: CanonicalStrategyV2.model_validate(case["expected_canonical"])
         for case in cases()
     }
+    split = by_id["split_portfolio"]
     weighted = by_id["weighted_score"]
     temporal = by_id["temporal_sequence"]
     multi = by_id["multi_clock_policy"]
+
+    assert [clock.timeframe for clock in split.program.clocks] == ["monthly"]
+    assert split.program.statements[-1].kind == "allocate"
+    assert [str(leg.weight) for leg in split.program.statements[-1].legs] == ["0.70", "0.30"]
+    assert [leg.target.kind for leg in split.program.statements[-1].legs] == ["selection", "asset"]
 
     assert [clock.timeframe for clock in weighted.program.clocks] == ["monthly"]
     assert weighted.program.statements[-1].kind == "allocate"
