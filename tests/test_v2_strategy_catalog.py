@@ -30,7 +30,7 @@ def requests():
             catalog_id="market_regime_rotation",
             name="Regime rotation",
             assets=("QQQ", "VGT", "SOXX", "SCHG"),
-            trend_asset="SPY",
+            trend_asset="QQQ",
             trend_lookback=200,
             ranking_lookback=126,
             count=2,
