@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -9,6 +10,7 @@ from ruletrade.hashing import strategy_hash
 from ruletrade.strategy.v2.authoring import (
     ApplyV2AuthoringRequest,
     CommitMultiClockPolicyIntent,
+    CommitSplitPortfolioIntent,
     CommitTemporalSequenceIntent,
     CommitWeightedScoreIntent,
     ProgramStrategyTemplateRequest,
@@ -26,6 +28,15 @@ def build() -> dict:
         ProgramStrategyTemplateRequest(name="Advanced UI Authored")
     )
     operations = (
+        CommitSplitPortfolioIntent(
+            kind="commit_split_portfolio_intent",
+            growth_assets=("QQQ", "VGT", "SOXX", "SCHG"),
+            growth_weight=Decimal("0.7"),
+            defensive_asset="IEF",
+            ranking_lookback=126,
+            fallback_asset="TLT",
+            timeframe="monthly",
+        ),
         CommitWeightedScoreIntent(
             kind="commit_weighted_score_intent",
             assets=("QQQ", "VGT", "SOXX", "SCHG"),
@@ -92,8 +103,19 @@ def main() -> None:
     args = parser.parse_args()
     rendered = json.dumps(build(), indent=2, sort_keys=True) + "\n"
     if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != rendered:
-            raise SystemExit(f"{OUTPUT.relative_to(ROOT)} is stale")
+        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
+        if current != rendered:
+            diff = "".join(
+                difflib.unified_diff(
+                    current.splitlines(keepends=True),
+                    rendered.splitlines(keepends=True),
+                    fromfile=str(OUTPUT.relative_to(ROOT)),
+                    tofile="generated",
+                )
+            )
+            raise SystemExit(
+                f"{OUTPUT.relative_to(ROOT)} is stale\n{diff}"
+            )
         return
     OUTPUT.write_text(rendered, encoding="utf-8")
 

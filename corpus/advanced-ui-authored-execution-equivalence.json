@@ -5,6 +5,186 @@
         "api_version": "ruletrade.dev/strategy/v2",
         "definitions": {
           "asset_axis": {
+            "coordinate_policy": "member_identity",
+            "domain_id": "growth",
+            "name": "asset"
+          },
+          "asset_sets": [
+            {
+              "assets": [
+                "QQQ",
+                "VGT",
+                "SOXX",
+                "SCHG"
+              ],
+              "id": "growth-assets"
+            },
+            {
+              "assets": [
+                "IEF"
+              ],
+              "id": "defensive-assets"
+            }
+          ],
+          "groups": [
+            {
+              "asset_set_ref": "growth-assets",
+              "description": "",
+              "id": "growth",
+              "name": "Growth"
+            },
+            {
+              "asset_set_ref": "defensive-assets",
+              "description": "",
+              "id": "defensive",
+              "name": "Defensive"
+            }
+          ]
+        },
+        "metadata": {
+          "description": "",
+          "name": "Advanced UI Authored",
+          "tags": []
+        },
+        "operator_lock": {
+          "compare": "1",
+          "daily.trailing_return": "1"
+        },
+        "predicate": null,
+        "program": {
+          "clocks": [
+            {
+              "boundary": "close",
+              "completed_only": true,
+              "id": "monthly-close",
+              "terminal_boundary_policy": "not_due",
+              "timeframe": "monthly",
+              "timezone": "UTC"
+            }
+          ],
+          "formalizations": [],
+          "initial_state": {},
+          "semantic_id": "program",
+          "statements": [
+            {
+              "clock_id": "monthly-close",
+              "kind": "select",
+              "output_id": "selected-growth",
+              "selection": {
+                "binding": {
+                  "domain_id": "growth",
+                  "id": "candidate"
+                },
+                "count": 2,
+                "direction": "descending",
+                "eligibility": null,
+                "fallback_asset": "TLT",
+                "ranking": {
+                  "arithmetic": null,
+                  "axis": null,
+                  "basis": null,
+                  "binding_id": null,
+                  "field": null,
+                  "kind": "trailing_return",
+                  "minimum_count": 1,
+                  "minimum_fraction": "1",
+                  "missing_policy": "require_all",
+                  "observations": 126,
+                  "operands": [
+                    {
+                      "arithmetic": null,
+                      "axis": null,
+                      "basis": "adjusted",
+                      "binding_id": "candidate",
+                      "field": "close",
+                      "kind": "observe",
+                      "minimum_count": 1,
+                      "minimum_fraction": "1",
+                      "missing_policy": "require_all",
+                      "observations": null,
+                      "operands": [],
+                      "quantity": null,
+                      "reduction": null,
+                      "refinement": null,
+                      "semantic_id": "growth-ranking-close",
+                      "skip": 0,
+                      "subject_id": null,
+                      "subject_kind": "candidate",
+                      "unit": null,
+                      "value": null
+                    }
+                  ],
+                  "quantity": null,
+                  "reduction": null,
+                  "refinement": null,
+                  "semantic_id": "growth-ranking-return",
+                  "skip": 0,
+                  "subject_id": null,
+                  "subject_kind": null,
+                  "unit": null,
+                  "value": null
+                },
+                "semantic_id": "growth-selection",
+                "shortage_policy": "require_full",
+                "universe_id": "growth"
+              },
+              "semantic_id": "select-growth"
+            },
+            {
+              "cash_remainder_asset": null,
+              "clock_id": "monthly-close",
+              "kind": "allocate",
+              "legs": [
+                {
+                  "semantic_id": "growth-sleeve-leg",
+                  "target": {
+                    "kind": "selection",
+                    "ref": "selected-growth",
+                    "semantic_id": "growth-sleeve-target"
+                  },
+                  "weight": "0.7"
+                },
+                {
+                  "semantic_id": "defensive-sleeve-leg",
+                  "target": {
+                    "kind": "asset",
+                    "ref": "IEF",
+                    "semantic_id": "defensive-sleeve-target"
+                  },
+                  "weight": "0.3"
+                }
+              ],
+              "maximum_weight": null,
+              "method": "fixed",
+              "minimum_weight": null,
+              "semantic_id": "portfolio-split"
+            }
+          ]
+        },
+        "selection": null,
+        "semantic_profile": "profile-a/daily-compositional-core@1"
+      },
+      "id": "split_portfolio",
+      "operation": {
+        "defensive_asset": "IEF",
+        "fallback_asset": "TLT",
+        "growth_assets": [
+          "QQQ",
+          "VGT",
+          "SOXX",
+          "SCHG"
+        ],
+        "growth_weight": 0.7,
+        "kind": "commit_split_portfolio_intent",
+        "ranking_lookback": 126,
+        "timeframe": "monthly"
+      }
+    },
+    {
+      "expected_canonical": {
+        "api_version": "ruletrade.dev/strategy/v2",
+        "definitions": {
+          "asset_axis": {
             "coordinate_policy": "stable_identity",
             "domain_id": "growth",
             "name": "asset"
