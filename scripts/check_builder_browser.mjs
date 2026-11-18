@@ -207,7 +207,7 @@ try {
   if (JSON.stringify(v2b02Before.blocks) !== JSON.stringify(v2b02.blocks) || JSON.stringify(v2b02Before.connections) !== JSON.stringify(v2b02.connections)) throw new Error(`V2B-02 handoff mutated the native graph: ${JSON.stringify({v2b02Before,v2b02})}`);
   await clickText("Rules"); await waitSelector('[data-projection-contract="rules"]');
   const v2b02Rules = await evaluate(`document.querySelector('[data-projection-contract="rules"]')?.innerText??''`);
-  if (!v2b02Rules.includes("Group 1") || !v2b02Rules.includes("BUY") || !v2b02Rules.includes("1 unit")) throw new Error(`Rules did not preserve V2B-02 Group and Buy meaning: ${v2b02Rules}`);
+  if (!v2b02Rules.includes("Group 1") || !v2b02Rules.includes("Buy") || !v2b02Rules.includes("1 unit")) throw new Error(`Rules did not preserve V2B-02 Group and Buy meaning: ${v2b02Rules}`);
   await clickText("Code"); await waitSelector('.code-representation[aria-label="Code representation"]');
   const v2b02Code = await evaluate(`document.querySelector('.code-representation[aria-label="Code representation"]')?.innerText??''`);
   if (!v2b02Code.includes("blocky-select-draft-start-pipeline") || !v2b02Code.includes("units_each") || !v2b02Code.includes("group-1")) throw new Error(`Code projection did not preserve V2B-02 semantic identity: ${v2b02Code}`);
