@@ -44,7 +44,7 @@ function assets(value: string): string[] {
   return value.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
 }
 
-function requestFor(id: StrategyCatalogId, values: Record<string, string>): CatalogStrategyRequest {
+export function catalogRequestFor(id: StrategyCatalogId, values: Record<string, string>): CatalogStrategyRequest {
   const common = { catalog_id: id, version: 1 as const, name: values.name.trim() };
   if (id === "single_asset_periodic") return {
     ...common, asset: values.asset.trim().toUpperCase(), timeframe: values.timeframe,
@@ -120,7 +120,7 @@ export function CatalogStrategyDialog({ entries, loading, error, onClose, onCrea
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!values.name?.trim()) return;
-    onCreate(requestFor(selected, values));
+    onCreate(catalogRequestFor(selected, values));
   };
 
   return <div className="modal-backdrop" role="presentation"><form className="creation-picker catalog-strategy-dialog" aria-labelledby="catalog-title" onSubmit={submit}>
