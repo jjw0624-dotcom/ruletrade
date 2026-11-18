@@ -442,6 +442,62 @@ function BlockyFilterChooseBuyHarness() {
     workingDraft={draft} onWorkingDraftChange={(next) => setDraft(next)} />;
 }
 
+
+const branchFallbackCanonical: CanonicalStrategyV2 = {
+  ...blank,
+  metadata: { ...blank.metadata, name: "Branch and fallback distinction" },
+  definitions: {
+    ...blank.definitions,
+    asset_sets: [{ id: "growth-assets", assets: ["QQQ", "SPY", "TLT", "IEF"] }],
+    groups: [{ id: "growth", name: "Growth", asset_set_ref: "growth-assets", description: "" }],
+  },
+  program: {
+    semantic_id: "program", initial_state: { regime: "active" }, formalizations: [],
+    clocks: [{ id: "daily-close", timeframe: "daily", boundary: "close", timezone: "UTC", completed_only: true }],
+    statements: [{
+      kind: "select", semantic_id: "choose-growth", output_id: "selected-growth", clock_id: "daily-close",
+      selection: {
+        semantic_id: "growth-selection", universe_id: "growth", binding: { id: "candidate", domain_id: "growth" },
+        eligibility: null,
+        ranking: { semantic_id: "candidate-close", kind: "observe", operands: [], subject_kind: "candidate", binding_id: "candidate", subject_id: null, field: "close", basis: "adjusted", skip: 0, missing_policy: "require_all", minimum_count: 1, minimum_fraction: 1 },
+        direction: "descending", count: 2, shortage_policy: "require_full", fallback_asset: "TLT",
+      },
+    }, {
+      kind: "control", semantic_id: "explicit-control", clock_id: "daily-close",
+      condition: { kind: "state_equals", semantic_id: "explicit-condition", state_key: "regime", expected: "active" },
+      then_statements: [{ kind: "buy", semantic_id: "explicit-do", target: { semantic_id: "explicit-do-target", kind: "asset", ref: "QQQ" }, amount: { kind: "units_each", units: 1 }, clock_id: "daily-close" }],
+      otherwise_statements: [{ kind: "buy", semantic_id: "explicit-otherwise", target: { semantic_id: "explicit-otherwise-target", kind: "asset", ref: "TLT" }, amount: { kind: "units_each", units: 1 }, clock_id: "daily-close" }],
+      unknown_policy: "otherwise",
+    }, {
+      kind: "control", semantic_id: "omitted-control", clock_id: "daily-close",
+      condition: { kind: "state_equals", semantic_id: "omitted-condition", state_key: "regime", expected: "waiting" },
+      then_statements: [{ kind: "buy", semantic_id: "omitted-do", target: { semantic_id: "omitted-do-target", kind: "asset", ref: "SPY" }, amount: { kind: "units_each", units: 1 }, clock_id: "daily-close" }],
+      otherwise_statements: [], unknown_policy: "retain",
+    }],
+  },
+};
+
+function BranchFallbackHarness() {
+  const [canonical, setCanonical] = useState(branchFallbackCanonical);
+  const [draft, setDraft] = useState(() => emptyProgramWorkingDraft("browser-branch-fallback"));
+  (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
+  const apply = (operation: V2AuthoringOperation) => {
+    (window as typeof window & { __RULETRADE_V2B03_OPERATION__?: V2AuthoringOperation }).__RULETRADE_V2B03_OPERATION__ = operation;
+    if (operation.kind !== "set_program_fallback") return;
+    const update = (statements: NonNullable<CanonicalStrategyV2["program"]>["statements"]): NonNullable<CanonicalStrategyV2["program"]>["statements"] => statements.map((statement) => {
+      if (statement.kind === "select" && statement.semantic_id === operation.semantic_id) return { ...statement, selection: { ...statement.selection, fallback_asset: operation.fallback_asset } };
+      if (statement.kind === "control") return { ...statement, then_statements: update(statement.then_statements), otherwise_statements: update(statement.otherwise_statements) };
+      if (statement.kind === "on_event") return { ...statement, statements: update(statement.statements) };
+      return statement;
+    });
+    setCanonical((current) => ({ ...current, program: current.program ? { ...current.program, statements: update(current.program.statements) } : null }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="rules"
+    onHome={() => undefined} apply={apply} save={() => undefined} undo={() => undefined} redo={() => undefined}
+    canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} executionCapability={null}
+    workingDraft={draft} onWorkingDraftChange={setDraft} />;
+}
+
 const flowRemovalCanonical: CanonicalStrategyV2 = {
   ...blank,
   metadata: { ...blank.metadata, name: "Flow Removal" },
@@ -489,4 +545,4 @@ function AdvancedUiAuthoredEquivalenceHarness({ caseId }: { caseId: string }) {
   return <V2StrategyEditor key={`${advancedSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={advancedSavedDetail ?? advancedInitialDetail(caseId)} onHome={() => setOpen(false)} />;
 }
 
-createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
+createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "branch-fallback" ? <BranchFallbackHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
