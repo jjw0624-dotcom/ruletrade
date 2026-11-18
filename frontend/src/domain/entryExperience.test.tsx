@@ -61,8 +61,9 @@ describe("Product entry and starting experience", () => {
   });
 
   it("offers examples, real structures, and an unmistakably unavailable Import", () => {
-    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onClose={() => undefined} />);
+    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onCatalog={() => undefined} onClose={() => undefined} />);
     expect(STRATEGY_STRUCTURES.map((item) => item.id)).toEqual(["one_investment", "filter", "golden"]);
+    expect(markup).toContain("Choose a strategy rule");
     expect(markup).toContain("One investment"); expect(markup).toContain("Choose assets"); expect(markup).toContain("Split a portfolio");
     expect(markup).toContain("Import strategy"); expect(markup).toContain("Coming later"); expect(markup).toContain("disabled");
   });
