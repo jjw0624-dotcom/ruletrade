@@ -10,6 +10,8 @@ import { ExploreView } from "./views/ExploreView";
 import { HomeView } from "./views/HomeView";
 import { PublicView } from "./views/PublicView";
 import { CreationPicker } from "./components/CreationPicker";
+import { CatalogStrategyDialog } from "./components/CatalogStrategyDialog";
+import { strategyCatalogApi, type CatalogStrategyRequest, type StrategyCatalogEntry } from "./strategyCatalogApi";
 import { backtestRunApi, type BacktestRunRecord } from "./backtestRunApi";
 import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { ResearchContext } from "./domain/researchContext";
@@ -71,6 +73,9 @@ export default function App() {
   const [createDraft, setCreateDraft] = useState<{ id: ExampleId; bootstrap: EditorBootstrap; name: string; initialView: "overview" | "guided" } | null>(null);
   const [programDraftName, setProgramDraftName] = useState<string | null>(null);
   const [programCreating, setProgramCreating] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogEntries, setCatalogEntries] = useState<StrategyCatalogEntry[]>([]);
+  const [catalogCreating, setCatalogCreating] = useState(false);
   const [creating, setCreating] = useState<ExampleId | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -152,6 +157,33 @@ export default function App() {
     finally { creationInFlight.current = false; setCreating(null); }
   }
 
+  async function openCatalogCreate() {
+    setPickerOpen(false); setCreateError(null);
+    try {
+      const entries = await strategyCatalogApi.list();
+      setCatalogEntries(entries);
+      setCatalogOpen(true);
+    } catch (reason) {
+      setCreateError(reason instanceof Error ? reason.message : "We couldn't load the tested strategy rules.");
+      setPickerOpen(true);
+    }
+  }
+
+  async function confirmCatalogCreate(request: CatalogStrategyRequest) {
+    if (creationInFlight.current) return;
+    creationInFlight.current = true; setCatalogCreating(true); setCreateError(null);
+    try {
+      const created = await strategyCatalogApi.create(request);
+      const detail = await strategyApi.create(request.name, created.strategy);
+      setCatalogOpen(false);
+      navigate(routeForCreatedStrategy(detail));
+    } catch (reason) {
+      setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
+    } finally {
+      creationInFlight.current = false; setCatalogCreating(false);
+    }
+  }
+
   async function confirmProgramCreate() {
     if (!programDraftName?.trim() || creationInFlight.current) return;
     creationInFlight.current = true; setProgramCreating(true); setCreateError(null);
@@ -205,7 +237,8 @@ export default function App() {
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
     {route.page === "comparison" && <ComparisonWorkspace comparisonId={route.comparisonId} initialContext={comparisonContext?.comparisonId === route.comparisonId ? comparisonContext.context : null} onContextChange={(context) => setComparisonContext({ comparisonId: route.comparisonId, context })} onOpenRun={(runId, context) => { if (context) { setResearchContext(context); setComparisonContext({ comparisonId: route.comparisonId, context }); } navigate({ page: "run", runId }); }} onViewRule={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context, { page: "comparison", comparisonId: route.comparisonId })} onAdopted={(response) => { setAdoptionNotice("This change is now part of your strategy."); setSourceFocus(null); navigate({ page: "strategy", strategyId: response.strategy.id }); }} onOpenLatest={(revisionId) => { setAdoptionNotice(null); void openStrategyOwningRevision(revisionId).catch((reason: unknown) => setRunError(reason instanceof Error ? reason.message : "We couldn't open the latest strategy.")); }} />}
-    {pickerOpen && <CreationPicker onChoose={chooseStartingPoint} onProgram={() => { setPickerOpen(false); setProgramDraftName("Untitled Strategy"); }} onClose={() => setPickerOpen(false)} loading={creating} error={createError} />}
+    {pickerOpen && <CreationPicker onChoose={chooseStartingPoint} onCatalog={() => void openCatalogCreate()} onProgram={() => { setPickerOpen(false); setProgramDraftName("Untitled Strategy"); }} onClose={() => setPickerOpen(false)} loading={creating} error={createError} />}
+    {catalogOpen && <CatalogStrategyDialog entries={catalogEntries} loading={catalogCreating} error={createError} onClose={() => { setCatalogOpen(false); setCreateError(null); }} onCreate={(request) => void confirmCatalogCreate(request)} />}
     {createDraft && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="create-title" onSubmit={(event) => { event.preventDefault(); void confirmCreate(); }}><span className="eyebrow">New strategy</span><h2 id="create-title">Name your strategy</h2><p>This starting point becomes one normal saved strategy. You can move between Summary, Guide, and Flow after creation.</p><label>Strategy name<input autoFocus value={createDraft.name} maxLength={100} onChange={(event) => setCreateDraft({ ...createDraft, name: event.target.value })} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreateDraft(null)}>Cancel</button><button className="primary-button" disabled={!createDraft.name.trim() || creating !== null}>{creating ? "Creating…" : "Create strategy"}</button></div></form></div>}
     {programDraftName !== null && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="program-create-title" onSubmit={(event) => { event.preventDefault(); void confirmProgramCreate(); }}><span className="eyebrow">New strategy</span><h2 id="program-create-title">Name your strategy</h2><p>You will start in the normal Builder with an empty canvas and context-aware next steps.</p><label>Strategy name<input autoFocus value={programDraftName} maxLength={100} onChange={(event) => setProgramDraftName(event.target.value)} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setProgramDraftName(null)}>Cancel</button><button className="primary-button" disabled={!programDraftName.trim() || programCreating}>{programCreating ? "Creating…" : "Create strategy"}</button></div></form></div>}
   </AppShell>;

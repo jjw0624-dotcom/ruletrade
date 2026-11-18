@@ -102,10 +102,12 @@ describe("mounted v2 production editor", () => {
     expect(markup).toContain("sha256:v2");
     expect(markup).toContain("Open result and decision evidence");
   });
-  it("offers a normal blank Strategy path without exposing Program internals", () => {
-    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
-    expect(markup).toContain("Blank strategy");
-    expect(markup).toContain("Start in the Builder");
+  it("offers tested Rules first and isolates the unfinished blank Builder as a Lab", () => {
+    const markup = renderToStaticMarkup(<CreationPicker onChoose={() => undefined} onCatalog={() => undefined} onProgram={() => undefined} onClose={() => undefined} />);
+    expect(markup).toContain("Choose a strategy rule");
+    expect(markup).toContain("continue directly to testing and research");
+    expect(markup).toContain("Builder Lab");
+    expect(markup).toContain("Experimental blank Builder");
     expect(markup).not.toContain("Blank Program");
     expect(markup).not.toContain("typed Values, Conditions, Events, State, Selection, and Allocation");
   });
