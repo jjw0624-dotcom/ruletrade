@@ -158,6 +158,13 @@ from ruletrade.strategy.v2.authoring import (
     create_program_strategy_template,
 )
 from ruletrade.strategy.v2.authoring import authoring_capabilities as v2_authoring_capabilities
+from ruletrade.strategy.v2.catalog import (
+    CreateCatalogStrategyRequest,
+    CreateCatalogStrategyResponse,
+    StrategyCatalogEntry,
+    create_catalog_strategy,
+    strategy_catalog,
+)
 from ruletrade.strategy.v2.daily_provider import DailyDatasetProviderError, DatasetDailySnapshotProvider
 from ruletrade.strategy.v2.execution import V2ExecutionError, execute_selection_v2
 from ruletrade.strategy.v2.models import CanonicalStrategyV2, SemanticProgramV2
@@ -739,6 +746,30 @@ def validate_canonical_strategy_v1(
         "strategy": spec.model_dump(mode="json"),
     }
 
+
+
+@app.get(
+    "/v2/strategy-catalog",
+    response_model=tuple[StrategyCatalogEntry, ...],
+)
+def list_v2_strategy_catalog() -> tuple[StrategyCatalogEntry, ...]:
+    return strategy_catalog()
+
+
+@app.post(
+    "/v2/strategy-catalog/create",
+    response_model=CreateCatalogStrategyResponse,
+)
+def create_v2_catalog_strategy(
+    request: CreateCatalogStrategyRequest,
+) -> CreateCatalogStrategyResponse:
+    try:
+        return create_catalog_strategy(request)
+    except V2AuthoringError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "path": exc.path, "message": str(exc)},
+        ) from exc
 
 
 @app.get(
