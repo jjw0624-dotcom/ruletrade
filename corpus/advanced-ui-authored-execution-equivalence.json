@@ -850,7 +850,7 @@
       "id": "temporal_sequence",
       "operation": {
         "asset": "QQQ",
-        "breakout_threshold": 12,
+        "breakout_threshold": 12.0,
         "confirmation_window": 2,
         "expiry_state": "expired",
         "kind": "commit_temporal_sequence_intent",
@@ -1309,7 +1309,7 @@
         ],
         "count": 2,
         "daily_signal_asset": "QQQ",
-        "daily_threshold": 0,
+        "daily_threshold": 0.0,
         "fallback_asset": "TLT",
         "kind": "commit_multi_clock_policy_intent",
         "score_observations": [
@@ -1322,7 +1322,7 @@
         ],
         "unknown_risk_policy": "block",
         "weekly_context_asset": "QQQ",
-        "weekly_threshold": 0
+        "weekly_threshold": 0.0
       }
     }
   ],
