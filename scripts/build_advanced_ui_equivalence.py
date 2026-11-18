@@ -30,7 +30,7 @@ def build() -> dict:
         CommitSplitPortfolioIntent(
             kind="commit_split_portfolio_intent",
             growth_assets=("QQQ", "VGT", "SOXX", "SCHG"),
-            growth_weight=Decimal("0.70"),
+            growth_weight=Decimal("0.7"),
             defensive_asset="IEF",
             ranking_lookback=126,
             fallback_asset="TLT",
