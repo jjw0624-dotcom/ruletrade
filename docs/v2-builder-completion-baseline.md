@@ -1,9 +1,12 @@
 # V2 Builder completion baseline
 
-**Status: CURRENT**
+**Status: FROZEN BUILDER CONTRACT**
 
-This document is the delivery ledger for completing the multi-perspective V2
-Builder. It narrows the active milestone without narrowing the product vision.
+This document records the multi-perspective V2 Builder contract proven through
+V2B-04. Continued general-purpose Builder delivery is no longer the active MVP
+critical path. The active sequence is the
+[fixed-strategy MVP completion plan](mvp-completion-plan.md); this ledger remains
+authoritative when the independent Builder track resumes.
 
 ## Product authority
 
@@ -40,8 +43,11 @@ The milestone cases are:
 | V2B-04 | Growth/Defensive split with independent ownership | Flow capital structure and Blocky decision structure remain distinct |
 | V2B-05 | Seeded probabilistic execution | deterministic replay and visible randomness semantics |
 
-V2B-05 begins only after V2B-01 through V2B-04 pass. Draftable random blocks do
-not count as execution support.
+V2B-01 through V2B-04 have automated acceptance evidence. V2B-05 remains the
+next independent Builder milestone, but begins only after the fixed-strategy MVP
+research loop is complete. Draftable random blocks do not count as execution
+support. Seeded randomness needed by robustness evaluation may be implemented
+as evaluation policy without advertising general Builder authoring support.
 
 ## Required evidence for every case
 
@@ -99,7 +105,7 @@ this ledger.
 - Close typed removal, draft reconciliation, and stale revision recovery needed
   by these journeys.
 
-### Phase 4 — manual WSL acceptance
+### Phase 4 — manual WSL acceptance (completed for automated contract; product UX rejected)
 
 After automated CI passes, run the exact PR head in WSL. Capture:
 
@@ -112,8 +118,11 @@ After automated CI passes, run the exact PR head in WSL. Capture:
 - any semantic mismatch, unexpected reset, hidden control, overlap, or
   misleading capability message.
 
-Manual acceptance may reject a green CI head. Fixes require a new head and a new
-CI pass.
+Manual acceptance may reject a green CI head. The November 2026 acceptance
+confirmed semantic preservation and exposed that general Flow/Blocky authoring
+was not efficient enough to remain on the MVP critical path. That UX rejection
+triggered the fixed-strategy pivot without invalidating the underlying
+Canonical, Revision, projection, or LEAN contracts.
 
 ### Phase 5 — V2 Builder milestone closure
 
