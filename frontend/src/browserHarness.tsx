@@ -473,6 +473,10 @@ const branchFallbackCanonical: CanonicalStrategyV2 = {
       condition: { kind: "state_equals", semantic_id: "omitted-condition", state_key: "regime", expected: "waiting" },
       then_statements: [{ kind: "buy", semantic_id: "omitted-do", target: { semantic_id: "omitted-do-target", kind: "asset", ref: "SPY" }, amount: { kind: "units_each", units: 1 }, clock_id: "daily-close" }],
       otherwise_statements: [], unknown_policy: "retain",
+    }, {
+      kind: "allocate", semantic_id: "selected-allocation", method: "equal", clock_id: "daily-close",
+      legs: [{ semantic_id: "selected-leg", target: { semantic_id: "selected-target", kind: "selection", ref: "selected-growth" }, weight: null }],
+      minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
     }],
   },
 };
