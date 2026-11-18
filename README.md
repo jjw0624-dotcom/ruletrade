@@ -60,14 +60,20 @@ gesture, typed V2 operation, validation, reprojection, persistence, and claimed
 execution evidence are connected. The Builder is not an arbitrary graph editor.
 
 The active delivery sequence is the
-[V2 Builder completion baseline](docs/v2-builder-completion-baseline.md). It
-closes representative multi-perspective round trips before adding more grammar.
+[fixed-strategy MVP completion plan](docs/mvp-completion-plan.md). Strategy
+creation is temporarily narrowed to a versioned catalog and Rules-oriented
+parameter forms so Detail BT, Hidden BT, robustness, random baselines, Forward,
+Learning, and Competition can be completed on the existing Revision and LEAN
+foundation. The [V2 Builder completion baseline](docs/v2-builder-completion-baseline.md)
+records the proven multi-perspective contract and the separately resumed Builder
+track.
 
-Explicitly deferred work includes arbitrary wiring, generic unrestricted Group
-CRUD, unrestricted nested boolean construction, editable arbitrary Code,
-embedded AI authoring, optimization, robustness, Hidden/Holdout evaluation,
-Forward testing, production Replay, broker execution, authentication/multi-user
-support, Learning, Competition, and Community features.
+The general-purpose Builder grammar, arbitrary wiring, generic unrestricted
+Group CRUD, unrestricted nested boolean construction, editable arbitrary Code,
+and embedded AI authoring are deferred to the independent Builder track.
+Optimization beyond bounded Detail BT, production Replay, broker execution,
+authentication/multi-user support, and Community features remain outside the
+fixed-strategy MVP.
 
 ## Development quick start
 
@@ -119,6 +125,7 @@ Revisions, LEAN, BacktestRuns, and Decision Evidence as described above.
 ## Current reference documents
 
 - [Living system architecture](docs/architecture.md)
+- [Fixed-strategy MVP completion plan](docs/mvp-completion-plan.md)
 - [V2 Builder completion baseline](docs/v2-builder-completion-baseline.md)
 - [Builder architecture constitution](docs/builder/README.md)
 - [Development and validation](docs/development.md)
