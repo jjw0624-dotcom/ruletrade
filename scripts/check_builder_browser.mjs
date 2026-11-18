@@ -264,7 +264,7 @@ try {
   const catalogCreateIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/strategy-catalog/create" && item.method === "POST");
   const catalogSaveIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v1/strategies" && item.method === "POST");
   const catalogRunIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs" && item.method === "POST");
-  if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("Backtest result") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
+  if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("HOW DID IT DO?") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
   await screenshot("catalog-mvp-created-saved-and-executed");
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
