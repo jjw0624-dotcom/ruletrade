@@ -227,7 +227,21 @@ export function programBlockConnectionManifest(nodes: ProgramBlockNode[]): strin
 
 function ruleLines(statement: ProgramStatementV2, path: string, depth: number, groupNames: ReadonlyMap<string, string>): ProgramRuleLine[] {
   const base = { id: `rule:${statement.semantic_id}`, depth, address: address("statement", statement.semantic_id, path) };
-  if (statement.kind === "control") return [{ ...base, text: `IF ${describeConditionV2(statement.condition)}; when Unknown, ${statement.unknown_policy === "retain" ? "retain current holdings" : "use OTHERWISE"}.` }, ...statement.then_statements.flatMap((item, index) => ruleLines(item, `${path}.then_statements[${index}]`, depth + 1, groupNames)), ...statement.otherwise_statements.flatMap((item, index) => ruleLines(item, `${path}.otherwise_statements[${index}]`, depth + 1, groupNames))];
+  if (statement.kind === "control") {
+    const branchAddress = address("statement", statement.semantic_id, path);
+    const otherwise = statement.otherwise_statements.length
+      ? [
+        { id: `rule:${statement.semantic_id}:otherwise`, text: `OTHERWISE (when False${statement.unknown_policy === "otherwise" ? " or Unknown" : ""}):`, depth: depth + 1, address: branchAddress },
+        ...statement.otherwise_statements.flatMap((item, index) => ruleLines(item, `${path}.otherwise_statements[${index}]`, depth + 2, groupNames)),
+      ]
+      : [{ id: `rule:${statement.semantic_id}:otherwise-omitted`, text: `OTHERWISE omitted; when False${statement.unknown_policy === "retain" ? " or Unknown" : ""}, retain current holdings.`, depth: depth + 1, address: branchAddress }];
+    return [
+      { ...base, text: `IF ${describeConditionV2(statement.condition)}; when Unknown, ${statement.unknown_policy === "retain" ? "retain current holdings" : "use OTHERWISE"}.` },
+      { id: `rule:${statement.semantic_id}:then`, text: "DO:", depth: depth + 1, address: branchAddress },
+      ...statement.then_statements.flatMap((item, index) => ruleLines(item, `${path}.then_statements[${index}]`, depth + 2, groupNames)),
+      ...otherwise,
+    ];
+  }
   if (statement.kind === "select") return [{ ...base, text: `From Group ${groupNames.get(statement.selection.universe_id) ?? statement.selection.universe_id}, Choose ${statement.selection.count} members for Subgroup ${statement.output_id} by ${statement.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(statement.selection.ranking)}${statement.selection.eligibility ? ` after requiring ${describeConditionV2(statement.selection.eligibility)}` : ""}${statement.selection.fallback_asset ? `; if incomplete, use ${statement.selection.fallback_asset}` : ""}.` }];
   if (statement.kind === "on_event") return [{ ...base, text: `On ${statement.event.trigger.replaceAll("_", " ")}${statement.event.condition ? ` when ${describeConditionV2(statement.event.condition)}` : ""}.` }, ...statement.statements.flatMap((item, index) => ruleLines(item, `${path}.statements[${index}]`, depth + 1, groupNames))];
   if (statement.kind === "transition") return [{ ...base, text: `Set ${statement.transition.state_key} from ${statement.transition.from_value ?? "any state"} to ${statement.transition.to_value} when ${describeConditionV2(statement.transition.when)}.` }];
