@@ -7,6 +7,7 @@ import { emptyProgramWorkingDraft, type ProgramWorkingDraft } from "./domain/pro
 import { SemanticProgramBuilderAdapter } from "./components/SemanticProgramBuilderAdapter";
 import { V2StrategyEditor } from "./components/V2StrategyEditor";
 import { ResultWorkspace } from "./components/ResultWorkspace";
+import App from "./App";
 import type { StrategyDetailV2 } from "./strategyApi";
 import type { BacktestRunRecord } from "./backtestRunApi";
 import equivalenceFixture from "../../corpus/ui-authored-execution-equivalence.json";
@@ -32,6 +33,33 @@ window.fetch = async (input, init) => {
   const url = String(input);
   const browserWindow = window as typeof window & { __RULETRADE_BROWSER_REQUESTS__?: Array<{ url: string; method: string }> };
   browserWindow.__RULETRADE_BROWSER_REQUESTS__ = [...(browserWindow.__RULETRADE_BROWSER_REQUESTS__ ?? []), { url, method: init?.method ?? "GET" }];
+  if (journey === "catalog-mvp") {
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (url === "/api/v1/strategies" && init?.method !== "POST") return json({ items: [] });
+    if (url === "/api/v2/strategy-catalog") return json([{
+      id: "single_asset_periodic", version: 1, name: "Single asset periodic",
+      description: "Hold one asset and rebalance on a fixed schedule.",
+      parameters: [
+        { id: "name", label: "Strategy name", kind: "policy", required: true },
+        { id: "asset", label: "Asset", kind: "asset", required: true },
+        { id: "timeframe", label: "Rebalance", kind: "timeframe", required: true },
+      ],
+    }]);
+    if (url === "/api/v2/strategy-catalog/create" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      if (request.catalog_id !== "single_asset_periodic" || request.version !== 1 || request.asset !== "QQQ" || request.timeframe !== "monthly") return json({ detail: { message: "Unexpected catalog request." } }, 422);
+      return json({ catalog_id: request.catalog_id, catalog_version: 1, strategy: catalogCanonical, source_hash: "sha256:catalog-mvp" }, 201);
+    }
+    if (url === "/api/v1/strategies" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      if (request.name !== "QQQ monthly" || stableJson(request.canonical_strategy) !== stableJson(catalogCanonical)) return json({ detail: { message: "Catalog Canonical was not persisted unchanged." } }, 422);
+      return json(catalogDetail, 201);
+    }
+    if (url === "/api/v1/strategies/strategy-catalog-mvp") return json(catalogDetail);
+    if (url.startsWith("/api/v1/editor/bootstrap?")) return json(catalogBootstrap);
+    if (url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs") return json(init?.method === "POST" ? catalogRun : { items: [] }, init?.method === "POST" ? 201 : 200);
+    if (url === "/api/v2/backtest-runs/run-catalog-mvp/decision-events") return json({ items: [] });
+  }
   if (url === "/api/v2/canonical/authoring/apply") {
     const request = JSON.parse(String(init?.body ?? "{}")) as { operation?: V2AuthoringOperation };
     if (journey === "ui-authored-advanced" && advancedCase) {
@@ -181,11 +209,36 @@ const persistedDetail: StrategyDetailV2 = {
   current_revision: { id: "revision-v2-browser", strategy_id: "strategy-v2-browser", parent_revision_id: null, canonical_strategy: persistedCanonical, source_hash: "sha256:browser-v2", schema_version: persistedCanonical.api_version, created_at: "2026-11-02T00:00:00Z" },
 };
 
+const catalogCanonical: CanonicalStrategyV2 = {
+  ...persistedCanonical,
+  metadata: { ...persistedCanonical.metadata, name: "QQQ monthly" },
+};
+const catalogDetail: StrategyDetailV2 = {
+  strategy: { id: "strategy-catalog-mvp", name: "QQQ monthly", created_at: "2026-11-18T00:00:00Z", updated_at: "2026-11-18T00:00:00Z", current_revision_id: "revision-catalog-mvp", archived_at: null },
+  current_revision: { id: "revision-catalog-mvp", strategy_id: "strategy-catalog-mvp", parent_revision_id: null, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", schema_version: catalogCanonical.api_version, created_at: "2026-11-18T00:00:00Z" },
+};
+const catalogBootstrap = {
+  strategy: {
+    api_version: "ruletrade.dev/strategy/v1", metadata: { name: "Registry", description: "", tags: [] }, random_seed: 1,
+    definitions: { asset_sets: [], groups: [], universes: [], parameters: [], state: [] },
+    graph: { components: [], connections: [] }, entrypoints: [],
+  },
+  registry: { primitives: [] },
+  validation: { valid: true, issues: [] },
+};
+
 const persistedRun: BacktestRunRecord = {
   id: "run-v2-browser", revision_id: "revision-v2-browser", status: "succeeded", run_config: { start_date: "2024-01-01", end_date: "2024-02-29", initial_cash: "100000", dataset_id: "filter-synthetic" },
   result: { initial_value: "100000", final_value: "110000", total_return: "0.1", total_orders: 1, total_fees: "1", equity_curve: [{ timestamp: "2024-01-01T00:00:00Z", value: "100000" }, { timestamp: "2024-02-29T00:00:00Z", value: "110000" }] }, error: null,
   provenance: { source_hash: "sha256:browser-v2", strategy_schema_version: persistedCanonical.api_version, application_version: "browser", build_commit: "browser-head", backend_id: "lean", engine_image: "lean:browser", dataset_id: "filter-synthetic", dataset_version: "browser-v1" },
   timings: { source_load_ms: 1, validation_ms: 1, compiler_ms: 1, codegen_ms: 1, csharp_compile_ms: 1, lean_execution_ms: 1, result_load_ms: 1, normalization_ms: 1, total_ms: 8 }, created_at: "2026-11-02T00:00:00Z", started_at: "2026-11-02T00:00:01Z", completed_at: "2026-11-02T00:00:08Z",
+};
+
+const catalogRun: BacktestRunRecord = {
+  ...persistedRun,
+  id: "run-catalog-mvp",
+  revision_id: "revision-catalog-mvp",
+  provenance: { ...persistedRun.provenance, source_hash: "sha256:catalog-mvp" },
 };
 
 const uiAuthoredRun: BacktestRunRecord = {
@@ -549,4 +602,6 @@ function AdvancedUiAuthoredEquivalenceHarness({ caseId }: { caseId: string }) {
   return <V2StrategyEditor key={`${advancedSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={advancedSavedDetail ?? advancedInitialDetail(caseId)} onHome={() => setOpen(false)} />;
 }
 
-createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "branch-fallback" ? <BranchFallbackHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
+if (journey === "catalog-mvp") window.history.replaceState(null, "", "/home");
+
+createRoot(document.getElementById("root")!).render(journey === "catalog-mvp" ? <App /> : journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "branch-fallback" ? <BranchFallbackHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
