@@ -248,6 +248,7 @@ try {
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
   await clickTextContaining("+ New strategy");
   await waitSelector('[aria-labelledby="picker-title"]');
+  await scrollButtonIntoView("Choose a strategy rule");
   await clickText("Choose a strategy rule");
   await waitSelector('[aria-labelledby="catalog-title"]');
   await setControlValue("Strategy name", "QQQ monthly");
