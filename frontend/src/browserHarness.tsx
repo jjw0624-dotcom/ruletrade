@@ -602,6 +602,6 @@ function AdvancedUiAuthoredEquivalenceHarness({ caseId }: { caseId: string }) {
   return <V2StrategyEditor key={`${advancedSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={advancedSavedDetail ?? advancedInitialDetail(caseId)} onHome={() => setOpen(false)} />;
 }
 
-if (journey === "catalog-mvp") window.history.replaceState(null, "", "/");
+if (journey === "catalog-mvp") window.history.replaceState(null, "", "/home");
 
 createRoot(document.getElementById("root")!).render(journey === "catalog-mvp" ? <App /> : journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "branch-fallback" ? <BranchFallbackHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
