@@ -218,8 +218,7 @@ try {
   const v2b03RulesBefore = await evaluate(`document.querySelector('[data-projection-contract="rules"]')?.innerText??''`);
   if (!v2b03RulesBefore.includes("if incomplete, use TLT") || !v2b03RulesBefore.includes("DO:") || !v2b03RulesBefore.includes("OTHERWISE (when False or Unknown):") || !v2b03RulesBefore.includes("OTHERWISE omitted; when False or Unknown, retain current holdings.")) throw new Error(`V2B-03 Rules did not distinguish branches and selection fallback: ${v2b03RulesBefore}`);
   await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
-  await waitExpression(`Boolean([...document.querySelectorAll('.react-flow__node')].find((item)=>item.innerText.includes('TLT')&&item.innerText.includes('Shortage fallback')))`, "selection fallback Flow node");
-  await evaluate(`[...document.querySelectorAll('.react-flow__node')].find((item)=>item.innerText.includes('TLT')&&item.innerText.includes('Shortage fallback')).click()`);
+  await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const node=[...document.querySelectorAll('.react-flow__node')].find((item)=>(item.textContent??'').includes('TLT')&&(item.textContent??'').includes('Shortage fallback')); if(node){ node.dispatchEvent(new MouseEvent('click',{bubbles:true,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing selection fallback Flow node'); })()`);
   await waitSelector('input[aria-label="Fallback asset"]');
   await setControlValue("Fallback asset", "IEF");
   await waitExpression(`window.__RULETRADE_V2B03_OPERATION__?.kind==='set_program_fallback'&&window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements?.[0]?.selection?.fallback_asset==='IEF'`, "typed selection shortage fallback edit");
