@@ -244,6 +244,29 @@ try {
   if (flowRemoval.statements !== 0 || flowRemoval.draft || !flowRemoval.empty) throw new Error(`Typed Flow removal failed: ${JSON.stringify(flowRemoval)}`);
   await screenshot("builder-typed-flow-removal");
 
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=catalog-mvp" });
+  await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
+  await clickTextContaining("+ New strategy");
+  await waitSelector('[aria-labelledby="picker-title"]');
+  await clickText("Choose a strategy rule");
+  await waitSelector('[aria-labelledby="catalog-title"]');
+  await setControlValue("Strategy name", "QQQ monthly");
+  await setControlValue("Asset", "QQQ");
+  await setControlValue("Rebalance", "monthly");
+  await clickText("Create and save strategy");
+  await waitSelector('[data-production-builder-shell="true"]');
+  await waitExpression(`document.body.innerText.includes('QQQ monthly')`, "persisted catalog strategy");
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "catalog strategy Test");
+  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
+  const catalogJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  const catalogListIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/strategy-catalog");
+  const catalogCreateIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/strategy-catalog/create" && item.method === "POST");
+  const catalogSaveIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v1/strategies" && item.method === "POST");
+  const catalogRunIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs" && item.method === "POST");
+  if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("Backtest result") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
+  await screenshot("catalog-mvp-created-saved-and-executed");
+
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
   await waitSelector('[data-production-builder-shell="true"]');
   const builderBeforeDashboard = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width}}; })()`);
