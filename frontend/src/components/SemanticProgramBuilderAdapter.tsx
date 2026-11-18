@@ -12,7 +12,7 @@ import { ProgramBlockyProjection, type NativeBlockyHistory } from "./ProductBloc
 import { SelectionComposer } from "./SelectionComposer";
 import type { BuilderProductOperation } from "../domain/builderProductOperations";
 import { projectV2ProductSemantics, visibleProgramStatements, type ProductFlowEdge, type ProductFlowNode } from "../domain/productSemantics";
-import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary } from "../domain/programProjections";
+import { projectProgramCapitalFlow, projectProgramRules, projectProgramSummary, type ProgramBlockNode } from "../domain/programProjections";
 import { ProgramAssetUniverseEditor } from "./AssetWorkspace";
 import { emptyProgramWorkingDraft, hasProgramDrafts, programDraftForPerspective, setCanvasBlockActive, withBlockDisclosure, withBlockMove, withBlockPosition, withFlowPositions, withNativeBlocklyState, withPerspectiveProgramDraft, type ProgramDraftConcept, type ProgramDraftPerspective, type ProgramWorkingDraft } from "../domain/programWorkingDraft";
 import { entryBlockDefinition } from "../domain/entryStyleGrammar";
@@ -78,7 +78,7 @@ export function programFlowManifest(graph: { nodes: ProductFlowNode[]; edges: Pr
   ].join(";");
 }
 
-export function programBlockManifest(nodes: ReturnType<typeof projectProgramBlocky>): string {
+export function programBlockManifest(nodes: ProgramBlockNode[]): string {
   return nodes
     .filter((node) => node.connection)
     .map((node) => node.connection?.kind === "input"
