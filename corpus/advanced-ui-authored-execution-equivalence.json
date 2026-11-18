@@ -5,7 +5,7 @@
         "api_version": "ruletrade.dev/strategy/v2",
         "definitions": {
           "asset_axis": {
-            "coordinate_policy": "stable_identity",
+            "coordinate_policy": "member_identity",
             "domain_id": "growth",
             "name": "asset"
           },
@@ -142,7 +142,7 @@
                     "ref": "selected-growth",
                     "semantic_id": "growth-sleeve-target"
                   },
-                  "weight": "0.70"
+                  "weight": "0.7"
                 },
                 {
                   "semantic_id": "defensive-sleeve-leg",
@@ -151,7 +151,7 @@
                     "ref": "IEF",
                     "semantic_id": "defensive-sleeve-target"
                   },
-                  "weight": "0.30"
+                  "weight": "0.3"
                 }
               ],
               "maximum_weight": null,
