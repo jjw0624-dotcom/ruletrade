@@ -275,11 +275,13 @@ gestures use the backend composition contract. The current direct-composition
 proofs and deliberate boundary are documented in
 [Composer UX v1](composer-ux-v1.md).
 
-Deferred work includes arbitrary wiring, generic Group CRUD, unrestricted
-nested groups or boolean-expression authoring, editable arbitrary Code,
-embedded AI, multi-operation AI transactions, optimization, sensitivity,
-robustness, Holdout, Validation, Forward testing, production Replay, provider
-frameworks, automatic market-data acquisition, broker execution,
+The active fixed-strategy MVP now includes bounded Detail BT, Hidden
+evaluation, robustness and random baselines, Forward evaluation, Learning, and
+Competition as staged work over immutable Revisions. Deferred work includes
+arbitrary wiring, generic Group CRUD, unrestricted nested groups or
+boolean-expression authoring, editable arbitrary Code, embedded AI,
+multi-operation AI transactions, broad optimization, production Replay,
+provider frameworks, automatic market-data acquisition, broker execution,
 authentication/multi-user support, and Community features.
 
 See the [documentation index](README.md) for current subsystem documents and
