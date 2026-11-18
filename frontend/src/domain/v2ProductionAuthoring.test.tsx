@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { V2StrategyEditor, V2TestResultPanel } from "../components/V2StrategyEditor";
 import { CreationPicker } from "../components/CreationPicker";
 import { v2AuthoringApi } from "../v2AuthoringApi";
-import type { CanonicalStrategyV2, DailyValueNode } from "./canonicalV2";
+import type { CanonicalStrategyV2, DailyValueNode, ProgramStatementV2 } from "./canonicalV2";
 import { describeConditionV2, describeDailyValue } from "./v2Semantics";
 import type { StrategyDetailV2 } from "../strategyApi";
 import { compileControlDraft, programAllocationToolDescription, programFlowGeometry, programFlowManifest, projectProgramFlowCanvas, projectProgramProductFlow, projectProgramProductFlowGraph, projectProgramProductStructure, SemanticProgramBuilderAdapter } from "../components/SemanticProgramBuilderAdapter";
@@ -516,6 +516,35 @@ describe("perspective-specific SemanticProgramV2 projections", () => {
       "statement:risk-event-statement:CONDITION->condition:risk-waiting",
       "statement:risk-event-statement:DO->statement:activate-statement",
     ]));
+  });
+
+  it("keeps DO, explicit OTHERWISE, omitted OTHERWISE, and selection fallback visibly distinct", () => {
+    const allocation = (semanticId: string, asset: string): Extract<ProgramStatementV2, { kind: "allocate" }> => ({
+      kind: "allocate", semantic_id: semanticId, method: "equal", clock_id: "daily-close",
+      legs: [{ semantic_id: `${semanticId}-leg`, target: { semantic_id: `${semanticId}-target`, kind: "asset", ref: asset }, weight: null }],
+      minimum_weight: null, maximum_weight: null, cash_remainder_asset: null,
+    });
+    const value = programStrategy();
+    value.program!.statements.push({
+      kind: "control", semantic_id: "explicit-control", clock_id: "daily-close",
+      condition: { kind: "state_equals", semantic_id: "explicit-condition", state_key: "regime", expected: "active" },
+      then_statements: [allocation("explicit-do", "QQQ")],
+      otherwise_statements: [allocation("explicit-otherwise", "TLT")],
+      unknown_policy: "otherwise",
+    }, {
+      kind: "control", semantic_id: "omitted-control", clock_id: "daily-close",
+      condition: { kind: "state_equals", semantic_id: "omitted-condition", state_key: "regime", expected: "waiting" },
+      then_statements: [allocation("omitted-do", "SPY")],
+      otherwise_statements: [],
+      unknown_policy: "retain",
+    });
+    const lines = projectProgramRules(value);
+    expect(lines.find((line) => line.id === "rule:program-selection")?.text).toContain("if incomplete, use TLT");
+    expect(lines.find((line) => line.id === "rule:explicit-control:then")?.text).toBe("DO:");
+    expect(lines.find((line) => line.id === "rule:explicit-control:otherwise")?.text).toBe("OTHERWISE (when False or Unknown):");
+    expect(lines.find((line) => line.id === "rule:omitted-control:otherwise-omitted")?.text).toBe("OTHERWISE omitted; when False or Unknown, retain current holdings.");
+    expect(lines.find((line) => line.id === "rule:explicit-do")?.depth).toBe(2);
+    expect(lines.find((line) => line.id === "rule:explicit-otherwise")?.depth).toBe(2);
   });
 
   it("compiles a connected unfinished IF through the same validated Program operation boundary", () => {

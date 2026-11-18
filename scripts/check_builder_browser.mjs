@@ -213,6 +213,26 @@ try {
   if (!v2b02Code.includes("blocky-select-draft-start-pipeline") || !v2b02Code.includes("units_each") || !v2b02Code.includes("group-1")) throw new Error(`Code projection did not preserve V2B-02 semantic identity: ${v2b02Code}`);
   await screenshot("builder-v2b02-filter-topn-buy-roundtrip");
 
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=branch-fallback" });
+  await waitSelector('[data-projection-contract="rules"]');
+  const v2b03RulesBefore = await evaluate(`document.querySelector('[data-projection-contract="rules"]')?.innerText??''`);
+  if (!v2b03RulesBefore.includes("if incomplete, use TLT") || !v2b03RulesBefore.includes("DO:") || !v2b03RulesBefore.includes("OTHERWISE (when False or Unknown):") || !v2b03RulesBefore.includes("OTHERWISE omitted; when False or Unknown, retain current holdings.")) throw new Error(`V2B-03 Rules did not distinguish branches and selection fallback: ${v2b03RulesBefore}`);
+  await clickText("Flow"); await waitSelector('[aria-label="Flow capital projection"]');
+  await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const node=[...document.querySelectorAll('.react-flow__node')].find((item)=>(item.textContent??'').includes('TLT')&&(item.textContent??'').includes('Shortage fallback')); if(node){ node.dispatchEvent(new MouseEvent('click',{bubbles:true,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing selection fallback Flow node'); })()`);
+  await waitSelector('input[aria-label="Fallback asset"]');
+  await setControlValue("Fallback asset", "IEF");
+  await evaluate(`(() => { const input=document.querySelector('input[aria-label="Fallback asset"]'); input.focus(); input.blur(); })()`);
+  await waitExpression(`window.__RULETRADE_V2B03_OPERATION__?.kind==='set_program_fallback'&&window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements?.[0]?.selection?.fallback_asset==='IEF'`, "typed selection shortage fallback edit");
+  const v2b03After = await evaluate(`(() => { const statements=window.__RULETRADE_BROWSER_CANONICAL__?.program?.statements??[]; return { fallback:statements[0]?.selection?.fallback_asset, explicit:statements[1], omitted:statements[2], operation:window.__RULETRADE_V2B03_OPERATION__ }; })()`);
+  if (v2b03After.fallback !== "IEF" || v2b03After.operation?.kind !== "set_program_fallback" || v2b03After.explicit?.otherwise_statements?.[0]?.semantic_id !== "explicit-otherwise" || v2b03After.explicit?.unknown_policy !== "otherwise" || v2b03After.omitted?.otherwise_statements?.length !== 0 || v2b03After.omitted?.unknown_policy !== "retain") throw new Error(`V2B-03 fallback edit changed control branch meaning: ${JSON.stringify(v2b03After)}`);
+  await clickText("Rules"); await waitSelector('[data-projection-contract="rules"]');
+  const v2b03RulesAfter = await evaluate(`document.querySelector('[data-projection-contract="rules"]')?.innerText??''`);
+  if (!v2b03RulesAfter.includes("if incomplete, use IEF") || !v2b03RulesAfter.includes("OTHERWISE (when False or Unknown):") || !v2b03RulesAfter.includes("OTHERWISE omitted; when False or Unknown, retain current holdings.")) throw new Error(`V2B-03 roundtrip lost branch or fallback meaning: ${v2b03RulesAfter}`);
+  await clickText("Code"); await waitSelector('.code-representation[aria-label="Code representation"]');
+  const v2b03Code = await evaluate(`document.querySelector('.code-representation[aria-label="Code representation"]')?.innerText??''`);
+  if (!v2b03Code.includes('"fallback_asset": "IEF"') || !v2b03Code.includes('"unknown_policy": "otherwise"') || !v2b03Code.includes('"unknown_policy": "retain"')) throw new Error(`V2B-03 Code projection lost distinct semantics: ${v2b03Code}`);
+  await screenshot("builder-v2b03-branch-fallback-roundtrip");
+
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
   await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const path=[...document.querySelectorAll('.react-flow__edge-interaction')].find((item)=>item.isConnected&&item.getTotalLength()>0); if(path){ const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing stable Flow route interaction path'); })()`);
