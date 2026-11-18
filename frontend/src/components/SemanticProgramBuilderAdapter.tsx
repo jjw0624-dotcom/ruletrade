@@ -78,6 +78,15 @@ export function programFlowManifest(graph: { nodes: ProductFlowNode[]; edges: Pr
   ].join(";");
 }
 
+export function programBlockManifest(nodes: ReturnType<typeof projectProgramBlocky>): string {
+  return nodes
+    .filter((node) => node.connection)
+    .map((node) => node.connection?.kind === "input"
+      ? `${node.connection.parentId}:${node.connection.inputName}->${node.id}`
+      : `${node.connection?.parentId}:NEXT->${node.id}`)
+    .join(";");
+}
+
 type ProgramFlowCanvasData = Record<string, unknown> & {
   title: string;
   detail?: string;
@@ -957,7 +966,7 @@ export function SemanticProgramBuilderAdapter({ canonical, dirty, status, messag
                     : <div className="semantic-inspector-content"><h2>Portfolio</h2><p>Select a Group, Subgroup, or Investment in Structure, or add one from Add.</p></div>;
   const representations: Record<ProgramBuilderView, ReactNode> = {
     overview: <section className="representation-layer v2-summary" data-projection-contract="summary"><header className="summary-hero"><span className="eyebrow">Strategy summary</span><h1>{summary.title}</h1><p className="summary-objective">{summary.objective}</p><p>{summary.description}</p></header><div className="summary-status-grid"><section><span>Execution</span><strong>{executionLabel}</strong><p>{executionCapability?.product_message ?? "Checking whether the saved revision can run."}</p></section><section><span>Latest saved test</span><strong>{latestRun ? `Run ${latestRun.id}` : "Not run"}</strong><p>{latestResult}</p>{latestRun && onOpenLatestRun && <button type="button" className="text-button" onClick={onOpenLatestRun}>View saved result</button>}</section></div>{summary.sections.length > 0 && <div className="summary-section-grid">{summary.sections.map((section) => <section key={section.id}><h2>{section.label}</h2><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</div>}{summary.missingInputs.length > 0 && <section className="perspective-missing-inputs"><h2>Next inputs</h2><ul>{summary.missingInputs.map((item) => <li key={item}>{item}</li>)}</ul></section>}</section>,
-    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky" data-execution-candidate={activeGraphCompilation.status}><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
+    blocky: <section className="representation-layer blocky-layer" data-projection-contract="blocky" data-block-connection-manifest={programBlockManifest(blocky)} data-execution-candidate={activeGraphCompilation.status}><ProgramBlockyProjection nodes={blocky} selectedId={selectedId} onSelect={select}
       positions={workingDraft.blockPositions} connections={workingDraft.blockConnections} disclosure={workingDraft.blockDisclosure} draft={draft} canvasBlocks={workingDraft.canvasBlocks}
       objects={blockyObjects} workspaceState={workingDraft.blocklyWorkspace} viewport={workingDraft.blocklyViewport}
       addSurfaceOpen={view === "blocky" && workingDraft.blockyAddOpen} suspended={draft?.kind === "group" || Boolean(selectedId?.startsWith("assets:"))}
