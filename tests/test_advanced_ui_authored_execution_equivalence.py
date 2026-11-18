@@ -93,7 +93,7 @@ def test_advanced_cases_keep_their_distinct_execution_contracts() -> None:
 
     assert [clock.timeframe for clock in split.program.clocks] == ["monthly"]
     assert split.program.statements[-1].kind == "allocate"
-    assert [str(leg.weight) for leg in split.program.statements[-1].legs] == ["0.70", "0.30"]
+    assert [str(leg.weight) for leg in split.program.statements[-1].legs] == ["0.7", "0.3"]
     assert [leg.target.kind for leg in split.program.statements[-1].legs] == ["selection", "asset"]
 
     assert [clock.timeframe for clock in weighted.program.clocks] == ["monthly"]
