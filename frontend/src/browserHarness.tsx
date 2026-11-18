@@ -329,6 +329,119 @@ function BlockyGroupHandoffHarness() {
     workingDraft={draft} onWorkingDraftChange={(next) => setDraft(next)} />;
 }
 
+
+function BlockyFilterChooseBuyHarness() {
+  const [canonical, setCanonical] = useState(blockyGroupHandoffCanonical);
+  const filterSpec = JSON.stringify({
+    version: 1,
+    combination: "all",
+    missingPolicy: "exclude",
+    conditions: [{ id: "positive-126", metric: "trailing_return", lookbackObservations: 126, operator: "gt", value: 0, unit: "percent" }],
+  });
+  const [draft, setDraft] = useState<ProgramWorkingDraft>(() => {
+    const blocks = {
+      "draft:start-pipeline": { id: "draft:start-pipeline", definitionId: "start-daily", label: "Every daily close", active: false, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:buy-pipeline": { id: "draft:buy-pipeline", definitionId: "invest", label: "Buy", active: false, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:choose": { id: "draft:choose", definitionId: "top-n-assets", label: "Choose top N", active: false, fieldValues: { SHORTAGE: "CHOOSE_ALL" }, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:filter": { id: "draft:filter", definitionId: "filter-assets", label: "Filter to Subgroup", active: false, fieldValues: { FILTER_SPEC: filterSpec }, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:source": { id: "draft:source", definitionId: "group-reference", label: "Group 1", active: false, objectRef: "group-1", createdAt: "2026-11-18T00:00:00Z" },
+      "draft:score": { id: "draft:score", definitionId: "candidate-return", label: "Candidate return", active: false, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:lookback": { id: "draft:lookback", definitionId: "trading-days", label: "63 trading days", active: false, fieldValues: { VALUE: 63 }, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:count": { id: "draft:count", definitionId: "number", label: "1", active: false, fieldValues: { VALUE: 1 }, createdAt: "2026-11-18T00:00:00Z" },
+      "draft:amount": { id: "draft:amount", definitionId: "units-each", label: "1 unit each", active: false, fieldValues: { VALUE: 1 }, createdAt: "2026-11-18T00:00:00Z" },
+    } satisfies ProgramWorkingDraft["canvasBlocks"];
+    return {
+      ...emptyProgramWorkingDraft("blocky-filter-choose-buy"),
+      canvasBlocks: blocks,
+      blockConnections: {
+        "draft:start-pipeline": { childId: "draft:start-pipeline", parentId: null, inputName: null },
+        "draft:buy-pipeline": { childId: "draft:buy-pipeline", parentId: "draft:start-pipeline", inputName: "NEXT" },
+        "draft:choose": { childId: "draft:choose", parentId: "draft:buy-pipeline", inputName: "TARGET" },
+        "draft:amount": { childId: "draft:amount", parentId: "draft:buy-pipeline", inputName: "AMOUNT" },
+        "draft:filter": { childId: "draft:filter", parentId: "draft:choose", inputName: "ASSETS" },
+        "draft:score": { childId: "draft:score", parentId: "draft:choose", inputName: "SCORE" },
+        "draft:count": { childId: "draft:count", parentId: "draft:choose", inputName: "COUNT" },
+        "draft:source": { childId: "draft:source", parentId: "draft:filter", inputName: "ASSETS" },
+        "draft:lookback": { childId: "draft:lookback", parentId: "draft:score", inputName: "DURATION" },
+      },
+      blockPositions: Object.fromEntries(Object.keys(blocks).map((id, index) => [id, { x: 300 + index * 35, y: 130 + index * 40 }])),
+      blocklyWorkspace: {
+        blocks: {
+          languageVersion: 0,
+          blocks: [{
+            type: "rt_entry_start_daily",
+            id: "native-start-pipeline",
+            x: 300,
+            y: 130,
+            data: JSON.stringify({ productId: "draft:start-pipeline", definitionId: "start-daily" }),
+            next: { block: {
+              type: "rt_entry_invest",
+              id: "native-buy-pipeline",
+              data: JSON.stringify({ productId: "draft:buy-pipeline", definitionId: "invest" }),
+              inputs: {
+                TARGET: { block: {
+                  type: "rt_entry_top_n_assets",
+                  id: "native-choose",
+                  data: JSON.stringify({ productId: "draft:choose", definitionId: "top-n-assets", fieldValues: { SHORTAGE: "CHOOSE_ALL" } }),
+                  inputs: {
+                    ASSETS: { block: {
+                      type: "rt_entry_filter_assets",
+                      id: "native-filter",
+                      data: JSON.stringify({ productId: "draft:filter", definitionId: "filter-assets", fieldValues: { FILTER_SPEC: filterSpec } }),
+                      inputs: { ASSETS: { block: {
+                        type: "rt_entry_group_reference",
+                        id: "native-source",
+                        data: JSON.stringify({ productId: "draft:source", definitionId: "group-reference", objectRef: "group-1" }),
+                      } } },
+                    } },
+                    SCORE: { block: {
+                      type: "rt_entry_candidate_return",
+                      id: "native-score",
+                      data: JSON.stringify({ productId: "draft:score", definitionId: "candidate-return" }),
+                      inputs: { DURATION: { block: {
+                        type: "rt_entry_trading_days",
+                        id: "native-lookback",
+                        fields: { VALUE: 63 },
+                        data: JSON.stringify({ productId: "draft:lookback", definitionId: "trading-days" }),
+                      } } },
+                    } },
+                    COUNT: { block: {
+                      type: "math_number",
+                      id: "native-count",
+                      fields: { NUM: 1 },
+                      data: JSON.stringify({ productId: "draft:count", definitionId: "number" }),
+                    } },
+                  },
+                } },
+                AMOUNT: { block: {
+                  type: "rt_entry_units_each",
+                  id: "native-amount",
+                  fields: { VALUE: 1 },
+                  data: JSON.stringify({ productId: "draft:amount", definitionId: "units-each" }),
+                } },
+              },
+            } },
+          }],
+        },
+      },
+    };
+  });
+  (window as typeof window & { __RULETRADE_BROWSER_DRAFT__?: ProgramWorkingDraft }).__RULETRADE_BROWSER_DRAFT__ = draft;
+  (window as typeof window & { __RULETRADE_BROWSER_CANONICAL__?: CanonicalStrategyV2 }).__RULETRADE_BROWSER_CANONICAL__ = canonical;
+  const prepareTest = (operation: V2AuthoringOperation | null) => {
+    (window as typeof window & { __RULETRADE_V2B02_HANDOFF__?: { operation: V2AuthoringOperation | null } }).__RULETRADE_V2B02_HANDOFF__ = { operation };
+    if (operation?.kind !== "insert_program_statement") return;
+    setCanonical((current) => ({
+      ...current,
+      program: current.program ? { ...current.program, statements: [...current.program.statements, operation.statement] } : null,
+    }));
+  };
+  return <SemanticProgramBuilderAdapter canonical={canonical} dirty={false} status="saved" message="Saved" initialView="blocky"
+    onHome={() => undefined} apply={() => undefined} save={() => undefined} undo={() => undefined} redo={() => undefined}
+    canUndo={false} canRedo={false} working={() => undefined} run={() => undefined} prepareTest={prepareTest} executionCapability={null}
+    workingDraft={draft} onWorkingDraftChange={(next) => setDraft(next)} />;
+}
+
 const flowRemovalCanonical: CanonicalStrategyV2 = {
   ...blank,
   metadata: { ...blank.metadata, name: "Flow Removal" },
@@ -376,4 +489,4 @@ function AdvancedUiAuthoredEquivalenceHarness({ caseId }: { caseId: string }) {
   return <V2StrategyEditor key={`${advancedSavedDetail?.current_revision.id ?? "initial"}-${generation}`} persisted={advancedSavedDetail ?? advancedInitialDetail(caseId)} onHome={() => setOpen(false)} />;
 }
 
-createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);
+createRoot(document.getElementById("root")!).render(journey === "ui-authored-advanced" && advancedCase ? <AdvancedUiAuthoredEquivalenceHarness caseId={advancedCase.id} /> : journey === "ui-authored-equivalence" ? <UiAuthoredEquivalenceHarness /> : journey === "persisted-v2" ? <PersistedJourneyHarness /> : journey === "flow-removal" ? <FlowRemovalHarness /> : journey === "blocky-filter-choose-buy" ? <BlockyFilterChooseBuyHarness /> : journey === "blocky-group-handoff" ? <BlockyGroupHandoffHarness /> : <Harness />);

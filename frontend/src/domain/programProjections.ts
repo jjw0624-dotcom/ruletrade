@@ -225,11 +225,11 @@ export function programBlockConnectionManifest(nodes: ProgramBlockNode[]): strin
     : []);
 }
 
-function ruleLines(statement: ProgramStatementV2, path: string, depth: number): ProgramRuleLine[] {
+function ruleLines(statement: ProgramStatementV2, path: string, depth: number, groupNames: ReadonlyMap<string, string>): ProgramRuleLine[] {
   const base = { id: `rule:${statement.semantic_id}`, depth, address: address("statement", statement.semantic_id, path) };
-  if (statement.kind === "control") return [{ ...base, text: `IF ${describeConditionV2(statement.condition)}; when Unknown, ${statement.unknown_policy === "retain" ? "retain current holdings" : "use OTHERWISE"}.` }, ...statement.then_statements.flatMap((item, index) => ruleLines(item, `${path}.then_statements[${index}]`, depth + 1)), ...statement.otherwise_statements.flatMap((item, index) => ruleLines(item, `${path}.otherwise_statements[${index}]`, depth + 1))];
-  if (statement.kind === "select") return [{ ...base, text: `From Group ${statement.selection.universe_id}, Choose ${statement.selection.count} members for Subgroup ${statement.output_id} by ${statement.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(statement.selection.ranking)}${statement.selection.eligibility ? ` after requiring ${describeConditionV2(statement.selection.eligibility)}` : ""}${statement.selection.fallback_asset ? `; if incomplete, use ${statement.selection.fallback_asset}` : ""}.` }];
-  if (statement.kind === "on_event") return [{ ...base, text: `On ${statement.event.trigger.replaceAll("_", " ")}${statement.event.condition ? ` when ${describeConditionV2(statement.event.condition)}` : ""}.` }, ...statement.statements.flatMap((item, index) => ruleLines(item, `${path}.statements[${index}]`, depth + 1))];
+  if (statement.kind === "control") return [{ ...base, text: `IF ${describeConditionV2(statement.condition)}; when Unknown, ${statement.unknown_policy === "retain" ? "retain current holdings" : "use OTHERWISE"}.` }, ...statement.then_statements.flatMap((item, index) => ruleLines(item, `${path}.then_statements[${index}]`, depth + 1, groupNames)), ...statement.otherwise_statements.flatMap((item, index) => ruleLines(item, `${path}.otherwise_statements[${index}]`, depth + 1, groupNames))];
+  if (statement.kind === "select") return [{ ...base, text: `From Group ${groupNames.get(statement.selection.universe_id) ?? statement.selection.universe_id}, Choose ${statement.selection.count} members for Subgroup ${statement.output_id} by ${statement.selection.direction === "descending" ? "highest" : "lowest"} ${describeValueV2(statement.selection.ranking)}${statement.selection.eligibility ? ` after requiring ${describeConditionV2(statement.selection.eligibility)}` : ""}${statement.selection.fallback_asset ? `; if incomplete, use ${statement.selection.fallback_asset}` : ""}.` }];
+  if (statement.kind === "on_event") return [{ ...base, text: `On ${statement.event.trigger.replaceAll("_", " ")}${statement.event.condition ? ` when ${describeConditionV2(statement.event.condition)}` : ""}.` }, ...statement.statements.flatMap((item, index) => ruleLines(item, `${path}.statements[${index}]`, depth + 1, groupNames))];
   if (statement.kind === "transition") return [{ ...base, text: `Set ${statement.transition.state_key} from ${statement.transition.from_value ?? "any state"} to ${statement.transition.to_value} when ${describeConditionV2(statement.transition.when)}.` }];
   if (statement.kind === "remember_value") return [{ ...base, text: `Remember ${describeValueV2(statement.value)} as ${statement.memory_id}.` }];
   if (statement.kind === "allocate") return [{ ...base, text: statement.method === "fixed"
@@ -237,18 +237,19 @@ function ruleLines(statement: ProgramStatementV2, path: string, depth: number): 
     : `Investment targets ${statement.legs.map((leg) => leg.target.ref ?? leg.target.kind).join(" and ")} using ${statement.method.replaceAll("_", " ")} within the target.` }];
   if (statement.kind === "guarded_allocation") return [
     { ...base, text: `Apply allocation policy in guard, priority override, primary, fallback order${statement.guard ? ` when ${describeConditionV2(statement.guard)}` : ""}.` },
-    ...ruleLines(statement.primary, `${path}.primary`, depth + 1),
+    ...ruleLines(statement.primary, `${path}.primary`, depth + 1, groupNames),
     ...statement.overrides.flatMap((override, index) => [
       { id: `rule:${override.semantic_id}`, text: `At priority ${override.priority}, when ${describeConditionV2(override.when)}:`, depth: depth + 1, address: address("condition", override.when.semantic_id, `${path}.overrides[${index}].when`, statement.semantic_id) },
-      ...ruleLines(override.action, `${path}.overrides[${index}].action`, depth + 2),
+      ...ruleLines(override.action, `${path}.overrides[${index}].action`, depth + 2, groupNames),
     ]),
-    ...(statement.fallback ? ruleLines(statement.fallback, `${path}.fallback`, depth + 1) : []),
+    ...(statement.fallback ? ruleLines(statement.fallback, `${path}.fallback`, depth + 1, groupNames) : []),
   ];
   return [{ ...base, text: `${describeProgramStatement(statement)}.` }];
 }
 
 export function projectProgramRules(strategy: CanonicalStrategyV2): ProgramRuleLine[] {
-  return (strategy.program?.statements ?? []).flatMap((statement, index) => isProgramBootstrap(statement) ? [] : ruleLines(statement, `program.statements[${index}]`, 0));
+  const groupNames = new Map(strategy.definitions.groups.map((group) => [group.id, group.name]));
+  return (strategy.program?.statements ?? []).flatMap((statement, index) => isProgramBootstrap(statement) ? [] : ruleLines(statement, `program.statements[${index}]`, 0, groupNames));
 }
 
 export function projectProgramSummary(strategy: CanonicalStrategyV2): ProgramSummaryProjection {

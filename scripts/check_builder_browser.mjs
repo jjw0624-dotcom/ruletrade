@@ -195,6 +195,24 @@ try {
   if (!await evaluate(`document.querySelector('[aria-label="Semantic Inspector"]')?.innerText.includes('Capital target')`)) throw new Error("Guide allocation did not open the editable Investment inspector.");
   await screenshot("builder-blocky-group-guide-handoff");
 
+  await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=blocky-filter-choose-buy" });
+  await waitSelector('[data-projection-contract="blocky"]');
+  await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.getAttribute('data-execution-candidate')==='ready'`, "V2B-02 executable candidate");
+  const v2b02Before = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return { blocks:Object.keys(draft?.canvasBlocks??{}).sort(), connections:draft?.blockConnections, filter:draft?.canvasBlocks?.['draft:filter']?.fieldValues?.FILTER_SPEC, source:draft?.canvasBlocks?.['draft:source']?.objectRef }; })()`);
+  if (v2b02Before.blocks.length !== 9 || v2b02Before.source !== "group-1" || !String(v2b02Before.filter).includes("positive-126")) throw new Error(`V2B-02 native graph did not preserve Group and Filter identity: ${JSON.stringify(v2b02Before)}`);
+  await clickTextContaining("Test");
+  await waitExpression(`window.__RULETRADE_V2B02_HANDOFF__?.operation?.kind==='insert_program_statement'`, "typed V2B-02 Program handoff");
+  const v2b02 = await evaluate(`(() => { const operation=window.__RULETRADE_V2B02_HANDOFF__?.operation; const event=operation?.statement; const select=event?.statements?.find((item)=>item.kind==='select'); const buy=event?.statements?.find((item)=>item.kind==='buy'); const draft=window.__RULETRADE_BROWSER_DRAFT__; return { operationKind:operation?.kind, eventKind:event?.kind, clock:event?.event?.clock_id, universe:select?.selection?.universe_id, eligibility:select?.selection?.eligibility, ranking:select?.selection?.ranking, count:select?.selection?.count, shortage:select?.selection?.shortage_policy, output:select?.output_id, buyTarget:buy?.target, buyAmount:buy?.amount, blocks:Object.keys(draft?.canvasBlocks??{}).sort(), connections:draft?.blockConnections, canonical:window.__RULETRADE_BROWSER_CANONICAL__ }; })()`);
+  if (v2b02.eventKind !== "on_event" || v2b02.clock !== "daily-close" || v2b02.universe !== "group-1" || v2b02.eligibility?.operator !== "gt" || v2b02.ranking?.kind !== "trailing_return" || v2b02.ranking?.observations !== 63 || v2b02.count !== 1 || v2b02.shortage !== "choose_all" || v2b02.buyTarget?.kind !== "selection" || v2b02.buyTarget?.ref !== v2b02.output || v2b02.buyAmount?.kind !== "units_each" || v2b02.buyAmount?.units !== 1) throw new Error(`V2B-02 typed handoff changed composed meaning: ${JSON.stringify(v2b02)}`);
+  if (JSON.stringify(v2b02Before.blocks) !== JSON.stringify(v2b02.blocks) || JSON.stringify(v2b02Before.connections) !== JSON.stringify(v2b02.connections)) throw new Error(`V2B-02 handoff mutated the native graph: ${JSON.stringify({v2b02Before,v2b02})}`);
+  await clickText("Rules"); await waitSelector('[data-projection-contract="rules"]');
+  const v2b02Rules = await evaluate(`document.querySelector('[data-projection-contract="rules"]')?.innerText??''`);
+  if (!v2b02Rules.includes("Group 1") || !v2b02Rules.includes("Buy") || !v2b02Rules.includes("1 unit")) throw new Error(`Rules did not preserve V2B-02 Group and Buy meaning: ${v2b02Rules}`);
+  await clickText("Code"); await waitSelector('.code-representation[aria-label="Code representation"]');
+  const v2b02Code = await evaluate(`document.querySelector('.code-representation[aria-label="Code representation"]')?.innerText??''`);
+  if (!v2b02Code.includes("blocky-select-draft-start-pipeline") || !v2b02Code.includes("units_each") || !v2b02Code.includes("group-1")) throw new Error(`Code projection did not preserve V2B-02 semantic identity: ${v2b02Code}`);
+  await screenshot("builder-v2b02-filter-topn-buy-roundtrip");
+
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=flow-removal" });
   await waitSelector('[aria-label="Flow capital projection"]');
   await evaluate(`(async () => { for(let attempt=0;attempt<60;attempt+=1){ const path=[...document.querySelectorAll('.react-flow__edge-interaction')].find((item)=>item.isConnected&&item.getTotalLength()>0); if(path){ const local=path.getPointAtLength(path.getTotalLength()/2); const screen=local.matrixTransform(path.getScreenCTM()); path.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y,button:0})); return true; } await new Promise((resolve)=>setTimeout(resolve,100)); } throw new Error('Missing stable Flow route interaction path'); })()`);
