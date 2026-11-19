@@ -176,6 +176,8 @@ class ResearchExperimentService:
         if policy is None:
             raise InvalidExperimentSpecError(f"Unknown robustness policy: {request.policy_id}")
         base_config = BacktestConfig.model_validate(request.config)
+        if base_config.start_date + timedelta(days=max(policy.start_date_offsets)) > base_config.end_date:
+            raise InvalidExperimentSpecError("Robustness start-date offset exceeds the test period.")
         experiment_id = self._id_factory()
         now = self._clock()
         candidates = tuple(
