@@ -61,6 +61,8 @@ from ruletrade.candidates.models import (
     CreateCandidateRequest,
 )
 from ruletrade.candidates.service import CandidateService
+from ruletrade.challenges.catalog import challenge_catalog, get_challenge
+from ruletrade.challenges.models import ChallengeDefinition, ChallengeList
 from ruletrade.comparisons.errors import (
     ComparisonDomainError,
     ComparisonEvidenceUnsupportedError,
@@ -70,8 +72,6 @@ from ruletrade.comparisons.errors import (
 )
 from ruletrade.comparisons.models import ComparisonRecord
 from ruletrade.comparisons.service import ComparisonService
-from ruletrade.challenges.catalog import challenge_catalog, get_challenge
-from ruletrade.challenges.models import ChallengeDefinition, ChallengeList
 from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
