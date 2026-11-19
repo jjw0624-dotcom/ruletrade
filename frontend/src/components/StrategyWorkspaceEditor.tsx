@@ -5,7 +5,7 @@ import type { EditorBootstrap } from "../domain/canonical";
 import type { StrategyDetail, StrategyDetailV1, StrategyDetailV2 } from "../strategyApi";
 import { StrategyEditor } from "../StrategyEditor";
 import { StrategyEditorProvider } from "../store/editorStore";
-import { V2StrategyEditor } from "./V2StrategyEditor";
+import { V2StrategyWorkspace } from "./V2StrategyWorkspace";
 
 /**
  * The only production Strategy -> Builder entry.
@@ -26,7 +26,7 @@ export function StrategyWorkspaceEditor({ bootstrap, example, detail, initialVie
 }) {
   const canonical = detail.current_revision.canonical_strategy;
   if (isCanonicalV2(canonical)) {
-    return <V2StrategyEditor key={detail.current_revision.id} persisted={detail as StrategyDetailV2} onDirtyChange={onDirtyChange} onHome={onHome} onOpenRun={onOpenRun} />;
+    return <V2StrategyWorkspace key={detail.strategy.id} detail={detail as StrategyDetailV2} onDirtyChange={onDirtyChange} onHome={onHome} onOpenRun={onOpenRun} />;
   }
   return <StrategyEditorProvider key={detail.current_revision.id} bootstrap={bootstrap} initialView={initialView}>
     <StrategyEditor example={example} persisted={detail as StrategyDetailV1} confirmation={confirmation} onDirtyChange={onDirtyChange} onHome={onHome} sourceFocus={sourceFocus} />
