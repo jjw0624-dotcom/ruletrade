@@ -293,6 +293,8 @@ try {
   await clickText("Tests");
   await waitSelector('[aria-labelledby="research-tests-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/robustness-policies')`, "Robustness policy request");
+  await waitSelector(\'[aria-label="Server-owned robustness policy"]\');
+  await waitExpression(`Boolean([...document.querySelectorAll(\'button\')].find((item)=>item.textContent===\'Run Robustness\'&&!item.disabled))`, "enabled Robustness action");
   await clickText("Run Robustness");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url.endsWith('/research-experiments/robustness'))`, "Robustness experiment request");
   await sleep(300);
