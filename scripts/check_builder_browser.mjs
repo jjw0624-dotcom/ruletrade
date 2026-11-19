@@ -276,6 +276,18 @@ try {
   const detailJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("\t10%\t") || !detailJourney.body.includes("\t8%\t") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("$108,000")) throw new Error(`Detail BT browser journey failed: ${JSON.stringify(detailJourney)}`);
   await screenshot("detail-bt-parameter-comparison");
+  await clickAriaLabel("Close Detail BT");
+  await clickText("Hidden BT");
+  await waitSelector('[aria-labelledby="hidden-bt-title"]');
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
+  const hiddenSetup = await evaluate(`({body:document.body.innerText,hasPolicy:Boolean(document.querySelector('[aria-label="Server-owned holdout policy"]')),inputs:[...document.querySelectorAll('input')].map((item)=>item.getAttribute('aria-label'))})`);
+  if (!hiddenSetup.hasPolicy || hiddenSetup.inputs.some((item) => ["Hidden start date", "Hidden end date", "Hidden dataset"].includes(item))) throw new Error(`Hidden BT exposed client-owned policy fields: ${JSON.stringify(hiddenSetup)}`);
+  await clickText("Run Hidden BT");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden')`, "Hidden BT experiment request");
+  await sleep(300);
+  const hiddenJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("4%") || !hiddenJourney.body.includes("\t10%\t") || !hiddenJourney.body.includes("\t6%\t") || !hiddenJourney.body.includes("$110,000") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
+  await screenshot("hidden-bt-holdout-comparison");
 
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });

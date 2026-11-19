@@ -63,6 +63,33 @@ window.fetch = async (input, init) => {
       const runs = ["QQQ", "SPY"].map((asset, index) => ({ ...catalogRun, id: `run-detail-${index + 1}`, result: { ...catalogRun.result!, final_value: index ? "108000" : "110000", total_return: index ? "0.08" : "0.1" } }));
       return json({ experiment: { id: "experiment-detail-browser", revision_id: "revision-catalog-mvp", kind: "detail", name: request.name, spec: request, created_at: "2026-11-19T00:00:00Z", candidates: ["QQQ", "SPY"].map((asset, index) => ({ id: `candidate-detail-${index + 1}`, experiment_id: "experiment-detail-browser", ordinal: index + 1, parameters: { asset }, canonical_strategy: catalogCanonical, source_hash: `sha256:detail-${asset}`, run_id: `run-detail-${index + 1}`, created_at: "2026-11-19T00:00:00Z" })) }, runs }, 201);
     }
+    if (url === "/api/v2/research-experiments/hidden-policies") return json({ items: [{
+      id: "synthetic-holdout-v1", name: "Synthetic chronological holdout",
+      description: "Calibrate on the first half of 2024, then evaluate the unchanged Revision on the server-owned second-half holdout.",
+      calibration: { start_date: "2024-01-02", end_date: "2024-06-28" },
+      evaluation: { start_date: "2024-07-01", end_date: "2024-12-31" },
+      dataset_id: "filter-synthetic", initial_cash: "100000",
+    }] });
+    if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      if (request.policy_id !== "synthetic-holdout-v1" || Object.keys(request).some((key) => ["start_date", "end_date", "dataset_id"].includes(key))) return json({ detail: { message: "Hidden policy must remain server-owned." } }, 422);
+      const policy = {
+        id: "synthetic-holdout-v1", name: "Synthetic chronological holdout",
+        description: "Server-owned chronological holdout.",
+        calibration: { start_date: "2024-01-02", end_date: "2024-06-28" },
+        evaluation: { start_date: "2024-07-01", end_date: "2024-12-31" },
+        dataset_id: "filter-synthetic", initial_cash: "100000",
+      };
+      const calibration_run = { ...catalogRun, id: "run-hidden-calibration", result: { ...catalogRun.result!, final_value: "110000", total_return: "0.1" } };
+      const hidden_run = { ...catalogRun, id: "run-hidden-evaluation", result: { ...catalogRun.result!, final_value: "106000", total_return: "0.06" } };
+      return json({
+        experiment: { id: "experiment-hidden-browser", revision_id: "revision-catalog-mvp", kind: "hidden", name: request.name, spec: { policy_id: request.policy_id }, created_at: "2026-11-19T00:00:00Z", candidates: [
+          { id: "candidate-hidden-1", experiment_id: "experiment-hidden-browser", ordinal: 1, parameters: { partition: "calibration" }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: calibration_run.id, created_at: "2026-11-19T00:00:00Z" },
+          { id: "candidate-hidden-2", experiment_id: "experiment-hidden-browser", ordinal: 2, parameters: { partition: "hidden" }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: hidden_run.id, created_at: "2026-11-19T00:00:00Z" },
+        ] },
+        policy, calibration_run, hidden_run, generalization_gap: "0.04",
+      }, 201);
+    }
     if (url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs") return json(init?.method === "POST" ? catalogRun : { items: [] }, init?.method === "POST" ? 201 : 200);
     if (url === "/api/v2/backtest-runs/run-catalog-mvp/decision-events") return json({ items: [] });
   }

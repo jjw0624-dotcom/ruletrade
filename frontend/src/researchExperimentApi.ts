@@ -23,7 +23,7 @@ export interface ExperimentCandidateRecord {
 export interface ResearchExperimentRecord {
   id: string;
   revision_id: string;
-  kind: "detail";
+  kind: "detail" | "hidden" | "robustness" | "random_baseline" | "forward";
   name: string;
   spec: Record<string, unknown>;
   candidates: ExperimentCandidateRecord[];
@@ -40,6 +40,24 @@ export interface CreateDetailExperimentRequest {
   base: CatalogBaseRequest;
   dimensions: Array<{ parameter_id: string; values: unknown[] }>;
   config: BacktestConfig;
+}
+
+export interface HiddenDatasetPolicy {
+  id: string;
+  name: string;
+  description: string;
+  calibration: { start_date: string; end_date: string };
+  evaluation: { start_date: string; end_date: string };
+  dataset_id: string;
+  initial_cash: string;
+}
+
+export interface HiddenExperimentExecution {
+  experiment: ResearchExperimentRecord;
+  policy: HiddenDatasetPolicy;
+  calibration_run: BacktestRunRecord;
+  hidden_run: BacktestRunRecord;
+  generalization_gap: string | null;
 }
 
 const TAG_PREFIX = "ruletrade.catalog.v1:";
@@ -64,6 +82,10 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 }
 
 export const researchExperimentApi = {
+  hiddenPolicies: (fetcher?: typeof fetch) =>
+    request<{ items: HiddenDatasetPolicy[] }>("/v2/research-experiments/hidden-policies", {}, fetcher),
+  createHidden: (revisionId: string, payload: { name: string; policy_id: string }, fetcher?: typeof fetch) =>
+    request<HiddenExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/hidden`, jsonBody("POST", payload), fetcher),
   createDetail: (revisionId: string, payload: CreateDetailExperimentRequest, fetcher?: typeof fetch) =>
     request<DetailExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/detail`, jsonBody("POST", payload), fetcher),
   list: (revisionId: string, fetcher?: typeof fetch) =>

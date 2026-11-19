@@ -12,6 +12,7 @@ import { browserProgramDraftStorage, loadProgramWorkingDraft, persistProgramWork
 import { analyzeBuilderRevisionConflict, type BuilderRevisionConflictAnalysis } from "../domain/builderRevisionConflict";
 import { ResultWorkspace } from "./ResultWorkspace";
 import { DetailBtDialog } from "./DetailBtDialog";
+import { HiddenBtDialog } from "./HiddenBtDialog";
 import { catalogBaseFromStrategy } from "../researchExperimentApi";
 
 interface V2RevisionConflict {
@@ -102,6 +103,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
   const [latestRun, setLatestRun] = useState<BacktestRunRecord | null>(null);
   const [testPanel, setTestPanel] = useState<V2TestPanelState>(null);
   const [detailBtOpen, setDetailBtOpen] = useState(false);
+  const [hiddenBtOpen, setHiddenBtOpen] = useState(false);
   const [quickTestConfig, setQuickTestConfig] = useState<BacktestConfig>(() => ({ ...DEFAULT_BACKTEST_CONFIG, dataset_id: "filter-synthetic" }));
   const [executionCapability, setExecutionCapability] = useState<V2ExecutionCapability | null>(null);
   const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
@@ -324,6 +326,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     return <>{conflict && <V2ConflictBanner conflict={conflict} draft={workingDraft} onRefresh={() => void refreshConflict()} onReapply={reapplyConflict} onDiscard={discardConflict} />}<SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
       onDetailTest={() => setDetailBtOpen(true)}
+      onHiddenTest={() => setHiddenBtOpen(true)}
       workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
       undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
@@ -335,7 +338,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       testPanelId={persistedTestRun ? `run:${persistedTestRun.id}` : testPanel?.status ?? undefined}
       testPanelBookmark={persistedTestRun ? `Run ${persistedTestRun.id.slice(0, 8)}` : undefined}
       retainTestPanel={Boolean(persistedTestRun)}
-      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}</>;
+      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}{hiddenBtOpen && <HiddenBtDialog revisionId={revisionId} onClose={() => setHiddenBtOpen(false)} onOpenRun={onOpenRun} />}</>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}
