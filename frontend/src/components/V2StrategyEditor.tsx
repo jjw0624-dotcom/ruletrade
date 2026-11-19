@@ -15,6 +15,7 @@ import { DetailBtDialog } from "./DetailBtDialog";
 import { HiddenBtDialog } from "./HiddenBtDialog";
 import { ResearchTestsDialog } from "./ResearchTestsDialog";
 import { ForwardExperimentDialog } from "./ForwardExperimentDialog";
+import { StrategyResearchHub } from "./StrategyResearchHub";
 import { catalogBaseFromStrategy } from "../researchExperimentApi";
 
 interface V2RevisionConflict {
@@ -108,6 +109,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
   const [hiddenBtOpen, setHiddenBtOpen] = useState(false);
   const [researchTestsOpen, setResearchTestsOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [researchHubOpen, setResearchHubOpen] = useState(false);
   const [quickTestConfig, setQuickTestConfig] = useState<BacktestConfig>(() => ({ ...DEFAULT_BACKTEST_CONFIG, dataset_id: "filter-synthetic" }));
   const [executionCapability, setExecutionCapability] = useState<V2ExecutionCapability | null>(null);
   const [undoStack, setUndoStack] = useState<typeof initial[]>([]);
@@ -333,6 +335,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       onHiddenTest={() => setHiddenBtOpen(true)}
       onResearchTests={() => setResearchTestsOpen(true)}
       onForward={() => setForwardOpen(true)}
+      onResearchHub={() => setResearchHubOpen(true)}
       workingDraft={workingDraft} onWorkingDraftChange={setWorkingDraft}
       undo={() => { const target = undoStack.at(-1); if (target) void restore(target, "undo"); }}
       redo={() => { const target = redoStack.at(-1); if (target) void restore(target, "redo"); }}
@@ -344,7 +347,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       testPanelId={persistedTestRun ? `run:${persistedTestRun.id}` : testPanel?.status ?? undefined}
       testPanelBookmark={persistedTestRun ? `Run ${persistedTestRun.id.slice(0, 8)}` : undefined}
       retainTestPanel={Boolean(persistedTestRun)}
-      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}{hiddenBtOpen && <HiddenBtDialog revisionId={revisionId} onClose={() => setHiddenBtOpen(false)} onOpenRun={onOpenRun} />}{researchTestsOpen && <ResearchTestsDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchTestsOpen(false)} onOpenRun={onOpenRun} />}{forwardOpen && <ForwardExperimentDialog revisionId={revisionId} onClose={() => setForwardOpen(false)} onOpenRun={onOpenRun} />}</>;
+      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}{hiddenBtOpen && <HiddenBtDialog revisionId={revisionId} onClose={() => setHiddenBtOpen(false)} onOpenRun={onOpenRun} />}{researchTestsOpen && <ResearchTestsDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchTestsOpen(false)} onOpenRun={onOpenRun} />}{forwardOpen && <ForwardExperimentDialog revisionId={revisionId} onClose={() => setForwardOpen(false)} onOpenRun={onOpenRun} />}{researchHubOpen && <StrategyResearchHub strategyId={persisted.strategy.id} currentRevisionId={revisionId} onClose={() => setResearchHubOpen(false)} onOpenRun={onOpenRun} onStart={(action) => { if (action === "detail") setDetailBtOpen(true); else if (action === "hidden") setHiddenBtOpen(true); else if (action === "tests") setResearchTestsOpen(true); else setForwardOpen(true); }} />}</>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}

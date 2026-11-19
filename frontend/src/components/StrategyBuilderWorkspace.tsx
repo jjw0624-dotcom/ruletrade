@@ -175,13 +175,14 @@ export interface ProgramWorkspaceProps {
   onHiddenTest?: () => void;
   onResearchTests?: () => void;
   onForward?: () => void;
+  onResearchHub?: () => void;
   onRename?: () => void;
   onOpenAssets?: () => void;
   testDisabled?: boolean;
   testTitle?: string;
 }
 
-function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onDetailTest, onHiddenTest, onResearchTests, onForward, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
+function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onDetailTest, onHiddenTest, onResearchTests, onForward, onResearchHub, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
   const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
   const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
@@ -219,6 +220,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
       <div className="builder-actions">
         <button type="button" onClick={program.onUndo} disabled={!program.canUndo}>Undo</button>
         <button type="button" onClick={program.onRedo} disabled={!program.canRedo}>Redo</button>
+        {persisted && onResearchHub && <button type="button" className="secondary-button" onClick={onResearchHub} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before opening Research." : undefined}>Research</button>}
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(program.draftMessage)} title={program.draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
         {persisted && onDetailTest && <button type="button" className="secondary-button" onClick={onDetailTest} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before starting Detail BT." : undefined}>Detail BT</button>}
         {persisted && onHiddenTest && <button type="button" className="secondary-button" onClick={onHiddenTest} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before starting Hidden BT." : undefined}>Hidden BT</button>}

@@ -124,6 +124,8 @@ export const researchExperimentApi = {
     request<ForwardExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/forward/refresh`, jsonBody("POST", {}), fetcher),
   list: (revisionId: string, fetcher?: typeof fetch) =>
     request<{ items: ResearchExperimentRecord[] }>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments`, {}, fetcher),
+  listForStrategy: (strategyId: string, fetcher?: typeof fetch) =>
+    request<{ items: ResearchExperimentRecord[] }>(`/v2/strategies/${encodeURIComponent(strategyId)}/research-experiments`, {}, fetcher),
   get: (experimentId: string, fetcher?: typeof fetch) =>
     request<ResearchExperimentRecord>(`/v2/research-experiments/${encodeURIComponent(experimentId)}`, {}, fetcher),
 };
