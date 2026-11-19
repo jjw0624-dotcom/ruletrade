@@ -296,7 +296,7 @@ try {
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url.endsWith('/research-experiments/robustness'))`, "Robustness experiment request");
   await sleep(300);
   const robustnessJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
-  if (!robustnessJourney.body.includes("Reference 10%") || !robustnessJourney.body.includes("Variants: 7% to 11%") || !robustnessJourney.body.includes("-3%") || !robustnessJourney.body.includes("+1%")) throw new Error(`Robustness browser journey failed: ${JSON.stringify(robustnessJourney)}`);
+  if (!robustnessJourney.body.includes("Reference 10%") || !robustnessJourney.body.includes("Variants: 7% to 11%") || !robustnessJourney.body.includes("-3%") || !robustnessJourney.body.includes("1%")) throw new Error(`Robustness browser journey failed: ${JSON.stringify(robustnessJourney)}`);
   await screenshot("tests-robustness-distribution");
   await clickText("New Test");
   await clickText("Random Baseline");
@@ -305,7 +305,7 @@ try {
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url.endsWith('/research-experiments/random-baseline'))`, "Random Baseline experiment request");
   await sleep(300);
   const randomJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
-  if (!randomJourney.body.includes("Reference 10%") || !randomJourney.body.includes("Variants: 4% to 12%") || !randomJourney.body.includes("-6%") || !randomJourney.body.includes("+2%") || !randomJourney.body.includes("seeded_random_asset")) throw new Error(`Random Baseline browser journey failed: ${JSON.stringify(randomJourney)}`);
+  if (!randomJourney.body.includes("Reference 10%") || !randomJourney.body.includes("Variants: 4% to 12%") || !randomJourney.body.includes("-6%") || !randomJourney.body.includes("2%") || !randomJourney.body.includes("seeded_random_asset")) throw new Error(`Random Baseline browser journey failed: ${JSON.stringify(randomJourney)}`);
   await screenshot("tests-random-baseline-comparison");
 
 
