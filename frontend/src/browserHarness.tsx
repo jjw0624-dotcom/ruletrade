@@ -90,6 +90,20 @@ window.fetch = async (input, init) => {
         policy, calibration_run, hidden_run, generalization_gap: "0.04",
       }, 201);
     }
+    if (url === "/api/v2/research-experiments/robustness-policies") return json({ items: [{ id: "start-date-offset-v1", name: "Start-date sensitivity", description: "Shift the initial observation window.", start_date_offsets: [0, 1, 3, 5] }] });
+    if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/robustness" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      const offsets = [0, 1, 3, 5]; const returns = ["0.10", "0.09", "0.07", "0.11"];
+      const runs = offsets.map((offset, index) => ({ ...catalogRun, id: `run-robust-${offset}`, result: { ...catalogRun.result!, total_return: returns[index], final_value: String(100000 + Number(returns[index]) * 100000) } }));
+      return json({ experiment: { id: "experiment-robust-browser", revision_id: "revision-catalog-mvp", kind: "robustness", name: request.name, spec: request, created_at: "2026-11-19T00:00:00Z", candidates: offsets.map((offset, index) => ({ id: `candidate-robust-${offset}`, experiment_id: "experiment-robust-browser", ordinal: index + 1, parameters: { start_date_offset_days: offset }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: runs[index].id, created_at: "2026-11-19T00:00:00Z" })) }, runs }, 201);
+    }
+    if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/random-baseline" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      const seeds = request.seeds ?? []; const returns = ["0.10", "0.04", "0.08", "0.12"];
+      const parameters = [{ baseline_type: "strategy_reference" }, ...seeds.map((seed: number) => ({ baseline_type: "seeded_random_asset", seed, selected_asset: "QQQ" }))];
+      const runs = parameters.map((_, index) => ({ ...catalogRun, id: `run-random-${index}`, result: { ...catalogRun.result!, total_return: returns[index], final_value: String(100000 + Number(returns[index]) * 100000) } }));
+      return json({ experiment: { id: "experiment-random-browser", revision_id: "revision-catalog-mvp", kind: "random_baseline", name: request.name, spec: request, created_at: "2026-11-19T00:00:00Z", candidates: parameters.map((candidate, index) => ({ id: `candidate-random-${index}`, experiment_id: "experiment-random-browser", ordinal: index + 1, parameters: candidate, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: runs[index].id, created_at: "2026-11-19T00:00:00Z" })) }, runs }, 201);
+    }
     if (url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs") return json(init?.method === "POST" ? catalogRun : { items: [] }, init?.method === "POST" ? 201 : 200);
     if (url === "/api/v2/backtest-runs/run-catalog-mvp/decision-events") return json({ items: [] });
   }
