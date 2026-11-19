@@ -413,7 +413,7 @@ def test_forward_rejects_future_start_before_persistence(tmp_path: Path) -> None
 
 def test_strategy_research_portfolio_spans_all_revisions(tmp_path: Path) -> None:
     base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
-    detail = service.create_detail(revision.id, _request(base))
+    detail = service.create_detail(revision.id, _detail_request())
     changed = revision.canonical_strategy.model_copy(update={
         "metadata": revision.canonical_strategy.metadata.model_copy(update={
             "description": "Second revision for portfolio history",
