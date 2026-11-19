@@ -32,19 +32,23 @@ class ParameterDimension(ExperimentModel):
 
 
 class CreateDetailExperimentRequest(BaseModel):
+    """One high-fidelity run of the unchanged saved Revision."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=100)
-    base: CreateCatalogStrategyRequest
-    dimensions: tuple[ParameterDimension, ...] = Field(min_length=1, max_length=8)
     config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateHiddenExperimentRequest(BaseModel):
+    """Tune catalog parameters on calibration data, then evaluate the winner once."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=100)
     policy_id: str = Field(min_length=1, max_length=100)
+    base: CreateCatalogStrategyRequest
+    dimensions: tuple[ParameterDimension, ...] = Field(min_length=1, max_length=8)
 
 
 class CreateRobustnessExperimentRequest(BaseModel):
@@ -102,7 +106,8 @@ class DetailExperimentExecution(ExperimentModel):
 class HiddenExperimentExecution(ExperimentModel):
     experiment: ResearchExperimentRecord
     policy: HiddenDatasetPolicy
-    calibration_run: BacktestRunRecord
+    calibration_runs: tuple[BacktestRunRecord, ...]
+    selected_candidate_ordinal: int = Field(ge=1)
     hidden_run: BacktestRunRecord
     generalization_gap: Decimal | None = None
 

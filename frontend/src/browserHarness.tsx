@@ -59,20 +59,22 @@ window.fetch = async (input, init) => {
     if (url.startsWith("/api/v1/editor/bootstrap?")) return json(catalogBootstrap);
     if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && init?.method === "POST") {
       const request = JSON.parse(String(init.body ?? "{}"));
-      if (request.dimensions?.[0]?.parameter_id !== "asset" || stableJson(request.dimensions[0].values) !== stableJson(["QQQ", "SPY"])) return json({ detail: { message: "Unexpected Detail BT matrix." } }, 422);
-      const runs = ["QQQ", "SPY"].map((asset, index) => ({ ...catalogRun, id: `run-detail-${index + 1}`, result: { ...catalogRun.result!, final_value: index ? "108000" : "110000", total_return: index ? "0.08" : "0.1" } }));
-      return json({ experiment: { id: "experiment-detail-browser", revision_id: "revision-catalog-mvp", kind: "detail", name: request.name, spec: request, created_at: "2026-11-19T00:00:00Z", candidates: ["QQQ", "SPY"].map((asset, index) => ({ id: `candidate-detail-${index + 1}`, experiment_id: "experiment-detail-browser", ordinal: index + 1, parameters: { asset }, canonical_strategy: catalogCanonical, source_hash: `sha256:detail-${asset}`, run_id: `run-detail-${index + 1}`, created_at: "2026-11-19T00:00:00Z" })) }, runs }, 201);
+      if (request.dimensions || request.base) return json({ detail: { message: "Detailed BT must run the unchanged Revision." } }, 422);
+      const run = { ...catalogRun, id: "run-detail-1", result: { ...catalogRun.result!, final_value: "110000", total_return: "0.1" } };
+      return json({ experiment: { id: "experiment-detail-browser", revision_id: "revision-catalog-mvp", kind: "detail", name: request.name, spec: { config: request.config, mode: "single_revision" }, created_at: "2026-11-19T00:00:00Z", candidates: [
+        { id: "candidate-detail-1", experiment_id: "experiment-detail-browser", ordinal: 1, parameters: { role: "detailed" }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: run.id, created_at: "2026-11-19T00:00:00Z" },
+      ] }, runs: [run] }, 201);
     }
     if (url === "/api/v2/research-experiments/hidden-policies") return json({ items: [{
       id: "synthetic-holdout-v1", name: "Synthetic chronological holdout",
-      description: "Calibrate on the first half of 2024, then evaluate the unchanged Revision on the server-owned second-half holdout.",
+      description: "Tune on the first half of 2024, then evaluate only the selected candidate on the server-owned holdout.",
       calibration: { start_date: "2024-01-02", end_date: "2024-06-28" },
       evaluation: { start_date: "2024-07-01", end_date: "2024-12-31" },
       dataset_id: "filter-synthetic", initial_cash: "100000",
     }] });
     if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && init?.method === "POST") {
       const request = JSON.parse(String(init.body ?? "{}"));
-      if (request.policy_id !== "synthetic-holdout-v1" || Object.keys(request).some((key) => ["start_date", "end_date", "dataset_id"].includes(key))) return json({ detail: { message: "Hidden policy must remain server-owned." } }, 422);
+      if (request.policy_id !== "synthetic-holdout-v1" || request.dimensions?.[0]?.parameter_id !== "asset" || stableJson(request.dimensions[0].values) !== stableJson(["QQQ", "SPY"]) || Object.keys(request).some((key) => ["start_date", "end_date", "dataset_id"].includes(key))) return json({ detail: { message: "Unexpected Hidden BT selection request." } }, 422);
       const policy = {
         id: "synthetic-holdout-v1", name: "Synthetic chronological holdout",
         description: "Server-owned chronological holdout.",
@@ -80,14 +82,13 @@ window.fetch = async (input, init) => {
         evaluation: { start_date: "2024-07-01", end_date: "2024-12-31" },
         dataset_id: "filter-synthetic", initial_cash: "100000",
       };
-      const calibration_run = { ...catalogRun, id: "run-hidden-calibration", result: { ...catalogRun.result!, final_value: "110000", total_return: "0.1" } };
+      const calibration_runs = ["0.10", "0.08"].map((total_return, index) => ({ ...catalogRun, id: `run-hidden-calibration-${index + 1}`, result: { ...catalogRun.result!, final_value: index ? "108000" : "110000", total_return } }));
       const hidden_run = { ...catalogRun, id: "run-hidden-evaluation", result: { ...catalogRun.result!, final_value: "106000", total_return: "0.06" } };
       return json({
-        experiment: { id: "experiment-hidden-browser", revision_id: "revision-catalog-mvp", kind: "hidden", name: request.name, spec: { policy_id: request.policy_id }, created_at: "2026-11-19T00:00:00Z", candidates: [
-          { id: "candidate-hidden-1", experiment_id: "experiment-hidden-browser", ordinal: 1, parameters: { partition: "calibration" }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: calibration_run.id, created_at: "2026-11-19T00:00:00Z" },
-          { id: "candidate-hidden-2", experiment_id: "experiment-hidden-browser", ordinal: 2, parameters: { partition: "hidden" }, canonical_strategy: catalogCanonical, source_hash: "sha256:catalog-mvp", run_id: hidden_run.id, created_at: "2026-11-19T00:00:00Z" },
-        ] },
-        policy, calibration_run, hidden_run, generalization_gap: "0.04",
+        experiment: { id: "experiment-hidden-browser", revision_id: "revision-catalog-mvp", kind: "hidden", name: request.name, spec: { policy_id: request.policy_id }, created_at: "2026-11-19T00:00:00Z", candidates: ["QQQ", "SPY"].map((asset, index) => (
+          { id: `candidate-hidden-${index + 1}`, experiment_id: "experiment-hidden-browser", ordinal: index + 1, parameters: { asset }, canonical_strategy: catalogCanonical, source_hash: `sha256:hidden-${asset}`, run_id: calibration_runs[index].id, created_at: "2026-11-19T00:00:00Z" }
+        )) },
+        policy, calibration_runs, selected_candidate_ordinal: 1, hidden_run, generalization_gap: "0.04",
       }, 201);
     }
     if (url === "/api/v2/research-experiments/robustness-policies") return json({ items: [{ id: "start-date-offset-v1", name: "Start-date sensitivity", description: "Shift the initial observation window.", start_date_offsets: [0, 1, 3, 5] }] });

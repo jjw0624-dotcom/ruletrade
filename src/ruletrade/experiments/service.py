@@ -54,26 +54,75 @@ class ResearchExperimentService:
         self._id_factory = id_factory or (lambda: str(uuid4()))
 
     def create_detail(self, revision_id: str, request: CreateDetailExperimentRequest) -> DetailExperimentExecution:
+        """Run the saved Revision once with explicit, reproducible execution settings."""
         revision = self.strategies.get_revision_by_id(revision_id)
         if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
             raise InvalidExperimentSpecError("Detail BT requires a V2 Strategy Revision.")
+        experiment_id = self._id_factory()
+        now = self._clock()
+        candidate = ExperimentCandidateRecord(
+            id=self._id_factory(),
+            experiment_id=experiment_id,
+            ordinal=1,
+            parameters={"role": "detailed"},
+            canonical_strategy=revision.canonical_strategy,
+            source_hash=revision.source_hash,
+            created_at=now,
+        )
+        config = BacktestConfig.model_validate(request.config)
+        experiment = ResearchExperimentRecord(
+            id=experiment_id,
+            revision_id=revision.id,
+            kind=ResearchExperimentKind.DETAIL,
+            name=request.name,
+            spec={"config": config.model_dump(mode="json"), "mode": "single_revision"},
+            candidates=(candidate,),
+            created_at=now,
+        )
+        self.repository.create(experiment)
+        run = self.runs.create_and_execute_experiment_candidate(
+            base_revision_id=revision.id,
+            canonical=candidate.canonical_strategy,
+            source_hash=candidate.source_hash,
+            schema_version=candidate.canonical_strategy.api_version,
+            config=config,
+        )
+        self.repository.attach_run(candidate.id, run.id)
+        return DetailExperimentExecution(
+            experiment=self.repository.get(experiment.id),
+            runs=(run,),
+        )
+
+    def create_hidden(self, revision_id: str, request: CreateHiddenExperimentRequest) -> HiddenExperimentExecution:
+        """Select parameters on calibration data and evaluate only the winner on hidden data."""
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Hidden BT requires a V2 Strategy Revision.")
+        policy = hidden_dataset_policy(request.policy_id)
+        if policy is None:
+            raise InvalidExperimentSpecError(f"Unknown Hidden BT policy: {request.policy_id}")
         base = create_catalog_strategy(request.base)
         if base.source_hash != revision.source_hash:
-            raise InvalidExperimentSpecError("Detail BT base parameters do not reproduce the selected Revision.")
+            raise InvalidExperimentSpecError("Hidden BT base parameters do not reproduce the selected Revision.")
         entries = {item.id: item for item in strategy_catalog()}
         entry = entries.get(request.base.catalog_id)
         allowed = {item.id for item in entry.parameters} if entry else set()
         ids = [item.parameter_id for item in request.dimensions]
         if len(ids) != len(set(ids)):
-            raise InvalidExperimentSpecError("Detail BT parameter dimensions must be unique.")
+            raise InvalidExperimentSpecError("Hidden BT parameter dimensions must be unique.")
         forbidden = sorted(set(ids) - allowed)
         if forbidden:
-            raise InvalidExperimentSpecError("Parameters are not tunable for this catalog strategy: " + ", ".join(forbidden))
+            raise InvalidExperimentSpecError(
+                "Parameters are not tunable for this catalog strategy: " + ", ".join(forbidden)
+            )
         size = 1
         for dimension in request.dimensions:
             size *= len(dimension.values)
         if size > self.MAX_CANDIDATES:
-            raise InvalidExperimentSpecError(f"Detail BT supports at most {self.MAX_CANDIDATES} candidates.")
+            raise InvalidExperimentSpecError(
+                f"Hidden BT supports at most {self.MAX_CANDIDATES} calibration candidates."
+            )
+
         experiment_id = self._id_factory()
         now = self._clock()
         candidates: list[ExperimentCandidateRecord] = []
@@ -85,85 +134,81 @@ class ResearchExperimentService:
                 variant_request = _catalog_request.validate_python(payload)
                 created = create_catalog_strategy(variant_request)
             except (ValidationError, ValueError) as exc:
-                raise InvalidExperimentSpecError(f"Invalid Detail BT candidate {ordinal}: {exc}") from exc
+                raise InvalidExperimentSpecError(f"Invalid Hidden BT candidate {ordinal}: {exc}") from exc
             candidates.append(ExperimentCandidateRecord(
-                id=self._id_factory(), experiment_id=experiment_id, ordinal=ordinal,
-                parameters=parameters, canonical_strategy=created.strategy,
-                source_hash=created.source_hash, created_at=now,
-            ))
-        experiment = ResearchExperimentRecord(
-            id=experiment_id, revision_id=revision.id, kind=ResearchExperimentKind.DETAIL,
-            name=request.name, spec=request.model_dump(mode="json"), candidates=tuple(candidates), created_at=now,
-        )
-        self.repository.create(experiment)
-        config = BacktestConfig.model_validate(request.config)
-        executions = []
-        for candidate in candidates:
-            run = self.runs.create_and_execute_experiment_candidate(
-                base_revision_id=revision.id, canonical=candidate.canonical_strategy,
-                source_hash=candidate.source_hash, schema_version=candidate.canonical_strategy.api_version,
-                config=config,
-            )
-            self.repository.attach_run(candidate.id, run.id)
-            executions.append(run)
-        return DetailExperimentExecution(experiment=self.repository.get(experiment.id), runs=tuple(executions))
-
-    def create_hidden(self, revision_id: str, request: CreateHiddenExperimentRequest) -> HiddenExperimentExecution:
-        revision = self.strategies.get_revision_by_id(revision_id)
-        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
-            raise InvalidExperimentSpecError("Hidden BT requires a V2 Strategy Revision.")
-        policy = hidden_dataset_policy(request.policy_id)
-        if policy is None:
-            raise InvalidExperimentSpecError(f"Unknown Hidden BT policy: {request.policy_id}")
-        experiment_id = self._id_factory()
-        now = self._clock()
-        candidates = tuple(
-            ExperimentCandidateRecord(
                 id=self._id_factory(),
                 experiment_id=experiment_id,
                 ordinal=ordinal,
-                parameters={"partition": partition},
-                canonical_strategy=revision.canonical_strategy,
-                source_hash=revision.source_hash,
+                parameters=parameters,
+                canonical_strategy=created.strategy,
+                source_hash=created.source_hash,
                 created_at=now,
-            )
-            for ordinal, partition in enumerate(("calibration", "hidden"), start=1)
-        )
+            ))
+
         experiment = ResearchExperimentRecord(
             id=experiment_id,
             revision_id=revision.id,
             kind=ResearchExperimentKind.HIDDEN,
             name=request.name,
-            spec={"policy_id": policy.id},
-            candidates=candidates,
+            spec={
+                "policy_id": policy.id,
+                "base": request.base.model_dump(mode="json"),
+                "dimensions": [item.model_dump(mode="json") for item in request.dimensions],
+                "selection_metric": "total_return",
+                "hidden_execution": "selected_candidate_only",
+            },
+            candidates=tuple(candidates),
             created_at=now,
         )
         self.repository.create(experiment)
-        runs = []
-        for candidate, window in zip(candidates, (policy.calibration, policy.evaluation), strict=True):
-            config = BacktestConfig(
-                start_date=window.start_date,
-                end_date=window.end_date,
-                initial_cash=policy.initial_cash,
-                dataset_id=policy.dataset_id,
-            )
+        calibration_config = BacktestConfig(
+            start_date=policy.calibration.start_date,
+            end_date=policy.calibration.end_date,
+            initial_cash=policy.initial_cash,
+            dataset_id=policy.dataset_id,
+        )
+        calibration_runs = []
+        for candidate in candidates:
             run = self.runs.create_and_execute_experiment_candidate(
                 base_revision_id=revision.id,
                 canonical=candidate.canonical_strategy,
                 source_hash=candidate.source_hash,
                 schema_version=candidate.canonical_strategy.api_version,
-                config=config,
+                config=calibration_config,
             )
             self.repository.attach_run(candidate.id, run.id)
-            runs.append(run)
-        calibration_run, hidden_run = runs
+            calibration_runs.append(run)
+        successful = [
+            (candidate, run)
+            for candidate, run in zip(candidates, calibration_runs, strict=True)
+            if run.result is not None
+        ]
+        if not successful:
+            raise InvalidExperimentSpecError("Hidden BT calibration produced no successful candidate.")
+        selected, selected_calibration_run = max(
+            successful, key=lambda item: (item[1].result.total_return, -item[0].ordinal)
+        )
+        hidden_config = BacktestConfig(
+            start_date=policy.evaluation.start_date,
+            end_date=policy.evaluation.end_date,
+            initial_cash=policy.initial_cash,
+            dataset_id=policy.dataset_id,
+        )
+        hidden_run = self.runs.create_and_execute_experiment_candidate(
+            base_revision_id=revision.id,
+            canonical=selected.canonical_strategy,
+            source_hash=selected.source_hash,
+            schema_version=selected.canonical_strategy.api_version,
+            config=hidden_config,
+        )
         gap = None
-        if calibration_run.result is not None and hidden_run.result is not None:
-            gap = calibration_run.result.total_return - hidden_run.result.total_return
+        if selected_calibration_run.result is not None and hidden_run.result is not None:
+            gap = selected_calibration_run.result.total_return - hidden_run.result.total_return
         return HiddenExperimentExecution(
             experiment=self.repository.get(experiment.id),
             policy=policy,
-            calibration_run=calibration_run,
+            calibration_runs=tuple(calibration_runs),
+            selected_candidate_ordinal=selected.ordinal,
             hidden_run=hidden_run,
             generalization_gap=gap,
         )

@@ -37,8 +37,6 @@ export interface DetailExperimentExecution {
 
 export interface CreateDetailExperimentRequest {
   name: string;
-  base: CatalogBaseRequest;
-  dimensions: Array<{ parameter_id: string; values: unknown[] }>;
   config: BacktestConfig;
 }
 
@@ -67,7 +65,8 @@ export interface TestExperimentExecution {
 export interface HiddenExperimentExecution {
   experiment: ResearchExperimentRecord;
   policy: HiddenDatasetPolicy;
-  calibration_run: BacktestRunRecord;
+  calibration_runs: BacktestRunRecord[];
+  selected_candidate_ordinal: number;
   hidden_run: BacktestRunRecord;
   generalization_gap: string | null;
 }
@@ -114,7 +113,7 @@ export const researchExperimentApi = {
     request<TestExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/random-baseline`, jsonBody("POST", payload), fetcher),
   hiddenPolicies: (fetcher?: typeof fetch) =>
     request<{ items: HiddenDatasetPolicy[] }>("/v2/research-experiments/hidden-policies", {}, fetcher),
-  createHidden: (revisionId: string, payload: { name: string; policy_id: string }, fetcher?: typeof fetch) =>
+  createHidden: (revisionId: string, payload: { name: string; policy_id: string; base: CatalogBaseRequest; dimensions: Array<{ parameter_id: string; values: unknown[] }> }, fetcher?: typeof fetch) =>
     request<HiddenExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/hidden`, jsonBody("POST", payload), fetcher),
   createDetail: (revisionId: string, payload: CreateDetailExperimentRequest, fetcher?: typeof fetch) =>
     request<DetailExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/detail`, jsonBody("POST", payload), fetcher),

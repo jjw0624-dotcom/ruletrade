@@ -95,7 +95,7 @@ export function V2StrategyWorkspace({ detail, onDirtyChange, onHome, onOpenRun }
 
     {researchOpen && <StrategyResearchHub strategyId={current.strategy.id} currentRevisionId={revisionId} onClose={() => setResearchOpen(false)} onStart={startResearch} onOpenRun={onOpenRun} />}
     {researchAction === "detail" && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchAction(null)} onOpenRun={onOpenRun} />}
-    {researchAction === "hidden" && <HiddenBtDialog revisionId={revisionId} onClose={() => setResearchAction(null)} onOpenRun={onOpenRun} />}
+    {researchAction === "hidden" && <HiddenBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchAction(null)} onOpenRun={onOpenRun} />}
     {researchAction === "tests" && <ResearchTestsDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchAction(null)} onOpenRun={onOpenRun} />}
     {researchAction === "forward" && <ForwardExperimentDialog revisionId={revisionId} onClose={() => setResearchAction(null)} onOpenRun={onOpenRun} />}
   </main>;

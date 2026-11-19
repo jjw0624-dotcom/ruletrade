@@ -64,8 +64,8 @@ persisted, attributable work. Evaluation policy is not Strategy meaning.
 | Product action | MVP behavior |
 | --- | --- |
 | Quick BT | one ordinary saved Revision run |
-| Detail BT | a bounded explicit matrix of parameter variants with comparable persisted Runs |
-| Hidden BT | user-visible training range plus server-held evaluation range; reveal only after the evaluation run is committed |
+| Detailed BT | one unchanged Revision run with explicit high-fidelity execution settings; FX, fees, slippage, and finer intervals are added only when the engine truly supports them |
+| Hidden BT | bounded parameter candidates ranked on calibration data; evaluate the selected winner once on a server-held range |
 | Robustness | timing perturbation, parameter-neighborhood variants, and seeded probabilistic execution where supported |
 | Random baseline | seeded random entry/allocation baseline under the same universe, period, capital, and trade constraints |
 | Forward | saved Revision plus forward start time; update its paper result from data available after that timestamp |
@@ -95,20 +95,20 @@ records linked to a Revision. They never mutate or reconstruct Canonical.
 - Prove Quick BT, Result, Decision Evidence, and Result-to-rule navigation for
   every catalog entry.
 
-### M2 — Detail BT
+### M2 — Detailed BT
 
-- Persist an experiment definition containing one base Revision and a bounded
-  parameter grid.
-- Materialize variants through catalog parameter operations.
-- Execute comparable Runs and show a comparison table and selected Result.
-- Enforce run-count and parameter-domain limits before scheduling work.
+- Persist one unchanged Revision with explicit BacktestConfig.
+- Execute one ordinary official LEAN Run outside the lightweight Builder loop.
+- Expose only execution controls implemented by the engine; do not simulate
+  unsupported fidelity such as FX or slippage with decorative UI.
+- Add strategy comparison after the single-run MVP path is complete.
 
 ### M3 — Hidden BT
 
-- Persist the visible and hidden range policy separately from the Strategy.
-- Prevent hidden-period Result/Evidence disclosure before committed evaluation.
-- Evaluate the exact submitted Revision and reveal an immutable score/result.
-- Record dataset policy and source hashes for reproducibility.
+- Materialize a bounded parameter grid through catalog parameter operations.
+- Rank candidates using only the visible calibration range.
+- Execute only the selected winner on the server-held evaluation range.
+- Persist policy, candidates, selection metric, source hashes, and both phases.
 
 ### M4 — robustness and random baselines
 
@@ -151,8 +151,8 @@ The fixed-strategy MVP is complete when a user can:
 
 1. start from either a strategy idea or a constrained problem;
 2. create and save one catalog Strategy;
-3. run Quick and Detail backtests;
-4. submit the unchanged Revision to Hidden evaluation;
+3. run Quick and Detailed backtests;
+4. tune bounded parameters on calibration data and evaluate only the selected candidate on Hidden data;
 5. run robustness and random-baseline tests;
 6. activate and revisit a Forward evaluation;
 7. inspect Result and Decision Evidence and navigate to the responsible Rule;

@@ -273,26 +273,26 @@ try {
   await clickAriaLabel("Close Quick Test Dashboard");
   await clickText("Detail BT");
   await waitSelector('[aria-labelledby="detail-bt-title"]');
-  await setControlValue("Detail values", "QQQ, SPY");
-  await clickText("Run Detail BT");
-  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detail BT experiment request");
+  await clickText("Run Detailed BT");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detailed BT experiment request");
   await sleep(300);
   const detailJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
-  if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("\t10%\t") || !detailJourney.body.includes("\t8%\t") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("$108,000")) throw new Error(`Detail BT browser journey failed: ${JSON.stringify(detailJourney)}`);
-  await screenshot("detail-bt-parameter-comparison");
-  await clickAriaLabel("Close Detail BT");
+  if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("10%") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("Open full result")) throw new Error(`Detailed BT browser journey failed: ${JSON.stringify(detailJourney)}`);
+  await screenshot("detailed-bt-single-run");
+  await clickAriaLabel("Close Detailed BT");
   await clickText("Hidden BT");
   await waitSelector('[aria-labelledby="hidden-bt-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
   await waitSelector('[aria-label="Server-owned holdout policy"]');
+  await setControlValue("Hidden values", "QQQ, SPY");
   const hiddenSetup = await evaluate(`({body:document.body.innerText,hasPolicy:Boolean(document.querySelector('[aria-label="Server-owned holdout policy"]')),inputs:[...document.querySelectorAll('input')].map((item)=>item.getAttribute('aria-label'))})`);
   if (!hiddenSetup.hasPolicy || hiddenSetup.inputs.some((item) => ["Hidden start date", "Hidden end date", "Hidden dataset"].includes(item))) throw new Error(`Hidden BT exposed client-owned policy fields: ${JSON.stringify(hiddenSetup)}`);
   await clickText("Run Hidden BT");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden')`, "Hidden BT experiment request");
   await sleep(300);
   const hiddenJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
-  if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("4%") || !hiddenJourney.body.includes("\t10%\t") || !hiddenJourney.body.includes("\t6%\t") || !hiddenJourney.body.includes("$110,000") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
-  await screenshot("hidden-bt-holdout-comparison");
+  if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("SELECTED CANDIDATE #1") || !hiddenJourney.body.includes("4% calibration") || !hiddenJourney.body.includes("10%") || !hiddenJourney.body.includes("8%") || !hiddenJourney.body.includes("6%") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
+  await screenshot("hidden-bt-parameter-selection");
   await clickAriaLabel("Close Hidden BT");
   await clickText("Tests");
   await waitSelector('[aria-labelledby="research-tests-title"]');
@@ -314,6 +314,7 @@ try {
   const randomJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!randomJourney.body.includes("Reference 10%") || !randomJourney.body.includes("Variants: 4% to 12%") || !randomJourney.body.includes("-6%") || !randomJourney.body.includes("2%") || !randomJourney.body.includes("seeded_random_asset")) throw new Error(`Random Baseline browser journey failed: ${JSON.stringify(randomJourney)}`);
   await screenshot("tests-random-baseline-comparison");
+  await clickAriaLabel("Close Tests");
 
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
@@ -351,6 +352,7 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
   await waitSelector('[data-production-builder-shell="true"]');
+  await waitExpression(`document.body.innerText.includes('UI Authored Monthly QQQ')`, "ui-authored journey navigation");
   await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
   await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
