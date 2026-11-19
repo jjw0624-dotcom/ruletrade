@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from ruletrade.experiments.errors import InvalidExperimentSpecError
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
     CreateHiddenExperimentRequest,
+    CreateForwardExperimentRequest,
     CreateRandomBaselineExperimentRequest,
     CreateRobustnessExperimentRequest,
 )
@@ -342,6 +344,94 @@ def test_random_baseline_rejects_duplicate_seeds_before_persistence(tmp_path: Pa
                     "initial_cash": "100000", "dataset_id": "filter-synthetic",
                 },
             }),
+        )
+
+    assert service.list_for_revision(revision.id) == ()
+
+
+def test_forward_snapshots_remain_pinned_and_refresh_idempotently(tmp_path: Path) -> None:
+    _base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    current = [datetime(2024, 1, 10, tzinfo=UTC)]
+    service._clock = lambda: current[0]
+    service._id_factory = iter([
+        "experiment-forward", "candidate-forward-1", "candidate-forward-2"
+    ]).__next__
+
+    activated = service.create_forward(
+        revision.id,
+        CreateForwardExperimentRequest(
+            name="Paper since January",
+            start_date="2024-01-02",
+            initial_cash="100000",
+            dataset_id="filter-synthetic",
+        ),
+    )
+    same_day = service.refresh_forward(activated.experiment.id)
+    current[0] = datetime(2024, 1, 15, tzinfo=UTC)
+    refreshed = service.refresh_forward(activated.experiment.id)
+
+    assert activated.experiment.kind.value == "forward"
+    assert activated.latest_run.run_config.end_date.isoformat() == "2024-01-10"
+    assert same_day.latest_run.id == activated.latest_run.id
+    assert runner.calls == 2
+    assert refreshed.latest_run.run_config.start_date.isoformat() == "2024-01-02"
+    assert refreshed.latest_run.run_config.end_date.isoformat() == "2024-01-15"
+    assert [item.parameters for item in refreshed.experiment.candidates] == [
+        {"as_of": "2024-01-10"}, {"as_of": "2024-01-15"}
+    ]
+    assert all(
+        item.source_hash == revision.source_hash
+        and item.canonical_strategy == revision.canonical_strategy
+        for item in refreshed.experiment.candidates
+    )
+
+
+def test_forward_api_activates_and_refreshes_same_experiment(tmp_path: Path) -> None:
+    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    current = [datetime(2024, 1, 10, tzinfo=UTC)]
+    service._clock = lambda: current[0]
+    service._id_factory = iter([
+        "experiment-forward", "candidate-forward-1", "candidate-forward-2"
+    ]).__next__
+    app.dependency_overrides[get_research_experiment_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            activated = client.post(
+                f"/v2/revisions/{revision.id}/research-experiments/forward",
+                json={
+                    "name": "Paper since January",
+                    "start_date": "2024-01-02",
+                    "initial_cash": "100000",
+                    "dataset_id": "filter-synthetic",
+                },
+            )
+            current[0] = datetime(2024, 1, 15, tzinfo=UTC)
+            refreshed = client.post(
+                "/v2/research-experiments/experiment-forward/forward/refresh"
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert activated.status_code == 201
+    assert activated.json()["experiment"]["kind"] == "forward"
+    assert refreshed.status_code == 200
+    assert len(refreshed.json()["experiment"]["candidates"]) == 2
+    assert refreshed.json()["latest_run"]["run_config"]["end_date"] == "2024-01-15"
+
+
+def test_forward_rejects_future_start_before_persistence(tmp_path: Path) -> None:
+    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._clock = lambda: datetime(2024, 1, 10, tzinfo=UTC)
+
+    with pytest.raises(InvalidExperimentSpecError, match="cannot be in the future"):
+        service.create_forward(
+            revision.id,
+            CreateForwardExperimentRequest(
+                name="Future",
+                start_date="2024-01-11",
+                initial_cash="100000",
+                dataset_id="filter-synthetic",
+            ),
         )
 
     assert service.list_for_revision(revision.id) == ()

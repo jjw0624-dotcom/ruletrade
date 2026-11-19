@@ -84,6 +84,23 @@ class SQLiteResearchExperimentRepository:
         except sqlite3.Error as exc:
             raise ResearchExperimentError("Could not persist Research Experiment.") from exc
 
+    def add_candidate(self, candidate: ExperimentCandidateRecord) -> None:
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """INSERT INTO research_experiment_candidates
+                    (id, experiment_id, ordinal, parameters_json, canonical_json, source_hash, run_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, NULL, ?)""",
+                    (
+                        candidate.id, candidate.experiment_id, candidate.ordinal,
+                        json.dumps(candidate.parameters, sort_keys=True, separators=(",", ":")),
+                        candidate.canonical_strategy.model_dump_json(), candidate.source_hash,
+                        candidate.created_at.isoformat(),
+                    ),
+                )
+        except sqlite3.Error as exc:
+            raise ResearchExperimentError("Could not append Research Experiment Candidate.") from exc
+
     def attach_run(self, candidate_id: str, run_id: str) -> None:
         try:
             with self._connect() as connection:

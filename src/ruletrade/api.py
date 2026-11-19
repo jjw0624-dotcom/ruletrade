@@ -83,10 +83,12 @@ from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status
 from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperimentError
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
+    CreateForwardExperimentRequest,
     CreateHiddenExperimentRequest,
     CreateRandomBaselineExperimentRequest,
     CreateRobustnessExperimentRequest,
     DetailExperimentExecution,
+    ForwardExperimentExecution,
     HiddenDatasetPolicyList,
     HiddenExperimentExecution,
     ResearchExperimentList,
@@ -1109,6 +1111,40 @@ def create_hidden_research_experiment(
 ) -> HiddenExperimentExecution:
     try:
         return service.create_hidden(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.post(
+    "/v2/revisions/{revision_id}/research-experiments/forward",
+    response_model=ForwardExperimentExecution,
+    status_code=201,
+)
+def create_forward_research_experiment(
+    revision_id: str,
+    request: CreateForwardExperimentRequest,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> ForwardExperimentExecution:
+    try:
+        return service.create_forward(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.post(
+    "/v2/research-experiments/{experiment_id}/forward/refresh",
+    response_model=ForwardExperimentExecution,
+)
+def refresh_forward_research_experiment(
+    experiment_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> ForwardExperimentExecution:
+    try:
+        return service.refresh_forward(experiment_id)
     except ExperimentNotFoundError as exc:
         raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
     except ResearchExperimentError as exc:

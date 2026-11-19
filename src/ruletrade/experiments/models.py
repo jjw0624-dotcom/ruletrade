@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -64,6 +64,15 @@ class CreateRandomBaselineExperimentRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class CreateForwardExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    start_date: date
+    initial_cash: Decimal = Field(gt=0)
+    dataset_id: str = Field(min_length=1, max_length=100)
+
+
 class ExperimentCandidateRecord(ExperimentModel):
     id: str
     experiment_id: str
@@ -96,6 +105,11 @@ class HiddenExperimentExecution(ExperimentModel):
     calibration_run: BacktestRunRecord
     hidden_run: BacktestRunRecord
     generalization_gap: Decimal | None = None
+
+
+class ForwardExperimentExecution(ExperimentModel):
+    experiment: ResearchExperimentRecord
+    latest_run: BacktestRunRecord
 
 
 class TestExperimentExecution(ExperimentModel):

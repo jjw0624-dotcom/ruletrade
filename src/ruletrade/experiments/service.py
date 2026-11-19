@@ -17,10 +17,12 @@ from ruletrade.experiments.test_policies import robustness_policies, robustness_
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
     CreateHiddenExperimentRequest,
+    CreateForwardExperimentRequest,
     CreateRandomBaselineExperimentRequest,
     CreateRobustnessExperimentRequest,
     DetailExperimentExecution,
     ExperimentCandidateRecord,
+    ForwardExperimentExecution,
     HiddenExperimentExecution,
     ResearchExperimentKind,
     TestExperimentExecution,
@@ -302,6 +304,96 @@ class ResearchExperimentService:
         return TestExperimentExecution(
             experiment=self.repository.get(experiment.id), runs=tuple(executions)
         )
+
+    def create_forward(
+        self, revision_id: str, request: CreateForwardExperimentRequest
+    ) -> ForwardExperimentExecution:
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Forward requires a V2 Strategy Revision.")
+        as_of = self._clock().date()
+        if request.start_date > as_of:
+            raise InvalidExperimentSpecError("Forward start date cannot be in the future.")
+        experiment_id = self._id_factory()
+        now = self._clock()
+        candidate = ExperimentCandidateRecord(
+            id=self._id_factory(),
+            experiment_id=experiment_id,
+            ordinal=1,
+            parameters={"as_of": as_of.isoformat()},
+            canonical_strategy=revision.canonical_strategy,
+            source_hash=revision.source_hash,
+            created_at=now,
+        )
+        experiment = ResearchExperimentRecord(
+            id=experiment_id,
+            revision_id=revision.id,
+            kind=ResearchExperimentKind.FORWARD,
+            name=request.name,
+            spec=request.model_dump(mode="json"),
+            candidates=(candidate,),
+            created_at=now,
+        )
+        self.repository.create(experiment)
+        run = self._execute_forward_candidate(experiment, candidate, as_of)
+        return ForwardExperimentExecution(
+            experiment=self.repository.get(experiment.id), latest_run=run
+        )
+
+    def refresh_forward(self, experiment_id: str) -> ForwardExperimentExecution:
+        experiment = self.repository.get(experiment_id)
+        if experiment.kind != ResearchExperimentKind.FORWARD:
+            raise InvalidExperimentSpecError("Only a Forward experiment can be refreshed.")
+        as_of = self._clock().date()
+        latest = experiment.candidates[-1]
+        if latest.parameters.get("as_of") == as_of.isoformat():
+            if latest.run_id is None:
+                raise InvalidExperimentSpecError("Latest Forward snapshot has no attached Run.")
+            return ForwardExperimentExecution(
+                experiment=experiment, latest_run=self.runs.get_run(latest.run_id)
+            )
+        start_date = experiment.spec.get("start_date")
+        if start_date is None or str(start_date) > as_of.isoformat():
+            raise InvalidExperimentSpecError("Forward start date cannot be in the future.")
+        revision = self.strategies.get_revision_by_id(experiment.revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Forward requires a V2 Strategy Revision.")
+        candidate = ExperimentCandidateRecord(
+            id=self._id_factory(),
+            experiment_id=experiment.id,
+            ordinal=len(experiment.candidates) + 1,
+            parameters={"as_of": as_of.isoformat()},
+            canonical_strategy=experiment.candidates[0].canonical_strategy,
+            source_hash=experiment.candidates[0].source_hash,
+            created_at=self._clock(),
+        )
+        self.repository.add_candidate(candidate)
+        run = self._execute_forward_candidate(experiment, candidate, as_of)
+        return ForwardExperimentExecution(
+            experiment=self.repository.get(experiment.id), latest_run=run
+        )
+
+    def _execute_forward_candidate(
+        self,
+        experiment: ResearchExperimentRecord,
+        candidate: ExperimentCandidateRecord,
+        as_of,
+    ):
+        config = BacktestConfig.model_validate({
+            "start_date": experiment.spec["start_date"],
+            "end_date": as_of,
+            "initial_cash": experiment.spec["initial_cash"],
+            "dataset_id": experiment.spec["dataset_id"],
+        })
+        run = self.runs.create_and_execute_experiment_candidate(
+            base_revision_id=experiment.revision_id,
+            canonical=candidate.canonical_strategy,
+            source_hash=candidate.source_hash,
+            schema_version=candidate.canonical_strategy.api_version,
+            config=config,
+        )
+        self.repository.attach_run(candidate.id, run.id)
+        return run
 
     def robustness_policies(self):
         return robustness_policies()
