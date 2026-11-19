@@ -171,13 +171,14 @@ export interface ProgramWorkspaceProps {
   onHome: () => void;
   onSave: () => void;
   onTest: () => void;
+  onDetailTest?: () => void;
   onRename?: () => void;
   onOpenAssets?: () => void;
   testDisabled?: boolean;
   testTitle?: string;
 }
 
-function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
+function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onDetailTest, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
   const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
   const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
@@ -216,6 +217,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
         <button type="button" onClick={program.onUndo} disabled={!program.canUndo}>Undo</button>
         <button type="button" onClick={program.onRedo} disabled={!program.canRedo}>Redo</button>
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(program.draftMessage)} title={program.draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
+        {persisted && onDetailTest && <button type="button" className="secondary-button" onClick={onDetailTest} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before starting Detail BT." : undefined}>Detail BT</button>}
         <button className="primary-button" onClick={onTest} disabled={testDisabled || Boolean(program.draftMessage)} title={program.draftMessage ?? testTitle}>Test <span aria-hidden="true">▶</span></button>
       </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
     </header>
