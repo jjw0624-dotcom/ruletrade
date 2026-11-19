@@ -435,3 +435,54 @@ def test_forward_rejects_future_start_before_persistence(tmp_path: Path) -> None
         )
 
     assert service.list_for_revision(revision.id) == ()
+
+
+def test_strategy_research_portfolio_spans_all_revisions(tmp_path: Path) -> None:
+    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    detail = service.create_detail(revision.id, _request(base))
+    changed = revision.canonical_strategy.model_copy(update={
+        "metadata": revision.canonical_strategy.metadata.model_copy(update={
+            "description": "Second revision for portfolio history",
+        }),
+    })
+    saved = service.strategies.save_revision(revision.strategy_id, revision.id, changed)
+    service._id_factory = iter([
+        "experiment-2",
+        "candidate-robust-1",
+        "candidate-robust-2",
+        "candidate-robust-3",
+        "candidate-robust-4",
+    ]).__next__
+    robustness = service.create_robustness(
+        saved.revision.id,
+        CreateRobustnessExperimentRequest.model_validate({
+            "name": "Later robustness",
+            "policy_id": "start-date-offset-v1",
+            "config": {
+                "start_date": "2024-01-02",
+                "end_date": "2024-02-01",
+                "initial_cash": "100000",
+                "dataset_id": "filter-synthetic",
+            },
+        }),
+    )
+
+    portfolio = service.list_for_strategy(revision.strategy_id)
+
+    assert portfolio == (robustness.experiment, detail.experiment)
+    assert {item.revision_id for item in portfolio} == {revision.id, saved.revision.id}
+
+    app.dependency_overrides[get_research_experiment_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/v2/strategies/{revision.strategy_id}/research-experiments"
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [
+        robustness.experiment.id,
+        detail.experiment.id,
+    ]

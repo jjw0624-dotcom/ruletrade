@@ -407,3 +407,7 @@ class ResearchExperimentService:
     def list_for_revision(self, revision_id: str) -> tuple[ResearchExperimentRecord, ...]:
         self.strategies.get_revision_by_id(revision_id)
         return self.repository.list_for_revision(revision_id)
+
+    def list_for_strategy(self, strategy_id: str) -> tuple[ResearchExperimentRecord, ...]:
+        revisions = self.strategies.list_revisions(strategy_id)
+        return self.repository.list_for_revisions(tuple(item.id for item in revisions))

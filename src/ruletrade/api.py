@@ -1209,6 +1209,17 @@ def list_revision_research_experiments(
 
 
 @app.get(
+    "/v2/strategies/{strategy_id}/research-experiments",
+    response_model=ResearchExperimentList,
+)
+def list_strategy_research_experiments(
+    strategy_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> ResearchExperimentList:
+    return ResearchExperimentList(items=service.list_for_strategy(strategy_id))
+
+
+@app.get(
     "/v2/research-experiments/{experiment_id}",
     response_model=ResearchExperimentRecord,
 )
