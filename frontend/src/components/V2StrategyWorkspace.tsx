@@ -28,7 +28,7 @@ export function V2StrategyWorkspace({ detail, onDirtyChange, onHome, onOpenRun }
   const program = canonical.program;
   const statementCount = program?.statements.length ?? 0;
   const groupCount = canonical.definitions.groups.length;
-  const assetCount = canonical.definitions.asset_sets.reduce((total, item) => total + item.symbols.length, 0);
+  const assetCount = canonical.definitions.asset_sets.reduce((total, item) => total + item.assets.length, 0);
 
   const handleDirty = (value: boolean) => {
     setDirty(value);
