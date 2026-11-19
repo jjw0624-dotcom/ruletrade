@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ruletrade.backtest_runs.models import BacktestRunRecord
 from ruletrade.backtests.models import BacktestConfig
 
 
@@ -48,3 +51,35 @@ class ChallengeDefinition(ChallengeModel):
 
 class ChallengeList(ChallengeModel):
     items: tuple[ChallengeDefinition, ...]
+
+
+
+class CreateChallengeSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    revision_id: str = Field(min_length=1)
+
+
+class ChallengeSubmissionRecord(ChallengeModel):
+    id: str
+    challenge_id: str
+    challenge_version: int = Field(ge=1)
+    policy_version: int = Field(ge=1)
+    revision_id: str
+    run_id: str
+    catalog_id: str | None = None
+    catalog_parameters: dict[str, Any] = Field(default_factory=dict)
+    eligible: bool
+    violations: tuple[str, ...] = ()
+    score: Decimal | None = None
+    objective: ChallengeObjective
+    created_at: datetime
+
+
+class ChallengeSubmissionExecution(ChallengeModel):
+    submission: ChallengeSubmissionRecord
+    run: BacktestRunRecord
+
+
+class ChallengeSubmissionList(ChallengeModel):
+    items: tuple[ChallengeSubmissionRecord, ...]
