@@ -6,7 +6,11 @@ from datetime import datetime
 from pathlib import Path
 
 from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperimentError
-from ruletrade.experiments.models import ExperimentCandidateRecord, ResearchExperimentKind, ResearchExperimentRecord
+from ruletrade.experiments.models import (
+    ExperimentCandidateRecord,
+    ResearchExperimentKind,
+    ResearchExperimentRecord,
+)
 from ruletrade.strategy.versioning import parse_canonical_strategy
 
 
