@@ -29,16 +29,15 @@ describe("Research Experiment API", () => {
     });
   });
 
-  it("posts a Detail BT matrix against the immutable Revision", async () => {
+  it("posts one Detailed BT run against the immutable Revision", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ experiment: { id: "e1", candidates: [] }, runs: [] }), { status: 201, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
     await researchExperimentApi.createDetail("revision 1", {
-      name: "Asset sweep",
-      base: catalogBaseFromStrategy(canonical)!,
-      dimensions: [{ parameter_id: "asset", values: ["QQQ", "SPY"] }],
+      name: "Detailed run",
       config: { start_date: "2024-01-01", end_date: "2024-02-01", initial_cash: "100000", dataset_id: "filter-synthetic" },
     }, fetcher);
     expect(fetcher).toHaveBeenCalledWith("/api/v2/revisions/revision%201/research-experiments/detail", expect.objectContaining({ method: "POST" }));
     const body = JSON.parse(String((fetcher as ReturnType<typeof vi.fn>).mock.calls[0]![1]!.body));
-    expect(body.dimensions).toEqual([{ parameter_id: "asset", values: ["QQQ", "SPY"] }]);
+    expect(body).toEqual(expect.objectContaining({ name: "Detailed run", config: expect.any(Object) }));
+    expect(body).not.toHaveProperty("dimensions");
   });
 });
