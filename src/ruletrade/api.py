@@ -80,7 +80,6 @@ from ruletrade.decision_evidence.models import (
 )
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
-from ruletrade.hashing import strategy_hash
 from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperimentError
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
@@ -89,6 +88,7 @@ from ruletrade.experiments.models import (
     ResearchExperimentRecord,
 )
 from ruletrade.experiments.service import ResearchExperimentService
+from ruletrade.hashing import strategy_hash
 from ruletrade.market_data.models import MarketDataPreflight, MarketDataPreflightRequest
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import (
