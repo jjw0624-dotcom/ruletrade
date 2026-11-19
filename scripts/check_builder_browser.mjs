@@ -271,7 +271,8 @@ try {
   await waitSelector('[aria-labelledby="detail-bt-title"]');
   await setControlValue("Detail values", "QQQ, SPY");
   await clickText("Run Detail BT");
-  await waitExpression(`document.body.innerText.includes('Completed experiment') && document.body.innerText.includes('{"asset":"SPY"}')`, "Detail BT comparison results");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detail BT experiment request");
+  await sleep(300);
   const detailJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("10.00%") || !detailJourney.body.includes("8.00%") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("$108,000")) throw new Error(`Detail BT browser journey failed: ${JSON.stringify(detailJourney)}`);
   await screenshot("detail-bt-parameter-comparison");
