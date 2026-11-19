@@ -1044,3 +1044,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .program-rule-line{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .program-rule-edit-cue{flex:0 0 auto;color:#246b4a;font-size:13px;font-weight:700;opacity:0;transition:opacity .15s ease}
 .program-rule-line:hover .program-rule-edit-cue,.program-rule-line:focus-visible .program-rule-edit-cue,.program-rule-line[aria-pressed="true"] .program-rule-edit-cue{opacity:1}
+
+.detail-bt-backdrop { z-index: 80; }
+.detail-bt-dialog { width: min(1080px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; }
+.detail-bt-form { width: auto; box-shadow: none; border: 0; padding: 24px 0 0; }
+.detail-bt-form small { color: var(--muted); display: block; margin-top: 6px; }
+.detail-bt-config { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.detail-bt-results { padding: 20px 0 0; overflow-x: auto; }
+.detail-bt-result-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
+.detail-bt-result-header h3 { margin: 4px 0 0; }
+.detail-bt-results table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.detail-bt-results th, .detail-bt-results td { padding: 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.detail-bt-results th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.detail-bt-results code { white-space: nowrap; }
+@media (max-width: 760px) { .detail-bt-config { grid-template-columns: 1fr; } }

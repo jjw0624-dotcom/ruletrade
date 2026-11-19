@@ -6,6 +6,7 @@ remain ordinary Canonical documents and ordinary immutable Revisions.
 """
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -219,6 +220,18 @@ def create_catalog_strategy(request: CreateCatalogStrategyRequest) -> CreateCata
             operation=operation,
         )
     ).strategy
+    provenance_tag = "ruletrade.catalog.v1:" + json.dumps(
+        request.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    strategy = strategy.model_copy(
+        update={
+            "metadata": strategy.metadata.model_copy(
+                update={"tags": (*strategy.metadata.tags, provenance_tag)}
+            )
+        }
+    )
     return CreateCatalogStrategyResponse(
         catalog_id=request.catalog_id,
         catalog_version=request.version,

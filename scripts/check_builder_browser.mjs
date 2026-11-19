@@ -266,6 +266,17 @@ try {
   const catalogRunIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs" && item.method === "POST");
   if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("HOW DID IT DO?") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
   await screenshot("catalog-mvp-created-saved-and-executed");
+  await clickAriaLabel("Close Quick Test Dashboard");
+  await clickText("Detail BT");
+  await waitSelector('[aria-labelledby="detail-bt-title"]');
+  await setControlValue("Detail values", "QQQ, SPY");
+  await clickText("Run Detail BT");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detail BT experiment request");
+  await sleep(300);
+  const detailJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("\t10%\t") || !detailJourney.body.includes("\t8%\t") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("$108,000")) throw new Error(`Detail BT browser journey failed: ${JSON.stringify(detailJourney)}`);
+  await screenshot("detail-bt-parameter-comparison");
+
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
   await waitSelector('[data-production-builder-shell="true"]');

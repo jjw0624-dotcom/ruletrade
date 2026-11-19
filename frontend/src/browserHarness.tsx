@@ -57,6 +57,12 @@ window.fetch = async (input, init) => {
     }
     if (url === "/api/v1/strategies/strategy-catalog-mvp") return json(catalogDetail);
     if (url.startsWith("/api/v1/editor/bootstrap?")) return json(catalogBootstrap);
+    if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body ?? "{}"));
+      if (request.dimensions?.[0]?.parameter_id !== "asset" || stableJson(request.dimensions[0].values) !== stableJson(["QQQ", "SPY"])) return json({ detail: { message: "Unexpected Detail BT matrix." } }, 422);
+      const runs = ["QQQ", "SPY"].map((asset, index) => ({ ...catalogRun, id: `run-detail-${index + 1}`, result: { ...catalogRun.result!, final_value: index ? "108000" : "110000", total_return: index ? "0.08" : "0.1" } }));
+      return json({ experiment: { id: "experiment-detail-browser", revision_id: "revision-catalog-mvp", kind: "detail", name: request.name, spec: request, created_at: "2026-11-19T00:00:00Z", candidates: ["QQQ", "SPY"].map((asset, index) => ({ id: `candidate-detail-${index + 1}`, experiment_id: "experiment-detail-browser", ordinal: index + 1, parameters: { asset }, canonical_strategy: catalogCanonical, source_hash: `sha256:detail-${asset}`, run_id: `run-detail-${index + 1}`, created_at: "2026-11-19T00:00:00Z" })) }, runs }, 201);
+    }
     if (url === "/api/v2/revisions/revision-catalog-mvp/backtest-runs") return json(init?.method === "POST" ? catalogRun : { items: [] }, init?.method === "POST" ? 201 : 200);
     if (url === "/api/v2/backtest-runs/run-catalog-mvp/decision-events") return json({ items: [] });
   }
@@ -211,7 +217,7 @@ const persistedDetail: StrategyDetailV2 = {
 
 const catalogCanonical: CanonicalStrategyV2 = {
   ...persistedCanonical,
-  metadata: { ...persistedCanonical.metadata, name: "QQQ monthly" },
+  metadata: { ...persistedCanonical.metadata, name: "QQQ monthly", tags: ['ruletrade.catalog.v1:{"asset":"QQQ","catalog_id":"single_asset_periodic","name":"QQQ monthly","timeframe":"monthly","version":1}'] },
 };
 const catalogDetail: StrategyDetailV2 = {
   strategy: { id: "strategy-catalog-mvp", name: "QQQ monthly", created_at: "2026-11-18T00:00:00Z", updated_at: "2026-11-18T00:00:00Z", current_revision_id: "revision-catalog-mvp", archived_at: null },
