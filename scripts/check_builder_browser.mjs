@@ -291,7 +291,7 @@ try {
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden')`, "Hidden BT experiment request");
   await sleep(300);
   const hiddenJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
-  if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("Selected candidate #1") || !hiddenJourney.body.includes("4% calibration") || !hiddenJourney.body.includes("10%") || !hiddenJourney.body.includes("8%") || !hiddenJourney.body.includes("6%") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
+  if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("SELECTED CANDIDATE #1") || !hiddenJourney.body.includes("4% calibration") || !hiddenJourney.body.includes("10%") || !hiddenJourney.body.includes("8%") || !hiddenJourney.body.includes("6%") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
   await screenshot("hidden-bt-parameter-selection");
   await clickAriaLabel("Close Hidden BT");
   await clickText("Tests");
