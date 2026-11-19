@@ -52,6 +52,18 @@ export interface HiddenDatasetPolicy {
   initial_cash: string;
 }
 
+export interface RobustnessPolicy {
+  id: string;
+  name: string;
+  description: string;
+  start_date_offsets: number[];
+}
+
+export interface TestExperimentExecution {
+  experiment: ResearchExperimentRecord;
+  runs: BacktestRunRecord[];
+}
+
 export interface HiddenExperimentExecution {
   experiment: ResearchExperimentRecord;
   policy: HiddenDatasetPolicy;
@@ -82,6 +94,12 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 }
 
 export const researchExperimentApi = {
+  robustnessPolicies: (fetcher?: typeof fetch) =>
+    request<{ items: RobustnessPolicy[] }>("/v2/research-experiments/robustness-policies", {}, fetcher),
+  createRobustness: (revisionId: string, payload: { name: string; policy_id: string; config: BacktestConfig }, fetcher?: typeof fetch) =>
+    request<TestExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/robustness`, jsonBody("POST", payload), fetcher),
+  createRandomBaseline: (revisionId: string, payload: { name: string; base: CatalogBaseRequest; seeds: number[]; config: BacktestConfig }, fetcher?: typeof fetch) =>
+    request<TestExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/random-baseline`, jsonBody("POST", payload), fetcher),
   hiddenPolicies: (fetcher?: typeof fetch) =>
     request<{ items: HiddenDatasetPolicy[] }>("/v2/research-experiments/hidden-policies", {}, fetcher),
   createHidden: (revisionId: string, payload: { name: string; policy_id: string }, fetcher?: typeof fetch) =>
