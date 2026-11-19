@@ -281,7 +281,7 @@ try {
   await waitSelector('[aria-labelledby="hidden-bt-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
   const hiddenSetup = await evaluate(`({body:document.body.innerText,inputs:[...document.querySelectorAll('input')].map((item)=>item.getAttribute('aria-label'))})`);
-  if (!hiddenSetup.body.includes("Server-owned holdout policy") || hiddenSetup.inputs.some((item) => ["Hidden start date", "Hidden end date", "Hidden dataset"].includes(item))) throw new Error(`Hidden BT exposed client-owned policy fields: ${JSON.stringify(hiddenSetup)}`);
+  if (!hiddenSetup.hasPolicy || hiddenSetup.inputs.some((item) => ["Hidden start date", "Hidden end date", "Hidden dataset"].includes(item))) throw new Error(`Hidden BT exposed client-owned policy fields: ${JSON.stringify(hiddenSetup)}`);
   await clickText("Run Hidden BT");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden')`, "Hidden BT experiment request");
   await sleep(300);
