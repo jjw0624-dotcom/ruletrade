@@ -152,6 +152,29 @@ class BacktestRunService:
             total_started=total_started,
         )
 
+    def create_and_execute_experiment_candidate(
+        self,
+        *,
+        base_revision_id: str,
+        canonical: CanonicalStrategy,
+        source_hash: str,
+        schema_version: str,
+        config: BacktestConfig,
+    ) -> BacktestRunRecord:
+        """Execute one planned research variant through the official LEAN Run lifecycle."""
+
+        total_started = perf_counter_ns()
+        return self._create_and_execute_source(
+            revision_id=base_revision_id,
+            candidate_id=None,
+            canonical=canonical,
+            source_hash=source_hash,
+            schema_version=schema_version,
+            run_config=self._validate_config(config),
+            source_load_ms=0,
+            total_started=total_started,
+        )
+
     def _create_and_execute_source(
         self,
         *,

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from ruletrade.backtest_runs.models import BacktestRunRecord
+from ruletrade.strategy.v2.catalog import CreateCatalogStrategyRequest
+from ruletrade.strategy.v2.models import CanonicalStrategyV2
+
+
+class ExperimentModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ResearchExperimentKind(str, Enum):
+    DETAIL = "detail"
+    HIDDEN = "hidden"
+    ROBUSTNESS = "robustness"
+    RANDOM_BASELINE = "random_baseline"
+    FORWARD = "forward"
+
+
+class ParameterDimension(ExperimentModel):
+    parameter_id: str = Field(min_length=1)
+    values: tuple[Any, ...] = Field(min_length=1, max_length=32)
+
+
+class CreateDetailExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    base: CreateCatalogStrategyRequest
+    dimensions: tuple[ParameterDimension, ...] = Field(min_length=1, max_length=8)
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExperimentCandidateRecord(ExperimentModel):
+    id: str
+    experiment_id: str
+    ordinal: int = Field(ge=1)
+    parameters: dict[str, Any]
+    canonical_strategy: CanonicalStrategyV2
+    source_hash: str
+    run_id: str | None = None
+    created_at: datetime
+
+
+class ResearchExperimentRecord(ExperimentModel):
+    id: str
+    revision_id: str
+    kind: Literal[ResearchExperimentKind.DETAIL] = ResearchExperimentKind.DETAIL
+    name: str
+    spec: dict[str, Any]
+    candidates: tuple[ExperimentCandidateRecord, ...]
+    created_at: datetime
+
+
+class DetailExperimentExecution(ExperimentModel):
+    experiment: ResearchExperimentRecord
+    runs: tuple[BacktestRunRecord, ...]
+
+
+class ResearchExperimentList(ExperimentModel):
+    items: tuple[ResearchExperimentRecord, ...]
