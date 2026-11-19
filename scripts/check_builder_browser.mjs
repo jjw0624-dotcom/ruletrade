@@ -257,7 +257,7 @@ try {
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`document.body.innerText.includes('QQQ monthly')`, "persisted catalog strategy");
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "catalog strategy Test");
-  await clickText("Test ▶"); await waitSelector('.quick-test-panel');
+  await evaluate(`(() => { const button=[...document.querySelectorAll('button.primary-button')].find((item)=>item.textContent.trim()==='Test ▶'&&!item.disabled); if(!button) throw new Error('Missing enabled Quick Test button'); button.click(); return true; })()`); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
   const catalogJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   const catalogListIndex = catalogJourney.requests.findIndex((item) => item.url === "/api/v2/strategy-catalog");
