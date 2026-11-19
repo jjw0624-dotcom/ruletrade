@@ -302,7 +302,7 @@ def test_research_test_api_contracts(tmp_path: Path) -> None:
                 },
             )
             service._id_factory = iter([
-                "experiment-random", "candidate-seed-7", "candidate-seed-11"
+                "experiment-random", "candidate-reference", "candidate-seed-7", "candidate-seed-11"
             ]).__next__
             random_baseline = client.post(
                 f"/v2/revisions/{revision.id}/research-experiments/random-baseline",
