@@ -353,6 +353,7 @@ try {
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`document.body.innerText.includes('UI Authored Monthly QQQ')`, "ui-authored journey navigation");
+  if (await evaluate(`Boolean(document.querySelector('[aria-label="Close Tests"]'))`)) await clickAriaLabel("Close Tests");
   await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
   await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
