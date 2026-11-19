@@ -81,6 +81,14 @@ from ruletrade.decision_evidence.models import (
 from ruletrade.domain import BacktestRequest, SimpleStrategySpec
 from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status, run_backtest
 from ruletrade.hashing import strategy_hash
+from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperimentError
+from ruletrade.experiments.models import (
+    CreateDetailExperimentRequest,
+    DetailExperimentExecution,
+    ResearchExperimentList,
+    ResearchExperimentRecord,
+)
+from ruletrade.experiments.service import ResearchExperimentService
 from ruletrade.market_data.models import MarketDataPreflight, MarketDataPreflightRequest
 from ruletrade.market_data.service import MarketDataService
 from ruletrade.persistence import (
@@ -89,6 +97,7 @@ from ruletrade.persistence import (
     SQLiteComparisonRepository,
     SQLiteStrategyRepository,
 )
+from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
 from ruletrade.strategies.errors import (
     InvalidStrategySourceError,
     PersistenceError,
@@ -202,6 +211,8 @@ candidate_service: CandidateService | None = None
 candidate_service_path: Path | None = None
 comparison_service: ComparisonService | None = None
 comparison_service_path: Path | None = None
+research_experiment_service: ResearchExperimentService | None = None
+research_experiment_service_path: Path | None = None
 
 
 def get_lean_backtest_service() -> BacktestRunService:
@@ -250,6 +261,19 @@ def get_comparison_service() -> ComparisonService:
         )
         comparison_service_path = path
     return comparison_service
+
+
+def get_research_experiment_service() -> ResearchExperimentService:
+    global research_experiment_service, research_experiment_service_path
+    path = default_strategy_db_path()
+    if research_experiment_service is None or research_experiment_service_path != path:
+        research_experiment_service = ResearchExperimentService(
+            SQLiteResearchExperimentRepository(path),
+            get_strategy_service(),
+            get_lean_backtest_service(),
+        )
+        research_experiment_service_path = path
+    return research_experiment_service
 
 
 @app.exception_handler(StrategyDomainError)
@@ -1036,6 +1060,49 @@ def create_persisted_backtest_run(
     service: Annotated[BacktestRunService, Depends(get_lean_backtest_service)],
 ) -> BacktestRunRecord:
     return service.create_and_execute(revision_id, request.config)
+
+
+@app.post(
+    "/v2/revisions/{revision_id}/research-experiments/detail",
+    response_model=DetailExperimentExecution,
+    status_code=201,
+)
+def create_detail_research_experiment(
+    revision_id: str,
+    request: CreateDetailExperimentRequest,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> DetailExperimentExecution:
+    try:
+        return service.create_detail(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
+    "/v2/revisions/{revision_id}/research-experiments",
+    response_model=ResearchExperimentList,
+)
+def list_revision_research_experiments(
+    revision_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> ResearchExperimentList:
+    return ResearchExperimentList(items=service.list_for_revision(revision_id))
+
+
+@app.get(
+    "/v2/research-experiments/{experiment_id}",
+    response_model=ResearchExperimentRecord,
+)
+def read_research_experiment(
+    experiment_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> ResearchExperimentRecord:
+    try:
+        return service.get(experiment_id)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
 
 
 @app.post(
