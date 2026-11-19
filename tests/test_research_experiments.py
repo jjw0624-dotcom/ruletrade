@@ -79,11 +79,9 @@ def _setup(database: Path):
     return base_request, revision, runner, experiments
 
 
-def _request(base: SingleAssetCatalogRequest) -> CreateDetailExperimentRequest:
+def _detail_request() -> CreateDetailExperimentRequest:
     return CreateDetailExperimentRequest.model_validate({
-        "name": "Asset sweep",
-        "base": base.model_dump(mode="json"),
-        "dimensions": [{"parameter_id": "asset", "values": ["QQQ", "SPY"]}],
+        "name": "Detailed run",
         "config": {
             "start_date": "2024-01-02", "end_date": "2024-02-01",
             "initial_cash": "100000", "dataset_id": "filter-synthetic",
@@ -91,43 +89,38 @@ def _request(base: SingleAssetCatalogRequest) -> CreateDetailExperimentRequest:
     })
 
 
-def test_detail_experiment_plans_variants_and_reuses_official_runs(tmp_path: Path) -> None:
-    base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
-
-    execution = service.create_detail(revision.id, _request(base))
-
-    assert execution.experiment.kind.value == "detail"
-    assert [item.parameters for item in execution.experiment.candidates] == [
-        {"asset": "QQQ"}, {"asset": "SPY"}
-    ]
-    assert len(execution.runs) == 2
-    assert runner.calls == 2
-    assert all(run.revision_id == revision.id and run.status.value == "succeeded" for run in execution.runs)
-    assert [item.run_id for item in execution.experiment.candidates] == [run.id for run in execution.runs]
-    assert service.get(execution.experiment.id) == execution.experiment
-    assert service.list_for_revision(revision.id) == (execution.experiment,)
-
-
-def test_detail_experiment_rejects_base_that_is_not_selected_revision(tmp_path: Path) -> None:
-    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
-    mismatched = _request(base).model_copy(update={
-        "base": base.model_copy(update={"asset": "SPY"})
+def _hidden_request(base: SingleAssetCatalogRequest) -> CreateHiddenExperimentRequest:
+    return CreateHiddenExperimentRequest.model_validate({
+        "name": "Hidden asset selection",
+        "policy_id": "synthetic-holdout-v1",
+        "base": base.model_dump(mode="json"),
+        "dimensions": [{"parameter_id": "asset", "values": ["QQQ", "SPY"]}],
     })
 
-    with pytest.raises(InvalidExperimentSpecError, match="do not reproduce"):
-        service.create_detail(revision.id, mismatched)
 
-    assert service.list_for_revision(revision.id) == ()
+def test_detail_experiment_runs_unchanged_revision_once(tmp_path: Path) -> None:
+    _base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+
+    execution = service.create_detail(revision.id, _detail_request())
+
+    assert execution.experiment.kind.value == "detail"
+    assert execution.experiment.spec["mode"] == "single_revision"
+    assert [item.parameters for item in execution.experiment.candidates] == [{"role": "detailed"}]
+    assert len(execution.runs) == 1
+    assert runner.calls == 1
+    assert execution.runs[0].revision_id == revision.id
+    assert execution.experiment.candidates[0].source_hash == revision.source_hash
+    assert execution.experiment.candidates[0].canonical_strategy == revision.canonical_strategy
 
 
 def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
-    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
     app.dependency_overrides[get_research_experiment_service] = lambda: service
     try:
         with TestClient(app) as client:
             created = client.post(
                 f"/v2/revisions/{revision.id}/research-experiments/detail",
-                json=_request(base).model_dump(mode="json"),
+                json=_detail_request().model_dump(mode="json"),
             )
             listed = client.get(f"/v2/revisions/{revision.id}/research-experiments")
             read = client.get("/v2/research-experiments/experiment-1")
@@ -135,62 +128,43 @@ def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
         app.dependency_overrides.clear()
 
     assert created.status_code == 201
-    assert len(created.json()["runs"]) == 2
-    assert [item["parameters"] for item in created.json()["experiment"]["candidates"]] == [
-        {"asset": "QQQ"}, {"asset": "SPY"}
-    ]
+    assert len(created.json()["runs"]) == 1
+    assert created.json()["experiment"]["candidates"][0]["parameters"] == {"role": "detailed"}
     assert listed.status_code == 200 and len(listed.json()["items"]) == 1
     assert read.status_code == 200 and read.json()["id"] == "experiment-1"
 
 
-def test_hidden_experiment_uses_server_policy_and_unchanged_revision(tmp_path: Path) -> None:
-    _base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+def test_hidden_experiment_selects_on_calibration_then_runs_winner_once(tmp_path: Path) -> None:
+    base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
 
-    execution = service.create_hidden(
-        revision.id,
-        CreateHiddenExperimentRequest(name="Chronological holdout", policy_id="synthetic-holdout-v1"),
-    )
+    execution = service.create_hidden(revision.id, _hidden_request(base))
 
     assert execution.experiment.kind.value == "hidden"
-    assert execution.experiment.spec == {"policy_id": "synthetic-holdout-v1"}
     assert [item.parameters for item in execution.experiment.candidates] == [
-        {"partition": "calibration"}, {"partition": "hidden"}
+        {"asset": "QQQ"}, {"asset": "SPY"},
     ]
-    assert all(
-        item.source_hash == revision.source_hash
-        and item.canonical_strategy == revision.canonical_strategy
-        for item in execution.experiment.candidates
-    )
-    assert execution.calibration_run.run_config.start_date.isoformat() == "2024-01-02"
-    assert execution.calibration_run.run_config.end_date.isoformat() == "2024-06-28"
+    assert len(execution.calibration_runs) == 2
+    assert execution.selected_candidate_ordinal == 1
+    assert execution.hidden_run.revision_id == revision.id
     assert execution.hidden_run.run_config.start_date.isoformat() == "2024-07-01"
-    assert execution.hidden_run.run_config.end_date.isoformat() == "2024-12-31"
-    assert execution.calibration_run.run_config.dataset_id == "filter-synthetic"
-    assert execution.hidden_run.run_config.dataset_id == "filter-synthetic"
+    assert runner.calls == 3
     assert execution.generalization_gap == 0
-    assert runner.calls == 2
-    assert [item.run_id for item in execution.experiment.candidates] == [
-        execution.calibration_run.id, execution.hidden_run.id
-    ]
 
 
-def test_hidden_experiment_api_lists_policy_and_rejects_client_overrides(tmp_path: Path) -> None:
-    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+def test_hidden_experiment_api_rejects_client_holdout_and_returns_selection(tmp_path: Path) -> None:
+    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
     app.dependency_overrides[get_research_experiment_service] = lambda: service
     try:
         with TestClient(app) as client:
             policies = client.get("/v2/research-experiments/hidden-policies")
+            payload = _hidden_request(base).model_dump(mode="json")
             rejected = client.post(
                 f"/v2/revisions/{revision.id}/research-experiments/hidden",
-                json={
-                    "name": "Tampered holdout",
-                    "policy_id": "synthetic-holdout-v1",
-                    "start_date": "2020-01-01",
-                },
+                json={**payload, "start_date": "2020-01-01"},
             )
             created = client.post(
                 f"/v2/revisions/{revision.id}/research-experiments/hidden",
-                json={"name": "Chronological holdout", "policy_id": "synthetic-holdout-v1"},
+                json=payload,
             )
     finally:
         app.dependency_overrides.clear()
@@ -199,18 +173,18 @@ def test_hidden_experiment_api_lists_policy_and_rejects_client_overrides(tmp_pat
     assert policies.json()["items"][0]["id"] == "synthetic-holdout-v1"
     assert rejected.status_code == 422
     assert created.status_code == 201
-    assert created.json()["experiment"]["kind"] == "hidden"
-    assert created.json()["calibration_run"]["revision_id"] == revision.id
+    assert len(created.json()["calibration_runs"]) == 2
+    assert created.json()["selected_candidate_ordinal"] == 1
     assert created.json()["hidden_run"]["revision_id"] == revision.id
 
 
 def test_hidden_experiment_rejects_unknown_server_policy(tmp_path: Path) -> None:
-    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
 
     with pytest.raises(InvalidExperimentSpecError, match="Unknown Hidden BT policy"):
         service.create_hidden(
             revision.id,
-            CreateHiddenExperimentRequest(name="Unknown", policy_id="client-defined"),
+            _hidden_request(base).model_copy(update={"policy_id": "client-defined"}),
         )
 
     assert service.list_for_revision(revision.id) == ()
