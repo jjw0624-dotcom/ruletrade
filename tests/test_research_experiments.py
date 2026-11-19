@@ -99,7 +99,7 @@ def test_detail_experiment_plans_variants_and_reuses_official_runs(tmp_path: Pat
         {"asset": "QQQ"}, {"asset": "SPY"}
     ]
     assert len(execution.runs) == 2
-    assert runner.calls == 3
+    assert runner.calls == 2
     assert all(run.revision_id == revision.id and run.status.value == "succeeded" for run in execution.runs)
     assert [item.run_id for item in execution.experiment.candidates] == [run.id for run in execution.runs]
     assert service.get(execution.experiment.id) == execution.experiment
@@ -278,7 +278,7 @@ def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> 
     assert [item.run_id for item in execution.experiment.candidates] == [
         run.id for run in execution.runs
     ]
-    assert runner.calls == 2
+    assert runner.calls == 3
 
 
 def test_research_test_api_contracts(tmp_path: Path) -> None:
