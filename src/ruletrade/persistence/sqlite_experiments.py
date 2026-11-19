@@ -132,6 +132,18 @@ class SQLiteResearchExperimentRepository:
             ).fetchall()
         return tuple(self.get(row["id"]) for row in rows)
 
+    def list_for_revisions(self, revision_ids: tuple[str, ...]) -> tuple[ResearchExperimentRecord, ...]:
+        if not revision_ids:
+            return ()
+        placeholders = ", ".join("?" for _ in revision_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT id FROM research_experiments WHERE revision_id IN ({placeholders}) "
+                "ORDER BY created_at DESC, id DESC",
+                revision_ids,
+            ).fetchall()
+        return tuple(self.get(row["id"]) for row in rows)
+
     def _record(self, row: sqlite3.Row, candidates: list[sqlite3.Row]) -> ResearchExperimentRecord:
         return ResearchExperimentRecord(
             id=row["id"], revision_id=row["revision_id"], kind=ResearchExperimentKind(row["kind"]),
