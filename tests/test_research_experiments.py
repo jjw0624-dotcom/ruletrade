@@ -12,7 +12,7 @@ from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.backtests.lean_runner import LeanRunArtifact, LeanRunnerTimings
 from ruletrade.backtests.service import BacktestService
 from ruletrade.experiments.errors import InvalidExperimentSpecError
-from ruletrade.experiments.models import CreateDetailExperimentRequest
+from ruletrade.experiments.models import CreateDetailExperimentRequest, CreateHiddenExperimentRequest
 from ruletrade.experiments.service import ResearchExperimentService
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
@@ -134,3 +134,76 @@ def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
     ]
     assert listed.status_code == 200 and len(listed.json()["items"]) == 1
     assert read.status_code == 200 and read.json()["id"] == "experiment-1"
+
+
+def test_hidden_experiment_uses_server_policy_and_unchanged_revision(tmp_path: Path) -> None:
+    _base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+
+    execution = service.create_hidden(
+        revision.id,
+        CreateHiddenExperimentRequest(name="Chronological holdout", policy_id="synthetic-holdout-v1"),
+    )
+
+    assert execution.experiment.kind.value == "hidden"
+    assert execution.experiment.spec == {"policy_id": "synthetic-holdout-v1"}
+    assert [item.parameters for item in execution.experiment.candidates] == [
+        {"partition": "calibration"}, {"partition": "hidden"}
+    ]
+    assert all(
+        item.source_hash == revision.source_hash
+        and item.canonical_strategy == revision.canonical_strategy
+        for item in execution.experiment.candidates
+    )
+    assert execution.calibration_run.run_config.start_date.isoformat() == "2024-01-02"
+    assert execution.calibration_run.run_config.end_date.isoformat() == "2024-06-28"
+    assert execution.hidden_run.run_config.start_date.isoformat() == "2024-07-01"
+    assert execution.hidden_run.run_config.end_date.isoformat() == "2024-12-31"
+    assert execution.calibration_run.run_config.dataset_id == "filter-synthetic"
+    assert execution.hidden_run.run_config.dataset_id == "filter-synthetic"
+    assert execution.generalization_gap == 0
+    assert runner.calls == 2
+    assert [item.run_id for item in execution.experiment.candidates] == [
+        execution.calibration_run.id, execution.hidden_run.id
+    ]
+
+
+def test_hidden_experiment_api_lists_policy_and_rejects_client_overrides(tmp_path: Path) -> None:
+    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    app.dependency_overrides[get_research_experiment_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            policies = client.get("/v2/research-experiments/hidden-policies")
+            rejected = client.post(
+                f"/v2/revisions/{revision.id}/research-experiments/hidden",
+                json={
+                    "name": "Tampered holdout",
+                    "policy_id": "synthetic-holdout-v1",
+                    "start_date": "2020-01-01",
+                },
+            )
+            created = client.post(
+                f"/v2/revisions/{revision.id}/research-experiments/hidden",
+                json={"name": "Chronological holdout", "policy_id": "synthetic-holdout-v1"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert policies.status_code == 200
+    assert policies.json()["items"][0]["id"] == "synthetic-holdout-v1"
+    assert rejected.status_code == 422
+    assert created.status_code == 201
+    assert created.json()["experiment"]["kind"] == "hidden"
+    assert created.json()["calibration_run"]["revision_id"] == revision.id
+    assert created.json()["hidden_run"]["revision_id"] == revision.id
+
+
+def test_hidden_experiment_rejects_unknown_server_policy(tmp_path: Path) -> None:
+    _base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+
+    with pytest.raises(InvalidExperimentSpecError, match="Unknown Hidden BT policy"):
+        service.create_hidden(
+            revision.id,
+            CreateHiddenExperimentRequest(name="Unknown", policy_id="client-defined"),
+        )
+
+    assert service.list_for_revision(revision.id) == ()

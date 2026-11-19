@@ -11,9 +11,15 @@ from pydantic import TypeAdapter, ValidationError
 from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.experiments.errors import InvalidExperimentSpecError
+from ruletrade.experiments.hidden_policies import hidden_dataset_policies, hidden_dataset_policy
 from ruletrade.experiments.models import (
-    CreateDetailExperimentRequest, DetailExperimentExecution, ExperimentCandidateRecord,
-    ResearchExperimentKind, ResearchExperimentRecord,
+    CreateDetailExperimentRequest,
+    CreateHiddenExperimentRequest,
+    DetailExperimentExecution,
+    ExperimentCandidateRecord,
+    HiddenExperimentExecution,
+    ResearchExperimentKind,
+    ResearchExperimentRecord,
 )
 from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
 from ruletrade.strategies.service import StrategyService
@@ -92,6 +98,69 @@ class ResearchExperimentService:
             self.repository.attach_run(candidate.id, run.id)
             executions.append(run)
         return DetailExperimentExecution(experiment=self.repository.get(experiment.id), runs=tuple(executions))
+
+    def create_hidden(self, revision_id: str, request: CreateHiddenExperimentRequest) -> HiddenExperimentExecution:
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Hidden BT requires a V2 Strategy Revision.")
+        policy = hidden_dataset_policy(request.policy_id)
+        if policy is None:
+            raise InvalidExperimentSpecError(f"Unknown Hidden BT policy: {request.policy_id}")
+        experiment_id = self._id_factory()
+        now = self._clock()
+        candidates = tuple(
+            ExperimentCandidateRecord(
+                id=self._id_factory(),
+                experiment_id=experiment_id,
+                ordinal=ordinal,
+                parameters={"partition": partition},
+                canonical_strategy=revision.canonical_strategy,
+                source_hash=revision.source_hash,
+                created_at=now,
+            )
+            for ordinal, partition in enumerate(("calibration", "hidden"), start=1)
+        )
+        experiment = ResearchExperimentRecord(
+            id=experiment_id,
+            revision_id=revision.id,
+            kind=ResearchExperimentKind.HIDDEN,
+            name=request.name,
+            spec={"policy_id": policy.id},
+            candidates=candidates,
+            created_at=now,
+        )
+        self.repository.create(experiment)
+        runs = []
+        for candidate, window in zip(candidates, (policy.calibration, policy.evaluation), strict=True):
+            config = BacktestConfig(
+                start_date=window.start_date,
+                end_date=window.end_date,
+                initial_cash=policy.initial_cash,
+                dataset_id=policy.dataset_id,
+            )
+            run = self.runs.create_and_execute_experiment_candidate(
+                base_revision_id=revision.id,
+                canonical=candidate.canonical_strategy,
+                source_hash=candidate.source_hash,
+                schema_version=candidate.canonical_strategy.api_version,
+                config=config,
+            )
+            self.repository.attach_run(candidate.id, run.id)
+            runs.append(run)
+        calibration_run, hidden_run = runs
+        gap = None
+        if calibration_run.result is not None and hidden_run.result is not None:
+            gap = calibration_run.result.total_return - hidden_run.result.total_return
+        return HiddenExperimentExecution(
+            experiment=self.repository.get(experiment.id),
+            policy=policy,
+            calibration_run=calibration_run,
+            hidden_run=hidden_run,
+            generalization_gap=gap,
+        )
+
+    def hidden_policies(self):
+        return hidden_dataset_policies()
 
     def get(self, experiment_id: str) -> ResearchExperimentRecord:
         return self.repository.get(experiment_id)
