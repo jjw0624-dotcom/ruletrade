@@ -247,8 +247,16 @@ class ResearchExperimentService:
             raise InvalidExperimentSpecError("Random Baseline requires a non-empty catalog universe.")
         experiment_id = self._id_factory()
         now = self._clock()
-        candidates = []
-        for ordinal, seed in enumerate(request.seeds, start=1):
+        candidates = [ExperimentCandidateRecord(
+            id=self._id_factory(),
+            experiment_id=experiment_id,
+            ordinal=1,
+            parameters={"baseline_type": "strategy_reference"},
+            canonical_strategy=revision.canonical_strategy,
+            source_hash=revision.source_hash,
+            created_at=now,
+        )]
+        for ordinal, seed in enumerate(request.seeds, start=2):
             selected = Random(seed).choice(universe)
             baseline = create_catalog_strategy(SingleAssetCatalogRequest(
                 catalog_id="single_asset_periodic",
@@ -260,7 +268,7 @@ class ResearchExperimentService:
                 id=self._id_factory(),
                 experiment_id=experiment_id,
                 ordinal=ordinal,
-                parameters={"seed": seed, "selected_asset": selected},
+                parameters={"baseline_type": "seeded_random_asset", "seed": seed, "selected_asset": selected},
                 canonical_strategy=baseline.strategy,
                 source_hash=baseline.source_hash,
                 created_at=now,

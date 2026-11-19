@@ -251,7 +251,7 @@ def test_robustness_experiment_runs_server_owned_start_offsets(tmp_path: Path) -
 def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> None:
     base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
     service._id_factory = iter([
-        "experiment-random", "candidate-seed-7", "candidate-seed-11"
+        "experiment-random", "candidate-reference", "candidate-seed-7", "candidate-seed-11"
     ]).__next__
 
     execution = service.create_random_baseline(
@@ -270,14 +270,15 @@ def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> 
     assert execution.experiment.kind.value == "random_baseline"
     assert execution.experiment.spec["universe"] == ["QQQ"]
     assert [item.parameters for item in execution.experiment.candidates] == [
-        {"seed": 7, "selected_asset": "QQQ"},
-        {"seed": 11, "selected_asset": "QQQ"},
+        {"baseline_type": "strategy_reference"},
+        {"baseline_type": "seeded_random_asset", "seed": 7, "selected_asset": "QQQ"},
+        {"baseline_type": "seeded_random_asset", "seed": 11, "selected_asset": "QQQ"},
     ]
     assert all(run.revision_id == revision.id for run in execution.runs)
     assert [item.run_id for item in execution.experiment.candidates] == [
         run.id for run in execution.runs
     ]
-    assert runner.calls == 2
+    assert runner.calls == 3
 
 
 def test_research_test_api_contracts(tmp_path: Path) -> None:
@@ -301,7 +302,7 @@ def test_research_test_api_contracts(tmp_path: Path) -> None:
                 },
             )
             service._id_factory = iter([
-                "experiment-random", "candidate-seed-7", "candidate-seed-11"
+                "experiment-random", "candidate-reference", "candidate-seed-7", "candidate-seed-11"
             ]).__next__
             random_baseline = client.post(
                 f"/v2/revisions/{revision.id}/research-experiments/random-baseline",

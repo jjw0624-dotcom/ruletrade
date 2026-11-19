@@ -280,6 +280,7 @@ try {
   await clickText("Hidden BT");
   await waitSelector('[aria-labelledby="hidden-bt-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
+  await waitSelector('[aria-label="Server-owned holdout policy"]');
   const hiddenSetup = await evaluate(`({body:document.body.innerText,hasPolicy:Boolean(document.querySelector('[aria-label="Server-owned holdout policy"]')),inputs:[...document.querySelectorAll('input')].map((item)=>item.getAttribute('aria-label'))})`);
   if (!hiddenSetup.hasPolicy || hiddenSetup.inputs.some((item) => ["Hidden start date", "Hidden end date", "Hidden dataset"].includes(item))) throw new Error(`Hidden BT exposed client-owned policy fields: ${JSON.stringify(hiddenSetup)}`);
   await clickText("Run Hidden BT");
@@ -288,6 +289,27 @@ try {
   const hiddenJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("4%") || !hiddenJourney.body.includes("\t10%\t") || !hiddenJourney.body.includes("\t6%\t") || !hiddenJourney.body.includes("$110,000") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
   await screenshot("hidden-bt-holdout-comparison");
+  await clickAriaLabel("Close Hidden BT");
+  await clickText("Tests");
+  await waitSelector('[aria-labelledby="research-tests-title"]');
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/robustness-policies')`, "Robustness policy request");
+  await waitSelector('[aria-label="Server-owned robustness policy"]');
+  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent==='Run Robustness'&&!item.disabled))`, "enabled Robustness action");
+  await clickText("Run Robustness");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url.endsWith('/research-experiments/robustness'))`, "Robustness experiment request");
+  await sleep(300);
+  const robustnessJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!robustnessJourney.body.includes("Reference 10%") || !robustnessJourney.body.includes("Variants: 7% to 11%") || !robustnessJourney.body.includes("-3%") || !robustnessJourney.body.includes("1%")) throw new Error(`Robustness browser journey failed: ${JSON.stringify(robustnessJourney)}`);
+  await screenshot("tests-robustness-distribution");
+  await clickText("New Test");
+  await clickText("Random Baseline");
+  await setControlValue("Random baseline seeds", "7, 11, 23");
+  await clickText("Run Random Baseline");
+  await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url.endsWith('/research-experiments/random-baseline'))`, "Random Baseline experiment request");
+  await sleep(300);
+  const randomJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
+  if (!randomJourney.body.includes("Reference 10%") || !randomJourney.body.includes("Variants: 4% to 12%") || !randomJourney.body.includes("-6%") || !randomJourney.body.includes("2%") || !randomJourney.body.includes("seeded_random_asset")) throw new Error(`Random Baseline browser journey failed: ${JSON.stringify(randomJourney)}`);
+  await screenshot("tests-random-baseline-comparison");
 
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
