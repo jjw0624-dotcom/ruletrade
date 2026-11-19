@@ -61,6 +61,8 @@ from ruletrade.candidates.models import (
     CreateCandidateRequest,
 )
 from ruletrade.candidates.service import CandidateService
+from ruletrade.challenges.catalog import challenge_catalog, get_challenge
+from ruletrade.challenges.models import ChallengeDefinition, ChallengeList
 from ruletrade.comparisons.errors import (
     ComparisonDomainError,
     ComparisonEvidenceUnsupportedError,
@@ -417,6 +419,22 @@ async def comparison_domain_error(
         status_code=status_code,
         content={"detail": {"code": exc.code, "message": message}},
     )
+
+
+@app.get("/v2/challenges", response_model=ChallengeList)
+def list_challenges() -> ChallengeList:
+    return ChallengeList(items=challenge_catalog())
+
+
+@app.get("/v2/challenges/{challenge_id}", response_model=ChallengeDefinition)
+def read_challenge(challenge_id: str) -> ChallengeDefinition:
+    challenge = get_challenge(challenge_id)
+    if challenge is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "challenge_not_found", "message": "Challenge was not found."},
+        )
+    return challenge
 
 
 @app.get("/health")
