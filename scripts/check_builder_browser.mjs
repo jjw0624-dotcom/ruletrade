@@ -314,6 +314,7 @@ try {
   const randomJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
   if (!randomJourney.body.includes("Reference 10%") || !randomJourney.body.includes("Variants: 4% to 12%") || !randomJourney.body.includes("-6%") || !randomJourney.body.includes("2%") || !randomJourney.body.includes("seeded_random_asset")) throw new Error(`Random Baseline browser journey failed: ${JSON.stringify(randomJourney)}`);
   await screenshot("tests-random-baseline-comparison");
+  await clickAriaLabel("Close Tests");
 
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
