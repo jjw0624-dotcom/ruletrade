@@ -47,6 +47,8 @@ class ChallengeSubmissionService:
 
         catalog_id, parameters = self._catalog_provenance(revision.canonical_strategy)
         violations = self._preflight_violations(challenge.policy.constraints, catalog_id, parameters)
+        if violations:
+            raise InvalidChallengeSubmissionError(" ".join(violations))
         run = self.runs.create_and_execute(revision.id, challenge.policy.config)
         if run.result is None:
             violations.append("Official LEAN evaluation did not produce a result.")
