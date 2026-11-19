@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ruletrade.backtest_runs.models import BacktestRunRecord
 from ruletrade.experiments.hidden_policies import HiddenDatasetPolicy
+from ruletrade.experiments.test_policies import RobustnessPolicy
 from ruletrade.strategy.v2.catalog import CreateCatalogStrategyRequest
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
 
@@ -46,6 +47,23 @@ class CreateHiddenExperimentRequest(BaseModel):
     policy_id: str = Field(min_length=1, max_length=100)
 
 
+class CreateRobustnessExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    policy_id: str = Field(default="start-date-offset-v1", min_length=1, max_length=100)
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class CreateRandomBaselineExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    base: CreateCatalogStrategyRequest
+    seeds: tuple[int, ...] = Field(min_length=1, max_length=8)
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
 class ExperimentCandidateRecord(ExperimentModel):
     id: str
     experiment_id: str
@@ -78,6 +96,15 @@ class HiddenExperimentExecution(ExperimentModel):
     calibration_run: BacktestRunRecord
     hidden_run: BacktestRunRecord
     generalization_gap: Decimal | None = None
+
+
+class TestExperimentExecution(ExperimentModel):
+    experiment: ResearchExperimentRecord
+    runs: tuple[BacktestRunRecord, ...]
+
+
+class RobustnessPolicyList(ExperimentModel):
+    items: tuple[RobustnessPolicy, ...]
 
 
 class HiddenDatasetPolicyList(ExperimentModel):

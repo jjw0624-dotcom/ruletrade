@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import product
+from random import Random
 from typing import Any
 from uuid import uuid4
 
@@ -12,18 +13,24 @@ from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.backtests.models import BacktestConfig
 from ruletrade.experiments.errors import InvalidExperimentSpecError
 from ruletrade.experiments.hidden_policies import hidden_dataset_policies, hidden_dataset_policy
+from ruletrade.experiments.test_policies import robustness_policies, robustness_policy
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
     CreateHiddenExperimentRequest,
+    CreateRandomBaselineExperimentRequest,
+    CreateRobustnessExperimentRequest,
     DetailExperimentExecution,
     ExperimentCandidateRecord,
     HiddenExperimentExecution,
     ResearchExperimentKind,
+    TestExperimentExecution,
     ResearchExperimentRecord,
 )
 from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
 from ruletrade.strategies.service import StrategyService
-from ruletrade.strategy.v2.catalog import CreateCatalogStrategyRequest, create_catalog_strategy, strategy_catalog
+from ruletrade.strategy.v2.catalog import (
+    CreateCatalogStrategyRequest, SingleAssetCatalogRequest, create_catalog_strategy, strategy_catalog,
+)
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
 
 
@@ -158,6 +165,138 @@ class ResearchExperimentService:
             hidden_run=hidden_run,
             generalization_gap=gap,
         )
+
+    def create_robustness(
+        self, revision_id: str, request: CreateRobustnessExperimentRequest
+    ) -> TestExperimentExecution:
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Robustness Test requires a V2 Strategy Revision.")
+        policy = robustness_policy(request.policy_id)
+        if policy is None:
+            raise InvalidExperimentSpecError(f"Unknown robustness policy: {request.policy_id}")
+        base_config = BacktestConfig.model_validate(request.config)
+        if base_config.start_date + timedelta(days=max(policy.start_date_offsets)) > base_config.end_date:
+            raise InvalidExperimentSpecError("Robustness start-date offset exceeds the test period.")
+        experiment_id = self._id_factory()
+        now = self._clock()
+        candidates = tuple(
+            ExperimentCandidateRecord(
+                id=self._id_factory(),
+                experiment_id=experiment_id,
+                ordinal=ordinal,
+                parameters={"start_date_offset_days": offset},
+                canonical_strategy=revision.canonical_strategy,
+                source_hash=revision.source_hash,
+                created_at=now,
+            )
+            for ordinal, offset in enumerate(policy.start_date_offsets, start=1)
+        )
+        experiment = ResearchExperimentRecord(
+            id=experiment_id,
+            revision_id=revision.id,
+            kind=ResearchExperimentKind.ROBUSTNESS,
+            name=request.name,
+            spec={"policy_id": policy.id, "config": base_config.model_dump(mode="json")},
+            candidates=candidates,
+            created_at=now,
+        )
+        self.repository.create(experiment)
+        executions = []
+        for candidate, offset in zip(candidates, policy.start_date_offsets, strict=True):
+            shifted_start = base_config.start_date + timedelta(days=offset)
+            if shifted_start > base_config.end_date:
+                raise InvalidExperimentSpecError("Robustness start-date offset exceeds the test period.")
+            config = base_config.model_copy(update={"start_date": shifted_start})
+            run = self.runs.create_and_execute_experiment_candidate(
+                base_revision_id=revision.id,
+                canonical=candidate.canonical_strategy,
+                source_hash=candidate.source_hash,
+                schema_version=candidate.canonical_strategy.api_version,
+                config=config,
+            )
+            self.repository.attach_run(candidate.id, run.id)
+            executions.append(run)
+        return TestExperimentExecution(
+            experiment=self.repository.get(experiment.id), runs=tuple(executions)
+        )
+
+    def create_random_baseline(
+        self, revision_id: str, request: CreateRandomBaselineExperimentRequest
+    ) -> TestExperimentExecution:
+        revision = self.strategies.get_revision_by_id(revision_id)
+        if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
+            raise InvalidExperimentSpecError("Random Baseline requires a V2 Strategy Revision.")
+        base = create_catalog_strategy(request.base)
+        if base.source_hash != revision.source_hash:
+            raise InvalidExperimentSpecError(
+                "Random Baseline base parameters do not reproduce the selected Revision."
+            )
+        if len(request.seeds) != len(set(request.seeds)):
+            raise InvalidExperimentSpecError("Random Baseline seeds must be unique.")
+        payload = request.base.model_dump(mode="json")
+        symbols: list[str] = []
+        for key in ("assets", "growth_assets"):
+            symbols.extend(payload.get(key, []))
+        for key in ("asset", "trend_asset", "fallback_asset", "defensive_asset"):
+            value = payload.get(key)
+            if value:
+                symbols.append(value)
+        universe = tuple(dict.fromkeys(symbols))
+        if not universe:
+            raise InvalidExperimentSpecError("Random Baseline requires a non-empty catalog universe.")
+        experiment_id = self._id_factory()
+        now = self._clock()
+        candidates = []
+        for ordinal, seed in enumerate(request.seeds, start=1):
+            selected = Random(seed).choice(universe)
+            baseline = create_catalog_strategy(SingleAssetCatalogRequest(
+                catalog_id="single_asset_periodic",
+                name=f"{request.name} seed {seed}",
+                asset=selected,
+                timeframe=payload.get("timeframe", "monthly"),
+            ))
+            candidates.append(ExperimentCandidateRecord(
+                id=self._id_factory(),
+                experiment_id=experiment_id,
+                ordinal=ordinal,
+                parameters={"seed": seed, "selected_asset": selected},
+                canonical_strategy=baseline.strategy,
+                source_hash=baseline.source_hash,
+                created_at=now,
+            ))
+        experiment = ResearchExperimentRecord(
+            id=experiment_id,
+            revision_id=revision.id,
+            kind=ResearchExperimentKind.RANDOM_BASELINE,
+            name=request.name,
+            spec={
+                "seeds": list(request.seeds),
+                "universe": list(universe),
+                "config": BacktestConfig.model_validate(request.config).model_dump(mode="json"),
+            },
+            candidates=tuple(candidates),
+            created_at=now,
+        )
+        self.repository.create(experiment)
+        config = BacktestConfig.model_validate(request.config)
+        executions = []
+        for candidate in candidates:
+            run = self.runs.create_and_execute_experiment_candidate(
+                base_revision_id=revision.id,
+                canonical=candidate.canonical_strategy,
+                source_hash=candidate.source_hash,
+                schema_version=candidate.canonical_strategy.api_version,
+                config=config,
+            )
+            self.repository.attach_run(candidate.id, run.id)
+            executions.append(run)
+        return TestExperimentExecution(
+            experiment=self.repository.get(experiment.id), runs=tuple(executions)
+        )
+
+    def robustness_policies(self):
+        return robustness_policies()
 
     def hidden_policies(self):
         return hidden_dataset_policies()

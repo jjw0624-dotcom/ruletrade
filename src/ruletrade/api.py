@@ -84,11 +84,15 @@ from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperi
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
     CreateHiddenExperimentRequest,
+    CreateRandomBaselineExperimentRequest,
+    CreateRobustnessExperimentRequest,
     DetailExperimentExecution,
     HiddenDatasetPolicyList,
     HiddenExperimentExecution,
     ResearchExperimentList,
     ResearchExperimentRecord,
+    RobustnessPolicyList,
+    TestExperimentExecution,
 )
 from ruletrade.experiments.service import ResearchExperimentService
 from ruletrade.hashing import strategy_hash
@@ -1105,6 +1109,52 @@ def create_hidden_research_experiment(
 ) -> HiddenExperimentExecution:
     try:
         return service.create_hidden(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
+    "/v2/research-experiments/robustness-policies",
+    response_model=RobustnessPolicyList,
+)
+def list_robustness_policies(
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> RobustnessPolicyList:
+    return RobustnessPolicyList(items=service.robustness_policies())
+
+
+@app.post(
+    "/v2/revisions/{revision_id}/research-experiments/robustness",
+    response_model=TestExperimentExecution,
+    status_code=201,
+)
+def create_robustness_research_experiment(
+    revision_id: str,
+    request: CreateRobustnessExperimentRequest,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> TestExperimentExecution:
+    try:
+        return service.create_robustness(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.post(
+    "/v2/revisions/{revision_id}/research-experiments/random-baseline",
+    response_model=TestExperimentExecution,
+    status_code=201,
+)
+def create_random_baseline_research_experiment(
+    revision_id: str,
+    request: CreateRandomBaselineExperimentRequest,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> TestExperimentExecution:
+    try:
+        return service.create_random_baseline(revision_id, request)
     except ExperimentNotFoundError as exc:
         raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
     except ResearchExperimentError as exc:
