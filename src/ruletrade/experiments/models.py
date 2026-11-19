@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ruletrade.backtest_runs.models import BacktestRunRecord
+from ruletrade.experiments.hidden_policies import HiddenDatasetPolicy
 from ruletrade.strategy.v2.catalog import CreateCatalogStrategyRequest
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
 
@@ -37,6 +39,13 @@ class CreateDetailExperimentRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class CreateHiddenExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    policy_id: str = Field(min_length=1, max_length=100)
+
+
 class ExperimentCandidateRecord(ExperimentModel):
     id: str
     experiment_id: str
@@ -51,7 +60,7 @@ class ExperimentCandidateRecord(ExperimentModel):
 class ResearchExperimentRecord(ExperimentModel):
     id: str
     revision_id: str
-    kind: Literal[ResearchExperimentKind.DETAIL] = ResearchExperimentKind.DETAIL
+    kind: ResearchExperimentKind
     name: str
     spec: dict[str, Any]
     candidates: tuple[ExperimentCandidateRecord, ...]
@@ -61,6 +70,18 @@ class ResearchExperimentRecord(ExperimentModel):
 class DetailExperimentExecution(ExperimentModel):
     experiment: ResearchExperimentRecord
     runs: tuple[BacktestRunRecord, ...]
+
+
+class HiddenExperimentExecution(ExperimentModel):
+    experiment: ResearchExperimentRecord
+    policy: HiddenDatasetPolicy
+    calibration_run: BacktestRunRecord
+    hidden_run: BacktestRunRecord
+    generalization_gap: Decimal | None = None
+
+
+class HiddenDatasetPolicyList(ExperimentModel):
+    items: tuple[HiddenDatasetPolicy, ...]
 
 
 class ResearchExperimentList(ExperimentModel):
