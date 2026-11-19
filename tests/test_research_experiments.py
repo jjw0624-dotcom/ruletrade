@@ -12,7 +12,12 @@ from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.backtests.lean_runner import LeanRunArtifact, LeanRunnerTimings
 from ruletrade.backtests.service import BacktestService
 from ruletrade.experiments.errors import InvalidExperimentSpecError
-from ruletrade.experiments.models import CreateDetailExperimentRequest, CreateHiddenExperimentRequest
+from ruletrade.experiments.models import (
+    CreateDetailExperimentRequest,
+    CreateHiddenExperimentRequest,
+    CreateRandomBaselineExperimentRequest,
+    CreateRobustnessExperimentRequest,
+)
 from ruletrade.experiments.service import ResearchExperimentService
 from ruletrade.persistence.sqlite_backtest_runs import SQLiteBacktestRunRepository
 from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
@@ -204,6 +209,138 @@ def test_hidden_experiment_rejects_unknown_server_policy(tmp_path: Path) -> None
         service.create_hidden(
             revision.id,
             CreateHiddenExperimentRequest(name="Unknown", policy_id="client-defined"),
+        )
+
+    assert service.list_for_revision(revision.id) == ()
+
+
+def test_robustness_experiment_runs_server_owned_start_offsets(tmp_path: Path) -> None:
+    _base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._id_factory = iter([
+        "experiment-robust", "candidate-r0", "candidate-r1", "candidate-r3", "candidate-r5"
+    ]).__next__
+
+    execution = service.create_robustness(
+        revision.id,
+        CreateRobustnessExperimentRequest.model_validate({
+            "name": "Start sensitivity",
+            "policy_id": "start-date-offset-v1",
+            "config": {
+                "start_date": "2024-01-02", "end_date": "2024-02-01",
+                "initial_cash": "100000", "dataset_id": "filter-synthetic",
+            },
+        }),
+    )
+
+    assert execution.experiment.kind.value == "robustness"
+    assert [item.parameters for item in execution.experiment.candidates] == [
+        {"start_date_offset_days": 0}, {"start_date_offset_days": 1},
+        {"start_date_offset_days": 3}, {"start_date_offset_days": 5},
+    ]
+    assert [run.run_config.start_date.isoformat() for run in execution.runs] == [
+        "2024-01-02", "2024-01-03", "2024-01-05", "2024-01-07",
+    ]
+    assert all(
+        item.source_hash == revision.source_hash
+        and item.canonical_strategy == revision.canonical_strategy
+        for item in execution.experiment.candidates
+    )
+    assert runner.calls == 4
+
+
+def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> None:
+    base, revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._id_factory = iter([
+        "experiment-random", "candidate-seed-7", "candidate-seed-11"
+    ]).__next__
+
+    execution = service.create_random_baseline(
+        revision.id,
+        CreateRandomBaselineExperimentRequest.model_validate({
+            "name": "Seeded asset baseline",
+            "base": base.model_dump(mode="json"),
+            "seeds": [7, 11],
+            "config": {
+                "start_date": "2024-01-02", "end_date": "2024-02-01",
+                "initial_cash": "100000", "dataset_id": "filter-synthetic",
+            },
+        }),
+    )
+
+    assert execution.experiment.kind.value == "random_baseline"
+    assert execution.experiment.spec["universe"] == ["QQQ"]
+    assert [item.parameters for item in execution.experiment.candidates] == [
+        {"seed": 7, "selected_asset": "QQQ"},
+        {"seed": 11, "selected_asset": "QQQ"},
+    ]
+    assert all(run.revision_id == revision.id for run in execution.runs)
+    assert [item.run_id for item in execution.experiment.candidates] == [
+        run.id for run in execution.runs
+    ]
+    assert runner.calls == 2
+
+
+def test_research_test_api_contracts(tmp_path: Path) -> None:
+    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._id_factory = iter([
+        "experiment-robust", "candidate-r0", "candidate-r1", "candidate-r3", "candidate-r5"
+    ]).__next__
+    app.dependency_overrides[get_research_experiment_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            policies = client.get("/v2/research-experiments/robustness-policies")
+            robust = client.post(
+                f"/v2/revisions/{revision.id}/research-experiments/robustness",
+                json={
+                    "name": "Start sensitivity",
+                    "policy_id": "start-date-offset-v1",
+                    "config": {
+                        "start_date": "2024-01-02", "end_date": "2024-02-01",
+                        "initial_cash": "100000", "dataset_id": "filter-synthetic",
+                    },
+                },
+            )
+            service._id_factory = iter([
+                "experiment-random", "candidate-seed-7", "candidate-seed-11"
+            ]).__next__
+            random_baseline = client.post(
+                f"/v2/revisions/{revision.id}/research-experiments/random-baseline",
+                json={
+                    "name": "Seeded baseline",
+                    "base": base.model_dump(mode="json"),
+                    "seeds": [7, 11],
+                    "config": {
+                        "start_date": "2024-01-02", "end_date": "2024-02-01",
+                        "initial_cash": "100000", "dataset_id": "filter-synthetic",
+                    },
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert policies.status_code == 200
+    assert policies.json()["items"][0]["start_date_offsets"] == [0, 1, 3, 5]
+    assert robust.status_code == 201
+    assert len(robust.json()["runs"]) == 4
+    assert random_baseline.status_code == 201
+    assert random_baseline.json()["experiment"]["kind"] == "random_baseline"
+
+
+def test_random_baseline_rejects_duplicate_seeds_before_persistence(tmp_path: Path) -> None:
+    base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+
+    with pytest.raises(InvalidExperimentSpecError, match="seeds must be unique"):
+        service.create_random_baseline(
+            revision.id,
+            CreateRandomBaselineExperimentRequest.model_validate({
+                "name": "Duplicate",
+                "base": base.model_dump(mode="json"),
+                "seeds": [7, 7],
+                "config": {
+                    "start_date": "2024-01-02", "end_date": "2024-02-01",
+                    "initial_cash": "100000", "dataset_id": "filter-synthetic",
+                },
+            }),
         )
 
     assert service.list_for_revision(revision.id) == ()
