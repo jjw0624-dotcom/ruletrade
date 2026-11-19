@@ -119,7 +119,6 @@ function LegacyStrategyBuilderWorkspace({
       </div>
       <button className="builder-identity" onClick={onRename} disabled={!persisted}><strong>{name}</strong><small>{dirty ? "Unsaved changes" : persisted ? "Saved" : "Preview"}</small></button>
       <div className="builder-actions">
-        {persisted && onResearchHub && <button type="button" className="secondary-button" onClick={onResearchHub} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before opening Research." : undefined}>Research</button>}
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(draftMessage)} title={draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
         <button className="primary-button" onClick={onTest} disabled={Boolean(draftMessage)} title={draftMessage ?? undefined}>Test <span aria-hidden="true">▶</span></button>
       </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
@@ -221,6 +220,7 @@ function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted,
       <div className="builder-actions">
         <button type="button" onClick={program.onUndo} disabled={!program.canUndo}>Undo</button>
         <button type="button" onClick={program.onRedo} disabled={!program.canRedo}>Redo</button>
+        {persisted && onResearchHub && <button type="button" className="secondary-button" onClick={onResearchHub} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before opening Research." : undefined}>Research</button>}
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(program.draftMessage)} title={program.draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
         {persisted && onDetailTest && <button type="button" className="secondary-button" onClick={onDetailTest} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before starting Detail BT." : undefined}>Detail BT</button>}
         {persisted && onHiddenTest && <button type="button" className="secondary-button" onClick={onHiddenTest} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before starting Hidden BT." : undefined}>Hidden BT</button>}
