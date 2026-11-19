@@ -72,6 +72,18 @@ export interface HiddenExperimentExecution {
   generalization_gap: string | null;
 }
 
+export interface ForwardExperimentExecution {
+  experiment: ResearchExperimentRecord;
+  latest_run: BacktestRunRecord;
+}
+
+export interface CreateForwardExperimentRequest {
+  name: string;
+  start_date: string;
+  initial_cash: string;
+  dataset_id: string;
+}
+
 const TAG_PREFIX = "ruletrade.catalog.v1:";
 
 export function catalogBaseFromStrategy(strategy: CanonicalStrategyV2): CatalogBaseRequest | null {
@@ -106,6 +118,10 @@ export const researchExperimentApi = {
     request<HiddenExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/hidden`, jsonBody("POST", payload), fetcher),
   createDetail: (revisionId: string, payload: CreateDetailExperimentRequest, fetcher?: typeof fetch) =>
     request<DetailExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/detail`, jsonBody("POST", payload), fetcher),
+  createForward: (revisionId: string, payload: CreateForwardExperimentRequest, fetcher?: typeof fetch) =>
+    request<ForwardExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/forward`, jsonBody("POST", payload), fetcher),
+  refreshForward: (experimentId: string, fetcher?: typeof fetch) =>
+    request<ForwardExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/forward/refresh`, jsonBody("POST", {}), fetcher),
   list: (revisionId: string, fetcher?: typeof fetch) =>
     request<{ items: ResearchExperimentRecord[] }>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments`, {}, fetcher),
   get: (experimentId: string, fetcher?: typeof fetch) =>
