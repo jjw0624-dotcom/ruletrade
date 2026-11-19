@@ -62,7 +62,22 @@ from ruletrade.candidates.models import (
 )
 from ruletrade.candidates.service import CandidateService
 from ruletrade.challenges.catalog import challenge_catalog, get_challenge
-from ruletrade.challenges.models import ChallengeDefinition, ChallengeList
+from ruletrade.challenges.errors import (
+    ChallengeNotFoundError,
+    ChallengeSubmissionError,
+    ChallengeSubmissionNotFoundError,
+    ChallengeSubmissionPersistenceError,
+    InvalidChallengeSubmissionError,
+)
+from ruletrade.challenges.models import (
+    ChallengeDefinition,
+    ChallengeList,
+    ChallengeSubmissionExecution,
+    ChallengeSubmissionList,
+    ChallengeSubmissionRecord,
+    CreateChallengeSubmissionRequest,
+)
+from ruletrade.challenges.service import ChallengeSubmissionService
 from ruletrade.comparisons.errors import (
     ComparisonDomainError,
     ComparisonEvidenceUnsupportedError,
@@ -108,6 +123,7 @@ from ruletrade.persistence import (
     SQLiteComparisonRepository,
     SQLiteStrategyRepository,
 )
+from ruletrade.persistence.sqlite_challenges import SQLiteChallengeSubmissionRepository
 from ruletrade.persistence.sqlite_experiments import SQLiteResearchExperimentRepository
 from ruletrade.strategies.errors import (
     InvalidStrategySourceError,
@@ -224,6 +240,8 @@ comparison_service: ComparisonService | None = None
 comparison_service_path: Path | None = None
 research_experiment_service: ResearchExperimentService | None = None
 research_experiment_service_path: Path | None = None
+challenge_submission_service: ChallengeSubmissionService | None = None
+challenge_submission_service_path: Path | None = None
 
 
 def get_lean_backtest_service() -> BacktestRunService:
@@ -285,6 +303,19 @@ def get_research_experiment_service() -> ResearchExperimentService:
         )
         research_experiment_service_path = path
     return research_experiment_service
+
+
+def get_challenge_submission_service() -> ChallengeSubmissionService:
+    global challenge_submission_service, challenge_submission_service_path
+    path = default_strategy_db_path()
+    if challenge_submission_service is None or challenge_submission_service_path != path:
+        challenge_submission_service = ChallengeSubmissionService(
+            SQLiteChallengeSubmissionRepository(path),
+            get_strategy_service(),
+            get_lean_backtest_service(),
+        )
+        challenge_submission_service_path = path
+    return challenge_submission_service
 
 
 @app.exception_handler(StrategyDomainError)
@@ -421,6 +452,28 @@ async def comparison_domain_error(
     )
 
 
+@app.exception_handler(ChallengeSubmissionError)
+async def challenge_submission_error(
+    _request: Request,
+    exc: ChallengeSubmissionError,
+) -> JSONResponse:
+    if isinstance(exc, (ChallengeNotFoundError, ChallengeSubmissionNotFoundError)):
+        status_code = 404
+    elif isinstance(exc, InvalidChallengeSubmissionError):
+        status_code = 422
+    else:
+        status_code = 500
+    message = (
+        "Challenge Submission persistence is temporarily unavailable."
+        if isinstance(exc, ChallengeSubmissionPersistenceError)
+        else str(exc)
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": {"code": exc.code, "message": message}},
+    )
+
+
 @app.get("/v2/challenges", response_model=ChallengeList)
 def list_challenges() -> ChallengeList:
     return ChallengeList(items=challenge_catalog())
@@ -435,6 +488,41 @@ def read_challenge(challenge_id: str) -> ChallengeDefinition:
             detail={"code": "challenge_not_found", "message": "Challenge was not found."},
         )
     return challenge
+
+
+@app.post(
+    "/v2/challenges/{challenge_id}/submissions",
+    response_model=ChallengeSubmissionExecution,
+    status_code=201,
+)
+def create_challenge_submission(
+    challenge_id: str,
+    request: CreateChallengeSubmissionRequest,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeSubmissionExecution:
+    return service.submit(challenge_id, request.revision_id)
+
+
+@app.get(
+    "/v2/challenges/{challenge_id}/submissions",
+    response_model=ChallengeSubmissionList,
+)
+def list_challenge_submissions(
+    challenge_id: str,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeSubmissionList:
+    return ChallengeSubmissionList(items=service.list_for_challenge(challenge_id))
+
+
+@app.get(
+    "/v2/challenge-submissions/{submission_id}",
+    response_model=ChallengeSubmissionRecord,
+)
+def read_challenge_submission(
+    submission_id: str,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeSubmissionRecord:
+    return service.get(submission_id)
 
 
 @app.get("/health")
