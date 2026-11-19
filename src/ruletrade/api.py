@@ -83,7 +83,10 @@ from ruletrade.engines.bt_backend import BackendUnavailableError, backend_status
 from ruletrade.experiments.errors import ExperimentNotFoundError, ResearchExperimentError
 from ruletrade.experiments.models import (
     CreateDetailExperimentRequest,
+    CreateHiddenExperimentRequest,
     DetailExperimentExecution,
+    HiddenDatasetPolicyList,
+    HiddenExperimentExecution,
     ResearchExperimentList,
     ResearchExperimentRecord,
 )
@@ -1074,6 +1077,34 @@ def create_detail_research_experiment(
 ) -> DetailExperimentExecution:
     try:
         return service.create_detail(revision_id, request)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
+    "/v2/research-experiments/hidden-policies",
+    response_model=HiddenDatasetPolicyList,
+)
+def list_hidden_research_policies(
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> HiddenDatasetPolicyList:
+    return HiddenDatasetPolicyList(items=service.hidden_policies())
+
+
+@app.post(
+    "/v2/revisions/{revision_id}/research-experiments/hidden",
+    response_model=HiddenExperimentExecution,
+    status_code=201,
+)
+def create_hidden_research_experiment(
+    revision_id: str,
+    request: CreateHiddenExperimentRequest,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> HiddenExperimentExecution:
+    try:
+        return service.create_hidden(revision_id, request)
     except ExperimentNotFoundError as exc:
         raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
     except ResearchExperimentError as exc:
