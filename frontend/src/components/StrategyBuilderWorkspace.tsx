@@ -119,6 +119,7 @@ function LegacyStrategyBuilderWorkspace({
       </div>
       <button className="builder-identity" onClick={onRename} disabled={!persisted}><strong>{name}</strong><small>{dirty ? "Unsaved changes" : persisted ? "Saved" : "Preview"}</small></button>
       <div className="builder-actions">
+        {persisted && onResearchHub && <button type="button" className="secondary-button" onClick={onResearchHub} disabled={dirty || Boolean(program.draftMessage)} title={dirty ? "Save committed changes before opening Research." : undefined}>Research</button>}
         {persisted && <button className="secondary-button" onClick={onSave} disabled={!dirty || saving || Boolean(draftMessage)} title={draftMessage ?? undefined}>{saving ? "Saving…" : "Save"}</button>}
         <button className="primary-button" onClick={onTest} disabled={Boolean(draftMessage)} title={draftMessage ?? undefined}>Test <span aria-hidden="true">▶</span></button>
       </div>{onOpenAssets && <button className="secondary-button asset-workspace-entry" onClick={onOpenAssets}>Assets</button>}
@@ -175,13 +176,14 @@ export interface ProgramWorkspaceProps {
   onHiddenTest?: () => void;
   onResearchTests?: () => void;
   onForward?: () => void;
+  onResearchHub?: () => void;
   onRename?: () => void;
   onOpenAssets?: () => void;
   testDisabled?: boolean;
   testTitle?: string;
 }
 
-function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onDetailTest, onHiddenTest, onResearchTests, onForward, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
+function ProgramAdapterBuilderContent({ program, name, dirty, saving, persisted, onHome, onSave, onTest, onDetailTest, onHiddenTest, onResearchTests, onForward, onResearchHub, onRename, onOpenAssets, testDisabled = false, testTitle }: ProgramWorkspaceProps) {
   const labels = representationLabel;
   const [visitedViews, setVisitedViews] = useState<Set<ProgramBuilderView>>(() => new Set([program.activeView]));
   const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
