@@ -70,6 +70,8 @@ from ruletrade.comparisons.errors import (
 )
 from ruletrade.comparisons.models import ComparisonRecord
 from ruletrade.comparisons.service import ComparisonService
+from ruletrade.challenges.catalog import challenge_catalog, get_challenge
+from ruletrade.challenges.models import ChallengeDefinition, ChallengeList
 from ruletrade.compile_plan import build_bt_plan
 from ruletrade.core.portfolio import resolve_portfolio
 from ruletrade.datasets import DatasetError, DatasetRegistry
@@ -417,6 +419,22 @@ async def comparison_domain_error(
         status_code=status_code,
         content={"detail": {"code": exc.code, "message": message}},
     )
+
+
+@app.get("/v2/challenges", response_model=ChallengeList)
+def list_challenges() -> ChallengeList:
+    return ChallengeList(items=challenge_catalog())
+
+
+@app.get("/v2/challenges/{challenge_id}", response_model=ChallengeDefinition)
+def read_challenge(challenge_id: str) -> ChallengeDefinition:
+    challenge = get_challenge(challenge_id)
+    if challenge is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "challenge_not_found", "message": "Challenge was not found."},
+        )
+    return challenge
 
 
 @app.get("/health")
