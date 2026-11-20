@@ -25,6 +25,7 @@ of Builder meaning.
 | Learning problem | `/learning/problems/:problemId` | Problem statement, constraints, objective, strategy selection/build loop, immutable Revision submission, attempts and result feedback | General research dashboard |
 | Competition index | `/competitions` | Discover active and prior competitions | Competition execution state |
 | Competition | `/competitions/:competitionId` | Competition rules, eligibility, objective, strategy selection/build loop, immutable Revision submission, ranking/leaderboard | General Builder navigation |
+| Submission | `/submissions/:submissionId` | Immutable score, policy and Revision lineage, feedback, and links to Strategy/Run/problem | Mutable Builder drafts |
 
 ## Builder
 
@@ -74,7 +75,7 @@ The loop is:
 3. Enter Builder when editing is needed.
 4. Return to the problem page.
 5. Submit one exact immutable Revision.
-6. Review the result and iterate between feedback, the strategy object, Research,
+6. Open the durable Submission result and iterate between feedback, the strategy object, Research,
    and Builder.
 
 A problem may restrict assets, require an option, limit trade count, force a
