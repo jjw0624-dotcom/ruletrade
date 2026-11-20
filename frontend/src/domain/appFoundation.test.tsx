@@ -63,7 +63,14 @@ describe("Production MVP frontend foundation", () => {
     expect(routeFromPath("/strategies/strategy%201/builder")).toEqual({ page: "builder", strategyId: "strategy 1" });
     expect(routeFromPath("/strategies/strategy%201/research")).toEqual({ page: "research", strategyId: "strategy 1" });
     expect(pathForRoute({ page: "learning" })).toBe("/learning");
+    expect(pathForRoute({ page: "learningProblem", problemId: "loss cap", strategyId: "strategy 1" })).toBe("/learning/problems/loss%20cap?strategy=strategy%201");
+    expect(routeFromPath("/learning/problems/loss%20cap", "?strategy=strategy%201")).toEqual({ page: "learningProblem", problemId: "loss cap", strategyId: "strategy 1" });
     expect(pathForRoute({ page: "competitions" })).toBe("/competitions");
+    expect(pathForRoute({ page: "competition", competitionId: "monthly-four" })).toBe("/competitions/monthly-four");
+    expect(routeFromPath("/competitions/monthly-four")).toEqual({ page: "competition", competitionId: "monthly-four", strategyId: undefined });
+    const contextualBuilder = { page: "builder" as const, strategyId: "strategy 1", challenge: { kind: "learning" as const, challengeId: "loss cap" } };
+    expect(pathForRoute(contextualBuilder)).toBe("/strategies/strategy%201/builder?challengeKind=learning&challengeId=loss+cap");
+    expect(routeFromPath("/strategies/strategy%201/builder", "?challengeKind=learning&challengeId=loss+cap")).toEqual(contextualBuilder);
     expect(editor.canonical).toBe(canonical);
   });
 });
