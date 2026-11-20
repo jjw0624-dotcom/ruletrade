@@ -150,6 +150,10 @@ def test_hidden_experiment_selects_on_calibration_then_runs_winner_once(tmp_path
     assert runner.calls == 3
     assert execution.generalization_gap == 0
 
+    reopened = service.get_hidden(execution.experiment.id)
+    assert reopened == execution
+    assert runner.calls == 3
+
 
 def test_hidden_experiment_api_rejects_client_holdout_and_returns_selection(tmp_path: Path) -> None:
     base, revision, _runner, service = _setup(tmp_path / "ruletrade.sqlite3")
@@ -166,6 +170,7 @@ def test_hidden_experiment_api_rejects_client_holdout_and_returns_selection(tmp_
                 f"/v2/revisions/{revision.id}/research-experiments/hidden",
                 json=payload,
             )
+            reopened = client.get("/v2/research-experiments/experiment-1/hidden")
     finally:
         app.dependency_overrides.clear()
 
@@ -176,6 +181,8 @@ def test_hidden_experiment_api_rejects_client_holdout_and_returns_selection(tmp_
     assert len(created.json()["calibration_runs"]) == 2
     assert created.json()["selected_candidate_ordinal"] == 1
     assert created.json()["hidden_run"]["revision_id"] == revision.id
+    assert reopened.status_code == 200
+    assert reopened.json() == created.json()
 
 
 def test_hidden_experiment_rejects_unknown_server_policy(tmp_path: Path) -> None:
