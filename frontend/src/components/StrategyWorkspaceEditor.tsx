@@ -7,29 +7,37 @@ import { StrategyEditor } from "../StrategyEditor";
 import { StrategyEditorProvider } from "../store/editorStore";
 import { V2StrategyWorkspace } from "./V2StrategyWorkspace";
 
-/**
- * The only production Strategy -> Builder entry.
- *
- * Canonical version selection is a compatibility concern below this boundary;
- * navigation and product identity never choose a separate Builder.
- */
-export function StrategyWorkspaceEditor({ bootstrap, example, detail, initialView = "overview", confirmation, sourceFocus, onDirtyChange, onHome, onOpenRun }: {
+export function StrategyWorkspaceEditor({ bootstrap, example, detail, surface, initialView = "overview", confirmation, sourceFocus, onDirtyChange, onOpenStrategy, onOpenBuilder, onOpenResearch, onOpenRun }: {
   bootstrap: EditorBootstrap;
   example: StrategyExample;
   detail: StrategyDetail;
+  surface: "detail" | "builder" | "research";
   initialView?: "overview" | "guided";
   confirmation?: string | null;
   sourceFocus?: { revisionId: string; componentId: string; fieldPath?: string | null; researchContext?: ResearchContext } | null;
   onDirtyChange?: (dirty: boolean) => void;
-  onHome: () => void;
+  onOpenStrategy: () => void;
+  onOpenBuilder: () => void;
+  onOpenResearch: () => void;
   onOpenRun?: (runId: string) => void;
 }) {
   const canonical = detail.current_revision.canonical_strategy;
   if (isCanonicalV2(canonical)) {
-    return <V2StrategyWorkspace key={detail.strategy.id} detail={detail as StrategyDetailV2} onDirtyChange={onDirtyChange} onHome={onHome} onOpenRun={onOpenRun} />;
+    return <V2StrategyWorkspace
+      key={detail.strategy.id}
+      detail={detail as StrategyDetailV2}
+      surface={surface}
+      onDirtyChange={onDirtyChange}
+      onOpenStrategy={onOpenStrategy}
+      onOpenBuilder={onOpenBuilder}
+      onOpenResearch={onOpenResearch}
+      onOpenRun={onOpenRun}
+    />;
+  }
+  if (surface !== "builder") {
+    return <main className="page strategy-object-page"><span className="eyebrow">Compatibility strategy</span><h1>{detail.strategy.name}</h1><p>This saved V1 strategy remains available for its narrow Candidate workflow.</p><div className="dialog-actions"><button className="secondary-button" onClick={onOpenResearch}>Open saved research</button><button className="primary-button" onClick={onOpenBuilder}>Edit in Builder</button></div></main>;
   }
   return <StrategyEditorProvider key={detail.current_revision.id} bootstrap={bootstrap} initialView={initialView}>
-    <StrategyEditor example={example} persisted={detail as StrategyDetailV1} confirmation={confirmation} onDirtyChange={onDirtyChange} onHome={onHome} sourceFocus={sourceFocus} />
+    <StrategyEditor example={example} persisted={detail as StrategyDetailV1} confirmation={confirmation} onDirtyChange={onDirtyChange} onHome={onOpenStrategy} sourceFocus={sourceFocus} />
   </StrategyEditorProvider>;
 }
-
