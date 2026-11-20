@@ -74,6 +74,7 @@ window.fetch = async (input, init) => {
       return json(catalogDetail, 201);
     }
     if (url === "/api/v1/strategies/strategy-catalog-mvp") return json(catalogDetail);
+    if (url === "/api/v2/strategies/strategy-catalog-mvp/research-experiments") return json({ items: [] });
     if (url.startsWith("/api/v1/editor/bootstrap?")) return json(catalogBootstrap);
     if (url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && init?.method === "POST") {
       const request = JSON.parse(String(init.body ?? "{}"));

@@ -1105,3 +1105,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .attempt-change.improved { color: var(--success); }
 .attempt-change.declined { color: var(--danger); }
 .attempt-change.unchanged { color: var(--muted); }
+
+
+/* Product information architecture: design, research, and problem solving are separate workspaces. */
+.problem-entry-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; }
+.problem-entry-cards button { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 14px; text-align: left; color: inherit; background: var(--surface); }
+.problem-entry-cards strong { font-size: 18px; }
+.problem-entry-cards small { color: var(--muted); line-height: 1.45; }
+.strategy-research-page, .challenge-page { min-height: calc(100vh - 70px); background: #f4f6f3; }
+.research-portfolio, .challenge-workspace { max-width: 1280px; }
+.research-portfolio > header, .challenge-workspace > header { display: flex; justify-content: space-between; align-items: start; gap: 24px; margin-bottom: 28px; }
+.research-portfolio > header h2, .challenge-workspace > header h2 { margin: 6px 0 8px; font-size: 36px; letter-spacing: -.04em; }
+.research-portfolio > header p, .challenge-workspace > header p { margin: 0; max-width: 720px; color: var(--muted); }
+.challenge-problem-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 22px 0; }
+.challenge-problem-list button { display: grid; gap: 7px; min-height: 126px; padding: 18px; border: 1px solid var(--border); border-radius: 13px; text-align: left; color: inherit; background: var(--surface); }
+.challenge-problem-list button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px #cde6d7; }
+.challenge-problem-list span, .challenge-problem-list small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.challenge-problem-list strong { font-size: 17px; }
+.challenge-workspace > label { display: grid; gap: 8px; max-width: 620px; margin: 20px auto; padding: 20px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); font-weight: 700; }
+.challenge-workspace > label select { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.challenge-workspace > label small { color: var(--muted); font-weight: 400; }

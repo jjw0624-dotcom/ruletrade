@@ -247,8 +247,8 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=catalog-mvp" });
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
-  await clickText("Learning & Competition");
-  await waitSelector('[aria-labelledby="challenge-hub-title"]');
+  await clickText("Learning");
+  await waitSelector('.challenge-workspace[aria-labelledby="challenge-hub-title"]');
   await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "Learning challenge policy");
   await clickText("Create constrained strategy");
   await waitSelector('[aria-labelledby="catalog-title"]');
@@ -268,7 +268,7 @@ try {
   if (constrainedAuthoring.ruleCount !== 1 || !constrainedAuthoring.ruleText.some((item) => item.includes("Single asset periodic")) || JSON.stringify(constrainedAuthoring.assets) !== JSON.stringify(["QQQ", "SPY"]) || constrainedAuthoring.rebalanceValue !== "monthly" || !constrainedAuthoring.rebalanceDisabled || !constrainedAuthoring.body.includes("Policy v1 applied")) throw new Error(`Problem-first constrained authoring failed: ${JSON.stringify(constrainedAuthoring)}`);
   await screenshot("problem-first-constrained-rules-authoring");
   await clickAriaLabel("Close");
-  await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "return from constrained authoring");
+  await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "return to Learning problem page");
   await clickTextContaining("+ New strategy");
   await waitSelector('[aria-labelledby="picker-title"]');
   await clickTextContaining("Choose a strategy rule");
@@ -278,7 +278,7 @@ try {
   await setControlValue("Rebalance", "monthly");
   await clickText("Create and save strategy");
   await waitSelector('[aria-label="Strategy detail"]');
-  await waitExpression(`document.body.innerText.includes('Strategy first, tools second')&&document.body.innerText.includes('QQQ monthly')`, "independent Strategy detail");
+  await waitExpression(`document.body.innerText.includes('One strategy, separate workspaces')&&document.body.innerText.includes('QQQ monthly')`, "independent Strategy detail");
   await screenshot("catalog-mvp-strategy-detail");
   await clickText("Edit in Builder");
   await waitSelector('[data-production-builder-shell="true"]');
@@ -294,8 +294,14 @@ try {
   if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("HOW DID IT DO?") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
   await screenshot("catalog-mvp-created-saved-and-executed");
   await clickAriaLabel("Close Quick Test Dashboard");
-  await clickText("Detail BT");
-  await waitSelector('[aria-labelledby="detail-bt-title"]');
+  const builderActions = await evaluate(`([...document.querySelectorAll('.builder-actions button')].map((item)=>item.textContent.trim()))`);
+  if (builderActions.some((label) => ["Research", "Detail BT", "Hidden BT", "Tests", "Forward"].includes(label))) throw new Error(`Builder leaked durable evaluation tools: ${JSON.stringify(builderActions)}`);
+  await clickAriaLabel("Back to Home");
+  await waitSelector('[aria-label="Strategy detail"]');
+  await clickText("Research");
+  await waitSelector('.research-portfolio[aria-labelledby="strategy-research-title"]');
+  await waitExpression(`Boolean([...document.querySelectorAll("button")].find((item)=>item.textContent.includes("Detail BT")))`, "research actions");
+  await waitExpression(`Boolean(document.querySelector('[aria-labelledby="detail-bt-title"]')) || (([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Detail BT")))?.click(), false)`, "open Detail BT");
   await clickText("Run Detailed BT");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detailed BT experiment request");
   await sleep(300);
@@ -303,8 +309,7 @@ try {
   if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("10%") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("Open full result")) throw new Error(`Detailed BT browser journey failed: ${JSON.stringify(detailJourney)}`);
   await screenshot("detailed-bt-single-run");
   await clickAriaLabel("Close Detailed BT");
-  await clickText("Hidden BT");
-  await waitSelector('[aria-labelledby="hidden-bt-title"]');
+  await waitExpression(`Boolean(document.querySelector('[aria-labelledby="hidden-bt-title"]')) || (([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Hidden BT")))?.click(), false)`, "open Hidden BT");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
   await waitSelector('[aria-label="Server-owned holdout policy"]');
   await setControlValue("Hidden values", "QQQ, SPY");
@@ -317,8 +322,7 @@ try {
   if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("SELECTED CANDIDATE #1") || !hiddenJourney.body.includes("4% calibration") || !hiddenJourney.body.includes("10%") || !hiddenJourney.body.includes("8%") || !hiddenJourney.body.includes("6%") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
   await screenshot("hidden-bt-parameter-selection");
   await clickAriaLabel("Close Hidden BT");
-  await clickText("Tests");
-  await waitSelector('[aria-labelledby="research-tests-title"]');
+  await waitExpression(`Boolean(document.querySelector('[aria-labelledby="research-tests-title"]')) || (([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Tests")))?.click(), false)`, "open Tests");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/robustness-policies')`, "Robustness policy request");
   await waitSelector('[aria-label="Server-owned robustness policy"]');
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent==='Run Robustness'&&!item.disabled))`, "enabled Robustness action");
@@ -442,6 +446,7 @@ try {
     const projectionEvidence = {};
     for (const [label, selector] of [["Guide", '[aria-label="Guided strategy editor"]'], ["Flow", '[aria-label="Flow capital projection"]'], ["Blocky", '.blocky-representation'], ["Rules", '[data-projection-contract="rules"]'], ["Code", '.code-representation[aria-label="Code representation"]']]) {
       await clickText(label); await waitSelector(selector);
+      if (label === "Flow") await waitExpression(`(document.querySelector(${JSON.stringify(selector)})?.innerText??'').trim()!=='React Flow'`, `${advanced.id} rendered Flow projection`);
       const projection = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText??''`);
       projectionEvidence[label] = projection;
       if (!projection.trim() || projection.includes("production Program lowering")) throw new Error(`${advanced.id} ${label} projection failed: ${projection}`);

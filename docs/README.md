@@ -19,11 +19,11 @@ RuleTrade's incremental vertical slices.
 Read documentation in this order:
 
 1. [Repository README](../README.md) — current product identity and quick start.
-2. [Living architecture](architecture.md) — authoritative implemented system architecture.
-3. [V2 Builder completion baseline](v2-builder-completion-baseline.md) — active Builder milestone, evidence, manual acceptance, and merge gates.
-4. [Development and validation](development.md) — setup, CI, Codespaces, Docker/LEAN, and WSL.
-5. [MVP WSL acceptance](mvp-wsl-acceptance.md) — final automated and owner acceptance for the fixed-strategy MVP.
-6. Current subsystem documents — detailed contracts linked below.
+2. [Product surface contract](product-surface-contract.md) — authoritative Builder, Strategy, Research, Learning, and Competition ownership.\n3. [Living architecture](architecture.md) — authoritative implemented system architecture.
+4. [V2 Builder completion baseline](v2-builder-completion-baseline.md) — active Builder milestone, evidence, manual acceptance, and merge gates.
+5. [Development and validation](development.md) — setup, CI, Codespaces, Docker/LEAN, and WSL.
+6. [MVP WSL acceptance](mvp-wsl-acceptance.md) — final automated and owner acceptance for the fixed-strategy MVP.
+7. Current subsystem documents — detailed contracts linked below.
 
 Documents marked **Historical** or **Superseded** preserve rationale and
 acceptance evidence. They are not sources of current product scope or
@@ -34,7 +34,7 @@ architecture when they conflict with code or the living architecture.
 | Document | Status | Role |
 | --- | --- | --- |
 | `README.md` | CURRENT | Documentation authority and complete status index |
-| `architecture.md` | CURRENT | Living end-to-end architecture and ownership |
+| `product-surface-contract.md` | CURRENT | Product-level surface ownership and navigation boundaries |\n| `architecture.md` | CURRENT | Living end-to-end architecture and ownership |
 | `v2-builder-completion-baseline.md` | CURRENT | Active V2 Builder completion sequence, evidence, WSL acceptance, and merge gate |
 | `development.md` | CURRENT | Setup, validation, CI, Codespaces, Docker/LEAN |
 | `mvp-wsl-acceptance.md` | CURRENT | Final fixed-strategy MVP automated and owner acceptance |
