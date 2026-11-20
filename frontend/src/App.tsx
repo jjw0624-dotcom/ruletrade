@@ -17,7 +17,7 @@ import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { StrategyWorkspaceEditor } from "./components/StrategyWorkspaceEditor";
-import type { ChallengeDefinition } from "./challengeApi";
+import { challengeApi, type ChallengeDefinition } from "./challengeApi";
 import { ChallengeHubDialog } from "./components/ChallengeHubDialog";
 import { ChallengeSubmissionView } from "./components/ChallengeSubmissionView";
 
