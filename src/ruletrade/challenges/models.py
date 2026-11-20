@@ -54,10 +54,32 @@ class ChallengeList(ChallengeModel):
 
 
 
+class CreateChallengeAttemptRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: str = Field(min_length=1)
+
+
+class ChallengeAttemptRecord(ChallengeModel):
+    id: str
+    challenge_id: str
+    challenge_version: int = Field(ge=1)
+    strategy_id: str
+    status: Literal["active", "submitted"] = "active"
+    latest_submission_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChallengeAttemptList(ChallengeModel):
+    items: tuple[ChallengeAttemptRecord, ...]
+
+
 class CreateChallengeSubmissionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     revision_id: str = Field(min_length=1)
+    attempt_id: str | None = Field(default=None, min_length=1)
 
 
 class ChallengeFeedback(ChallengeModel):
