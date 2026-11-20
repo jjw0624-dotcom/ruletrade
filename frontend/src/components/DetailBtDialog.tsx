@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { DEFAULT_BACKTEST_CONFIG, type BacktestConfig } from "../domain/backtest";
 import { researchExperimentApi, type CatalogBaseRequest, type DetailExperimentExecution } from "../researchExperimentApi";
@@ -6,9 +6,10 @@ import { researchExperimentApi, type CatalogBaseRequest, type DetailExperimentEx
 const money = (value: string | number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value));
 const percent = (value: string | number) => new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
 
-export function DetailBtDialog({ revisionId, onClose, onOpenRun }: {
+export function DetailBtDialog({ revisionId, experimentId, onClose, onOpenRun }: {
   revisionId: string;
   base: CatalogBaseRequest | null;
+  experimentId?: string | null;
   onClose: () => void;
   onOpenRun?: (runId: string) => void;
 }) {
@@ -17,6 +18,18 @@ export function DetailBtDialog({ revisionId, onClose, onOpenRun }: {
   const [state, setState] = useState<"setup" | "running" | "error" | "success">("setup");
   const [error, setError] = useState("");
   const [execution, setExecution] = useState<DetailExperimentExecution | null>(null);
+
+  useEffect(() => {
+    if (!experimentId) return;
+    let active = true;
+    setState("running");
+    void researchExperimentApi.getDetail(experimentId).then((result) => {
+      if (active) { setExecution(result); setState("success"); }
+    }).catch((reason) => {
+      if (active) { setError(reason instanceof Error ? reason.message : "Saved Detailed BT could not be loaded."); setState("error"); }
+    });
+    return () => { active = false; };
+  }, [experimentId]);
 
   const run = async (event: FormEvent) => {
     event.preventDefault();
@@ -50,7 +63,7 @@ export function DetailBtDialog({ revisionId, onClose, onOpenRun }: {
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={state === "running" || !name.trim()}>{state === "running" ? "Running Detailed BT…" : "Run Detailed BT"}</button></div>
     </form> : <div className="detail-bt-results">
-      <div className="detail-bt-result-header"><div><span className="eyebrow">Completed detailed run</span><h3>{execution.experiment.name}</h3></div><button className="secondary-button" type="button" onClick={() => { setExecution(null); setState("setup"); }}>Run again</button></div>
+      <div className="detail-bt-result-header"><div><span className="eyebrow">Completed detailed run</span><h3>{execution.experiment.name}</h3></div>{!experimentId && <button className="secondary-button" type="button" onClick={() => { setExecution(null); setState("setup"); }}>Run again</button>}</div>
       <section className="empty-state"><h3>{result.result ? percent(result.result.total_return) : result.status}</h3><p>{result.result ? `${money(result.result.final_value)} · ${result.result.total_orders} orders · ${money(result.result.total_fees)} fees` : "No normalized result was produced."}</p></section>
       {onOpenRun && <div className="dialog-actions"><button type="button" className="primary-button" onClick={() => onOpenRun(result.id)}>Open full result</button></div>}
     </div>}
