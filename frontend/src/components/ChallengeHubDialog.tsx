@@ -74,7 +74,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       if (active) { setError(reason instanceof Error ? reason.message : "Challenges could not be loaded."); setState("error"); }
     });
     return () => { active = false; };
-  }, [kind]);
+  }, [kind, listOnly]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -95,7 +95,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       if (active) { setError(reason instanceof Error ? reason.message : "Challenge progress could not be loaded."); setState("error"); }
     });
     return () => { active = false; };
-  }, [selectedId]);
+  }, [selectedId, listOnly, initialAttemptId]);
 
   useEffect(() => {
     const preferred = strategies.find((item) => item.id === initialStrategyId);
