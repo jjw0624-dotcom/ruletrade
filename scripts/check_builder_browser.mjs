@@ -300,6 +300,7 @@ try {
   await waitSelector('[aria-label="Strategy detail"]');
   await clickText("Research");
   await waitSelector('.research-portfolio[aria-labelledby="strategy-research-title"]');
+  await waitExpression(`Boolean([...document.querySelectorAll("button")].find((item)=>item.textContent.trim()==="Detail BT"))`, "research actions");
   await clickText("Detail BT");
   await waitSelector('[aria-labelledby="detail-bt-title"]');
   await clickText("Run Detailed BT");
