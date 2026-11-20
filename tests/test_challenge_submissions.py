@@ -94,6 +94,7 @@ def test_learning_submission_runs_official_policy_and_persists_score(tmp_path: P
     assert execution.run.run_config.start_date.isoformat() == "2024-01-02"
     assert execution.submission.challenge_version == 1
     assert execution.submission.policy_version == 1
+    assert execution.submission.strategy_id == revision.strategy_id
     assert execution.submission.catalog_id == "single_asset_periodic"
     assert execution.submission.catalog_parameters["asset"] == "QQQ"
     assert execution.submission.eligible is True
@@ -196,6 +197,7 @@ def test_challenge_submission_api_create_list_read_and_reject(tmp_path: Path) ->
     assert runner.calls == 1
     assert created.status_code == 201
     assert created.json()["submission"]["score"] == "0.1"
+    assert created.json()["submission"]["strategy_id"] == revision.strategy_id
     assert created.json()["run"]["revision_id"] == revision.id
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()["items"]] == ["submission-1"]
