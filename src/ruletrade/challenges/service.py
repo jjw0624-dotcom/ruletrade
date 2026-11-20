@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from pydantic import TypeAdapter, ValidationError
+
 from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.challenges.catalog import get_challenge
 from ruletrade.challenges.errors import ChallengeNotFoundError, InvalidChallengeSubmissionError
@@ -15,10 +17,15 @@ from ruletrade.challenges.models import (
 )
 from ruletrade.persistence.sqlite_challenges import SQLiteChallengeSubmissionRepository
 from ruletrade.strategies.service import StrategyService
+from ruletrade.strategy.v2.catalog import (
+    CreateCatalogStrategyRequest,
+    create_catalog_strategy,
+)
 from ruletrade.strategy.v2.models import CanonicalStrategyV2
 
 
 _TAG_PREFIX = "ruletrade.catalog.v1:"
+_catalog_request = TypeAdapter(CreateCatalogStrategyRequest)
 
 
 class ChallengeSubmissionService:
@@ -45,7 +52,9 @@ class ChallengeSubmissionService:
         if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
             raise InvalidChallengeSubmissionError("Challenge submission requires a V2 Revision.")
 
-        catalog_id, parameters = self._catalog_provenance(revision.canonical_strategy)
+        catalog_id, parameters = self._catalog_provenance(
+            revision.canonical_strategy, revision.source_hash
+        )
         violations = self._preflight_violations(challenge.policy.constraints, catalog_id, parameters)
         if violations:
             raise InvalidChallengeSubmissionError(" ".join(violations))
@@ -96,18 +105,23 @@ class ChallengeSubmissionService:
         return tuple(sorted(scored, key=lambda item: item.score, reverse=reverse) + unscored)
 
     @staticmethod
-    def _catalog_provenance(strategy: CanonicalStrategyV2) -> tuple[str | None, dict[str, Any]]:
+    def _catalog_provenance(
+        strategy: CanonicalStrategyV2,
+        source_hash: str,
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Accept catalog provenance only when the backend factory reproduces the Revision."""
         tag = next((item for item in strategy.metadata.tags if item.startswith(_TAG_PREFIX)), None)
         if tag is None:
             return None, {}
         try:
             payload = json.loads(tag[len(_TAG_PREFIX):])
-        except (json.JSONDecodeError, TypeError):
+            request = _catalog_request.validate_python(payload)
+            reproduced = create_catalog_strategy(request)
+        except (json.JSONDecodeError, TypeError, ValidationError, ValueError):
             return None, {}
-        if not isinstance(payload, dict):
+        if reproduced.source_hash != source_hash:
             return None, {}
-        catalog_id = payload.get("catalog_id")
-        return (catalog_id if isinstance(catalog_id, str) else None, payload)
+        return request.catalog_id, request.model_dump(mode="json")
 
     @staticmethod
     def _preflight_violations(constraints: Any, catalog_id: str | None, parameters: dict[str, Any]) -> list[str]:
