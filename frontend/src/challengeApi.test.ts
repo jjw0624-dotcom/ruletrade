@@ -36,4 +36,18 @@ describe("Challenge API", () => {
     expect((await challengeApi.list(fetcher)).items[0]?.id).toBe("learn-1");
     expect((await challengeApi.submissions("learn-1", fetcher)).items[0]?.id).toBe("s1");
   });
+
+  it("loads durable challenge and submission objects directly", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const payload = url.includes("challenge-submissions")
+        ? { id: "submission-1", challenge_id: "learn-1", revision_id: "revision-1" }
+        : { id: "learn-1", kind: "learning" };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+
+    expect((await challengeApi.get("learn-1", fetcher)).kind).toBe("learning");
+    expect((await challengeApi.getSubmission("submission-1", fetcher)).revision_id).toBe("revision-1");
+    expect(fetcher).toHaveBeenCalledWith("/api/v2/challenge-submissions/submission-1", {});
+  });
 });
