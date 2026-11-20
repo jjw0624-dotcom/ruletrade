@@ -124,10 +124,14 @@ def test_competition_rejects_disallowed_asset_before_lean(tmp_path: Path) -> Non
 def test_forged_catalog_tag_is_rejected_before_lean(tmp_path: Path) -> None:
     database = tmp_path / "ruletrade.sqlite3"
     revision, runner, service = _setup(database)
+    assert revision.canonical_strategy.program is not None
+    forged_clock = revision.canonical_strategy.program.clocks[0].model_copy(
+        update={"timeframe": "daily"}
+    )
     forged = revision.canonical_strategy.model_copy(
         update={
-            "metadata": revision.canonical_strategy.metadata.model_copy(
-                update={"name": "Changed outside catalog factory"}
+            "program": revision.canonical_strategy.program.model_copy(
+                update={"clocks": (forged_clock,)}
             )
         }
     )
