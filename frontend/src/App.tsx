@@ -17,7 +17,7 @@ import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { StrategyWorkspaceEditor } from "./components/StrategyWorkspaceEditor";
-import type { ChallengeDefinition } from "./challengeApi";
+import { challengeApi, type ChallengeDefinition } from "./challengeApi";
 import { ChallengeHubDialog } from "./components/ChallengeHubDialog";
 import { ChallengeSubmissionView } from "./components/ChallengeSubmissionView";
 
@@ -91,7 +91,7 @@ export default function App() {
   const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
   const [comparisonContext, setComparisonContext] = useState<{ comparisonId: string; context: ResearchContext } | null>(null);
   const [adoptionNotice, setAdoptionNotice] = useState<string | null>(null);
-  const [challengeIteration, setChallengeIteration] = useState<{ challengeId: string; challengeKind: "learning" | "competition"; strategyId: string; feedback: string[] } | null>(null);
+  const [challengeIteration, setChallengeIteration] = useState<{ challengeId: string; challengeKind: "learning" | "competition"; strategyId: string; attemptId: string; feedback: string[] } | null>(null);
   const [challengeLaunch, setChallengeLaunch] = useState<{ token: number; challengeId: string; strategyId: string } | null>(null);
   const creationInFlight = useRef(false);
 
@@ -183,17 +183,25 @@ export default function App() {
       const created = await strategyCatalogApi.create(request);
       const detail = await strategyApi.create(request.name, created.strategy);
       setCatalogOpen(false);
-      if (catalogChallenge) {
+      const challenge = catalogChallenge;
+      const attempt = challenge
+        ? await challengeApi.startAttempt(challenge.id, detail.strategy.id)
+        : null;
+      if (challenge && attempt) {
         setChallengeIteration({
-          challengeId: catalogChallenge.id,
-          challengeKind: catalogChallenge.kind,
+          challengeId: challenge.id,
+          challengeKind: challenge.kind,
           strategyId: detail.strategy.id,
+          attemptId: attempt.id,
           feedback: [],
         });
       }
-      const challenge = catalogChallenge;
       setCatalogChallenge(null);
-      navigate(challenge ? { page: "builder", strategyId: detail.strategy.id, challenge: { kind: challenge.kind, challengeId: challenge.id } } : routeForCreatedStrategy(detail));
+      navigate(challenge && attempt ? {
+        page: "builder",
+        strategyId: detail.strategy.id,
+        challenge: { kind: challenge.kind, challengeId: challenge.id, attemptId: attempt.id },
+      } : routeForCreatedStrategy(detail));
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
     } finally {
@@ -234,7 +242,7 @@ export default function App() {
   }
 
   const builderChallenge = route.page === "builder"
-    ? route.challenge ?? (challengeIteration?.strategyId === route.strategyId ? { kind: challengeIteration.challengeKind, challengeId: challengeIteration.challengeId } : undefined)
+    ? route.challenge ?? (challengeIteration?.strategyId === route.strategyId ? { kind: challengeIteration.challengeKind, challengeId: challengeIteration.challengeId, attemptId: challengeIteration.attemptId } : undefined)
     : undefined;
   const builderFeedback = route.page === "builder" && challengeIteration?.strategyId === route.strategyId && builderChallenge?.challengeId === challengeIteration.challengeId
     ? challengeIteration.feedback
@@ -254,8 +262,8 @@ export default function App() {
       {route.page === "builder" && builderChallenge && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
         <div><span className="eyebrow">Problem submission draft</span><strong>Revise this strategy, save a new Revision, then return to the problem page to submit it.</strong>{builderFeedback.length > 0 && <ul>{builderFeedback.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
         <button type="button" className="primary-button" onClick={() => navigate(builderChallenge.kind === "learning"
-          ? { page: "learningProblem", problemId: builderChallenge.challengeId, strategyId: route.strategyId }
-          : { page: "competition", competitionId: builderChallenge.challengeId, strategyId: route.strategyId }
+          ? { page: "learningProblem", problemId: builderChallenge.challengeId, strategyId: route.strategyId, attemptId: builderChallenge.attemptId }
+          : { page: "competition", competitionId: builderChallenge.challengeId, strategyId: route.strategyId, attemptId: builderChallenge.attemptId }
         )}>Return to problem</button>
       </aside>}
       <StrategyWorkspaceEditor
@@ -277,6 +285,7 @@ export default function App() {
       strategies={recent}
       initialChallengeId={route.page === "learningProblem" ? route.problemId : route.page === "competition" ? route.competitionId : challengeLaunch?.challengeId}
       initialStrategyId={route.page === "learningProblem" || route.page === "competition" ? route.strategyId : challengeLaunch?.strategyId}
+      initialAttemptId={route.page === "learningProblem" || route.page === "competition" ? route.attemptId : undefined}
       onClose={() => navigate(route.page === "learningProblem" ? { page: "learning" } : route.page === "competition" ? { page: "competitions" } : { page: "home" })}
       onSelectChallenge={(challenge) => navigate(challenge.kind === "learning" ? { page: "learningProblem", problemId: challenge.id } : { page: "competition", competitionId: challenge.id })}
       onCreateStrategy={(challenge) => void openCatalogCreate(challenge)}
@@ -284,9 +293,20 @@ export default function App() {
       onOpenRun={(runId) => navigate({ page: "run", runId })}
       onOpenSubmission={(submissionId) => navigate({ page: "submission", submissionId })}
       onReviseStrategy={(strategyId, challengeId, feedback) => {
-        const challengeKind = route.page === "learning" || route.page === "learningProblem" ? "learning" : "competition";
-        setChallengeIteration({ strategyId, challengeId, challengeKind, feedback });
-        navigate({ page: "builder", strategyId, challenge: { kind: challengeKind, challengeId } });
+        void (async () => {
+          const challengeKind = route.page === "learning" || route.page === "learningProblem" ? "learning" : "competition";
+          try {
+            const attempt = await challengeApi.startAttempt(challengeId, strategyId);
+            setChallengeIteration({ strategyId, challengeId, challengeKind, attemptId: attempt.id, feedback });
+            navigate({
+              page: "builder",
+              strategyId,
+              challenge: { kind: challengeKind, challengeId, attemptId: attempt.id },
+            });
+          } catch (reason) {
+            setCreateError(reason instanceof Error ? reason.message : "We couldn't start this attempt.");
+          }
+        })();
       }}
     />}
     {route.page === "submission" && <ChallengeSubmissionView

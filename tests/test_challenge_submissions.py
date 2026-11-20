@@ -213,3 +213,90 @@ def test_challenge_submission_api_create_list_read_and_reject(tmp_path: Path) ->
         "expected": ["SPY"],
         "actual": ["QQQ"],
     }]
+
+
+
+def test_attempt_resumes_then_completes_with_submission(tmp_path: Path) -> None:
+    revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._id_factory = iter(["attempt-1", "submission-1", "attempt-2"]).__next__
+
+    first = service.start_attempt(
+        "learn-monthly-single-asset-v1", revision.strategy_id
+    )
+    resumed = service.start_attempt(
+        "learn-monthly-single-asset-v1", revision.strategy_id
+    )
+
+    assert resumed == first
+    assert first.status == "active"
+    execution = service.submit(
+        "learn-monthly-single-asset-v1", revision.id, first.id
+    )
+    completed = service.get_attempt(first.id)
+    assert runner.calls == 1
+    assert completed.status == "submitted"
+    assert completed.latest_submission_id == execution.submission.id
+
+    next_attempt = service.start_attempt(
+        "learn-monthly-single-asset-v1", revision.strategy_id
+    )
+    assert next_attempt.id == "attempt-2"
+    assert next_attempt.status == "active"
+
+
+def test_attempt_rejects_revision_from_another_strategy(tmp_path: Path) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    revision, runner, service = _setup(database)
+    other = service.strategies.create_strategy(
+        "Other strategy", revision.canonical_strategy
+    ).current_revision
+    service._id_factory = iter(["attempt-1"]).__next__
+    attempt = service.start_attempt(
+        "learn-monthly-single-asset-v1", revision.strategy_id
+    )
+
+    with pytest.raises(
+        InvalidChallengeSubmissionError,
+        match="different strategy",
+    ):
+        service.submit(
+            "learn-monthly-single-asset-v1", other.id, attempt.id
+        )
+
+    assert runner.calls == 0
+    assert service.get_attempt(attempt.id).status == "active"
+
+
+def test_challenge_attempt_api_create_list_read_and_submit(tmp_path: Path) -> None:
+    revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3")
+    service._id_factory = iter(["attempt-1", "submission-1"]).__next__
+    app.dependency_overrides[get_challenge_submission_service] = lambda: service
+    try:
+        with TestClient(app) as client:
+            created = client.post(
+                "/v2/challenges/learn-monthly-single-asset-v1/attempts",
+                json={"strategy_id": revision.strategy_id},
+            )
+            listed = client.get(
+                "/v2/challenges/learn-monthly-single-asset-v1/attempts"
+            )
+            read = client.get("/v2/challenge-attempts/attempt-1")
+            submitted = client.post(
+                "/v2/challenges/learn-monthly-single-asset-v1/submissions",
+                json={
+                    "revision_id": revision.id,
+                    "attempt_id": "attempt-1",
+                },
+            )
+            completed = client.get("/v2/challenge-attempts/attempt-1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert created.status_code == 201
+    assert created.json()["status"] == "active"
+    assert [item["id"] for item in listed.json()["items"]] == ["attempt-1"]
+    assert read.status_code == 200
+    assert submitted.status_code == 201
+    assert runner.calls == 1
+    assert completed.json()["status"] == "submitted"
+    assert completed.json()["latest_submission_id"] == "submission-1"

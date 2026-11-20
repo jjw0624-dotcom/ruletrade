@@ -12,6 +12,7 @@ from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.challenges.catalog import get_challenge
 from ruletrade.challenges.errors import ChallengeNotFoundError, InvalidChallengeSubmissionError
 from ruletrade.challenges.models import (
+    ChallengeAttemptRecord,
     ChallengeFeedback,
     ChallengeSubmissionExecution,
     ChallengeSubmissionRecord,
@@ -45,13 +46,63 @@ class ChallengeSubmissionService:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or (lambda: str(uuid4()))
 
-    def submit(self, challenge_id: str, revision_id: str) -> ChallengeSubmissionExecution:
+    def start_attempt(self, challenge_id: str, strategy_id: str) -> ChallengeAttemptRecord:
+        challenge = get_challenge(challenge_id)
+        if challenge is None:
+            raise ChallengeNotFoundError("Challenge was not found.")
+        self.strategies.get_strategy(strategy_id)
+        active = self.repository.find_active_attempt(challenge_id, strategy_id)
+        if active is not None:
+            return active
+        now = self._clock()
+        return self.repository.create_attempt(ChallengeAttemptRecord(
+            id=self._id_factory(),
+            challenge_id=challenge.id,
+            challenge_version=challenge.version,
+            strategy_id=strategy_id,
+            status="active",
+            latest_submission_id=None,
+            created_at=now,
+            updated_at=now,
+        ))
+
+    def get_attempt(self, attempt_id: str) -> ChallengeAttemptRecord:
+        return self.repository.get_attempt(attempt_id)
+
+    def list_attempts_for_challenge(
+        self, challenge_id: str
+    ) -> tuple[ChallengeAttemptRecord, ...]:
+        if get_challenge(challenge_id) is None:
+            raise ChallengeNotFoundError("Challenge was not found.")
+        return self.repository.list_attempts_for_challenge(challenge_id)
+
+    def submit(
+        self,
+        challenge_id: str,
+        revision_id: str,
+        attempt_id: str | None = None,
+    ) -> ChallengeSubmissionExecution:
         challenge = get_challenge(challenge_id)
         if challenge is None:
             raise ChallengeNotFoundError("Challenge was not found.")
         revision = self.strategies.get_revision_by_id(revision_id)
         if not isinstance(revision.canonical_strategy, CanonicalStrategyV2):
             raise InvalidChallengeSubmissionError("Challenge submission requires a V2 Revision.")
+        attempt = None
+        if attempt_id is not None:
+            attempt = self.repository.get_attempt(attempt_id)
+            if attempt.challenge_id != challenge_id:
+                raise InvalidChallengeSubmissionError(
+                    "Challenge Attempt belongs to a different challenge."
+                )
+            if attempt.strategy_id != revision.strategy_id:
+                raise InvalidChallengeSubmissionError(
+                    "Challenge Attempt belongs to a different strategy."
+                )
+            if attempt.status != "active":
+                raise InvalidChallengeSubmissionError(
+                    "Challenge Attempt has already been submitted."
+                )
 
         catalog_id, parameters = self._catalog_provenance(
             revision.canonical_strategy, revision.source_hash
@@ -88,6 +139,8 @@ class ChallengeSubmissionService:
             created_at=self._clock(),
         )
         self.repository.create(submission)
+        if attempt is not None:
+            self.repository.complete_attempt(attempt.id, submission.id, submission.created_at)
         return ChallengeSubmissionExecution(submission=submission, run=run)
 
     def get(self, submission_id: str) -> ChallengeSubmissionRecord:
