@@ -119,8 +119,9 @@ export default function App() {
   }, [route]);
 
   useEffect(() => {
-    if (!["example", "strategy", "builder", "research"].includes(route.page)) return;
-    if (route.page !== "example" && createdDestination?.strategyId === route.strategyId) {
+    const strategyRoute = route.page === "strategy" || route.page === "builder" || route.page === "research" ? route : null;
+    if (route.page !== "example" && !strategyRoute) return;
+    if (strategyRoute && createdDestination && createdDestination.strategyId === strategyRoute.strategyId) {
       setWorkspace(createdDestination.workspace);
       setWorkspaceStatus("loaded");
       setWorkspaceError(null);
@@ -131,7 +132,7 @@ export default function App() {
     let cancelled = false; const controller = new AbortController(); setWorkspaceStatus("loading"); setWorkspaceError(null); setWorkspace(null); setDirty(false);
     const task = route.page === "example"
       ? (() => { const exampleId = route.exampleId; return loadEditorBootstrap(exampleId).then((bootstrap) => ({ bootstrap, example: findExample(exampleId)! })); })()
-      : (() => { const strategyId = route.page === "example" ? "" : route.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
+      : (() => { const strategyId = strategyRoute!.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
           return workspaceFromPersistedStrategy(detail, registryBootstrap);
         }); })();
     task.then((value) => { if (!cancelled) { setWorkspace(value); setWorkspaceStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setWorkspaceError(reason instanceof Error ? reason.message : String(reason)); setWorkspaceStatus("error"); } });
