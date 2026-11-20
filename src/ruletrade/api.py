@@ -1332,6 +1332,38 @@ def list_strategy_research_experiments(
 
 
 @app.get(
+    "/v2/research-experiments/{experiment_id}/detail",
+    response_model=DetailExperimentExecution,
+)
+def read_detail_research_experiment(
+    experiment_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> DetailExperimentExecution:
+    try:
+        return service.get_detail(experiment_id)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
+    "/v2/research-experiments/{experiment_id}/tests",
+    response_model=TestExperimentExecution,
+)
+def read_test_research_experiment(
+    experiment_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> TestExperimentExecution:
+    try:
+        return service.get_test(experiment_id)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
     "/v2/research-experiments/{experiment_id}/hidden",
     response_model=HiddenExperimentExecution,
 )
