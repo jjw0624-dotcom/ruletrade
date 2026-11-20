@@ -82,7 +82,6 @@ window.fetch = async (input, init) => {
     if (url === "/api/v2/challenges/learn-monthly-single-asset-v1/attempts" && init?.method === "POST") {
       const request = JSON.parse(String(init.body ?? "{}"));
       if (request.strategy_id !== "strategy-catalog-mvp") return json({ detail: { message: "Unexpected attempt strategy." } }, 422);
-      (window as typeof window & { __RULETRADE_ATTEMPT_STARTED__?: boolean }).__RULETRADE_ATTEMPT_STARTED__ = true;
       return json({
         id: "attempt-browser", challenge_id: "learn-monthly-single-asset-v1",
         challenge_version: 1, strategy_id: "strategy-catalog-mvp", status: "active",
@@ -91,8 +90,8 @@ window.fetch = async (input, init) => {
       }, 201);
     }
     if (url === "/api/v2/challenges/learn-monthly-single-asset-v1/attempts") {
-      const state = window as typeof window & { __RULETRADE_ATTEMPT_STARTED__?: boolean };
-      return json({ items: state.__RULETRADE_ATTEMPT_STARTED__ ? [{
+      const state = window as typeof window & { __RULETRADE_CATALOG_CREATED__?: boolean };
+      return json({ items: state.__RULETRADE_CATALOG_CREATED__ ? [{
         id: "attempt-browser", challenge_id: "learn-monthly-single-asset-v1",
         challenge_version: 1, strategy_id: "strategy-catalog-mvp", status: "active",
         latest_submission_id: null,
