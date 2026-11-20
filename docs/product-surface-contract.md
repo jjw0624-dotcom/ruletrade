@@ -21,8 +21,10 @@ of Builder meaning.
 | Strategy object | `/strategies/:id` | Current Revision, version context, entry to Builder and Research | Builder-local drafts |
 | Builder | `/strategies/:id/builder` | Guide, Flow, Blocky, Rules, Code, AI perspectives; assets; undo/redo; Save; quick feedback named **Test** | Detail BT, Hidden BT, robustness Tests, Forward, competition submission |
 | Research | `/strategies/:id/research` | Detail BT, Hidden BT, robustness/random Tests, Forward, saved experiment history and comparison | Strategy-authoring controls |
-| Learning | `/learning` | Problem statement, constraints, objective, strategy selection/build loop, immutable Revision submission, attempts and result feedback | General research dashboard |
-| Competitions | `/competitions` | Competition rules, eligibility, objective, strategy selection/build loop, immutable Revision submission, ranking/leaderboard | General Builder navigation |
+| Learning index | `/learning` | Discover learning problems and progress | Problem execution or Builder state |
+| Learning problem | `/learning/problems/:problemId` | Problem statement, constraints, objective, strategy selection/build loop, immutable Revision submission, attempts and result feedback | General research dashboard |
+| Competition index | `/competitions` | Discover active and prior competitions | Competition execution state |
+| Competition | `/competitions/:competitionId` | Competition rules, eligibility, objective, strategy selection/build loop, immutable Revision submission, ranking/leaderboard | General Builder navigation |
 
 ## Builder
 
@@ -79,6 +81,9 @@ A problem may restrict assets, require an option, limit trade count, force a
 random action, or define another executable policy. Those restrictions belong to
 the problem/submission contract. Builder may display and enforce the active
 policy while editing, but the policy does not become a general Builder feature.
+The Builder URL preserves the originating challenge ID and kind so refreshes,
+shared links, and browser navigation retain the return path without making the
+challenge part of the Strategy meaning.
 
 Learning prioritizes guided objectives, attempts, and explanation. Competitions
 prioritize rule compliance, scoring, and ranking. They may share submission
