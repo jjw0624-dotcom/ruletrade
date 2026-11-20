@@ -25,6 +25,14 @@ export interface ChallengeDefinition {
     };
   };
 }
+export interface ChallengeFeedback {
+  code: "catalog_family" | "required_parameter" | "allowed_assets" | "max_total_orders" | "evaluation_failed";
+  target: "catalog" | "parameter" | "execution" | "result";
+  message: string;
+  parameter: string | null;
+  expected: unknown;
+  actual: unknown;
+}
 export interface ChallengeSubmissionRecord {
   id: string;
   challenge_id: string;
@@ -36,6 +44,7 @@ export interface ChallengeSubmissionRecord {
   catalog_parameters: Record<string, unknown>;
   eligible: boolean;
   violations: string[];
+  feedback?: ChallengeFeedback[];
   score: string | null;
   objective: ChallengeObjective;
   created_at: string;
@@ -45,6 +54,12 @@ export interface ChallengeSubmissionExecution {
   run: BacktestRunRecord;
 }
 
+export class ChallengeApiError extends Error {
+  constructor(message: string, public readonly feedback: ChallengeFeedback[] = []) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api${path}`, init);
   if (response.ok) return await response.json() as T;
@@ -52,7 +67,10 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
   const message = typeof detail === "object" && detail && "message" in detail
     ? String(detail.message)
     : "The challenge request could not be completed.";
-  throw new Error(message);
+  const feedback = typeof detail === "object" && detail && "feedback" in detail && Array.isArray(detail.feedback)
+    ? detail.feedback as ChallengeFeedback[]
+    : [];
+  throw new ChallengeApiError(message, feedback);
 }
 
 export const challengeApi = {

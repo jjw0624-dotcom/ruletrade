@@ -12,6 +12,7 @@ from ruletrade.backtest_runs.service import BacktestRunService
 from ruletrade.challenges.catalog import get_challenge
 from ruletrade.challenges.errors import ChallengeNotFoundError, InvalidChallengeSubmissionError
 from ruletrade.challenges.models import (
+    ChallengeFeedback,
     ChallengeSubmissionExecution,
     ChallengeSubmissionRecord,
 )
@@ -55,22 +56,19 @@ class ChallengeSubmissionService:
         catalog_id, parameters = self._catalog_provenance(
             revision.canonical_strategy, revision.source_hash
         )
-        violations = self._preflight_violations(challenge.policy.constraints, catalog_id, parameters)
-        if violations:
-            raise InvalidChallengeSubmissionError(" ".join(violations))
-        run = self.runs.create_and_execute(revision.id, challenge.policy.config)
-        if run.result is None:
-            violations.append("Official LEAN evaluation did not produce a result.")
-        elif (
-            challenge.policy.constraints.max_total_orders is not None
-            and run.result.total_orders > challenge.policy.constraints.max_total_orders
-        ):
-            violations.append(
-                f"Total orders {run.result.total_orders} exceed the limit "
-                f"{challenge.policy.constraints.max_total_orders}."
+        preflight_feedback = self._preflight_feedback(
+            challenge.policy.constraints, catalog_id, parameters
+        )
+        if preflight_feedback:
+            raise InvalidChallengeSubmissionError(
+                " ".join(item.message for item in preflight_feedback),
+                feedback=tuple(preflight_feedback),
             )
+        run = self.runs.create_and_execute(revision.id, challenge.policy.config)
+        feedback = self._result_feedback(challenge.policy.constraints, run)
+        violations = [item.message for item in feedback]
 
-        eligible = not violations
+        eligible = not feedback
         score = run.result.total_return if eligible and run.result is not None else None
         submission = ChallengeSubmissionRecord(
             id=self._id_factory(),
@@ -83,6 +81,7 @@ class ChallengeSubmissionService:
             catalog_parameters=parameters,
             eligible=eligible,
             violations=tuple(violations),
+            feedback=tuple(feedback),
             score=score,
             objective=challenge.policy.objective,
             created_at=self._clock(),
@@ -91,12 +90,15 @@ class ChallengeSubmissionService:
         return ChallengeSubmissionExecution(submission=submission, run=run)
 
     def get(self, submission_id: str) -> ChallengeSubmissionRecord:
-        return self.repository.get(submission_id)
+        return self._with_reproduced_feedback(self.repository.get(submission_id))
 
     def list_for_challenge(self, challenge_id: str) -> tuple[ChallengeSubmissionRecord, ...]:
         if get_challenge(challenge_id) is None:
             raise ChallengeNotFoundError("Challenge was not found.")
-        submissions = self.repository.list_for_challenge(challenge_id)
+        submissions = tuple(
+            self._with_reproduced_feedback(item)
+            for item in self.repository.list_for_challenge(challenge_id)
+        )
         challenge = get_challenge(challenge_id)
         assert challenge is not None
         reverse = challenge.policy.objective.direction == "maximize"
@@ -124,21 +126,80 @@ class ChallengeSubmissionService:
         return request.catalog_id, request.model_dump(mode="json")
 
     @staticmethod
-    def _preflight_violations(constraints: Any, catalog_id: str | None, parameters: dict[str, Any]) -> list[str]:
-        violations: list[str] = []
+    def _preflight_feedback(
+        constraints: Any,
+        catalog_id: str | None,
+        parameters: dict[str, Any],
+    ) -> list[ChallengeFeedback]:
+        feedback: list[ChallengeFeedback] = []
         if catalog_id not in constraints.allowed_catalog_ids:
-            violations.append("Strategy catalog family is not allowed by this challenge.")
+            feedback.append(ChallengeFeedback(
+                code="catalog_family",
+                target="catalog",
+                message="Strategy catalog family is not allowed by this challenge.",
+                expected=list(constraints.allowed_catalog_ids),
+                actual=catalog_id,
+            ))
         for key, required in constraints.required_parameters.items():
-            if parameters.get(key) != required:
-                violations.append(f"Parameter {key!r} must equal {required!r}.")
+            actual = parameters.get(key)
+            if actual != required:
+                feedback.append(ChallengeFeedback(
+                    code="required_parameter",
+                    target="parameter",
+                    parameter=key,
+                    message=f"Parameter {key!r} must equal {required!r}.",
+                    expected=required,
+                    actual=actual,
+                ))
         if constraints.allowed_assets:
             submitted_assets: set[str] = set()
+            asset_parameters: list[str] = []
             for key, value in parameters.items():
                 if "asset" not in key:
                     continue
+                asset_parameters.append(key)
                 values = value if isinstance(value, list) else [value]
                 submitted_assets.update(item for item in values if isinstance(item, str))
             forbidden = sorted(submitted_assets - set(constraints.allowed_assets))
             if forbidden:
-                violations.append("Assets are not allowed: " + ", ".join(forbidden) + ".")
-        return violations
+                feedback.append(ChallengeFeedback(
+                    code="allowed_assets",
+                    target="parameter",
+                    parameter=asset_parameters[0] if len(asset_parameters) == 1 else None,
+                    message="Assets are not allowed: " + ", ".join(forbidden) + ".",
+                    expected=list(constraints.allowed_assets),
+                    actual=forbidden,
+                ))
+        return feedback
+
+    @staticmethod
+    def _result_feedback(constraints: Any, run: Any) -> list[ChallengeFeedback]:
+        if run.result is None:
+            return [ChallengeFeedback(
+                code="evaluation_failed",
+                target="result",
+                message="Official LEAN evaluation did not produce a result.",
+            )]
+        limit = constraints.max_total_orders
+        if limit is not None and run.result.total_orders > limit:
+            return [ChallengeFeedback(
+                code="max_total_orders",
+                target="execution",
+                message=f"Total orders {run.result.total_orders} exceed the limit {limit}.",
+                expected=limit,
+                actual=run.result.total_orders,
+            )]
+        return []
+
+    def _with_reproduced_feedback(
+        self,
+        submission: ChallengeSubmissionRecord,
+    ) -> ChallengeSubmissionRecord:
+        if submission.feedback:
+            return submission
+        challenge = get_challenge(submission.challenge_id)
+        if challenge is None:
+            return submission
+        run = self.runs.get_run(submission.run_id)
+        feedback = self._result_feedback(challenge.policy.constraints, run)
+        return submission.model_copy(update={"feedback": tuple(feedback)})

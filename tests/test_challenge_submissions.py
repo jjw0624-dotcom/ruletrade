@@ -114,9 +114,14 @@ def test_learning_submission_runs_official_policy_and_persists_score(tmp_path: P
 def test_competition_rejects_disallowed_asset_before_lean(tmp_path: Path) -> None:
     revision, runner, service = _setup(tmp_path / "ruletrade.sqlite3", asset="QQQ")
 
-    with pytest.raises(InvalidChallengeSubmissionError, match="Assets are not allowed"):
+    with pytest.raises(InvalidChallengeSubmissionError, match="Assets are not allowed") as caught:
         service.submit("competition-controlled-downside-v1", revision.id)
 
+    assert caught.value.feedback[0].code == "allowed_assets"
+    assert caught.value.feedback[0].target == "parameter"
+    assert caught.value.feedback[0].parameter == "asset"
+    assert caught.value.feedback[0].expected == ["SPY"]
+    assert caught.value.feedback[0].actual == ["QQQ"]
     assert runner.calls == 0
     assert service.list_for_challenge("competition-controlled-downside-v1") == ()
 
@@ -161,6 +166,11 @@ def test_result_constraint_marks_submission_ineligible(tmp_path: Path) -> None:
     assert execution.submission.violations == (
         "Total orders 20 exceed the limit 12.",
     )
+    assert execution.submission.feedback[0].code == "max_total_orders"
+    assert execution.submission.feedback[0].target == "execution"
+    assert execution.submission.feedback[0].expected == 12
+    assert execution.submission.feedback[0].actual == 20
+    assert service.get("submission-1").feedback == execution.submission.feedback
 
 
 def test_challenge_submission_api_create_list_read_and_reject(tmp_path: Path) -> None:
@@ -192,3 +202,12 @@ def test_challenge_submission_api_create_list_read_and_reject(tmp_path: Path) ->
     assert read.status_code == 200 and read.json()["policy_version"] == 1
     assert rejected.status_code == 422
     assert rejected.json()["detail"]["code"] == "invalid_challenge_submission"
+    feedback = rejected.json()["detail"]["feedback"]
+    assert feedback == [{
+        "code": "allowed_assets",
+        "target": "parameter",
+        "message": "Assets are not allowed: QQQ.",
+        "parameter": "asset",
+        "expected": ["SPY"],
+        "actual": ["QQQ"],
+    }]
