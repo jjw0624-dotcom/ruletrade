@@ -89,12 +89,15 @@ window.fetch = async (input, init) => {
         created_at: "2026-11-20T00:00:00Z", updated_at: "2026-11-20T00:00:00Z",
       }, 201);
     }
-    if (url === "/api/v2/challenges/learn-monthly-single-asset-v1/attempts") return json({ items: [{
-      id: "attempt-browser", challenge_id: "learn-monthly-single-asset-v1",
-      challenge_version: 1, strategy_id: "strategy-catalog-mvp", status: "active",
-      latest_submission_id: null,
-      created_at: "2026-11-20T00:00:00Z", updated_at: "2026-11-20T00:00:00Z",
-    }] });
+    if (url === "/api/v2/challenges/learn-monthly-single-asset-v1/attempts") {
+      const state = window as typeof window & { __RULETRADE_CATALOG_CREATED__?: boolean };
+      return json({ items: state.__RULETRADE_CATALOG_CREATED__ ? [{
+        id: "attempt-browser", challenge_id: "learn-monthly-single-asset-v1",
+        challenge_version: 1, strategy_id: "strategy-catalog-mvp", status: "active",
+        latest_submission_id: null,
+        created_at: "2026-11-20T00:00:00Z", updated_at: "2026-11-20T00:00:00Z",
+      }] : [] });
+    }
     if (url === "/api/v2/strategy-catalog") return json([{
       id: "single_asset_periodic", version: 1, name: "Single asset periodic",
       description: "Hold one asset and rebalance on a fixed schedule.",

@@ -3,6 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ChallengeApiError, challengeApi, type ChallengeAttemptRecord, type ChallengeDefinition, type ChallengeFeedback, type ChallengeSubmissionRecord } from "../challengeApi";
 import type { StrategyRecord } from "../strategyApi";
 import { challengeProgress } from "../challengeProgress";
+import {
+  challengeActivityLabel,
+  summarizeChallengeActivity,
+  type ChallengeActivity,
+} from "../challengeActivity";
 
 const percent = (value: string | number) => new Intl.NumberFormat("en-US", {
   style: "percent", maximumFractionDigits: 2,
@@ -42,6 +47,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   const [revisionId, setRevisionId] = useState(() => strategies.find((item) => item.id === initialStrategyId)?.current_revision_id ?? strategies[0]?.current_revision_id ?? "");
   const [submissions, setSubmissions] = useState<ChallengeSubmissionRecord[]>([]);
   const [attempts, setAttempts] = useState<ChallengeAttemptRecord[]>([]);
+  const [activity, setActivity] = useState<Record<string, ChallengeActivity>>({});
   const [state, setState] = useState<"loading" | "ready" | "submitting" | "error">("loading");
   const [error, setError] = useState("");
   const [latest, setLatest] = useState<ChallengeSubmissionRecord | null>(null);
@@ -53,11 +59,22 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       if (!active) return;
       const visible = kind ? items.filter((item) => item.kind === kind) : items;
       setChallenges(visible); setSelectedId((current) => visible.some((item) => item.id === current) ? current : visible[0]?.id ?? ""); setState("ready");
+      void Promise.all(visible.map(async (challenge) => {
+        const [submissionList, attemptList] = await Promise.all([
+          challengeApi.submissions(challenge.id),
+          challengeApi.attempts(challenge.id),
+        ]);
+        return [challenge.id, summarizeChallengeActivity(attemptList.items, submissionList.items)] as const;
+      })).then((entries) => {
+        if (active) setActivity(Object.fromEntries(entries));
+      }).catch(() => {
+        // Problem details remain usable even when an index progress summary cannot be loaded.
+      });
     }).catch((reason) => {
       if (active) { setError(reason instanceof Error ? reason.message : "Challenges could not be loaded."); setState("error"); }
     });
     return () => { active = false; };
-  }, [kind]);
+  }, [kind, listOnly]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -70,11 +87,15 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       if (!active) return;
       setSubmissions(submissionList.items);
       setAttempts(attemptList.items);
+      setActivity((current) => ({
+        ...current,
+        [selectedId]: summarizeChallengeActivity(attemptList.items, submissionList.items),
+      }));
     }).catch((reason) => {
       if (active) { setError(reason instanceof Error ? reason.message : "Challenge progress could not be loaded."); setState("error"); }
     });
     return () => { active = false; };
-  }, [selectedId]);
+  }, [selectedId, listOnly, initialAttemptId]);
 
   useEffect(() => {
     const preferred = strategies.find((item) => item.id === initialStrategyId);
@@ -114,6 +135,10 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       ]);
       setSubmissions(refreshed.items);
       setAttempts(refreshedAttempts.items);
+      setActivity((current) => ({
+        ...current,
+        [challenge.id]: summarizeChallengeActivity(refreshedAttempts.items, refreshed.items),
+      }));
       setState("ready");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Submission could not be evaluated.");
@@ -126,7 +151,12 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   return <div className={presentation === "page" ? "challenge-page" : "modal-backdrop detail-bt-backdrop"} role={presentation === "page" ? undefined : "presentation"}><section className={presentation === "page" ? "page challenge-workspace" : "creation-picker detail-bt-dialog"} role={presentation === "page" ? "main" : "dialog"} aria-modal={presentation === "page" ? undefined : true} aria-labelledby="challenge-hub-title">
     <header><div><span className="eyebrow">Problem-first research</span><h2 id="challenge-hub-title">{pageTitle}</h2><p>Read the problem first, build or select a strategy, then submit an immutable saved Revision through the official LEAN pipeline.</p></div><button type="button" className={presentation === "page" ? "text-button" : "close-button"} aria-label={`Close ${pageTitle}`} onClick={onClose}>{presentation === "page" ? "← Home" : "×"}</button></header>
     {state === "loading" ? <div className="page-state" role="status"><span className="loading-spinner" /><h3>Loading challenges…</h3></div> : <>
-      <div className="challenge-problem-list" aria-label="Problem selection">{challenges.map((item) => <button type="button" key={item.id} aria-pressed={!listOnly && item.id === selectedId} className={!listOnly && item.id === selectedId ? "active" : ""} onClick={() => { if (onSelectChallenge) onSelectChallenge(item); else { setSelectedId(item.id); setState("ready"); setError(""); } }}><span>{item.kind === "learning" ? "Learning problem" : "Competition"}</span><strong>{item.title}</strong><small>{item.difficulty}</small></button>)}</div>
+      <div className="challenge-problem-list" aria-label="Problem selection">{challenges.map((item) => {
+        const itemActivity = item.id === selectedId && activeAttempt
+          ? summarizeChallengeActivity(attempts, submissions)
+          : activity[item.id];
+        return <button type="button" key={item.id} aria-pressed={!listOnly && item.id === selectedId} className={!listOnly && item.id === selectedId ? "active" : ""} onClick={() => { if (onSelectChallenge) onSelectChallenge(item); else { setSelectedId(item.id); setState("ready"); setError(""); } }}><span>{item.kind === "learning" ? "Learning problem" : "Competition"}</span><strong>{item.title}</strong><small>{item.difficulty}</small><small className={`challenge-activity ${itemActivity?.status ?? "loading"}`}>{itemActivity ? challengeActivityLabel(itemActivity) : "Loading progress…"}</small></button>;
+      })}</div>
       {!listOnly && <>
       {challenge && <section className="empty-state" aria-label="Challenge policy"><span className="eyebrow">{challenge.kind} · {challenge.difficulty} · policy v{challenge.policy.version}</span><h3>{challenge.title}</h3><p>{challenge.description}</p><ul>{constraintSummary(challenge).map((item) => <li key={item}>{item}</li>)}</ul><p>Objective: {challenge.policy.objective.direction} {challenge.policy.objective.metric.replace("_", " ")}</p><small>{challenge.policy.config.start_date} – {challenge.policy.config.end_date} · {challenge.policy.config.dataset_id}</small></section>}
       {strategies.length ? <label>Saved strategy<select aria-label="Challenge strategy" value={revisionId} onChange={(event) => setRevisionId(event.target.value)}>{strategies.map((item) => <option key={item.id} value={item.current_revision_id}>{item.name} · {item.current_revision_id.slice(0, 8)}</option>)}</select><small>The current immutable Revision is submitted. Unsaved Builder work is never used.</small></label> : <section className="empty-state"><h3>Create a strategy first</h3><p>Use the fixed Rules catalog, save it, then return here to submit its Revision.</p><button type="button" className="primary-button" disabled={!challenge} onClick={() => { if (challenge) onCreateStrategy(challenge); }}>Create constrained strategy</button></section>}
