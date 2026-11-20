@@ -201,6 +201,9 @@ class ResearchExperimentService:
             schema_version=selected.canonical_strategy.api_version,
             config=hidden_config,
         )
+        self.repository.attach_hidden_outcome(
+            experiment.id, selected.ordinal, hidden_run.id, self._clock()
+        )
         gap = None
         if selected_calibration_run.result is not None and hidden_run.result is not None:
             gap = selected_calibration_run.result.total_return - hidden_run.result.total_return
@@ -445,6 +448,42 @@ class ResearchExperimentService:
 
     def hidden_policies(self):
         return hidden_dataset_policies()
+
+    def get_hidden(self, experiment_id: str) -> HiddenExperimentExecution:
+        experiment = self.repository.get(experiment_id)
+        if experiment.kind != ResearchExperimentKind.HIDDEN:
+            raise InvalidExperimentSpecError("Only a Hidden experiment has a hidden outcome.")
+        policy_id = experiment.spec.get("policy_id")
+        policy = hidden_dataset_policy(str(policy_id)) if policy_id else None
+        if policy is None:
+            raise InvalidExperimentSpecError("Hidden Experiment policy is no longer available.")
+        calibration_runs = []
+        for candidate in experiment.candidates:
+            if candidate.run_id is None:
+                raise InvalidExperimentSpecError("Hidden Experiment calibration Run is missing.")
+            calibration_runs.append(self.runs.get_run(candidate.run_id))
+        selected_ordinal, hidden_run_id = self.repository.get_hidden_outcome(experiment.id)
+        selected_run = next(
+            (
+                run for candidate, run in zip(experiment.candidates, calibration_runs, strict=True)
+                if candidate.ordinal == selected_ordinal
+            ),
+            None,
+        )
+        if selected_run is None:
+            raise InvalidExperimentSpecError("Hidden Experiment selected candidate is missing.")
+        hidden_run = self.runs.get_run(hidden_run_id)
+        gap = None
+        if selected_run.result is not None and hidden_run.result is not None:
+            gap = selected_run.result.total_return - hidden_run.result.total_return
+        return HiddenExperimentExecution(
+            experiment=experiment,
+            policy=policy,
+            calibration_runs=tuple(calibration_runs),
+            selected_candidate_ordinal=selected_ordinal,
+            hidden_run=hidden_run,
+            generalization_gap=gap,
+        )
 
     def get(self, experiment_id: str) -> ResearchExperimentRecord:
         return self.repository.get(experiment_id)
