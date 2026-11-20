@@ -120,8 +120,8 @@ Master data is incomplete.
 Run the reproducible automated prerequisite before owner testing:
 
 ```bash
-./scripts/check_mvp_wsl.sh core
-./scripts/check_mvp_wsl.sh real-data  # after RULETRADE_LEAN_DATA_DIR is set
+bash scripts/check_mvp_wsl.sh core
+bash scripts/check_mvp_wsl.sh real-data  # after RULETRADE_LEAN_DATA_DIR is set
 ```
 
 Then follow [MVP WSL acceptance](mvp-wsl-acceptance.md) for the complete
