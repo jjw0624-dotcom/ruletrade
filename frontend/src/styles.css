@@ -1094,3 +1094,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .challenge-feedback li { display: grid; gap: 3px; padding: 10px 12px; border-radius: 8px; background: #fff; }
 .challenge-feedback small { color: var(--muted); }
 .challenge-iteration-banner ul { display: flex; flex-wrap: wrap; gap: 5px 14px; margin: 3px 0 0; padding-left: 18px; color: var(--muted); font-size: 11px; }
+
+
+.challenge-progress { display: grid; gap: 4px; margin: 14px 0; padding: 12px; border-radius: 9px; text-align: left; background: #f1f4f2; }
+.challenge-progress.improved { color: #185d3d; background: #eaf6ef; }
+.challenge-progress.declined { color: #8b3b31; background: #fff0ed; }
+.challenge-progress small { color: inherit; opacity: .78; }
+.challenge-progress ul { margin: 5px 0 0; padding-left: 18px; font-size: 12px; }
+.attempt-change { font-weight: 750; }
+.attempt-change.improved { color: var(--success); }
+.attempt-change.declined { color: var(--danger); }
+.attempt-change.unchanged { color: var(--muted); }
