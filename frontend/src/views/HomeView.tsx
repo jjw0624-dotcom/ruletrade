@@ -5,7 +5,7 @@ import { StartingPointCard } from "../components/StartingPointCard";
 type Status = "loading" | "loaded" | "error";
 const updated = (value: string) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onLearning, onCompetition, context = "home" }: {
+export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onLearning = () => undefined, onCompetition = () => undefined, context = "home" }: {
   status: Status;
   strategies: StrategyRecord[];
   error: string | null;
@@ -13,8 +13,8 @@ export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate,
   onRetry: () => void;
   onCreate: () => void;
   onExample: (id: ExampleId) => void;
-  onLearning: () => void;
-  onCompetition: () => void;
+  onLearning?: () => void;
+  onCompetition?: () => void;
   context?: "home" | "strategies";
 }) {
   const recent = [...strategies].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
