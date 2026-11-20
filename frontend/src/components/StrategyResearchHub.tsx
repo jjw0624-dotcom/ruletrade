@@ -50,7 +50,7 @@ export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, on
   );
 
   const start = (action: ResearchAction) => {
-    onClose();
+    if (presentation === "dialog") onClose();
     onStart(action);
   };
 
