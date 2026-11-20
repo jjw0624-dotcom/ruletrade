@@ -301,7 +301,7 @@ try {
   await clickText("Research");
   await waitSelector('.research-portfolio[aria-labelledby="strategy-research-title"]');
   await waitExpression(`Boolean([...document.querySelectorAll("button")].find((item)=>item.textContent.includes("Detail BT")))`, "research actions");
-  await clickTextContaining("Detail BT");
+  await evaluate(`([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Detail BT"))).click()`);
   await waitSelector('[aria-labelledby="detail-bt-title"]');
   await clickText("Run Detailed BT");
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/revisions/revision-catalog-mvp/research-experiments/detail')`, "Detailed BT experiment request");
@@ -310,7 +310,7 @@ try {
   if (!detailJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/detail" && item.method === "POST") || !detailJourney.body.includes("10%") || !detailJourney.body.includes("$110,000") || !detailJourney.body.includes("Open full result")) throw new Error(`Detailed BT browser journey failed: ${JSON.stringify(detailJourney)}`);
   await screenshot("detailed-bt-single-run");
   await clickAriaLabel("Close Detailed BT");
-  await clickTextContaining("Hidden BT");
+  await evaluate(`([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Hidden BT"))).click()`);
   await waitSelector('[aria-labelledby="hidden-bt-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/hidden-policies')`, "Hidden BT policy request");
   await waitSelector('[aria-label="Server-owned holdout policy"]');
@@ -324,7 +324,7 @@ try {
   if (!hiddenJourney.requests.some((item) => item.url === "/api/v2/revisions/revision-catalog-mvp/research-experiments/hidden" && item.method === "POST") || !hiddenJourney.body.includes("SELECTED CANDIDATE #1") || !hiddenJourney.body.includes("4% calibration") || !hiddenJourney.body.includes("10%") || !hiddenJourney.body.includes("8%") || !hiddenJourney.body.includes("6%") || !hiddenJourney.body.includes("$106,000")) throw new Error(`Hidden BT browser journey failed: ${JSON.stringify(hiddenJourney)}`);
   await screenshot("hidden-bt-parameter-selection");
   await clickAriaLabel("Close Hidden BT");
-  await clickTextContaining("Tests");
+  await evaluate(`([...document.querySelectorAll(".research-portfolio .strategy-card")].find((item)=>item.textContent.includes("Tests"))).click()`);
   await waitSelector('[aria-labelledby="research-tests-title"]');
   await waitExpression(`(window.__RULETRADE_BROWSER_REQUESTS__??[]).some((item)=>item.url==='/api/v2/research-experiments/robustness-policies')`, "Robustness policy request");
   await waitSelector('[aria-label="Server-owned robustness policy"]');
