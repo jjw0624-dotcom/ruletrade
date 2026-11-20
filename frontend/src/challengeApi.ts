@@ -77,6 +77,10 @@ async function request<T>(path: string, init: RequestInit = {}, fetcher: typeof 
 export const challengeApi = {
   list: (fetcher?: typeof fetch) =>
     request<{ items: ChallengeDefinition[] }>("/v2/challenges", {}, fetcher),
+  get: (challengeId: string, fetcher?: typeof fetch) =>
+    request<ChallengeDefinition>(`/v2/challenges/${encodeURIComponent(challengeId)}`, {}, fetcher),
+  getSubmission: (submissionId: string, fetcher?: typeof fetch) =>
+    request<ChallengeSubmissionRecord>(`/v2/challenge-submissions/${encodeURIComponent(submissionId)}`, {}, fetcher),
   submissions: (challengeId: string, fetcher?: typeof fetch) =>
     request<{ items: ChallengeSubmissionRecord[] }>(
       `/v2/challenges/${encodeURIComponent(challengeId)}/submissions`, {}, fetcher,
