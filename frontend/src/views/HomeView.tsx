@@ -7,7 +7,7 @@ import { ChallengeHubDialog } from "../components/ChallengeHubDialog";
 type Status = "loading" | "loaded" | "error";
 const updated = (value: string) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onOpenRun, context = "home" }: { status: Status; strategies: StrategyRecord[]; error: string | null; onOpen: (id: string) => void; onOpenRun: (id: string) => void; onRetry: () => void; onCreate: () => void; onExample: (id: ExampleId) => void; context?: "home" | "strategies" }) {
+export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onOpenRun = () => undefined, context = "home" }: { status: Status; strategies: StrategyRecord[]; error: string | null; onOpen: (id: string) => void; onOpenRun?: (id: string) => void; onRetry: () => void; onCreate: () => void; onExample: (id: ExampleId) => void; context?: "home" | "strategies" }) {
   const recent = [...strategies].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const [challengeOpen, setChallengeOpen] = useState(false);
   return <section className="page home-page"><header className="home-heading"><div><span className="eyebrow">{context === "strategies" ? "My strategies" : "Home"}</span><h1>{context === "strategies" ? "Your strategies" : "What were you working on?"}</h1></div><div className="dialog-actions"><button className="secondary-button" onClick={() => setChallengeOpen(true)}>Learning & Competition</button><button className="primary-button" onClick={onCreate}>+ New strategy</button></div></header>
