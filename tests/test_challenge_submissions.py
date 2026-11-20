@@ -121,6 +121,33 @@ def test_competition_rejects_disallowed_asset_before_lean(tmp_path: Path) -> Non
     assert service.list_for_challenge("competition-controlled-downside-v1") == ()
 
 
+def test_forged_catalog_tag_is_rejected_before_lean(tmp_path: Path) -> None:
+    database = tmp_path / "ruletrade.sqlite3"
+    revision, runner, service = _setup(database)
+    assert revision.canonical_strategy.program is not None
+    forged_clock = revision.canonical_strategy.program.clocks[0].model_copy(
+        update={"timeframe": "daily"}
+    )
+    forged = revision.canonical_strategy.model_copy(
+        update={
+            "program": revision.canonical_strategy.program.model_copy(
+                update={"clocks": (forged_clock,)}
+            )
+        }
+    )
+    forged_revision = service.strategies.create_strategy(
+        "Forged provenance", forged
+    ).current_revision
+
+    with pytest.raises(
+        InvalidChallengeSubmissionError,
+        match="catalog family is not allowed",
+    ):
+        service.submit("learn-monthly-single-asset-v1", forged_revision.id)
+
+    assert runner.calls == 0
+
+
 def test_result_constraint_marks_submission_ineligible(tmp_path: Path) -> None:
     revision, runner, service = _setup(
         tmp_path / "ruletrade.sqlite3", asset="SPY", total_orders=20
