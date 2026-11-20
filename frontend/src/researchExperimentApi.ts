@@ -119,6 +119,10 @@ export const researchExperimentApi = {
     request<HiddenExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/hidden`, {}, fetcher),
   createDetail: (revisionId: string, payload: CreateDetailExperimentRequest, fetcher?: typeof fetch) =>
     request<DetailExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/detail`, jsonBody("POST", payload), fetcher),
+  getDetail: (experimentId: string, fetcher?: typeof fetch) =>
+    request<DetailExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/detail`, {}, fetcher),
+  getTest: (experimentId: string, fetcher?: typeof fetch) =>
+    request<TestExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/tests`, {}, fetcher),
   createForward: (revisionId: string, payload: CreateForwardExperimentRequest, fetcher?: typeof fetch) =>
     request<ForwardExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/forward`, jsonBody("POST", payload), fetcher),
   refreshForward: (experimentId: string, fetcher?: typeof fetch) =>
