@@ -351,6 +351,7 @@ try {
   await screenshot("persisted-v2-builder-reopened");
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
+  await send("Page.reload", { ignoreCache: true });
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`document.body.innerText.includes('UI Authored Monthly QQQ')`, "ui-authored journey navigation");
   await sleep(500);
