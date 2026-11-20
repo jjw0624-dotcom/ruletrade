@@ -44,7 +44,7 @@ export interface ChallengeSubmissionRecord {
   catalog_parameters: Record<string, unknown>;
   eligible: boolean;
   violations: string[];
-  feedback: ChallengeFeedback[];
+  feedback?: ChallengeFeedback[];
   score: string | null;
   objective: ChallengeObjective;
   created_at: string;
