@@ -1332,6 +1332,22 @@ def list_strategy_research_experiments(
 
 
 @app.get(
+    "/v2/research-experiments/{experiment_id}/hidden",
+    response_model=HiddenExperimentExecution,
+)
+def read_hidden_research_experiment(
+    experiment_id: str,
+    service: Annotated[ResearchExperimentService, Depends(get_research_experiment_service)],
+) -> HiddenExperimentExecution:
+    try:
+        return service.get_hidden(experiment_id)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ResearchExperimentError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@app.get(
     "/v2/research-experiments/{experiment_id}",
     response_model=ResearchExperimentRecord,
 )

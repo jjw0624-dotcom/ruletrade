@@ -107,6 +107,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
   const [testPanel, setTestPanel] = useState<V2TestPanelState>(null);
   const [detailBtOpen, setDetailBtOpen] = useState(false);
   const [hiddenBtOpen, setHiddenBtOpen] = useState(false);
+  const [savedHiddenExperimentId, setSavedHiddenExperimentId] = useState<string | null>(null);
   const [researchTestsOpen, setResearchTestsOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [researchHubOpen, setResearchHubOpen] = useState(false);
@@ -332,7 +333,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
     return <>{conflict && <V2ConflictBanner conflict={conflict} draft={workingDraft} onRefresh={() => void refreshConflict()} onReapply={reapplyConflict} onDiscard={discardConflict} />}<SemanticProgramBuilderAdapter canonical={canonical} dirty={dirty} status={status} message={message} onHome={onHome}
       apply={(operation) => void apply(operation)} save={() => void save()}
       onDetailTest={() => setDetailBtOpen(true)}
-      onHiddenTest={() => setHiddenBtOpen(true)}
+      onHiddenTest={() => { setSavedHiddenExperimentId(null); setHiddenBtOpen(true); }}
       onResearchTests={() => setResearchTestsOpen(true)}
       onForward={() => setForwardOpen(true)}
       onResearchHub={() => setResearchHubOpen(true)}
@@ -347,7 +348,7 @@ export function V2StrategyEditor({ persisted, onHome, onDirtyChange, onOpenRun }
       testPanelId={persistedTestRun ? `run:${persistedTestRun.id}` : testPanel?.status ?? undefined}
       testPanelBookmark={persistedTestRun ? `Run ${persistedTestRun.id.slice(0, 8)}` : undefined}
       retainTestPanel={Boolean(persistedTestRun)}
-      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}{hiddenBtOpen && <HiddenBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setHiddenBtOpen(false)} onOpenRun={onOpenRun} />}{researchTestsOpen && <ResearchTestsDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchTestsOpen(false)} onOpenRun={onOpenRun} />}{forwardOpen && <ForwardExperimentDialog revisionId={revisionId} onClose={() => setForwardOpen(false)} onOpenRun={onOpenRun} />}{researchHubOpen && <StrategyResearchHub strategyId={persisted.strategy.id} currentRevisionId={revisionId} onClose={() => setResearchHubOpen(false)} onOpenRun={onOpenRun} onStart={(action) => { if (action === "detail") setDetailBtOpen(true); else if (action === "hidden") setHiddenBtOpen(true); else if (action === "tests") setResearchTestsOpen(true); else setForwardOpen(true); }} />}</>;
+      onCloseTestPanel={() => setTestPanel(null)} />{detailBtOpen && <DetailBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setDetailBtOpen(false)} onOpenRun={onOpenRun} />}{hiddenBtOpen && <HiddenBtDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} experimentId={savedHiddenExperimentId} onClose={() => { setHiddenBtOpen(false); setSavedHiddenExperimentId(null); }} onOpenRun={onOpenRun} />}{researchTestsOpen && <ResearchTestsDialog revisionId={revisionId} base={catalogBaseFromStrategy(canonical)} onClose={() => setResearchTestsOpen(false)} onOpenRun={onOpenRun} />}{forwardOpen && <ForwardExperimentDialog revisionId={revisionId} onClose={() => setForwardOpen(false)} onOpenRun={onOpenRun} />}{researchHubOpen && <StrategyResearchHub strategyId={persisted.strategy.id} currentRevisionId={revisionId} onClose={() => setResearchHubOpen(false)} onOpenRun={onOpenRun} onOpenHidden={(experimentId) => { setResearchHubOpen(false); setSavedHiddenExperimentId(experimentId); setHiddenBtOpen(true); }} onStart={(action) => { if (action === "detail") setDetailBtOpen(true); else if (action === "hidden") { setSavedHiddenExperimentId(null); setHiddenBtOpen(true); } else if (action === "tests") setResearchTestsOpen(true); else setForwardOpen(true); }} />}</>;
   }
   if (canonical.selection === null) return null;
   return <CompatibilitySelectionBuilderAdapter canonical={canonical as typeof canonical & { selection: NonNullable<typeof canonical.selection> }} dirty={dirty} status={status} message={message}

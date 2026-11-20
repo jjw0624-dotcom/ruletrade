@@ -115,6 +115,8 @@ export const researchExperimentApi = {
     request<{ items: HiddenDatasetPolicy[] }>("/v2/research-experiments/hidden-policies", {}, fetcher),
   createHidden: (revisionId: string, payload: { name: string; policy_id: string; base: CatalogBaseRequest; dimensions: Array<{ parameter_id: string; values: unknown[] }> }, fetcher?: typeof fetch) =>
     request<HiddenExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/hidden`, jsonBody("POST", payload), fetcher),
+  getHidden: (experimentId: string, fetcher?: typeof fetch) =>
+    request<HiddenExperimentExecution>(`/v2/research-experiments/${encodeURIComponent(experimentId)}/hidden`, {}, fetcher),
   createDetail: (revisionId: string, payload: CreateDetailExperimentRequest, fetcher?: typeof fetch) =>
     request<DetailExperimentExecution>(`/v2/revisions/${encodeURIComponent(revisionId)}/research-experiments/detail`, jsonBody("POST", payload), fetcher),
   createForward: (revisionId: string, payload: CreateForwardExperimentRequest, fetcher?: typeof fetch) =>

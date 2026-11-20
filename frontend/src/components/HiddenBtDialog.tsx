@@ -9,9 +9,10 @@ function parseValues(raw: string, sample: unknown): unknown[] {
   return typeof sample === "number" ? values.map(Number) : values.map((item) => item.toUpperCase());
 }
 
-export function HiddenBtDialog({ revisionId, base, onClose, onOpenRun }: {
+export function HiddenBtDialog({ revisionId, base, experimentId, onClose, onOpenRun }: {
   revisionId: string;
   base: CatalogBaseRequest | null;
+  experimentId?: string | null;
   onClose: () => void;
   onOpenRun?: (runId: string) => void;
 }) {
@@ -27,13 +28,21 @@ export function HiddenBtDialog({ revisionId, base, onClose, onOpenRun }: {
 
   useEffect(() => {
     let active = true;
-    void researchExperimentApi.hiddenPolicies().then(({ items }) => {
-      if (active) { setPolicies(items); setPolicyId(items[0]?.id ?? ""); setState("setup"); }
-    }).catch((reason) => {
-      if (active) { setError(reason instanceof Error ? reason.message : "Hidden BT policies could not be loaded."); setState("error"); }
-    });
+    if (experimentId) {
+      void researchExperimentApi.getHidden(experimentId).then((result) => {
+        if (active) { setExecution(result); setState("success"); }
+      }).catch((reason) => {
+        if (active) { setError(reason instanceof Error ? reason.message : "Saved Hidden BT could not be loaded."); setState("error"); }
+      });
+    } else {
+      void researchExperimentApi.hiddenPolicies().then(({ items }) => {
+        if (active) { setPolicies(items); setPolicyId(items[0]?.id ?? ""); setState("setup"); }
+      }).catch((reason) => {
+        if (active) { setError(reason instanceof Error ? reason.message : "Hidden BT policies could not be loaded."); setState("error"); }
+      });
+    }
     return () => { active = false; };
-  }, []);
+  }, [experimentId]);
 
   const policy = policies.find((item) => item.id === policyId) ?? null;
   const chooseParameter = (next: string) => { setParameter(next); setValues(base ? String(base[next]) : ""); };
@@ -65,7 +74,7 @@ export function HiddenBtDialog({ revisionId, base, onClose, onOpenRun }: {
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={state === "loading" || state === "running" || !parameter || !policyId || !name.trim()}>{state === "running" ? "Selecting and evaluating…" : "Run Hidden BT"}</button></div>
     </form> : <div className="detail-bt-results">
-      <div className="detail-bt-result-header"><div><span className="eyebrow">Completed hidden selection</span><h3>{execution.experiment.name}</h3></div><button className="secondary-button" type="button" onClick={() => { setExecution(null); setState("setup"); }}>Run again</button></div>
+      <div className="detail-bt-result-header"><div><span className="eyebrow">Completed hidden selection</span><h3>{execution.experiment.name}</h3></div>{!experimentId && <button className="secondary-button" type="button" onClick={() => { setExecution(null); setState("setup"); }}>Run again</button>}</div>
       <section className="empty-state"><span className="eyebrow">Selected candidate #{execution.selected_candidate_ordinal}</span><h3>{execution.generalization_gap === null ? "Hidden result unavailable" : `${percent(execution.generalization_gap)} calibration − hidden gap`}</h3><p>The hidden result was not used to choose the parameter.</p></section>
       <table><thead><tr><th>Candidate</th><th>Parameters</th><th>Calibration return</th><th>Status</th><th /></tr></thead><tbody>{execution.experiment.candidates.map((candidate, index) => { const item = execution.calibration_runs[index]; return <tr key={candidate.id}><td>#{candidate.ordinal}{candidate.ordinal === execution.selected_candidate_ordinal ? " · selected" : ""}</td><td><code>{JSON.stringify(candidate.parameters)}</code></td><td>{item?.result ? percent(item.result.total_return) : "—"}</td><td>{item?.status ?? "missing"}</td><td>{item && onOpenRun && <button type="button" className="text-button" onClick={() => onOpenRun(item.id)}>Open</button>}</td></tr>; })}</tbody></table>
       <section className="empty-state"><h3>Selected candidate hidden result</h3><p>{execution.hidden_run.result ? `${percent(execution.hidden_run.result.total_return)} · ${money(execution.hidden_run.result.final_value)}` : execution.hidden_run.status}</p>{onOpenRun && <button type="button" className="text-button" onClick={() => onOpenRun(execution.hidden_run.id)}>Open hidden result</button>}</section>
