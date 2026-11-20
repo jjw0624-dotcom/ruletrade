@@ -449,6 +449,35 @@ class ResearchExperimentService:
     def hidden_policies(self):
         return hidden_dataset_policies()
 
+    def _candidate_runs(self, experiment: ResearchExperimentRecord):
+        executions = []
+        for candidate in experiment.candidates:
+            if candidate.run_id is None:
+                raise InvalidExperimentSpecError("Research Experiment candidate Run is missing.")
+            executions.append(self.runs.get_run(candidate.run_id))
+        return tuple(executions)
+
+    def get_detail(self, experiment_id: str) -> DetailExperimentExecution:
+        experiment = self.repository.get(experiment_id)
+        if experiment.kind != ResearchExperimentKind.DETAIL:
+            raise InvalidExperimentSpecError("Only a Detail experiment has a detailed execution.")
+        return DetailExperimentExecution(
+            experiment=experiment,
+            runs=self._candidate_runs(experiment),
+        )
+
+    def get_test(self, experiment_id: str) -> TestExperimentExecution:
+        experiment = self.repository.get(experiment_id)
+        if experiment.kind not in (
+            ResearchExperimentKind.ROBUSTNESS,
+            ResearchExperimentKind.RANDOM_BASELINE,
+        ):
+            raise InvalidExperimentSpecError("Only a robustness or random baseline experiment is a Test.")
+        return TestExperimentExecution(
+            experiment=experiment,
+            runs=self._candidate_runs(experiment),
+        )
+
     def get_hidden(self, experiment_id: str) -> HiddenExperimentExecution:
         experiment = self.repository.get(experiment_id)
         if experiment.kind != ResearchExperimentKind.HIDDEN:
