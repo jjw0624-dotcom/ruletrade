@@ -70,11 +70,14 @@ from ruletrade.challenges.errors import (
     InvalidChallengeSubmissionError,
 )
 from ruletrade.challenges.models import (
+    ChallengeAttemptList,
+    ChallengeAttemptRecord,
     ChallengeDefinition,
     ChallengeList,
     ChallengeSubmissionExecution,
     ChallengeSubmissionList,
     ChallengeSubmissionRecord,
+    CreateChallengeAttemptRequest,
     CreateChallengeSubmissionRequest,
 )
 from ruletrade.challenges.service import ChallengeSubmissionService
@@ -497,6 +500,41 @@ def read_challenge(challenge_id: str) -> ChallengeDefinition:
 
 
 @app.post(
+    "/v2/challenges/{challenge_id}/attempts",
+    response_model=ChallengeAttemptRecord,
+    status_code=201,
+)
+def create_challenge_attempt(
+    challenge_id: str,
+    request: CreateChallengeAttemptRequest,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeAttemptRecord:
+    return service.start_attempt(challenge_id, request.strategy_id)
+
+
+@app.get(
+    "/v2/challenges/{challenge_id}/attempts",
+    response_model=ChallengeAttemptList,
+)
+def list_challenge_attempts(
+    challenge_id: str,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeAttemptList:
+    return ChallengeAttemptList(items=service.list_attempts_for_challenge(challenge_id))
+
+
+@app.get(
+    "/v2/challenge-attempts/{attempt_id}",
+    response_model=ChallengeAttemptRecord,
+)
+def read_challenge_attempt(
+    attempt_id: str,
+    service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
+) -> ChallengeAttemptRecord:
+    return service.get_attempt(attempt_id)
+
+
+@app.post(
     "/v2/challenges/{challenge_id}/submissions",
     response_model=ChallengeSubmissionExecution,
     status_code=201,
@@ -506,7 +544,7 @@ def create_challenge_submission(
     request: CreateChallengeSubmissionRequest,
     service: Annotated[ChallengeSubmissionService, Depends(get_challenge_submission_service)],
 ) -> ChallengeSubmissionExecution:
-    return service.submit(challenge_id, request.revision_id)
+    return service.submit(challenge_id, request.revision_id, request.attempt_id)
 
 
 @app.get(
