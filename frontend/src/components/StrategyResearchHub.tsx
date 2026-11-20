@@ -15,7 +15,7 @@ const labels: Record<ResearchExperimentRecord["kind"], string> = {
   forward: "Forward",
 };
 
-export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, onStart, onOpenRun, onOpenDetail, onOpenHidden, onOpenTest }: {
+export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, onStart, onOpenRun, onOpenDetail, onOpenHidden, onOpenTest, presentation = "dialog" }: {
   strategyId: string;
   currentRevisionId: string;
   onClose: () => void;
@@ -24,6 +24,7 @@ export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, on
   onOpenDetail?: (experimentId: string) => void;
   onOpenHidden?: (experimentId: string) => void;
   onOpenTest?: (experimentId: string) => void;
+  presentation?: "dialog" | "page";
 }) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -53,11 +54,11 @@ export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, on
     onStart(action);
   };
 
-  return <div className="modal-backdrop detail-bt-backdrop" role="presentation">
-    <section className="creation-picker detail-bt-dialog" role="dialog" aria-modal="true" aria-labelledby="strategy-research-title">
+  return <div className={presentation === "page" ? "strategy-research-page" : "modal-backdrop detail-bt-backdrop"} role={presentation === "page" ? undefined : "presentation"}>
+    <section className={presentation === "page" ? "page research-portfolio" : "creation-picker detail-bt-dialog"} role={presentation === "page" ? "main" : "dialog"} aria-modal={presentation === "page" ? undefined : true} aria-labelledby="strategy-research-title">
       <header>
         <div><span className="eyebrow">Strategy object</span><h2 id="strategy-research-title">Research</h2><p>Run new evaluation from the current saved Revision or reopen immutable evidence from any prior Revision.</p></div>
-        <button type="button" className="close-button" aria-label="Close Research" onClick={onClose}>×</button>
+        <button type="button" className={presentation === "page" ? "text-button" : "close-button"} aria-label="Close Research" onClick={onClose}>{presentation === "page" ? "← Strategy" : "×"}</button>
       </header>
       <div className="detail-bt-results">
         <section className="result-hero">
@@ -83,7 +84,7 @@ export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, on
             return <tr key={experiment.id}><td><strong>{experiment.name}</strong><br/><small>{labels[experiment.kind]}</small></td><td>{experiment.revision_id.slice(0, 8)}{experiment.revision_id === currentRevisionId ? " · current" : ""}</td><td>{runs.length}</td><td>{experiment.kind === "detail" && onOpenDetail ? <button type="button" className="text-button" onClick={() => onOpenDetail(experiment.id)}>Open experiment</button> : experiment.kind === "hidden" && onOpenHidden ? <button type="button" className="text-button" onClick={() => onOpenHidden(experiment.id)}>Open experiment</button> : (experiment.kind === "robustness" || experiment.kind === "random_baseline") && onOpenTest ? <button type="button" className="text-button" onClick={() => onOpenTest(experiment.id)}>Open experiment</button> : latestRunId && onOpenRun ? <button type="button" className="text-button" onClick={() => onOpenRun(latestRunId)}>Open Run</button> : "—"}</td></tr>;
           })}</tbody></table></div>}
         </section>
-        <footer><p>Research records are immutable and remain attributable to their source Revision.</p><button type="button" className="secondary-button" onClick={onClose}>Done</button></footer>
+        <footer><p>Research records are immutable and remain attributable to their source Revision.</p>{presentation === "dialog" && <button type="button" className="secondary-button" onClick={onClose}>Done</button>}</footer>
       </div>
     </section>
   </div>;
