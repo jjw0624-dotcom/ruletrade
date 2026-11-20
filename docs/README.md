@@ -22,7 +22,8 @@ Read documentation in this order:
 2. [Living architecture](architecture.md) — authoritative implemented system architecture.
 3. [V2 Builder completion baseline](v2-builder-completion-baseline.md) — active Builder milestone, evidence, manual acceptance, and merge gates.
 4. [Development and validation](development.md) — setup, CI, Codespaces, Docker/LEAN, and WSL.
-5. Current subsystem documents — detailed contracts linked below.
+5. [MVP WSL acceptance](mvp-wsl-acceptance.md) — final automated and owner acceptance for the fixed-strategy MVP.
+6. Current subsystem documents — detailed contracts linked below.
 
 Documents marked **Historical** or **Superseded** preserve rationale and
 acceptance evidence. They are not sources of current product scope or
@@ -36,6 +37,7 @@ architecture when they conflict with code or the living architecture.
 | `architecture.md` | CURRENT | Living end-to-end architecture and ownership |
 | `v2-builder-completion-baseline.md` | CURRENT | Active V2 Builder completion sequence, evidence, WSL acceptance, and merge gate |
 | `development.md` | CURRENT | Setup, validation, CI, Codespaces, Docker/LEAN |
+| `mvp-wsl-acceptance.md` | CURRENT | Final fixed-strategy MVP automated and owner acceptance |
 | `canonical-v1.md` | CURRENT | Canonical and Registry foundation |
 | `compiler-foundation.md` | CURRENT | Compiler authority and supported slices |
 | `strategy-ir.md` | CURRENT | IR and lowering architecture |
