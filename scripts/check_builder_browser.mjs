@@ -51,6 +51,7 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
   };
+  const clickQuickTest = async () => evaluate(`(() => { const button=[...document.querySelectorAll('.builder-actions button.primary-button')].reverse().find((item)=>{ const rect=item.getBoundingClientRect(); return item.textContent.trim().startsWith('Test')&&!item.textContent.trim().startsWith('Tests')&&!item.disabled&&rect.width&&rect.height; }); if(!button) throw new Error('Missing enabled Quick Test button'); button.click(); return true; })()`);
   const clickAriaLabel = async (label) => {
     const point = await evaluate(`(() => { const item=document.querySelector('[aria-label='+CSS.escape(${JSON.stringify(label)})+']'); if(!item) throw new Error('Missing aria-label: '+${JSON.stringify(label)}); const rect=item.getBoundingClientRect(); if(!rect.width||!rect.height) throw new Error('Hidden aria-label: '+${JSON.stringify(label)}); return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
@@ -180,7 +181,7 @@ try {
   const blockyGroupState = await evaluate(`(() => { const projection=document.querySelector('[data-projection-contract="blocky"]'); const test=[...document.querySelectorAll('button')].find((item)=>item.textContent.trim().startsWith('Test')); const draft=window.__RULETRADE_BROWSER_DRAFT__; return {candidate:projection?.getAttribute('data-execution-candidate'),testDisabled:test?.disabled,testTitle:test?.title,connections:draft?.blockConnections,blocks:draft?.canvasBlocks}; })()`);
   if (blockyGroupState.candidate !== "ready" || blockyGroupState.testDisabled) throw new Error(`Blocky Group graph was not test-ready: ${JSON.stringify(blockyGroupState)}`);
   const blockyGroupBefore = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return {blocks:Object.keys(draft?.canvasBlocks??{}).sort(),connections:draft?.blockConnections,positions:draft?.blockPositions}; })()`);
-  await clickTextContaining("Test");
+  await clickQuickTest();
   await waitExpression(`window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation?.kind==='set_program_investment'`, "typed Blocky Group investment handoff");
   const blockyGroupHandoff = await evaluate(`({operation:window.__RULETRADE_BLOCKY_GROUP_HANDOFF__?.operation,canonical:window.__RULETRADE_BROWSER_CANONICAL__,draft:window.__RULETRADE_BROWSER_DRAFT__})`);
   if (blockyGroupHandoff.operation?.target_kind !== "group" || blockyGroupHandoff.operation?.target_ref !== "group-1" || blockyGroupHandoff.operation?.clock_id !== "daily-close") throw new Error(`Blocky Group handoff changed typed investment meaning: ${JSON.stringify(blockyGroupHandoff.operation)}`);
@@ -200,7 +201,7 @@ try {
   await waitExpression(`document.querySelector('[data-projection-contract="blocky"]')?.getAttribute('data-execution-candidate')==='ready'`, "V2B-02 executable candidate");
   const v2b02Before = await evaluate(`(() => { const draft=window.__RULETRADE_BROWSER_DRAFT__; return { blocks:Object.keys(draft?.canvasBlocks??{}).sort(), connections:draft?.blockConnections, filter:draft?.canvasBlocks?.['draft:filter']?.fieldValues?.FILTER_SPEC, source:draft?.canvasBlocks?.['draft:source']?.objectRef }; })()`);
   if (v2b02Before.blocks.length !== 9 || v2b02Before.source !== "group-1" || !String(v2b02Before.filter).includes("positive-126")) throw new Error(`V2B-02 native graph did not preserve Group and Filter identity: ${JSON.stringify(v2b02Before)}`);
-  await clickTextContaining("Test");
+  await clickQuickTest();
   await waitExpression(`window.__RULETRADE_V2B02_HANDOFF__?.operation?.kind==='insert_program_statement'`, "typed V2B-02 Program handoff");
   const v2b02 = await evaluate(`(() => { const operation=window.__RULETRADE_V2B02_HANDOFF__?.operation; const event=operation?.statement; const select=event?.statements?.find((item)=>item.kind==='select'); const buy=event?.statements?.find((item)=>item.kind==='buy'); const draft=window.__RULETRADE_BROWSER_DRAFT__; return { operationKind:operation?.kind, eventKind:event?.kind, clock:event?.event?.clock_id, universe:select?.selection?.universe_id, eligibility:select?.selection?.eligibility, ranking:select?.selection?.ranking, count:select?.selection?.count, shortage:select?.selection?.shortage_policy, output:select?.output_id, buyTarget:buy?.target, buyAmount:buy?.amount, blocks:Object.keys(draft?.canvasBlocks??{}).sort(), connections:draft?.blockConnections, canonical:window.__RULETRADE_BROWSER_CANONICAL__ }; })()`);
   if (v2b02.eventKind !== "on_event" || v2b02.clock !== "daily-close" || v2b02.universe !== "group-1" || v2b02.eligibility?.operator !== "gt" || v2b02.ranking?.kind !== "trailing_return" || v2b02.ranking?.observations !== 63 || v2b02.count !== 1 || v2b02.shortage !== "choose_all" || v2b02.buyTarget?.kind !== "selection" || v2b02.buyTarget?.ref !== v2b02.output || v2b02.buyAmount?.kind !== "units_each" || v2b02.buyAmount?.units !== 1) throw new Error(`V2B-02 typed handoff changed composed meaning: ${JSON.stringify(v2b02)}`);
@@ -321,7 +322,7 @@ try {
   await waitSelector('[data-production-builder-shell="true"]');
   const builderBeforeDashboard = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width}}; })()`);
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled persisted V2 Test");
-  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickQuickTest(); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
   const dashboardGeometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); const dashboard=document.querySelector('.quick-test-dashboard').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width},dashboard:{width:dashboard.width}}; })()`);
   if (Math.abs(builderBeforeDashboard.canvas.x-dashboardGeometry.canvas.x)>1 || Math.abs(builderBeforeDashboard.canvas.y-dashboardGeometry.canvas.y)>1 || Math.abs(builderBeforeDashboard.canvas.width-dashboardGeometry.canvas.width)>1 || Math.abs(builderBeforeDashboard.canvas.height-dashboardGeometry.canvas.height)>1 || dashboardGeometry.dashboard.width/dashboardGeometry.workbench.width < .68 || dashboardGeometry.dashboard.width/dashboardGeometry.workbench.width > .72) throw new Error(`Quick Test Dashboard changed Builder geometry: ${JSON.stringify({builderBeforeDashboard,dashboardGeometry})}`);
@@ -350,13 +351,9 @@ try {
   await clickText("Back"); await waitSelector('[data-production-builder-shell="true"]');
   await screenshot("persisted-v2-builder-reopened");
 
-  await send("Page.navigate", { url: "about:blank" });
-  await sleep(100);
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=ui-authored-equivalence" });
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`document.body.innerText.includes('UI Authored Monthly QQQ')`, "ui-authored journey navigation");
-  await sleep(500);
-  if (await evaluate(`Boolean(document.querySelector('[aria-label="Close Tests"]'))`)) await clickAriaLabel("Close Tests");
   await clickText("Guide"); await waitSelector('[aria-label="Guided strategy editor"]');
   await clickText("Choose QQQ first"); await waitSelector('[data-intent-recipe="single_asset"]');
   await evaluate(`(() => { const details=document.querySelector('input[aria-label="Manual asset symbol"]').closest('details'); details.open=true; })()`);
@@ -372,7 +369,7 @@ try {
   await clickText("Commit strategy meaning");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.operation?.kind==='commit_single_asset_intent'`, "typed Guide operation");
   await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled Test with unsaved committed semantics");
-  await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+  await clickQuickTest(); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-2'`, "Quick Test auto-saved UI-authored revision");
   await waitSelector('.quick-test-dashboard .result-workspace');
@@ -436,7 +433,7 @@ try {
       if (!flow.includes("70%") || !flow.includes("30%") || !flow.includes("IEF") || !blocky.includes("Split Portfolio capital") || !blocky.includes("70% portfolio weight") || !blocky.includes("30% portfolio weight") || !manifest.includes("statement:portfolio-split:LEG_1->investment-leg:growth-sleeve-leg") || !manifest.includes("statement:portfolio-split:LEG_2->investment-leg:defensive-sleeve-leg") || manifest.includes("investment-leg:growth-sleeve-leg:NEXT->investment-leg:defensive-sleeve-leg")) throw new Error(`V2B-04 did not preserve parallel split ownership: ${JSON.stringify({flow,blocky,manifest})}`);
     }
     await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, `${advanced.id} executable Test`);
-    await clickTextContaining("Test"); await waitSelector('.quick-test-panel');
+    await clickQuickTest(); await waitSelector('.quick-test-panel');
     await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
     const advancedJourney = await evaluate(`({state:window.__RULETRADE_ADVANCED_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],dashboard:Boolean(document.querySelector('.quick-test-dashboard .result-workspace'))})`);
     if (!advancedJourney.requests.some((item)=>item.url==='/api/v2/revisions/revision-advanced-2/backtest-runs'&&item.method==='POST') || !advancedJourney.dashboard) throw new Error(`${advanced.id} execution equivalence failed: ${JSON.stringify(advancedJourney)}`);
