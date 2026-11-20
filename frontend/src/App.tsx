@@ -92,10 +92,10 @@ export default function App() {
   const creationInFlight = useRef(false);
 
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
-    if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return;
+    if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return false;
     if (!preserveFocus) setSourceFocus(null);
     if (next.page !== "strategy") setAdoptionNotice(null);
-    window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "strategy") setDirty(false);
+    window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "strategy") setDirty(false); return true;
   }, [dirty, route.page]);
 
   useEffect(() => { const onPopState = () => setRoute(routeFromPath(window.location.pathname)); window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
@@ -233,8 +233,7 @@ export default function App() {
       {challengeIteration?.strategyId === route.strategyId && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
         <div><span className="eyebrow">Challenge iteration</span><strong>Revise this strategy, save a new Revision, then evaluate it against the same problem.</strong></div>
         <button type="button" className="primary-button" onClick={() => {
-          setChallengeLaunch({ ...challengeIteration, token: Date.now() });
-          navigate({ page: "home" });
+          if (navigate({ page: "home" })) setChallengeLaunch({ ...challengeIteration, token: Date.now() });
         }}>Return to challenge</button>
       </aside>}
       <StrategyWorkspaceEditor
