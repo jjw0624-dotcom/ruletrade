@@ -247,8 +247,8 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=catalog-mvp" });
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
-  await clickText("Learning & Competition");
-  await waitSelector('[aria-labelledby="challenge-hub-title"]');
+  await clickText("Learning");
+  await waitSelector('.challenge-workspace[aria-labelledby="challenge-hub-title"]');
   await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "Learning challenge policy");
   await clickText("Create constrained strategy");
   await waitSelector('[aria-labelledby="catalog-title"]');
@@ -268,7 +268,7 @@ try {
   if (constrainedAuthoring.ruleCount !== 1 || !constrainedAuthoring.ruleText.some((item) => item.includes("Single asset periodic")) || JSON.stringify(constrainedAuthoring.assets) !== JSON.stringify(["QQQ", "SPY"]) || constrainedAuthoring.rebalanceValue !== "monthly" || !constrainedAuthoring.rebalanceDisabled || !constrainedAuthoring.body.includes("Policy v1 applied")) throw new Error(`Problem-first constrained authoring failed: ${JSON.stringify(constrainedAuthoring)}`);
   await screenshot("problem-first-constrained-rules-authoring");
   await clickAriaLabel("Close");
-  await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "return from constrained authoring");
+  await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "return to Learning problem page");
   await clickTextContaining("+ New strategy");
   await waitSelector('[aria-labelledby="picker-title"]');
   await clickTextContaining("Choose a strategy rule");
@@ -294,6 +294,12 @@ try {
   if (catalogListIndex < 0 || catalogCreateIndex <= catalogListIndex || catalogSaveIndex <= catalogCreateIndex || catalogRunIndex <= catalogSaveIndex || !catalogJourney.body.includes("HOW DID IT DO?") || catalogJourney.requests.some((item) => item.url.includes("/api/v1/backtest-runs"))) throw new Error(`Catalog MVP create-to-test journey failed: ${JSON.stringify(catalogJourney)}`);
   await screenshot("catalog-mvp-created-saved-and-executed");
   await clickAriaLabel("Close Quick Test Dashboard");
+  const builderActions = await evaluate(`([...document.querySelectorAll('.builder-actions button')].map((item)=>item.textContent.trim()))`);
+  if (builderActions.some((label) => ["Research", "Detail BT", "Hidden BT", "Tests", "Forward"].includes(label))) throw new Error(`Builder leaked durable evaluation tools: ${JSON.stringify(builderActions)}`);
+  await clickAriaLabel("Back to Home");
+  await waitSelector('[aria-label="Strategy detail"]');
+  await clickText("Research");
+  await waitSelector('.research-portfolio[aria-labelledby="strategy-research-title"]');
   await clickText("Detail BT");
   await waitSelector('[aria-labelledby="detail-bt-title"]');
   await clickText("Run Detailed BT");
