@@ -65,11 +65,10 @@ export function routeFromPath(pathname: string, search = ""): AppRoute {
 }
 
 function withProblemContext(path: string, strategyId?: string, attemptId?: string): string {
-  const params = new URLSearchParams();
-  if (strategyId) params.set("strategy", strategyId);
-  if (attemptId) params.set("attempt", attemptId);
-  const query = params.toString();
-  return query ? `${path}?${query}` : path;
+  const params: string[] = [];
+  if (strategyId) params.push(`strategy=${encodeURIComponent(strategyId)}`);
+  if (attemptId) params.push(`attempt=${encodeURIComponent(attemptId)}`);
+  return params.length ? `${path}?${params.join("&")}` : path;
 }
 
 export function pathForRoute(route: AppRoute): string {
