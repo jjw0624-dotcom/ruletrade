@@ -111,6 +111,7 @@ def test_detail_experiment_runs_unchanged_revision_once(tmp_path: Path) -> None:
     assert execution.runs[0].revision_id == revision.id
     assert execution.experiment.candidates[0].source_hash == revision.source_hash
     assert execution.experiment.candidates[0].canonical_strategy == revision.canonical_strategy
+    assert service.get_detail(execution.experiment.id) == execution
 
 
 def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
@@ -124,6 +125,7 @@ def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
             )
             listed = client.get(f"/v2/revisions/{revision.id}/research-experiments")
             read = client.get("/v2/research-experiments/experiment-1")
+            reopened = client.get("/v2/research-experiments/experiment-1/detail")
     finally:
         app.dependency_overrides.clear()
 
@@ -132,6 +134,8 @@ def test_detail_experiment_api_create_list_and_read(tmp_path: Path) -> None:
     assert created.json()["experiment"]["candidates"][0]["parameters"] == {"role": "detailed"}
     assert listed.status_code == 200 and len(listed.json()["items"]) == 1
     assert read.status_code == 200 and read.json()["id"] == "experiment-1"
+    assert reopened.status_code == 200
+    assert reopened.json() == created.json()
 
 
 def test_hidden_experiment_selects_on_calibration_then_runs_winner_once(tmp_path: Path) -> None:
@@ -229,6 +233,7 @@ def test_robustness_experiment_runs_server_owned_start_offsets(tmp_path: Path) -
         for item in execution.experiment.candidates
     )
     assert runner.calls == 4
+    assert service.get_test(execution.experiment.id) == execution
 
 
 def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> None:
@@ -262,6 +267,7 @@ def test_random_baseline_is_seeded_and_uses_catalog_universe(tmp_path: Path) -> 
         run.id for run in execution.runs
     ]
     assert runner.calls == 3
+    assert service.get_test(execution.experiment.id) == execution
 
 
 def test_research_test_api_contracts(tmp_path: Path) -> None:
@@ -299,6 +305,7 @@ def test_research_test_api_contracts(tmp_path: Path) -> None:
                     },
                 },
             )
+            reopened = client.get("/v2/research-experiments/experiment-random/tests")
     finally:
         app.dependency_overrides.clear()
 
@@ -308,6 +315,8 @@ def test_research_test_api_contracts(tmp_path: Path) -> None:
     assert len(robust.json()["runs"]) == 4
     assert random_baseline.status_code == 201
     assert random_baseline.json()["experiment"]["kind"] == "random_baseline"
+    assert reopened.status_code == 200
+    assert reopened.json() == random_baseline.json()
 
 
 def test_random_baseline_rejects_duplicate_seeds_before_persistence(tmp_path: Path) -> None:
