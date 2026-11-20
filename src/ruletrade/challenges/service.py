@@ -76,6 +76,7 @@ class ChallengeSubmissionService:
             challenge_version=challenge.version,
             policy_version=challenge.policy.version,
             revision_id=revision.id,
+            strategy_id=revision.strategy_id,
             run_id=run.id,
             catalog_id=catalog_id,
             catalog_parameters=parameters,
@@ -195,11 +196,14 @@ class ChallengeSubmissionService:
         self,
         submission: ChallengeSubmissionRecord,
     ) -> ChallengeSubmissionRecord:
-        if submission.feedback:
-            return submission
-        challenge = get_challenge(submission.challenge_id)
-        if challenge is None:
-            return submission
-        run = self.runs.get_run(submission.run_id)
-        feedback = self._result_feedback(challenge.policy.constraints, run)
-        return submission.model_copy(update={"feedback": tuple(feedback)})
+        revision = self.strategies.get_revision_by_id(submission.revision_id)
+        feedback = submission.feedback
+        if not feedback:
+            challenge = get_challenge(submission.challenge_id)
+            if challenge is not None:
+                run = self.runs.get_run(submission.run_id)
+                feedback = tuple(self._result_feedback(challenge.policy.constraints, run))
+        return submission.model_copy(update={
+            "strategy_id": revision.strategy_id,
+            "feedback": tuple(feedback),
+        })

@@ -261,7 +261,7 @@ try {
   await clickText("Edit in Builder");
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`document.body.innerText.includes('QQQ monthly')`, "persisted catalog strategy");
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "catalog strategy Test");
+  await waitExpression(`Boolean([...document.querySelectorAll('.builder-actions button.primary-button')].find((item)=>item.textContent.trim().startsWith('Test')&&!item.textContent.trim().startsWith('Tests')&&!item.disabled))`, "catalog strategy Test");
   await evaluate(`(() => { const button=[...document.querySelectorAll('.builder-actions button.primary-button')].reverse().find((item)=>{ const rect=item.getBoundingClientRect(); return item.textContent.trim()==='Test ▶'&&!item.disabled&&rect.width&&rect.height; }); if(!button) throw new Error('Missing enabled Quick Test button'); button.click(); return true; })()`); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
   const catalogJourney = await evaluate(`({body:document.body.innerText,requests:window.__RULETRADE_BROWSER_REQUESTS__??[]})`);
@@ -321,7 +321,7 @@ try {
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=persisted-v2" });
   await waitSelector('[data-production-builder-shell="true"]');
   const builderBeforeDashboard = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width}}; })()`);
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled persisted V2 Test");
+  await waitExpression(`Boolean([...document.querySelectorAll('.builder-actions button.primary-button')].find((item)=>item.textContent.trim().startsWith('Test')&&!item.textContent.trim().startsWith('Tests')&&!item.disabled))`, "enabled persisted V2 Test");
   await clickQuickTest(); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
   const dashboardGeometry = await evaluate(`(() => { const canvas=document.querySelector('.representation-workspace').getBoundingClientRect(); const workbench=document.querySelector('.builder-workbench').getBoundingClientRect(); const dashboard=document.querySelector('.quick-test-dashboard').getBoundingClientRect(); return {canvas:{x:canvas.x,y:canvas.y,width:canvas.width,height:canvas.height},workbench:{width:workbench.width},dashboard:{width:dashboard.width}}; })()`);
@@ -368,7 +368,7 @@ try {
   await scrollButtonIntoView("Commit strategy meaning"); await sleep(100);
   await clickText("Commit strategy meaning");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.operation?.kind==='commit_single_asset_intent'`, "typed Guide operation");
-  await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, "enabled Test with unsaved committed semantics");
+  await waitExpression(`Boolean([...document.querySelectorAll('.builder-actions button.primary-button')].find((item)=>item.textContent.trim().startsWith('Test')&&!item.textContent.trim().startsWith('Tests')&&!item.disabled))`, "enabled Test with unsaved committed semantics");
   await clickQuickTest(); await waitSelector('.quick-test-panel');
   await clickText("Run Quick Test");
   await waitExpression(`window.__RULETRADE_UI_EQUIVALENCE__?.savedRevision==='revision-ui-authored-2'`, "Quick Test auto-saved UI-authored revision");
@@ -432,7 +432,7 @@ try {
       const manifest = await evaluate(`document.querySelector('[data-projection-contract="blocky"]')?.getAttribute('data-block-connection-manifest')??''`);
       if (!flow.includes("70%") || !flow.includes("30%") || !flow.includes("IEF") || !blocky.includes("Split Portfolio capital") || !blocky.includes("70% portfolio weight") || !blocky.includes("30% portfolio weight") || !manifest.includes("statement:portfolio-split:LEG_1->investment-leg:growth-sleeve-leg") || !manifest.includes("statement:portfolio-split:LEG_2->investment-leg:defensive-sleeve-leg") || manifest.includes("investment-leg:growth-sleeve-leg:NEXT->investment-leg:defensive-sleeve-leg")) throw new Error(`V2B-04 did not preserve parallel split ownership: ${JSON.stringify({flow,blocky,manifest})}`);
     }
-    await waitExpression(`Boolean([...document.querySelectorAll('button')].find((item)=>item.textContent.includes('Test')&&!item.disabled))`, `${advanced.id} executable Test`);
+    await waitExpression(`Boolean([...document.querySelectorAll('.builder-actions button.primary-button')].find((item)=>item.textContent.trim().startsWith('Test')&&!item.textContent.trim().startsWith('Tests')&&!item.disabled))`, `${advanced.id} executable Test`);
     await clickQuickTest(); await waitSelector('.quick-test-panel');
     await clickText("Run Quick Test"); await waitSelector('.quick-test-dashboard .result-workspace');
     const advancedJourney = await evaluate(`({state:window.__RULETRADE_ADVANCED_EQUIVALENCE__,requests:window.__RULETRADE_BROWSER_REQUESTS__??[],dashboard:Boolean(document.querySelector('.quick-test-dashboard .result-workspace'))})`);
