@@ -64,7 +64,7 @@ function defaultsFor(bootstrap: EditorBootstrap): StrategyExample {
 }
 
 export default function App() {
-  const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname));
+  const [route, setRoute] = useState<AppRoute>(() => routeFromPath(window.location.pathname, window.location.search));
   const [workspace, setWorkspace] = useState<StrategyWorkspace | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("idle");
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export default function App() {
     window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "builder") setDirty(false); return true;
   }, [dirty, route.page]);
 
-  useEffect(() => { const onPopState = () => setRoute(routeFromPath(window.location.pathname)); window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
+  useEffect(() => { const onPopState = () => setRoute(routeFromPath(window.location.pathname, window.location.search)); window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
   useEffect(() => { const onBeforeUnload = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); }; window.addEventListener("beforeunload", onBeforeUnload); return () => window.removeEventListener("beforeunload", onBeforeUnload); }, [dirty]);
 
   const loadList = useCallback(async () => {
@@ -109,7 +109,7 @@ export default function App() {
     try { const result = await strategyApi.list(); setStrategies(result.items); setListStatus("loaded"); }
     catch (reason) { setListError(reason instanceof Error ? reason.message : "The backend is unavailable."); setListStatus("error"); }
   }, []);
-  useEffect(() => { if (["home", "strategies", "explore", "example", "learning", "competitions"].includes(route.page)) void loadList(); }, [route.page, loadList]);
+  useEffect(() => { if (["home", "strategies", "explore", "example", "learning", "learningProblem", "competitions", "competition"].includes(route.page)) void loadList(); }, [route.page, loadList]);
 
   useEffect(() => {
     if (route.page !== "run") return;
@@ -192,7 +192,7 @@ export default function App() {
       }
       const challenge = catalogChallenge;
       setCatalogChallenge(null);
-      navigate(challenge ? { page: "builder", strategyId: detail.strategy.id } : routeForCreatedStrategy(detail));
+      navigate(challenge ? { page: "builder", strategyId: detail.strategy.id, challenge: { kind: challenge.kind, challengeId: challenge.id } } : routeForCreatedStrategy(detail));
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
     } finally {
@@ -232,6 +232,12 @@ export default function App() {
     } catch (reason) { setRunError(reason instanceof Error ? reason.message : "We couldn't open the strategy rule."); }
   }
 
+  const builderChallenge = route.page === "builder"
+    ? route.challenge ?? (challengeIteration?.strategyId === route.strategyId ? { kind: challengeIteration.challengeKind, challengeId: challengeIteration.challengeId } : undefined)
+    : undefined;
+  const builderFeedback = route.page === "builder" && challengeIteration?.strategyId === route.strategyId && builderChallenge?.challengeId === challengeIteration.challengeId
+    ? challengeIteration.feedback
+    : [];
   const strategyName = workspace?.detail?.strategy.name ?? (route.page === "example" ? findExample(route.exampleId)?.title : undefined);
   const recent = [...strategies].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const openPicker = () => { setCreateError(null); setPickerOpen(true); };
@@ -244,11 +250,12 @@ export default function App() {
     {(route.page === "example" || route.page === "strategy" || route.page === "builder" || route.page === "research") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
     {(route.page === "strategy" || route.page === "builder" || route.page === "research") && workspace && workspaceStatus === "loaded" && workspace.detail && <>
-      {route.page === "builder" && challengeIteration?.strategyId === route.strategyId && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
-        <div><span className="eyebrow">Problem submission draft</span><strong>Revise this strategy, save a new Revision, then return to the problem page to submit it.</strong>{challengeIteration.feedback.length > 0 && <ul>{challengeIteration.feedback.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
-        <button type="button" className="primary-button" onClick={() => {
-          if (navigate({ page: challengeIteration.challengeKind === "learning" ? "learning" : "competitions" })) setChallengeLaunch({ challengeId: challengeIteration.challengeId, strategyId: challengeIteration.strategyId, token: Date.now() });
-        }}>Return to problem</button>
+      {route.page === "builder" && builderChallenge && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
+        <div><span className="eyebrow">Problem submission draft</span><strong>Revise this strategy, save a new Revision, then return to the problem page to submit it.</strong>{builderFeedback.length > 0 && <ul>{builderFeedback.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
+        <button type="button" className="primary-button" onClick={() => navigate(builderChallenge.kind === "learning"
+          ? { page: "learningProblem", problemId: builderChallenge.challengeId, strategyId: route.strategyId }
+          : { page: "competition", competitionId: builderChallenge.challengeId, strategyId: route.strategyId }
+        )}>Return to problem</button>
       </aside>}
       <StrategyWorkspaceEditor
         bootstrap={workspace.bootstrap} example={workspace.example} detail={workspace.detail}
@@ -262,19 +269,22 @@ export default function App() {
         onOpenRun={(runId) => navigate({ page: "run", runId })}
       />
     </>}
-    {(route.page === "learning" || route.page === "competitions") && <ChallengeHubDialog
+    {(["learning", "learningProblem", "competitions", "competition"] as const).includes(route.page as "learning" | "learningProblem" | "competitions" | "competition") && <ChallengeHubDialog
       presentation="page"
-      kind={route.page === "learning" ? "learning" : "competition"}
+      kind={route.page === "learning" || route.page === "learningProblem" ? "learning" : "competition"}
+      listOnly={route.page === "learning" || route.page === "competitions"}
       strategies={recent}
-      initialChallengeId={challengeLaunch?.challengeId}
-      initialStrategyId={challengeLaunch?.strategyId}
-      onClose={() => navigate({ page: "home" })}
+      initialChallengeId={route.page === "learningProblem" ? route.problemId : route.page === "competition" ? route.competitionId : challengeLaunch?.challengeId}
+      initialStrategyId={route.page === "learningProblem" || route.page === "competition" ? route.strategyId : challengeLaunch?.strategyId}
+      onClose={() => navigate(route.page === "learningProblem" ? { page: "learning" } : route.page === "competition" ? { page: "competitions" } : { page: "home" })}
+      onSelectChallenge={(challenge) => navigate(challenge.kind === "learning" ? { page: "learningProblem", problemId: challenge.id } : { page: "competition", competitionId: challenge.id })}
       onCreateStrategy={(challenge) => void openCatalogCreate(challenge)}
       onOpenStrategy={(strategyId) => navigate({ page: "strategy", strategyId })}
       onOpenRun={(runId) => navigate({ page: "run", runId })}
       onReviseStrategy={(strategyId, challengeId, feedback) => {
-        setChallengeIteration({ strategyId, challengeId, challengeKind: route.page === "learning" ? "learning" : "competition", feedback });
-        navigate({ page: "builder", strategyId });
+        const challengeKind = route.page === "learning" || route.page === "learningProblem" ? "learning" : "competition";
+        setChallengeIteration({ strategyId, challengeId, challengeKind, feedback });
+        navigate({ page: "builder", strategyId, challenge: { kind: challengeKind, challengeId } });
       }}
     />}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
