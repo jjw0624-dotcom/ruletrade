@@ -247,6 +247,28 @@ try {
 
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=catalog-mvp" });
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
+  await clickText("Learning & Competition");
+  await waitSelector('[aria-labelledby="challenge-hub-title"]');
+  await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "Learning challenge policy");
+  await clickText("Create constrained strategy");
+  await waitSelector('[aria-labelledby="catalog-title"]');
+  const constrainedAuthoring = await evaluate(`(() => {
+    const asset=document.querySelector('select[aria-label="Asset"]');
+    const rebalance=document.querySelector('select[aria-label="Rebalance"]');
+    const rules=[...document.querySelectorAll('.picker-group button')];
+    return {
+      body:document.body.innerText,
+      ruleCount:rules.length,
+      ruleText:rules.map((item)=>item.textContent),
+      assets:asset?[...asset.options].map((item)=>item.value):[],
+      rebalanceValue:rebalance?.value,
+      rebalanceDisabled:Boolean(rebalance?.disabled),
+    };
+  })()`);
+  if (constrainedAuthoring.ruleCount !== 1 || !constrainedAuthoring.ruleText.some((item) => item.includes("Single asset periodic")) || JSON.stringify(constrainedAuthoring.assets) !== JSON.stringify(["QQQ", "SPY"]) || constrainedAuthoring.rebalanceValue !== "monthly" || !constrainedAuthoring.rebalanceDisabled || !constrainedAuthoring.body.includes("Policy v1 applied")) throw new Error(`Problem-first constrained authoring failed: ${JSON.stringify(constrainedAuthoring)}`);
+  await screenshot("problem-first-constrained-rules-authoring");
+  await clickAriaLabel("Close");
+  await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "return from constrained authoring");
   await clickTextContaining("+ New strategy");
   await waitSelector('[aria-labelledby="picker-title"]');
   await clickTextContaining("Choose a strategy rule");
