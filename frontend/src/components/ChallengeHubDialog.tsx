@@ -100,7 +100,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
     setState("submitting"); setError(""); setFeedback([]);
     try {
       const strategy = strategies.find((item) => item.current_revision_id === revisionId);
-      const attemptId = initialAttemptId || (strategy
+      const attemptId = activeAttempt?.id || (strategy
         ? (await challengeApi.startAttempt(challenge.id, strategy.id)).id
         : undefined);
       const execution = await challengeApi.submit(challenge.id, revisionId, attemptId);
