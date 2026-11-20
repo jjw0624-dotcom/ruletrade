@@ -18,6 +18,7 @@ import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { StrategyWorkspaceEditor } from "./components/StrategyWorkspaceEditor";
 import type { ChallengeDefinition } from "./challengeApi";
+import { ChallengeHubDialog } from "./components/ChallengeHubDialog";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 export type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
@@ -89,15 +90,15 @@ export default function App() {
   const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
   const [comparisonContext, setComparisonContext] = useState<{ comparisonId: string; context: ResearchContext } | null>(null);
   const [adoptionNotice, setAdoptionNotice] = useState<string | null>(null);
-  const [challengeIteration, setChallengeIteration] = useState<{ challengeId: string; strategyId: string; feedback: string[] } | null>(null);
+  const [challengeIteration, setChallengeIteration] = useState<{ challengeId: string; challengeKind: "learning" | "competition"; strategyId: string; feedback: string[] } | null>(null);
   const [challengeLaunch, setChallengeLaunch] = useState<{ token: number; challengeId: string; strategyId: string } | null>(null);
   const creationInFlight = useRef(false);
 
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
-    if (dirty && route.page === "strategy" && next.page !== "strategy" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return false;
+    if (dirty && route.page === "builder" && next.page !== "builder" && !window.confirm("Leave with unsaved strategy changes? They will be lost.")) return false;
     if (!preserveFocus) setSourceFocus(null);
-    if (next.page !== "strategy") setAdoptionNotice(null);
-    window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "strategy") setDirty(false); return true;
+    if (next.page !== "builder") setAdoptionNotice(null);
+    window.history.pushState(null, "", pathForRoute(next)); setRoute(next); if (next.page !== "builder") setDirty(false); return true;
   }, [dirty, route.page]);
 
   useEffect(() => { const onPopState = () => setRoute(routeFromPath(window.location.pathname)); window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
@@ -108,7 +109,7 @@ export default function App() {
     try { const result = await strategyApi.list(); setStrategies(result.items); setListStatus("loaded"); }
     catch (reason) { setListError(reason instanceof Error ? reason.message : "The backend is unavailable."); setListStatus("error"); }
   }, []);
-  useEffect(() => { if (["home", "strategies", "explore", "example"].includes(route.page)) void loadList(); }, [route.page, loadList]);
+  useEffect(() => { if (["home", "strategies", "explore", "example", "learning", "competitions"].includes(route.page)) void loadList(); }, [route.page, loadList]);
 
   useEffect(() => {
     if (route.page !== "run") return;
@@ -118,8 +119,8 @@ export default function App() {
   }, [route]);
 
   useEffect(() => {
-    if (route.page !== "example" && route.page !== "strategy") return;
-    if (route.page === "strategy" && createdDestination?.strategyId === route.strategyId) {
+    if (!["example", "strategy", "builder", "research"].includes(route.page)) return;
+    if (route.page !== "example" && createdDestination?.strategyId === route.strategyId) {
       setWorkspace(createdDestination.workspace);
       setWorkspaceStatus("loaded");
       setWorkspaceError(null);
@@ -130,7 +131,7 @@ export default function App() {
     let cancelled = false; const controller = new AbortController(); setWorkspaceStatus("loading"); setWorkspaceError(null); setWorkspace(null); setDirty(false);
     const task = route.page === "example"
       ? (() => { const exampleId = route.exampleId; return loadEditorBootstrap(exampleId).then((bootstrap) => ({ bootstrap, example: findExample(exampleId)! })); })()
-      : (() => { const strategyId = route.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
+      : (() => { const strategyId = route.page === "example" ? "" : route.strategyId; return Promise.all([strategyApi.get(strategyId, undefined, controller.signal), loadEditorBootstrap("sleeves")]).then(([detail, registryBootstrap]) => {
           return workspaceFromPersistedStrategy(detail, registryBootstrap);
         }); })();
     task.then((value) => { if (!cancelled) { setWorkspace(value); setWorkspaceStatus("loaded"); } }).catch((reason: unknown) => { if (!cancelled) { setWorkspaceError(reason instanceof Error ? reason.message : String(reason)); setWorkspaceStatus("error"); } });
@@ -155,7 +156,7 @@ export default function App() {
       const canonical = await v2AuthoringApi.programTemplate(draft.name.trim(), ["SPY"], fetch, draft.id);
       const detail = await strategyApi.create(draft.name.trim(), canonical);
       setCreateDraft(null);
-      navigate(routeForCreatedStrategy(detail));
+      navigate(catalogChallenge ? { page: "builder", strategyId: detail.strategy.id } : routeForCreatedStrategy(detail));
     }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy."); }
     finally { creationInFlight.current = false; setCreating(null); }
@@ -183,6 +184,7 @@ export default function App() {
       if (catalogChallenge) {
         setChallengeIteration({
           challengeId: catalogChallenge.id,
+          challengeKind: catalogChallenge.kind,
           strategyId: detail.strategy.id,
           feedback: [],
         });
@@ -234,25 +236,45 @@ export default function App() {
   const chooseStartingPoint = (id: ExampleId) => { setPickerOpen(false); void beginCreate(id); };
   return <AppShell route={route} strategyName={strategyName} recent={recent} navigate={navigate} onCreate={openPicker}>
     {route.page === "public" && <PublicView onExample={(exampleId) => void beginCreate(exampleId)} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
-    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onOpenRun={(runId) => navigate({ page: "run", runId })} onReviseChallenge={(strategyId, challengeId, feedback) => { setChallengeIteration({ strategyId, challengeId, feedback }); navigate({ page: "strategy", strategyId }); }} onCreateChallengeStrategy={(challenge) => void openCatalogCreate(challenge)} challengeLaunch={challengeLaunch} onChallengeLaunchConsumed={() => setChallengeLaunch(null)} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
+    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onLearning={() => navigate({ page: "learning" })} onCompetition={() => navigate({ page: "competitions" })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
     {route.page === "explore" && <ExploreView onOpen={(exampleId) => void beginCreate(exampleId)} onCreate={openPicker} />}
-    {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
-    {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
+    {(route.page === "example" || route.page === "strategy" || route.page === "builder" || route.page === "research") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
+    {(route.page === "example" || route.page === "strategy" || route.page === "builder" || route.page === "research") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
-    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && workspace.detail && <>
-      {challengeIteration?.strategyId === route.strategyId && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
-        <div><span className="eyebrow">Challenge iteration</span><strong>Revise this strategy, save a new Revision, then evaluate it against the same problem.</strong>{challengeIteration.feedback.length > 0 && <ul>{challengeIteration.feedback.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
+    {(route.page === "strategy" || route.page === "builder" || route.page === "research") && workspace && workspaceStatus === "loaded" && workspace.detail && <>
+      {route.page === "builder" && challengeIteration?.strategyId === route.strategyId && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
+        <div><span className="eyebrow">Problem submission draft</span><strong>Revise this strategy, save a new Revision, then return to the problem page to submit it.</strong>{challengeIteration.feedback.length > 0 && <ul>{challengeIteration.feedback.map((item) => <li key={item}>{item}</li>)}</ul>}</div>
         <button type="button" className="primary-button" onClick={() => {
-          if (navigate({ page: "home" })) setChallengeLaunch({ challengeId: challengeIteration.challengeId, strategyId: challengeIteration.strategyId, token: Date.now() });
-        }}>Return to challenge</button>
+          if (navigate({ page: challengeIteration.challengeKind === "learning" ? "learning" : "competitions" })) setChallengeLaunch({ challengeId: challengeIteration.challengeId, strategyId: challengeIteration.strategyId, token: Date.now() });
+        }}>Return to problem</button>
       </aside>}
       <StrategyWorkspaceEditor
         bootstrap={workspace.bootstrap} example={workspace.example} detail={workspace.detail}
+        surface={route.page === "builder" ? "builder" : route.page === "research" ? "research" : "detail"}
         initialView={workspace.initialView ?? "overview"} confirmation={adoptionNotice}
-        onDirtyChange={setDirty} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus}
+        onDirtyChange={setDirty}
+        onOpenStrategy={() => navigate({ page: "strategy", strategyId: workspace.detail!.strategy.id })}
+        onOpenBuilder={() => navigate({ page: "builder", strategyId: workspace.detail!.strategy.id })}
+        onOpenResearch={() => navigate({ page: "research", strategyId: workspace.detail!.strategy.id })}
+        sourceFocus={sourceFocus}
         onOpenRun={(runId) => navigate({ page: "run", runId })}
       />
     </>}
+    {(route.page === "learning" || route.page === "competitions") && <ChallengeHubDialog
+      presentation="page"
+      kind={route.page === "learning" ? "learning" : "competition"}
+      strategies={recent}
+      initialChallengeId={challengeLaunch?.challengeId}
+      initialStrategyId={challengeLaunch?.strategyId}
+      onClose={() => navigate({ page: "home" })}
+      onCreateStrategy={(challenge) => void openCatalogCreate(challenge)}
+      onOpenStrategy={(strategyId) => navigate({ page: "strategy", strategyId })}
+      onOpenRun={(runId) => navigate({ page: "run", runId })}
+      onReviseStrategy={(strategyId, challengeId, feedback) => {
+        setChallengeIteration({ strategyId, challengeId, challengeKind: route.page === "learning" ? "learning" : "competition", feedback });
+        navigate({ page: "builder", strategyId });
+      }}
+    />}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
