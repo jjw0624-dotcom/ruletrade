@@ -278,7 +278,7 @@ try {
   await setControlValue("Rebalance", "monthly");
   await clickText("Create and save strategy");
   await waitSelector('[aria-label="Strategy detail"]');
-  await waitExpression(`document.body.innerText.includes('Strategy first, tools second')&&document.body.innerText.includes('QQQ monthly')`, "independent Strategy detail");
+  await waitExpression(`document.body.innerText.includes('One strategy, separate workspaces')&&document.body.innerText.includes('QQQ monthly')`, "independent Strategy detail");
   await screenshot("catalog-mvp-strategy-detail");
   await clickText("Edit in Builder");
   await waitSelector('[data-production-builder-shell="true"]');
