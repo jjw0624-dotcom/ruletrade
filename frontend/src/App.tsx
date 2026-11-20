@@ -17,6 +17,7 @@ import { ResultWorkspace } from "./components/ResultWorkspace";
 import type { ResearchContext } from "./domain/researchContext";
 import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { StrategyWorkspaceEditor } from "./components/StrategyWorkspaceEditor";
+import type { ChallengeDefinition } from "./challengeApi";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 export type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
@@ -74,6 +75,7 @@ export default function App() {
   const [programDraftName, setProgramDraftName] = useState<string | null>(null);
   const [programCreating, setProgramCreating] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogChallenge, setCatalogChallenge] = useState<ChallengeDefinition | null>(null);
   const [catalogEntries, setCatalogEntries] = useState<StrategyCatalogEntry[]>([]);
   const [catalogCreating, setCatalogCreating] = useState(false);
   const [creating, setCreating] = useState<ExampleId | null>(null);
@@ -159,8 +161,8 @@ export default function App() {
     finally { creationInFlight.current = false; setCreating(null); }
   }
 
-  async function openCatalogCreate() {
-    setPickerOpen(false); setCreateError(null);
+  async function openCatalogCreate(challenge: ChallengeDefinition | null = null) {
+    setPickerOpen(false); setCreateError(null); setCatalogChallenge(challenge);
     try {
       const entries = await strategyCatalogApi.list();
       setCatalogEntries(entries);
@@ -178,6 +180,14 @@ export default function App() {
       const created = await strategyCatalogApi.create(request);
       const detail = await strategyApi.create(request.name, created.strategy);
       setCatalogOpen(false);
+      if (catalogChallenge) {
+        setChallengeIteration({
+          challengeId: catalogChallenge.id,
+          strategyId: detail.strategy.id,
+          feedback: [],
+        });
+      }
+      setCatalogChallenge(null);
       navigate(routeForCreatedStrategy(detail));
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
@@ -224,7 +234,7 @@ export default function App() {
   const chooseStartingPoint = (id: ExampleId) => { setPickerOpen(false); void beginCreate(id); };
   return <AppShell route={route} strategyName={strategyName} recent={recent} navigate={navigate} onCreate={openPicker}>
     {route.page === "public" && <PublicView onExample={(exampleId) => void beginCreate(exampleId)} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
-    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onOpenRun={(runId) => navigate({ page: "run", runId })} onReviseChallenge={(strategyId, challengeId, feedback) => { setChallengeIteration({ strategyId, challengeId, feedback }); navigate({ page: "strategy", strategyId }); }} challengeLaunch={challengeLaunch} onChallengeLaunchConsumed={() => setChallengeLaunch(null)} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
+    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onOpenRun={(runId) => navigate({ page: "run", runId })} onReviseChallenge={(strategyId, challengeId, feedback) => { setChallengeIteration({ strategyId, challengeId, feedback }); navigate({ page: "strategy", strategyId }); }} onCreateChallengeStrategy={(challenge) => void openCatalogCreate(challenge)} challengeLaunch={challengeLaunch} onChallengeLaunchConsumed={() => setChallengeLaunch(null)} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
     {route.page === "explore" && <ExploreView onOpen={(exampleId) => void beginCreate(exampleId)} onCreate={openPicker} />}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
@@ -248,7 +258,7 @@ export default function App() {
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
     {route.page === "comparison" && <ComparisonWorkspace comparisonId={route.comparisonId} initialContext={comparisonContext?.comparisonId === route.comparisonId ? comparisonContext.context : null} onContextChange={(context) => setComparisonContext({ comparisonId: route.comparisonId, context })} onOpenRun={(runId, context) => { if (context) { setResearchContext(context); setComparisonContext({ comparisonId: route.comparisonId, context }); } navigate({ page: "run", runId }); }} onViewRule={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context, { page: "comparison", comparisonId: route.comparisonId })} onAdopted={(response) => { setAdoptionNotice("This change is now part of your strategy."); setSourceFocus(null); navigate({ page: "strategy", strategyId: response.strategy.id }); }} onOpenLatest={(revisionId) => { setAdoptionNotice(null); void openStrategyOwningRevision(revisionId).catch((reason: unknown) => setRunError(reason instanceof Error ? reason.message : "We couldn't open the latest strategy.")); }} />}
     {pickerOpen && <CreationPicker onChoose={chooseStartingPoint} onCatalog={() => void openCatalogCreate()} onProgram={() => { setPickerOpen(false); setProgramDraftName("Untitled Strategy"); }} onClose={() => setPickerOpen(false)} loading={creating} error={createError} />}
-    {catalogOpen && <CatalogStrategyDialog entries={catalogEntries} loading={catalogCreating} error={createError} onClose={() => { setCatalogOpen(false); setCreateError(null); }} onCreate={(request) => void confirmCatalogCreate(request)} />}
+    {catalogOpen && <CatalogStrategyDialog entries={catalogEntries} loading={catalogCreating} error={createError} challenge={catalogChallenge} onClose={() => { setCatalogOpen(false); setCatalogChallenge(null); setCreateError(null); }} onCreate={(request) => void confirmCatalogCreate(request)} />}
     {createDraft && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="create-title" onSubmit={(event) => { event.preventDefault(); void confirmCreate(); }}><span className="eyebrow">New strategy</span><h2 id="create-title">Name your strategy</h2><p>This starting point becomes one normal saved strategy. You can move between Summary, Guide, and Flow after creation.</p><label>Strategy name<input autoFocus value={createDraft.name} maxLength={100} onChange={(event) => setCreateDraft({ ...createDraft, name: event.target.value })} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreateDraft(null)}>Cancel</button><button className="primary-button" disabled={!createDraft.name.trim() || creating !== null}>{creating ? "Creating…" : "Create strategy"}</button></div></form></div>}
     {programDraftName !== null && <div className="modal-backdrop" role="presentation"><form className="create-dialog" aria-labelledby="program-create-title" onSubmit={(event) => { event.preventDefault(); void confirmProgramCreate(); }}><span className="eyebrow">New strategy</span><h2 id="program-create-title">Name your strategy</h2><p>You will start in the normal Builder with an empty canvas and context-aware next steps.</p><label>Strategy name<input autoFocus value={programDraftName} maxLength={100} onChange={(event) => setProgramDraftName(event.target.value)} /></label>{createError && <p className="form-error" role="alert">{createError}</p>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setProgramDraftName(null)}>Cancel</button><button className="primary-button" disabled={!programDraftName.trim() || programCreating}>{programCreating ? "Creating…" : "Create strategy"}</button></div></form></div>}
   </AppShell>;
