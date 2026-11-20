@@ -56,19 +56,19 @@ export RULETRADE_LEAN_DATA_DIR="$HOME/dev/ruletrade/experiments/lean-spike/data"
 Run the complete local contract when the data cache is available:
 
 ```bash
-./scripts/check_mvp_wsl.sh all
+bash scripts/check_mvp_wsl.sh all
 ```
 
 Without real data, run the deterministic core first:
 
 ```bash
-./scripts/check_mvp_wsl.sh core
+bash scripts/check_mvp_wsl.sh core
 ```
 
 Later, after setting `RULETRADE_LEAN_DATA_DIR`:
 
 ```bash
-./scripts/check_mvp_wsl.sh real-data
+bash scripts/check_mvp_wsl.sh real-data
 ```
 
 The runner performs locked installation, full repository validation, all
