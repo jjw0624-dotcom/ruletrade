@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { ChallengeApiError, challengeApi, type ChallengeDefinition, type ChallengeFeedback, type ChallengeSubmissionRecord } from "../challengeApi";
+import { ChallengeApiError, challengeApi, type ChallengeAttemptRecord, type ChallengeDefinition, type ChallengeFeedback, type ChallengeSubmissionRecord } from "../challengeApi";
 import type { StrategyRecord } from "../strategyApi";
 import { challengeProgress } from "../challengeProgress";
 
@@ -41,6 +41,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   const [selectedId, setSelectedId] = useState(initialChallengeId);
   const [revisionId, setRevisionId] = useState(() => strategies.find((item) => item.id === initialStrategyId)?.current_revision_id ?? strategies[0]?.current_revision_id ?? "");
   const [submissions, setSubmissions] = useState<ChallengeSubmissionRecord[]>([]);
+  const [attempts, setAttempts] = useState<ChallengeAttemptRecord[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "submitting" | "error">("loading");
   const [error, setError] = useState("");
   const [latest, setLatest] = useState<ChallengeSubmissionRecord | null>(null);
@@ -62,10 +63,15 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
     if (!selectedId) return;
     let active = true;
     setLatest(null); setFeedback([]);
-    void challengeApi.submissions(selectedId).then(({ items }) => {
-      if (active) setSubmissions(items);
+    void Promise.all([
+      challengeApi.submissions(selectedId),
+      challengeApi.attempts(selectedId),
+    ]).then(([submissionList, attemptList]) => {
+      if (!active) return;
+      setSubmissions(submissionList.items);
+      setAttempts(attemptList.items);
     }).catch((reason) => {
-      if (active) { setError(reason instanceof Error ? reason.message : "Submissions could not be loaded."); setState("error"); }
+      if (active) { setError(reason instanceof Error ? reason.message : "Challenge progress could not be loaded."); setState("error"); }
     });
     return () => { active = false; };
   }, [selectedId]);
@@ -81,6 +87,11 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   );
   const selectedStrategy = strategies.find((item) => item.current_revision_id === revisionId) ?? null;
   const latestStrategy = latest ? strategies.find((item) => item.current_revision_id === latest.revision_id) ?? null : null;
+  const activeAttempt = selectedStrategy
+    ? attempts.find((item) => item.id === initialAttemptId && item.strategy_id === selectedStrategy.id && item.status === "active")
+      ?? attempts.find((item) => item.strategy_id === selectedStrategy.id && item.status === "active")
+      ?? null
+    : null;
   const progress = useMemo(
     () => latest ? challengeProgress(latest, submissions) : null,
     [latest, submissions],
@@ -91,14 +102,18 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
     setState("submitting"); setError(""); setFeedback([]);
     try {
       const strategy = strategies.find((item) => item.current_revision_id === revisionId);
-      const attemptId = initialAttemptId || (strategy
+      const attemptId = activeAttempt?.id || (strategy
         ? (await challengeApi.startAttempt(challenge.id, strategy.id)).id
         : undefined);
       const execution = await challengeApi.submit(challenge.id, revisionId, attemptId);
       setLatest(execution.submission);
       setFeedback(execution.submission.feedback ?? []);
-      const refreshed = await challengeApi.submissions(challenge.id);
+      const [refreshed, refreshedAttempts] = await Promise.all([
+        challengeApi.submissions(challenge.id),
+        challengeApi.attempts(challenge.id),
+      ]);
       setSubmissions(refreshed.items);
+      setAttempts(refreshedAttempts.items);
       setState("ready");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Submission could not be evaluated.");
@@ -116,6 +131,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       {challenge && <section className="empty-state" aria-label="Challenge policy"><span className="eyebrow">{challenge.kind} · {challenge.difficulty} · policy v{challenge.policy.version}</span><h3>{challenge.title}</h3><p>{challenge.description}</p><ul>{constraintSummary(challenge).map((item) => <li key={item}>{item}</li>)}</ul><p>Objective: {challenge.policy.objective.direction} {challenge.policy.objective.metric.replace("_", " ")}</p><small>{challenge.policy.config.start_date} – {challenge.policy.config.end_date} · {challenge.policy.config.dataset_id}</small></section>}
       {strategies.length ? <label>Saved strategy<select aria-label="Challenge strategy" value={revisionId} onChange={(event) => setRevisionId(event.target.value)}>{strategies.map((item) => <option key={item.id} value={item.current_revision_id}>{item.name} · {item.current_revision_id.slice(0, 8)}</option>)}</select><small>The current immutable Revision is submitted. Unsaved Builder work is never used.</small></label> : <section className="empty-state"><h3>Create a strategy first</h3><p>Use the fixed Rules catalog, save it, then return here to submit its Revision.</p><button type="button" className="primary-button" disabled={!challenge} onClick={() => { if (challenge) onCreateStrategy(challenge); }}>Create constrained strategy</button></section>}
       {strategies.length > 0 && challenge && <div className="dialog-actions"><button type="button" className="text-button" onClick={() => onCreateStrategy(challenge)}>Create a new strategy for this problem</button></div>}
+      {activeAttempt && challenge && selectedStrategy && <section className="empty-state challenge-attempt-card" aria-label="Active challenge attempt"><span className="eyebrow">Work in progress</span><h3>Resume {selectedStrategy.name}</h3><p>This attempt is saved independently from the Builder tab. Continue editing, save a Revision, then return here to submit.</p><small>Attempt {activeAttempt.id.slice(0, 8)} · updated {new Date(activeAttempt.updated_at).toLocaleString()}</small><div className="dialog-actions"><button type="button" className="primary-button" onClick={() => onReviseStrategy(selectedStrategy.id, challenge.id, [])}>Resume in Builder</button></div></section>}
       {latest && <section className="empty-state" aria-label="Latest challenge result"><span className="eyebrow">Submission recorded</span><h3>{latest.eligible && latest.score !== null ? percent(latest.score) : "Not eligible"}</h3><p>{latest.eligible ? `Official score · Run ${latest.run_id.slice(0, 8)}` : latest.violations.join(" ")}</p>{progress && <div className={`challenge-progress ${progress.outcome}`}><strong>{progress.outcome === "improved" ? "Improved" : progress.outcome === "declined" ? "Moved away from the objective" : "Unchanged"} · {progress.delta > 0 ? "+" : ""}{percent(progress.delta)}</strong><small>Compared with Revision {progress.previous.revision_id.slice(0, 8)} of this same Strategy.</small>{progress.changes.length > 0 && <ul>{progress.changes.map((change) => <li key={change.parameter}>{change.parameter}: {JSON.stringify(change.before)} → {JSON.stringify(change.after)}</li>)}</ul>}</div>}<div className="dialog-actions"><button type="button" className="text-button" onClick={() => onOpenSubmission(latest.id)}>Open submission</button><button type="button" className="text-button" onClick={() => onOpenRun(latest.run_id)}>Open full result</button>{latestStrategy && <button type="button" className="primary-button" onClick={() => onReviseStrategy(latestStrategy.id, latest.challenge_id, feedback.map((item) => item.message))}>Revise and resubmit</button>}{latestStrategy && <button type="button" className="text-button" onClick={() => onOpenStrategy(latestStrategy.id)}>Open source strategy</button>}</div></section>}
       {feedback.length > 0 && <section className="challenge-feedback" aria-label="Challenge feedback"><span className="eyebrow">What to change next</span><h3>{feedback.some((item) => item.target === "execution" || item.target === "result") ? "Review execution constraints" : "Update the strategy inputs"}</h3><ul>{feedback.map((item, index) => <li key={`${item.code}-${item.parameter ?? index}`}><strong>{item.parameter ? `${item.parameter}: ` : ""}{item.message}</strong>{item.expected !== null && <small>Required: {JSON.stringify(item.expected)}{item.actual !== null ? ` · Submitted: ${JSON.stringify(item.actual)}` : ""}</small>}</li>)}</ul>{!latest && selectedStrategy && challenge && <button type="button" className="primary-button" onClick={() => onReviseStrategy(selectedStrategy.id, challenge.id, feedback.map((item) => item.message))}>Revise to qualify</button>}</section>}
       {error && <p className="form-error" role="alert">{error}</p>}
