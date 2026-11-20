@@ -80,7 +80,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
     try {
       const execution = await challengeApi.submit(challenge.id, revisionId);
       setLatest(execution.submission);
-      setFeedback(execution.submission.feedback);
+      setFeedback(execution.submission.feedback ?? []);
       const refreshed = await challengeApi.submissions(challenge.id);
       setSubmissions(refreshed.items);
       setState("ready");
