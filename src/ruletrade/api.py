@@ -468,9 +468,15 @@ async def challenge_submission_error(
         if isinstance(exc, ChallengeSubmissionPersistenceError)
         else str(exc)
     )
+    detail: dict[str, object] = {"code": exc.code, "message": message}
+    if isinstance(exc, InvalidChallengeSubmissionError) and exc.feedback:
+        detail["feedback"] = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in exc.feedback
+        ]
     return JSONResponse(
         status_code=status_code,
-        content={"detail": {"code": exc.code, "message": message}},
+        content={"detail": detail},
     )
 
 
