@@ -39,6 +39,7 @@ export interface ChallengeSubmissionRecord {
   challenge_version: number;
   policy_version: number;
   revision_id: string;
+  strategy_id?: string | null;
   run_id: string;
   catalog_id: string | null;
   catalog_parameters: Record<string, unknown>;
