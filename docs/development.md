@@ -115,19 +115,20 @@ prove local structure/execution, not the data's origin or licensing. The full
 acceptance intentionally fails before LEAN when required history or Security
 Master data is incomplete.
 
-## WSL browser acceptance
+## WSL MVP acceptance
 
-With the backend, frontend, Docker, and required data available, exercise the
-real product rather than mocked UI behavior:
+Run the reproducible automated prerequisite before owner testing:
 
-```text
-Explore → persisted Strategy → Guide/Flow edit → Save → Test
-→ Result/Decision/Why → View rule → Show where this mattered
-→ Try Change → Candidate Run → Comparison → Keep/Discard → Test again
+```bash
+./scripts/check_mvp_wsl.sh core
+./scripts/check_mvp_wsl.sh real-data  # after RULETRADE_LEAN_DATA_DIR is set
 ```
 
+Then follow [MVP WSL acceptance](mvp-wsl-acceptance.md) for the complete
+fixed-strategy user journey, recovery sweep, screenshots, and failure report.
 Browser acceptance is distinct from static C# compilation. Do not claim real
-LEAN runtime acceptance unless the Docker execution actually ran.
+LEAN runtime acceptance unless Docker execution actually ran, and do not claim
+owner acceptance from the headless browser harness alone.
 
 ## Local artifacts
 
