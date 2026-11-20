@@ -23,7 +23,7 @@ Read documentation in this order:
 4. [V2 Builder completion baseline](v2-builder-completion-baseline.md) — active Builder milestone, evidence, manual acceptance, and merge gates.
 5. [Development and validation](development.md) — setup, CI, Codespaces, Docker/LEAN, and WSL.
 6. [MVP WSL acceptance](mvp-wsl-acceptance.md) — final automated and owner acceptance for the fixed-strategy MVP.
-6. Current subsystem documents — detailed contracts linked below.
+7. Current subsystem documents — detailed contracts linked below.
 
 Documents marked **Historical** or **Superseded** preserve rationale and
 acceptance evidence. They are not sources of current product scope or
