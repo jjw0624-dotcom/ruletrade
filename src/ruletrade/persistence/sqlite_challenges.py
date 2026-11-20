@@ -10,7 +10,11 @@ from ruletrade.challenges.errors import (
     ChallengeSubmissionNotFoundError,
     ChallengeSubmissionPersistenceError,
 )
-from ruletrade.challenges.models import ChallengeObjective, ChallengeSubmissionRecord
+from ruletrade.challenges.models import (
+    ChallengeAttemptRecord,
+    ChallengeObjective,
+    ChallengeSubmissionRecord,
+)
 
 
 class SQLiteChallengeSubmissionRepository:
@@ -22,6 +26,22 @@ class SQLiteChallengeSubmissionRepository:
         try:
             with self._connect() as connection:
                 connection.executescript("""
+                CREATE TABLE IF NOT EXISTS challenge_attempts (
+                    id TEXT PRIMARY KEY,
+                    challenge_id TEXT NOT NULL,
+                    challenge_version INTEGER NOT NULL,
+                    strategy_id TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (status IN ('active', 'submitted')),
+                    latest_submission_id TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (strategy_id) REFERENCES strategies(id),
+                    FOREIGN KEY (latest_submission_id) REFERENCES challenge_submissions(id)
+                );
+                CREATE INDEX IF NOT EXISTS challenge_attempts_challenge_updated
+                    ON challenge_attempts(challenge_id, updated_at DESC, id DESC);
+                CREATE UNIQUE INDEX IF NOT EXISTS challenge_attempts_one_active
+                    ON challenge_attempts(challenge_id, strategy_id) WHERE status = 'active';
                 CREATE TABLE IF NOT EXISTS challenge_submissions (
                     id TEXT PRIMARY KEY,
                     challenge_id TEXT NOT NULL,
@@ -56,6 +76,86 @@ class SQLiteChallengeSubmissionRepository:
             raise ChallengeSubmissionPersistenceError(
                 "Could not initialize Challenge Submission persistence."
             ) from exc
+
+    def create_attempt(self, attempt: ChallengeAttemptRecord) -> ChallengeAttemptRecord:
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """INSERT INTO challenge_attempts
+                    (id, challenge_id, challenge_version, strategy_id, status,
+                     latest_submission_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        attempt.id, attempt.challenge_id, attempt.challenge_version,
+                        attempt.strategy_id, attempt.status, attempt.latest_submission_id,
+                        attempt.created_at.isoformat(), attempt.updated_at.isoformat(),
+                    ),
+                )
+        except sqlite3.Error as exc:
+            raise ChallengeSubmissionPersistenceError(
+                "Could not persist Challenge Attempt."
+            ) from exc
+        return attempt
+
+    def find_active_attempt(
+        self, challenge_id: str, strategy_id: str
+    ) -> ChallengeAttemptRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT * FROM challenge_attempts
+                WHERE challenge_id = ? AND strategy_id = ? AND status = 'active'
+                ORDER BY created_at DESC, id DESC LIMIT 1""",
+                (challenge_id, strategy_id),
+            ).fetchone()
+        return self._attempt_record(row) if row is not None else None
+
+    def get_attempt(self, attempt_id: str) -> ChallengeAttemptRecord:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM challenge_attempts WHERE id = ?", (attempt_id,)
+            ).fetchone()
+        if row is None:
+            raise ChallengeSubmissionNotFoundError("Challenge Attempt was not found.")
+        return self._attempt_record(row)
+
+    def list_attempts_for_challenge(
+        self, challenge_id: str
+    ) -> tuple[ChallengeAttemptRecord, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT * FROM challenge_attempts WHERE challenge_id = ?
+                ORDER BY updated_at DESC, id DESC""", (challenge_id,)
+            ).fetchall()
+        return tuple(self._attempt_record(row) for row in rows)
+
+    def complete_attempt(
+        self, attempt_id: str, submission_id: str, updated_at: datetime
+    ) -> ChallengeAttemptRecord:
+        try:
+            with self._connect() as connection:
+                cursor = connection.execute(
+                    """UPDATE challenge_attempts
+                    SET status = 'submitted', latest_submission_id = ?, updated_at = ?
+                    WHERE id = ? AND status = 'active'""",
+                    (submission_id, updated_at.isoformat(), attempt_id),
+                )
+        except sqlite3.Error as exc:
+            raise ChallengeSubmissionPersistenceError(
+                "Could not complete Challenge Attempt."
+            ) from exc
+        if cursor.rowcount != 1:
+            return self.get_attempt(attempt_id)
+        return self.get_attempt(attempt_id)
+
+    @staticmethod
+    def _attempt_record(row: sqlite3.Row) -> ChallengeAttemptRecord:
+        return ChallengeAttemptRecord(
+            id=row["id"], challenge_id=row["challenge_id"],
+            challenge_version=row["challenge_version"], strategy_id=row["strategy_id"],
+            status=row["status"], latest_submission_id=row["latest_submission_id"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
 
     def create(self, submission: ChallengeSubmissionRecord) -> ChallengeSubmissionRecord:
         try:
