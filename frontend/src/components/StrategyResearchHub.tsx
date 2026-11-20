@@ -15,13 +15,15 @@ const labels: Record<ResearchExperimentRecord["kind"], string> = {
   forward: "Forward",
 };
 
-export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, onStart, onOpenRun, onOpenHidden }: {
+export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, onStart, onOpenRun, onOpenDetail, onOpenHidden, onOpenTest }: {
   strategyId: string;
   currentRevisionId: string;
   onClose: () => void;
   onStart: (action: ResearchAction) => void;
   onOpenRun?: (runId: string) => void;
+  onOpenDetail?: (experimentId: string) => void;
   onOpenHidden?: (experimentId: string) => void;
+  onOpenTest?: (experimentId: string) => void;
 }) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -78,7 +80,7 @@ export function StrategyResearchHub({ strategyId, currentRevisionId, onClose, on
           {state === "ready" && experiments.length > 0 && <div className="experiment-table"><table><thead><tr><th>Experiment</th><th>Revision</th><th>Runs</th><th>Latest evidence</th></tr></thead><tbody>{experiments.map((experiment) => {
             const runs = experiment.candidates.flatMap((candidate) => candidate.run_id ? [candidate.run_id] : []);
             const latestRunId = runs.at(-1);
-            return <tr key={experiment.id}><td><strong>{experiment.name}</strong><br/><small>{labels[experiment.kind]}</small></td><td>{experiment.revision_id.slice(0, 8)}{experiment.revision_id === currentRevisionId ? " · current" : ""}</td><td>{runs.length}</td><td>{experiment.kind === "hidden" && onOpenHidden ? <button type="button" className="text-button" onClick={() => onOpenHidden(experiment.id)}>Open experiment</button> : latestRunId && onOpenRun ? <button type="button" className="text-button" onClick={() => onOpenRun(latestRunId)}>Open Run</button> : "—"}</td></tr>;
+            return <tr key={experiment.id}><td><strong>{experiment.name}</strong><br/><small>{labels[experiment.kind]}</small></td><td>{experiment.revision_id.slice(0, 8)}{experiment.revision_id === currentRevisionId ? " · current" : ""}</td><td>{runs.length}</td><td>{experiment.kind === "detail" && onOpenDetail ? <button type="button" className="text-button" onClick={() => onOpenDetail(experiment.id)}>Open experiment</button> : experiment.kind === "hidden" && onOpenHidden ? <button type="button" className="text-button" onClick={() => onOpenHidden(experiment.id)}>Open experiment</button> : (experiment.kind === "robustness" || experiment.kind === "random_baseline") && onOpenTest ? <button type="button" className="text-button" onClick={() => onOpenTest(experiment.id)}>Open experiment</button> : latestRunId && onOpenRun ? <button type="button" className="text-button" onClick={() => onOpenRun(latestRunId)}>Open Run</button> : "—"}</td></tr>;
           })}</tbody></table></div>}
         </section>
         <footer><p>Research records are immutable and remain attributable to their source Revision.</p><button type="button" className="secondary-button" onClick={onClose}>Done</button></footer>
