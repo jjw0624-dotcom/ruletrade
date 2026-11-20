@@ -156,7 +156,7 @@ export default function App() {
       const canonical = await v2AuthoringApi.programTemplate(draft.name.trim(), ["SPY"], fetch, draft.id);
       const detail = await strategyApi.create(draft.name.trim(), canonical);
       setCreateDraft(null);
-      navigate(catalogChallenge ? { page: "builder", strategyId: detail.strategy.id } : routeForCreatedStrategy(detail));
+      navigate(routeForCreatedStrategy(detail));
     }
     catch (reason) { setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy."); }
     finally { creationInFlight.current = false; setCreating(null); }
@@ -189,8 +189,9 @@ export default function App() {
           feedback: [],
         });
       }
+      const challenge = catalogChallenge;
       setCatalogChallenge(null);
-      navigate(routeForCreatedStrategy(detail));
+      navigate(challenge ? { page: "builder", strategyId: detail.strategy.id } : routeForCreatedStrategy(detail));
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
     } finally {
