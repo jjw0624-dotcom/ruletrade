@@ -140,6 +140,10 @@ export default function App() {
     return () => { cancelled = true; controller.abort(); };
   }, [route]);
 
+  function rememberStrategy(record: StrategyRecord) {
+    setStrategies((current) => [record, ...current.filter((item) => item.id !== record.id)]);
+  }
+
   async function beginCreate(id: ExampleId) {
     if (creationInFlight.current) return;
     creationInFlight.current = true;
@@ -157,6 +161,7 @@ export default function App() {
       const draft = createDraft;
       const canonical = await v2AuthoringApi.programTemplate(draft.name.trim(), ["SPY"], fetch, draft.id);
       const detail = await strategyApi.create(draft.name.trim(), canonical);
+      rememberStrategy(detail.strategy);
       setCreateDraft(null);
       navigate(routeForCreatedStrategy(detail));
     }
@@ -182,6 +187,7 @@ export default function App() {
     try {
       const created = await strategyCatalogApi.create(request);
       const detail = await strategyApi.create(request.name, created.strategy);
+      rememberStrategy(detail.strategy);
       setCatalogOpen(false);
       const challenge = catalogChallenge;
       const attempt = challenge
@@ -215,6 +221,7 @@ export default function App() {
     try {
       const canonical = await v2AuthoringApi.programTemplate(programDraftName.trim());
       const detail = await strategyApi.create(programDraftName.trim(), canonical);
+      rememberStrategy(detail.strategy);
       setProgramDraftName(null); setPickerOpen(false); navigate(routeForCreatedStrategy(detail));
     } catch (reason) {
       setCreateError(reason instanceof Error ? reason.message : "We couldn't create this strategy.");
