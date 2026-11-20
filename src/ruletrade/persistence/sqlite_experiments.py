@@ -36,8 +36,22 @@ class SQLiteResearchExperimentRepository:
                     FOREIGN KEY (experiment_id) REFERENCES research_experiments(id),
                     FOREIGN KEY (run_id) REFERENCES backtest_runs(id)
                 );
+                CREATE TABLE IF NOT EXISTS research_experiment_hidden_outcomes (
+                    experiment_id TEXT PRIMARY KEY, selected_candidate_ordinal INTEGER NOT NULL,
+                    hidden_run_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
+                    FOREIGN KEY (experiment_id) REFERENCES research_experiments(id),
+                    FOREIGN KEY (hidden_run_id) REFERENCES backtest_runs(id)
+                );
                 CREATE INDEX IF NOT EXISTS research_experiments_revision_created
                     ON research_experiments(revision_id, created_at DESC, id DESC);
+                CREATE TRIGGER IF NOT EXISTS research_experiment_hidden_outcomes_no_update
+                BEFORE UPDATE ON research_experiment_hidden_outcomes BEGIN
+                    SELECT RAISE(ABORT, 'hidden experiment outcomes are immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS research_experiment_hidden_outcomes_no_delete
+                BEFORE DELETE ON research_experiment_hidden_outcomes BEGIN
+                    SELECT RAISE(ABORT, 'hidden experiment outcomes are immutable');
+                END;
                 CREATE TRIGGER IF NOT EXISTS research_experiments_no_update
                 BEFORE UPDATE ON research_experiments BEGIN
                     SELECT RAISE(ABORT, 'research experiments are immutable');
@@ -112,6 +126,31 @@ class SQLiteResearchExperimentRepository:
                     raise ResearchExperimentError("Experiment Candidate Run linkage was rejected.")
         except sqlite3.Error as exc:
             raise ResearchExperimentError("Could not attach Experiment Candidate Run.") from exc
+
+    def attach_hidden_outcome(
+        self, experiment_id: str, selected_candidate_ordinal: int, hidden_run_id: str, created_at: datetime
+    ) -> None:
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """INSERT INTO research_experiment_hidden_outcomes
+                    (experiment_id, selected_candidate_ordinal, hidden_run_id, created_at)
+                    VALUES (?, ?, ?, ?)""",
+                    (experiment_id, selected_candidate_ordinal, hidden_run_id, created_at.isoformat()),
+                )
+        except sqlite3.Error as exc:
+            raise ResearchExperimentError("Could not attach Hidden Experiment outcome.") from exc
+
+    def get_hidden_outcome(self, experiment_id: str) -> tuple[int, str]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT selected_candidate_ordinal, hidden_run_id
+                FROM research_experiment_hidden_outcomes WHERE experiment_id = ?""",
+                (experiment_id,),
+            ).fetchone()
+        if row is None:
+            raise ResearchExperimentError("Hidden Experiment outcome was not found.")
+        return row["selected_candidate_ordinal"], row["hidden_run_id"]
 
     def get(self, experiment_id: str) -> ResearchExperimentRecord:
         with self._connect() as connection:
