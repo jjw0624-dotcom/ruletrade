@@ -33,6 +33,16 @@ export interface ChallengeFeedback {
   expected: unknown;
   actual: unknown;
 }
+export interface ChallengeAttemptRecord {
+  id: string;
+  challenge_id: string;
+  challenge_version: number;
+  strategy_id: string;
+  status: "active" | "submitted";
+  latest_submission_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
 export interface ChallengeSubmissionRecord {
   id: string;
   challenge_id: string;
@@ -79,16 +89,30 @@ export const challengeApi = {
     request<{ items: ChallengeDefinition[] }>("/v2/challenges", {}, fetcher),
   get: (challengeId: string, fetcher?: typeof fetch) =>
     request<ChallengeDefinition>(`/v2/challenges/${encodeURIComponent(challengeId)}`, {}, fetcher),
+  startAttempt: (challengeId: string, strategyId: string, fetcher?: typeof fetch) =>
+    request<ChallengeAttemptRecord>(
+      `/v2/challenges/${encodeURIComponent(challengeId)}/attempts`,
+      jsonBody("POST", { strategy_id: strategyId }),
+      fetcher,
+    ),
+  getAttempt: (attemptId: string, fetcher?: typeof fetch) =>
+    request<ChallengeAttemptRecord>(
+      `/v2/challenge-attempts/${encodeURIComponent(attemptId)}`, {}, fetcher,
+    ),
+  attempts: (challengeId: string, fetcher?: typeof fetch) =>
+    request<{ items: ChallengeAttemptRecord[] }>(
+      `/v2/challenges/${encodeURIComponent(challengeId)}/attempts`, {}, fetcher,
+    ),
   getSubmission: (submissionId: string, fetcher?: typeof fetch) =>
     request<ChallengeSubmissionRecord>(`/v2/challenge-submissions/${encodeURIComponent(submissionId)}`, {}, fetcher),
   submissions: (challengeId: string, fetcher?: typeof fetch) =>
     request<{ items: ChallengeSubmissionRecord[] }>(
       `/v2/challenges/${encodeURIComponent(challengeId)}/submissions`, {}, fetcher,
     ),
-  submit: (challengeId: string, revisionId: string, fetcher?: typeof fetch) =>
+  submit: (challengeId: string, revisionId: string, attemptId?: string, fetcher?: typeof fetch) =>
     request<ChallengeSubmissionExecution>(
       `/v2/challenges/${encodeURIComponent(challengeId)}/submissions`,
-      jsonBody("POST", { revision_id: revisionId }),
+      jsonBody("POST", { revision_id: revisionId, ...(attemptId ? { attempt_id: attemptId } : {}) }),
       fetcher,
     ),
 };
