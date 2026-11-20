@@ -7,7 +7,7 @@ import { ChallengeHubDialog } from "../components/ChallengeHubDialog";
 type Status = "loading" | "loaded" | "error";
 const updated = (value: string) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onOpenRun = () => undefined, onReviseChallenge, challengeLaunch = null, onChallengeLaunchConsumed, context = "home" }: { status: Status; strategies: StrategyRecord[]; error: string | null; onOpen: (id: string) => void; onOpenRun?: (id: string) => void; onReviseChallenge: (strategyId: string, challengeId: string) => void; challengeLaunch?: { token: number; challengeId: string; strategyId: string } | null; onChallengeLaunchConsumed?: () => void; onRetry: () => void; onCreate: () => void; onExample: (id: ExampleId) => void; context?: "home" | "strategies" }) {
+export function HomeView({ status, strategies, error, onOpen, onRetry, onCreate, onExample, onOpenRun = () => undefined, onReviseChallenge = () => undefined, challengeLaunch = null, onChallengeLaunchConsumed, context = "home" }: { status: Status; strategies: StrategyRecord[]; error: string | null; onOpen: (id: string) => void; onOpenRun?: (id: string) => void; onReviseChallenge?: (strategyId: string, challengeId: string) => void; challengeLaunch?: { token: number; challengeId: string; strategyId: string } | null; onChallengeLaunchConsumed?: () => void; onRetry: () => void; onCreate: () => void; onExample: (id: ExampleId) => void; context?: "home" | "strategies" }) {
   const recent = [...strategies].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const [challengeOpen, setChallengeOpen] = useState(false);
   useEffect(() => {
