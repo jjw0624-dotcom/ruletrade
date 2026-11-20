@@ -1058,3 +1058,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .detail-bt-results th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 .detail-bt-results code { white-space: nowrap; }
 @media (max-width: 760px) { .detail-bt-config { grid-template-columns: 1fr; } }
+
+
+.challenge-iteration-banner {
+  position: fixed;
+  z-index: 36;
+  top: 62px;
+  left: 50%;
+  width: min(760px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 14px 12px 18px;
+  transform: translateX(-50%);
+  border: 1px solid #b9d6c5;
+  border-radius: 12px;
+  background: rgba(242, 249, 245, .97);
+  box-shadow: 0 10px 30px rgba(20, 55, 37, .15);
+}
+.challenge-iteration-banner div { display: grid; gap: 3px; }
+.challenge-iteration-banner strong { font-size: 13px; }
+.challenge-iteration-banner .primary-button { white-space: nowrap; }
