@@ -87,6 +87,8 @@ export default function App() {
   const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
   const [comparisonContext, setComparisonContext] = useState<{ comparisonId: string; context: ResearchContext } | null>(null);
   const [adoptionNotice, setAdoptionNotice] = useState<string | null>(null);
+  const [challengeIteration, setChallengeIteration] = useState<{ challengeId: string; strategyId: string } | null>(null);
+  const [challengeLaunch, setChallengeLaunch] = useState<{ token: number; challengeId: string; strategyId: string } | null>(null);
   const creationInFlight = useRef(false);
 
   const navigate = useCallback((next: AppRoute, preserveFocus = false) => {
@@ -222,17 +224,26 @@ export default function App() {
   const chooseStartingPoint = (id: ExampleId) => { setPickerOpen(false); void beginCreate(id); };
   return <AppShell route={route} strategyName={strategyName} recent={recent} navigate={navigate} onCreate={openPicker}>
     {route.page === "public" && <PublicView onExample={(exampleId) => void beginCreate(exampleId)} onHome={() => navigate({ page: "home" })} onCreate={openPicker} />}
-    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onOpenRun={(runId) => navigate({ page: "run", runId })} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
+    {(route.page === "home" || route.page === "strategies") && <HomeView context={route.page} status={listStatus === "idle" ? "loading" : listStatus} strategies={strategies} error={listError} onOpen={(strategyId) => navigate({ page: "strategy", strategyId })} onOpenRun={(runId) => navigate({ page: "run", runId })} onReviseChallenge={(strategyId, challengeId) => { setChallengeIteration({ strategyId, challengeId }); navigate({ page: "strategy", strategyId }); }} challengeLaunch={challengeLaunch} onChallengeLaunchConsumed={() => setChallengeLaunch(null)} onRetry={() => void loadList()} onCreate={openPicker} onExample={(exampleId) => void beginCreate(exampleId)} />}
     {route.page === "explore" && <ExploreView onOpen={(exampleId) => void beginCreate(exampleId)} onCreate={openPicker} />}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening strategy…</h1><p>Loading its saved rules.</p></div>}
     {(route.page === "example" || route.page === "strategy") && workspaceStatus === "error" && <StrategyLoadError message={workspaceError ?? "This strategy is unavailable."} onHome={() => navigate({ page: "home" })} />}
     {route.page === "example" && workspace && workspaceStatus === "loaded" && <section className="page legacy-example-entry"><span className="eyebrow">Example</span><h1>{workspace.example.title}</h1><p>This link now starts an ordinary saved Strategy in the shared Builder.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => navigate({ page: "explore" })}>Back to Explore</button><button className="primary-button" onClick={() => void beginCreate(workspace.example.id)}>Continue</button></div></section>}
-    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && workspace.detail && <StrategyWorkspaceEditor
-      bootstrap={workspace.bootstrap} example={workspace.example} detail={workspace.detail}
-      initialView={workspace.initialView ?? "overview"} confirmation={adoptionNotice}
-      onDirtyChange={setDirty} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus}
-      onOpenRun={(runId) => navigate({ page: "run", runId })}
-    />}
+    {route.page === "strategy" && workspace && workspaceStatus === "loaded" && workspace.detail && <>
+      {challengeIteration?.strategyId === route.strategyId && <aside className="challenge-iteration-banner" aria-label="Challenge iteration">
+        <div><span className="eyebrow">Challenge iteration</span><strong>Revise this strategy, save a new Revision, then evaluate it against the same problem.</strong></div>
+        <button type="button" className="primary-button" onClick={() => {
+          setChallengeLaunch({ ...challengeIteration, token: Date.now() });
+          navigate({ page: "home" });
+        }}>Return to challenge</button>
+      </aside>}
+      <StrategyWorkspaceEditor
+        bootstrap={workspace.bootstrap} example={workspace.example} detail={workspace.detail}
+        initialView={workspace.initialView ?? "overview"} confirmation={adoptionNotice}
+        onDirtyChange={setDirty} onHome={() => navigate({ page: "home" })} sourceFocus={sourceFocus}
+        onOpenRun={(runId) => navigate({ page: "run", runId })}
+      />
+    </>}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
     {route.page === "run" && runStatus === "loaded" && historicalRun && <ResultWorkspace key={historicalRun.id} run={historicalRun} strategyName={historicalRun.candidate_id ? "Candidate result" : "Historical backtest"} onBack={() => window.history.back()} researchContext={researchContext?.runId === historicalRun.id ? researchContext : null} onResearchContextChange={setResearchContext} onShowInStrategy={(revisionId, componentId, fieldPath, context) => void showInStrategy(revisionId, componentId, fieldPath, context)} onComparisonReady={(comparison, context) => { setResearchContext(context); setComparisonContext({ comparisonId: comparison.id, context }); navigate({ page: "comparison", comparisonId: comparison.id }); }} />}
