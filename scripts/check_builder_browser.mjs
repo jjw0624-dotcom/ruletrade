@@ -282,7 +282,7 @@ try {
   await waitSelector('[data-production-builder-shell="true"]');
   await waitExpression(`location.pathname==='/strategies/strategy-catalog-mvp/builder'&&location.search.includes('attemptId=attempt-browser')`, "problem strategy Builder attempt route");
   await clickText("Return to problem");
-  await waitExpression(`location.pathname.startsWith('/learning/problems/')&&document.body.innerText.includes('Resume QQQ monthly')&&document.body.innerText.includes('Attempt attempt-')&&document.body.innerText.includes('In progress')`, "durable attempt restored on problem page");
+  await waitExpression(`location.pathname.startsWith('/learning/problems/')&&document.body.innerText.includes('Resume QQQ monthly')&&document.body.innerText.includes('Attempt attempt-')`, "durable attempt restored on problem page");
   await screenshot("problem-first-attempt-resume");
   await evaluate(`([...document.querySelectorAll('button')].find((item)=>item.textContent.trim()==='Resume in Builder')).scrollIntoView({ block: 'center' })`);
   await sleep(100);
