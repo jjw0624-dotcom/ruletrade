@@ -88,7 +88,9 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   const selectedStrategy = strategies.find((item) => item.current_revision_id === revisionId) ?? null;
   const latestStrategy = latest ? strategies.find((item) => item.current_revision_id === latest.revision_id) ?? null : null;
   const activeAttempt = selectedStrategy
-    ? attempts.find((item) => item.strategy_id === selectedStrategy.id && item.status === "active") ?? null
+    ? attempts.find((item) => item.id === initialAttemptId && item.strategy_id === selectedStrategy.id && item.status === "active")
+      ?? attempts.find((item) => item.strategy_id === selectedStrategy.id && item.status === "active")
+      ?? null
     : null;
   const progress = useMemo(
     () => latest ? challengeProgress(latest, submissions) : null,
