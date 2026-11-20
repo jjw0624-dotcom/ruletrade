@@ -19,6 +19,7 @@ import { ComparisonWorkspace } from "./components/ComparisonWorkspace";
 import { StrategyWorkspaceEditor } from "./components/StrategyWorkspaceEditor";
 import type { ChallengeDefinition } from "./challengeApi";
 import { ChallengeHubDialog } from "./components/ChallengeHubDialog";
+import { ChallengeSubmissionView } from "./components/ChallengeSubmissionView";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 export type StrategyWorkspace = { bootstrap: EditorBootstrap; example: StrategyExample; detail?: StrategyDetail; initialView?: "overview" | "guided" };
@@ -281,11 +282,22 @@ export default function App() {
       onCreateStrategy={(challenge) => void openCatalogCreate(challenge)}
       onOpenStrategy={(strategyId) => navigate({ page: "strategy", strategyId })}
       onOpenRun={(runId) => navigate({ page: "run", runId })}
+      onOpenSubmission={(submissionId) => navigate({ page: "submission", submissionId })}
       onReviseStrategy={(strategyId, challengeId, feedback) => {
         const challengeKind = route.page === "learning" || route.page === "learningProblem" ? "learning" : "competition";
         setChallengeIteration({ strategyId, challengeId, challengeKind, feedback });
         navigate({ page: "builder", strategyId, challenge: { kind: challengeKind, challengeId } });
       }}
+    />}
+    {route.page === "submission" && <ChallengeSubmissionView
+      submissionId={route.submissionId}
+      onBack={() => window.history.back()}
+      onOpenChallenge={(challenge, strategyId) => navigate(challenge.kind === "learning"
+        ? { page: "learningProblem", problemId: challenge.id, strategyId }
+        : { page: "competition", competitionId: challenge.id, strategyId }
+      )}
+      onOpenRun={(runId) => navigate({ page: "run", runId })}
+      onOpenStrategy={(strategyId) => navigate({ page: "strategy", strategyId })}
     />}
     {route.page === "run" && runStatus === "loading" && <div className="page-state" role="status"><span className="loading-spinner" /><h1>Opening saved backtest…</h1><p>Loading the historical result without running it again.</p></div>}
     {route.page === "run" && runStatus === "error" && <div className="page-state error-state" role="alert"><h1>We couldn't open this backtest</h1><p>{runError}</p><button className="primary-button" onClick={() => navigate({ page: "home" })}>Back to My Strategies</button></div>}
