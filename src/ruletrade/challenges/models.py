@@ -81,6 +81,7 @@ class ChallengeSubmissionRecord(ChallengeModel):
     challenge_version: int = Field(ge=1)
     policy_version: int = Field(ge=1)
     revision_id: str
+    strategy_id: str | None = None
     run_id: str
     catalog_id: str | None = None
     catalog_parameters: dict[str, Any] = Field(default_factory=dict)
