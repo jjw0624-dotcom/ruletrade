@@ -60,6 +60,21 @@ class CreateChallengeSubmissionRequest(BaseModel):
     revision_id: str = Field(min_length=1)
 
 
+class ChallengeFeedback(ChallengeModel):
+    code: Literal[
+        "catalog_family",
+        "required_parameter",
+        "allowed_assets",
+        "max_total_orders",
+        "evaluation_failed",
+    ]
+    target: Literal["catalog", "parameter", "execution", "result"]
+    message: str
+    parameter: str | None = None
+    expected: Any | None = None
+    actual: Any | None = None
+
+
 class ChallengeSubmissionRecord(ChallengeModel):
     id: str
     challenge_id: str
@@ -71,6 +86,7 @@ class ChallengeSubmissionRecord(ChallengeModel):
     catalog_parameters: dict[str, Any] = Field(default_factory=dict)
     eligible: bool
     violations: tuple[str, ...] = ()
+    feedback: tuple[ChallengeFeedback, ...] = ()
     score: Decimal | None = None
     objective: ChallengeObjective
     created_at: datetime
