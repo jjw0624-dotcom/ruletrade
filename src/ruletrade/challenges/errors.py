@@ -16,3 +16,7 @@ class ChallengeSubmissionPersistenceError(ChallengeSubmissionError):
 
 class InvalidChallengeSubmissionError(ChallengeSubmissionError):
     code = "invalid_challenge_submission"
+
+    def __init__(self, message: str, *, feedback: tuple[object, ...] = ()) -> None:
+        super().__init__(message)
+        self.feedback = feedback
