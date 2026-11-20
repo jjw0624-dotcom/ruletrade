@@ -250,7 +250,7 @@ try {
   await evaluate(`history.pushState(null, '', '/submissions/submission-browser'); dispatchEvent(new PopStateEvent('popstate'))`);
   await waitSelector('[aria-label="Challenge submission detail"]');
   const submissionDetail = await evaluate(`document.body.innerText`);
-  if (!submissionDetail.includes("Official score") || !submissionDetail.includes("10%") || !submissionDetail.includes("revision-cat") || !submissionDetail.includes("Open Run evidence")) throw new Error(`Durable submission detail failed: ${submissionDetail}`);
+  if (!submissionDetail.toLowerCase().includes("official score") || !submissionDetail.includes("10%") || !submissionDetail.includes("revision-cat") || !submissionDetail.includes("Open Run evidence")) throw new Error(`Durable submission detail failed: ${submissionDetail}`);
   await screenshot("challenge-submission-detail");
   await send("Page.navigate", { url: "http://127.0.0.1:4173/browser-harness.html?journey=catalog-mvp" });
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home after submission");
