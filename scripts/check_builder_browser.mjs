@@ -449,6 +449,7 @@ try {
     const projectionEvidence = {};
     for (const [label, selector] of [["Guide", '[aria-label="Guided strategy editor"]'], ["Flow", '[aria-label="Flow capital projection"]'], ["Blocky", '.blocky-representation'], ["Rules", '[data-projection-contract="rules"]'], ["Code", '.code-representation[aria-label="Code representation"]']]) {
       await clickText(label); await waitSelector(selector);
+      if (label === "Flow") await waitExpression(`(document.querySelector(${JSON.stringify(selector)})?.innerText??'').trim()!=='React Flow'`, `${advanced.id} rendered Flow projection`);
       const projection = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText??''`);
       projectionEvidence[label] = projection;
       if (!projection.trim() || projection.includes("production Program lowering")) throw new Error(`${advanced.id} ${label} projection failed: ${projection}`);
