@@ -35,7 +35,10 @@ window.fetch = async (input, init) => {
   browserWindow.__RULETRADE_BROWSER_REQUESTS__ = [...(browserWindow.__RULETRADE_BROWSER_REQUESTS__ ?? []), { url, method: init?.method ?? "GET" }];
   if (journey === "catalog-mvp") {
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-    if (url === "/api/v1/strategies" && init?.method !== "POST") return json({ items: [] });
+    if (url === "/api/v1/strategies" && init?.method !== "POST") {
+      const state = window as typeof window & { __RULETRADE_CATALOG_CREATED__?: boolean };
+      return json({ items: state.__RULETRADE_CATALOG_CREATED__ ? [catalogDetail.strategy] : [] });
+    }
     if (url === "/api/v2/challenge-submissions/submission-browser") return json({
       id: "submission-browser", challenge_id: "learn-monthly-single-asset-v1",
       challenge_version: 1, policy_version: 1,
@@ -109,6 +112,7 @@ window.fetch = async (input, init) => {
     if (url === "/api/v1/strategies" && init?.method === "POST") {
       const request = JSON.parse(String(init.body ?? "{}"));
       if (request.name !== "QQQ monthly" || stableJson(request.canonical_strategy) !== stableJson(catalogCanonical)) return json({ detail: { message: "Catalog Canonical was not persisted unchanged." } }, 422);
+      (window as typeof window & { __RULETRADE_CATALOG_CREATED__?: boolean }).__RULETRADE_CATALOG_CREATED__ = true;
       return json(catalogDetail, 201);
     }
     if (url === "/api/v1/strategies/strategy-catalog-mvp") return json(catalogDetail);
