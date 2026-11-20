@@ -5,12 +5,12 @@ import type { StrategyRecord } from "../strategyApi";
 export function AppShell({ route, strategyName, recent, navigate, onCreate, children }: { route: AppRoute; strategyName?: string; recent: StrategyRecord[]; navigate: (route: AppRoute) => void; onCreate: () => void; children: ReactNode }) {
   if (route.page === "public") return <main className="app-shell">{children}</main>;
   if (route.page === "builder") return <main className="app-shell builder-shell">{children}</main>;
-  const libraryPage = ["home", "strategies", "explore", "example", "learning", "competitions"].includes(route.page);
+  const libraryPage = ["home", "strategies", "explore", "example", "learning", "learningProblem", "competitions", "competition"].includes(route.page);
   const section = route.page === "home" ? "Home"
     : route.page === "strategies" ? "My strategies"
     : route.page === "explore" ? "Explore"
-    : route.page === "learning" ? "Learning"
-    : route.page === "competitions" ? "Competitions"
+    : route.page === "learning" || route.page === "learningProblem" ? "Learning"
+    : route.page === "competitions" || route.page === "competition" ? "Competitions"
     : route.page === "strategy" ? "Strategy"
     : route.page === "research" ? "Research"
     : "Result";
@@ -22,7 +22,7 @@ export function AppShell({ route, strategyName, recent, navigate, onCreate, chil
     <button className={route.page === "home" ? "active" : ""} onClick={() => navigate({ page: "home" })}>Home</button>
     <button className={route.page === "explore" || route.page === "example" ? "active" : ""} onClick={() => navigate({ page: "explore" })}>Explore</button>
     <button className={route.page === "strategies" ? "active" : ""} onClick={() => navigate({ page: "strategies" })}>My strategies</button>
-    <button className={route.page === "learning" ? "active" : ""} onClick={() => navigate({ page: "learning" })}>Learning</button>
-    <button className={route.page === "competitions" ? "active" : ""} onClick={() => navigate({ page: "competitions" })}>Competitions</button>
+    <button className={route.page === "learning" || route.page === "learningProblem" ? "active" : ""} onClick={() => navigate({ page: "learning" })}>Learning</button>
+    <button className={route.page === "competitions" || route.page === "competition" ? "active" : ""} onClick={() => navigate({ page: "competitions" })}>Competitions</button>
   </nav>{recent.length > 0 && <section><span>Recent</span>{recent.slice(0, 5).map((strategy) => <button key={strategy.id} title={strategy.name} onClick={() => navigate({ page: "strategy", strategyId: strategy.id })}>{strategy.name}</button>)}</section>}</aside><div className="library-content">{children}</div></div> : children}</main>;
 }
