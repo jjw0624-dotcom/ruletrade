@@ -43,7 +43,7 @@ export function routeFromPath(pathname: string, search = ""): AppRoute {
     const params = new URLSearchParams(search);
     const kind = params.get("challengeKind");
     const challengeId = params.get("challengeId");
-    const challenge = (kind === "learning" || kind === "competition") && challengeId ? { kind, challengeId } : undefined;
+    const challenge: ChallengeContext | undefined = (kind === "learning" || kind === "competition") && challengeId ? { kind: kind as ChallengeKind, challengeId } : undefined;
     return { page: "builder", strategyId: decodeURIComponent(builder[1]), challenge };
   }
   const research = pathname.match(/^\/strategies\/([^/]+)\/research$/);
