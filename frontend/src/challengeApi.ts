@@ -109,10 +109,18 @@ export const challengeApi = {
     request<{ items: ChallengeSubmissionRecord[] }>(
       `/v2/challenges/${encodeURIComponent(challengeId)}/submissions`, {}, fetcher,
     ),
-  submit: (challengeId: string, revisionId: string, attemptId?: string, fetcher?: typeof fetch) =>
-    request<ChallengeSubmissionExecution>(
+  submit: (
+    challengeId: string,
+    revisionId: string,
+    attemptIdOrFetcher?: string | typeof fetch,
+    fetcher?: typeof fetch,
+  ) => {
+    const attemptId = typeof attemptIdOrFetcher === "string" ? attemptIdOrFetcher : undefined;
+    const resolvedFetcher = typeof attemptIdOrFetcher === "function" ? attemptIdOrFetcher : fetcher;
+    return request<ChallengeSubmissionExecution>(
       `/v2/challenges/${encodeURIComponent(challengeId)}/submissions`,
       jsonBody("POST", { revision_id: revisionId, ...(attemptId ? { attempt_id: attemptId } : {}) }),
-      fetcher,
-    ),
+      resolvedFetcher,
+    );
+  },
 };
