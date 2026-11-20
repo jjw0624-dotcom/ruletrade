@@ -21,17 +21,19 @@ function constraintSummary(challenge: ChallengeDefinition): string[] {
   return items;
 }
 
-export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOpenStrategy, onOpenRun, onReviseStrategy, initialChallengeId = "", initialStrategyId = "", presentation = "dialog", kind }: {
+export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOpenStrategy, onOpenRun, onReviseStrategy, onSelectChallenge, initialChallengeId = "", initialStrategyId = "", presentation = "dialog", kind, listOnly = false }: {
   strategies: StrategyRecord[];
   onClose: () => void;
   onCreateStrategy: (challenge: ChallengeDefinition) => void;
   onOpenStrategy: (strategyId: string) => void;
   onOpenRun: (runId: string) => void;
   onReviseStrategy: (strategyId: string, challengeId: string, feedback: string[]) => void;
+  onSelectChallenge?: (challenge: ChallengeDefinition) => void;
   initialChallengeId?: string;
   initialStrategyId?: string;
   presentation?: "dialog" | "page";
   kind?: "learning" | "competition";
+  listOnly?: boolean;
 }) {
   const [challenges, setChallenges] = useState<ChallengeDefinition[]>([]);
   const [selectedId, setSelectedId] = useState(initialChallengeId);
@@ -103,7 +105,8 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
   return <div className={presentation === "page" ? "challenge-page" : "modal-backdrop detail-bt-backdrop"} role={presentation === "page" ? undefined : "presentation"}><section className={presentation === "page" ? "page challenge-workspace" : "creation-picker detail-bt-dialog"} role={presentation === "page" ? "main" : "dialog"} aria-modal={presentation === "page" ? undefined : true} aria-labelledby="challenge-hub-title">
     <header><div><span className="eyebrow">Problem-first research</span><h2 id="challenge-hub-title">{pageTitle}</h2><p>Read the problem first, build or select a strategy, then submit an immutable saved Revision through the official LEAN pipeline.</p></div><button type="button" className={presentation === "page" ? "text-button" : "close-button"} aria-label={`Close ${pageTitle}`} onClick={onClose}>{presentation === "page" ? "← Home" : "×"}</button></header>
     {state === "loading" ? <div className="page-state" role="status"><span className="loading-spinner" /><h3>Loading challenges…</h3></div> : <>
-      <div className="challenge-problem-list" aria-label="Problem selection">{challenges.map((item) => <button type="button" key={item.id} aria-pressed={item.id === selectedId} className={item.id === selectedId ? "active" : ""} onClick={() => { setSelectedId(item.id); setState("ready"); setError(""); }}><span>{item.kind === "learning" ? "Learning problem" : "Competition"}</span><strong>{item.title}</strong><small>{item.difficulty}</small></button>)}</div>
+      <div className="challenge-problem-list" aria-label="Problem selection">{challenges.map((item) => <button type="button" key={item.id} aria-pressed={!listOnly && item.id === selectedId} className={!listOnly && item.id === selectedId ? "active" : ""} onClick={() => { if (onSelectChallenge) onSelectChallenge(item); else { setSelectedId(item.id); setState("ready"); setError(""); } }}><span>{item.kind === "learning" ? "Learning problem" : "Competition"}</span><strong>{item.title}</strong><small>{item.difficulty}</small></button>)}</div>
+      {!listOnly && <>
       {challenge && <section className="empty-state" aria-label="Challenge policy"><span className="eyebrow">{challenge.kind} · {challenge.difficulty} · policy v{challenge.policy.version}</span><h3>{challenge.title}</h3><p>{challenge.description}</p><ul>{constraintSummary(challenge).map((item) => <li key={item}>{item}</li>)}</ul><p>Objective: {challenge.policy.objective.direction} {challenge.policy.objective.metric.replace("_", " ")}</p><small>{challenge.policy.config.start_date} – {challenge.policy.config.end_date} · {challenge.policy.config.dataset_id}</small></section>}
       {strategies.length ? <label>Saved strategy<select aria-label="Challenge strategy" value={revisionId} onChange={(event) => setRevisionId(event.target.value)}>{strategies.map((item) => <option key={item.id} value={item.current_revision_id}>{item.name} · {item.current_revision_id.slice(0, 8)}</option>)}</select><small>The current immutable Revision is submitted. Unsaved Builder work is never used.</small></label> : <section className="empty-state"><h3>Create a strategy first</h3><p>Use the fixed Rules catalog, save it, then return here to submit its Revision.</p><button type="button" className="primary-button" disabled={!challenge} onClick={() => { if (challenge) onCreateStrategy(challenge); }}>Create constrained strategy</button></section>}
       {strategies.length > 0 && challenge && <div className="dialog-actions"><button type="button" className="text-button" onClick={() => onCreateStrategy(challenge)}>Create a new strategy for this problem</button></div>}
@@ -112,6 +115,7 @@ export function ChallengeHubDialog({ strategies, onClose, onCreateStrategy, onOp
       {error && <p className="form-error" role="alert">{error}</p>}
       {submissions.length > 0 && <div className="detail-bt-results"><h3>{challenge?.kind === "competition" ? "Leaderboard" : "Attempts"}</h3><table><thead><tr><th>Rank</th><th>Revision</th><th>Score</th><th>Change</th><th>Eligible</th><th>Run</th></tr></thead><tbody>{submissions.map((item, index) => { const itemProgress = challengeProgress(item, submissions); return <tr key={item.id}><td>{item.eligible ? index + 1 : "—"}</td><td>{item.revision_id.slice(0, 8)}</td><td>{item.score === null ? "—" : percent(item.score)}</td><td>{itemProgress ? <span className={`attempt-change ${itemProgress.outcome}`}>{itemProgress.delta > 0 ? "+" : ""}{percent(itemProgress.delta)}</span> : "—"}</td><td>{item.eligible ? "Yes" : "No"}</td><td><button type="button" className="text-button" onClick={() => onOpenRun(item.run_id)}>{item.run_id.slice(0, 8)}</button></td></tr>; })}</tbody></table></div>}
       <div className="dialog-actions">{presentation === "dialog" && <button type="button" className="secondary-button" onClick={onClose}>Close</button>}<button type="button" className="primary-button" disabled={!challenge || !selectedStrategy || state === "submitting"} onClick={() => void submit()}>{state === "submitting" ? "Evaluating with LEAN…" : `Submit to ${challenge?.kind === "competition" ? "Competition" : "Learning"}`}</button></div>
+      </>}
     </>}
   </section></div>;
 }
