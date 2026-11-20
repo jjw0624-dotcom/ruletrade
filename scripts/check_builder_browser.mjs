@@ -249,7 +249,9 @@ try {
   await waitExpression(`document.body.innerText.includes('What would you like to try?')`, "catalog MVP home");
   await clickText("Learning");
   await waitSelector('.challenge-workspace[aria-labelledby="challenge-hub-title"]');
-  await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "Learning challenge policy");
+  await waitExpression(`document.body.innerText.includes('Monthly allocation fundamentals')`, "Learning problem index");
+  await evaluate(`([...document.querySelectorAll(".challenge-problem-list button")].find((item)=>item.textContent.includes("Monthly allocation fundamentals"))).click()`);
+  await waitExpression(`location.pathname.startsWith('/learning/problems/')&&document.body.innerText.includes('Create constrained strategy')`, "Learning problem detail");
   await clickText("Create constrained strategy");
   await waitSelector('[aria-labelledby="catalog-title"]');
   const constrainedAuthoring = await evaluate(`(() => {
