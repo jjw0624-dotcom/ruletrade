@@ -65,6 +65,8 @@ describe("Production MVP frontend foundation", () => {
     expect(pathForRoute({ page: "learning" })).toBe("/learning");
     expect(pathForRoute({ page: "learningProblem", problemId: "loss cap", strategyId: "strategy 1" })).toBe("/learning/problems/loss%20cap?strategy=strategy%201");
     expect(routeFromPath("/learning/problems/loss%20cap", "?strategy=strategy%201")).toEqual({ page: "learningProblem", problemId: "loss cap", strategyId: "strategy 1" });
+    expect(pathForRoute({ page: "submission", submissionId: "submission 1" })).toBe("/submissions/submission%201");
+    expect(routeFromPath("/submissions/submission%201")).toEqual({ page: "submission", submissionId: "submission 1" });
     expect(pathForRoute({ page: "competitions" })).toBe("/competitions");
     expect(pathForRoute({ page: "competition", competitionId: "monthly-four" })).toBe("/competitions/monthly-four");
     expect(routeFromPath("/competitions/monthly-four")).toEqual({ page: "competition", competitionId: "monthly-four", strategyId: undefined });

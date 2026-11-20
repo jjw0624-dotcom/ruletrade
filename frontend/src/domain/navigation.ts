@@ -12,6 +12,7 @@ export type AppRoute =
   | { page: "learningProblem"; problemId: string; strategyId?: string }
   | { page: "competitions" }
   | { page: "competition"; competitionId: string; strategyId?: string }
+  | { page: "submission"; submissionId: string }
   | { page: "example"; exampleId: ExampleId }
   | { page: "strategy"; strategyId: string }
   | { page: "builder"; strategyId: string; challenge?: ChallengeContext }
@@ -34,6 +35,8 @@ export function routeFromPath(pathname: string, search = ""): AppRoute {
   if (pathname === "/competitions") return { page: "competitions" };
   const competition = pathname.match(/^\/competitions\/([^/]+)$/);
   if (competition) return { page: "competition", competitionId: decodeURIComponent(competition[1]), strategyId: strategyFromSearch(search) };
+  const submission = pathname.match(/^\/submissions\/([^/]+)$/);
+  if (submission) return { page: "submission", submissionId: decodeURIComponent(submission[1]) };
   const run = pathname.match(/^\/backtest-runs\/([^/]+)$/);
   if (run) return { page: "run", runId: decodeURIComponent(run[1]) };
   const comparison = pathname.match(/^\/comparisons\/([^/]+)$/);
@@ -69,6 +72,7 @@ export function pathForRoute(route: AppRoute): string {
   if (route.page === "learningProblem") return withStrategy(`/learning/problems/${encodeURIComponent(route.problemId)}`, route.strategyId);
   if (route.page === "competitions") return "/competitions";
   if (route.page === "competition") return withStrategy(`/competitions/${encodeURIComponent(route.competitionId)}`, route.strategyId);
+  if (route.page === "submission") return `/submissions/${encodeURIComponent(route.submissionId)}`;
   if (route.page === "example") return `/strategy/${route.exampleId}`;
   if (route.page === "strategy") return `/strategies/${encodeURIComponent(route.strategyId)}`;
   if (route.page === "builder") {

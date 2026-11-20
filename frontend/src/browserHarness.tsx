@@ -36,6 +36,28 @@ window.fetch = async (input, init) => {
   if (journey === "catalog-mvp") {
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
     if (url === "/api/v1/strategies" && init?.method !== "POST") return json({ items: [] });
+    if (url === "/api/v2/challenge-submissions/submission-browser") return json({
+      id: "submission-browser", challenge_id: "learn-monthly-single-asset-v1",
+      challenge_version: 1, policy_version: 1,
+      revision_id: "revision-catalog-mvp", strategy_id: "strategy-catalog-mvp",
+      run_id: "run-catalog-mvp", catalog_id: "single_asset_periodic",
+      catalog_parameters: { asset: "QQQ", timeframe: "monthly" },
+      eligible: true, violations: [], feedback: [], score: "0.1",
+      objective: { metric: "total_return", direction: "maximize" },
+      created_at: "2026-11-20T00:00:00Z",
+    });
+    if (url === "/api/v2/challenges/learn-monthly-single-asset-v1") return json({
+      id: "learn-monthly-single-asset-v1", version: 1, kind: "learning",
+      title: "Monthly allocation fundamentals",
+      description: "Create a constrained monthly single-asset strategy.",
+      difficulty: "beginner",
+      policy: {
+        version: 1,
+        config: { start_date: "2024-01-02", end_date: "2024-12-31", initial_cash: "100000", dataset_id: "filter-synthetic" },
+        objective: { metric: "total_return", direction: "maximize" },
+        constraints: { allowed_catalog_ids: ["single_asset_periodic"], allowed_assets: ["QQQ", "SPY"], required_parameters: { timeframe: "monthly" }, max_total_orders: 24 },
+      },
+    });
     if (url === "/api/v2/challenges") return json({ items: [{
       id: "learn-monthly-single-asset-v1", version: 1, kind: "learning",
       title: "Monthly allocation fundamentals",
